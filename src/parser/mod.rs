@@ -2,6 +2,7 @@
 
 pub mod archive;
 pub mod image;
+pub mod markdown;
 pub mod pdf;
 pub mod svg;
 pub mod text;
