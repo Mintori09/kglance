@@ -14,6 +14,7 @@ sevenz-rust = { version = "0.6", optional = true }
 slint = "1"
 zbus = "5"
 chrono = "0.4"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 
 [features]
 default = ["7z"]

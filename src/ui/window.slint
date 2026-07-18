@@ -1,0 +1,77 @@
+import { VerticalBox, HorizontalBox, ScrollView, Button, TextEdit } from "std-widgets.slint";
+
+export component PreviewWindow inherits Window {
+    in-out property<string> file-name;
+    in-out property<string> status-text;
+    in-out property<bool> is-visible;
+    in-out property<image> preview-image;
+    in-out property<string> text-content;
+    in-out property<string> tree-content;
+    in-out property<bool> show-text;
+    in-out property<bool> show-image;
+    in-out property<bool> show-tree;
+
+    callback hide-requested();
+
+    min-width: 600px;
+    min-height: 400px;
+
+    VerticalBox {
+        // Header bar
+        HorizontalBox {
+            padding: 8px;
+            spacing: 8px;
+            Text {
+                text: file-name;
+                font-weight: 700;
+                font-size: 14px;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+            }
+            Button {
+                text: "✕";
+                clicked => { hide-requested(); }
+            }
+        }
+
+        // Content area
+        ScrollView {
+            horizontal-stretch: 1;
+            vertical-stretch: 1;
+
+            if (show-text): TextEdit {
+                text: text-content;
+                read-only: true;
+                wrap: word-wrap;
+                font-family: "monospace";
+                font-size: 13px;
+            }
+            if (show-image): Image {
+                source: preview-image;
+                width: parent.width;
+                height: parent.height;
+                image-fit: contain;
+            }
+            if (show-tree): TextEdit {
+                text: tree-content;
+                read-only: true;
+                wrap: no-wrap;
+                font-family: "monospace";
+                font-size: 13px;
+            }
+        }
+
+        // Status bar
+        HorizontalBox {
+            padding-top: 4px;
+            padding-bottom: 4px;
+            padding-left: 8px;
+            padding-right: 8px;
+            Text {
+                text: status-text;
+                font-size: 12px;
+                color: gray;
+            }
+        }
+    }
+}
