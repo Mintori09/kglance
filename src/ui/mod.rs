@@ -29,6 +29,7 @@ impl PreviewWindow {
         self.ui.set_show_text(false);
         self.ui.set_show_image(false);
         self.ui.set_show_tree(false);
+        self.ui.set_show_markdown(false);
 
         match content {
             ParsedContent::Text { content, language, line_count } => {
@@ -86,6 +87,7 @@ impl PreviewWindow {
                     }
                     Err(_) => {
                         self.ui.set_text_content(content.as_str().into());
+                        self.ui.set_show_markdown(false);
                         self.ui.set_show_text(true);
                         self.ui.set_status_text("Markdown  |  parse error, showing plain text".into());
                     }
