@@ -55,6 +55,12 @@ pub struct ArchiveEntry {
 }
 
 #[derive(Debug)]
+pub struct ImageRef {
+    pub alt_text: String,
+    pub path: String,
+}
+
+#[derive(Debug)]
 pub enum ImageFormat {
     Png,
     Jpeg,
@@ -85,6 +91,10 @@ pub enum ParsedContent {
     },
     Folder {
         entries: Vec<DirEntry>,
+    },
+    Markdown {
+        content: String,
+        images: Vec<ImageRef>,
     },
 }
 

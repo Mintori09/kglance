@@ -77,6 +77,7 @@ impl PreviewWindow {
                 self.ui.set_show_tree(true);
                 self.ui.set_status_text(format!("Archive  |  {total_files} files").into());
             }
+            ParsedContent::Markdown { .. } => todo!(),
             ParsedContent::Folder { entries } => {
                 let tree = entries
                     .iter()
