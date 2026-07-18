@@ -17,6 +17,9 @@ zbus = "5"
 [build-dependencies]
 slint-build = "1"
 
+[dev-dependencies]
+tempfile = "3"
+
 [profile.release]
 lto = true
 opt-level = "z"

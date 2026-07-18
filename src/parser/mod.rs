@@ -1,5 +1,7 @@
 #![expect(dead_code)]
 
+pub mod text;
+
 use std::fmt;
 use std::path::Path;
 
