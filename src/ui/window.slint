@@ -10,6 +10,8 @@ export component PreviewWindow inherits Window {
     in-out property<bool> show-text;
     in-out property<bool> show-image;
     in-out property<bool> show-tree;
+    in-out property<bool> show-markdown;
+    in-out property<styled-text> styled-content;
 
     title: file-name;
     min-width: 600px;
@@ -41,6 +43,10 @@ export component PreviewWindow inherits Window {
                     wrap: no-wrap;
                     font-family: "monospace";
                     font-size: 13px;
+                }
+                StyledText {
+                    text: styled-content;
+                    visible: show-markdown;
                 }
             }
         }
