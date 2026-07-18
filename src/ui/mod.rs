@@ -79,16 +79,17 @@ impl PreviewWindow {
             }
             ParsedContent::Markdown { content, images } => {
                 match slint::StyledText::from_markdown(content) {
-                    Ok(st) => self.ui.set_styled_content(st),
+                    Ok(st) => {
+                        self.ui.set_styled_content(st);
+                        self.ui.set_show_markdown(true);
+                        self.ui.set_status_text(format!("Markdown  |  {} images", images.len()).into());
+                    }
                     Err(_) => {
                         self.ui.set_text_content(content.as_str().into());
                         self.ui.set_show_text(true);
                         self.ui.set_status_text("Markdown  |  parse error, showing plain text".into());
                     }
                 }
-                self.ui.set_show_markdown(true);
-                let img_count = images.len();
-                self.ui.set_status_text(format!("Markdown  |  {} images", img_count).into());
             }
             ParsedContent::Folder { entries } => {
                 let tree = entries
