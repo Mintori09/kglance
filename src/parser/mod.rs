@@ -94,7 +94,6 @@ pub enum ParsedContent {
     Folder {
         entries: Vec<DirEntry>,
     },
-    #[allow(dead_code)]
     Markdown {
         content: String,
         images: Vec<ImageRef>,

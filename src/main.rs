@@ -6,13 +6,13 @@ use std::sync::Arc;
 
 fn build_registry() -> parser::ParserRegistry {
     let mut r = parser::ParserRegistry::new();
+    r.register(Box::new(parser::markdown::MarkdownParser::new()));
     r.register(Box::new(parser::text::TextParser::new()));
     r.register(Box::new(parser::image::ImageParser));
     r.register(Box::new(parser::svg::SvgParser));
     r.register(Box::new(parser::pdf::PdfParser));
     r.register(Box::new(parser::archive::ArchiveParser));
     r.register(Box::new(parser::folder::FolderParser));
-    r.register(Box::new(parser::markdown::MarkdownParser::new()));
     r
 }
 
