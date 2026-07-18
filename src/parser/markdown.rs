@@ -152,3 +152,78 @@ impl PreviewParser for MarkdownParser {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn parses_basic_markdown() {
+        let mut tmp = tempfile::Builder::new()
+            .suffix(".md")
+            .tempfile()
+            .unwrap();
+        write!(tmp, "# Hello\n\nThis is **bold** and `code`").unwrap();
+        let parser = MarkdownParser::new();
+        let result = parser.parse(tmp.path()).unwrap();
+        match result {
+            ParsedContent::Markdown { content, images } => {
+                assert!(content.contains("Hello"));
+                assert!(images.is_empty());
+            }
+            _ => panic!("expected Markdown variant"),
+        }
+    }
+
+    #[test]
+    fn parses_code_block() {
+        let mut tmp = tempfile::Builder::new()
+            .suffix(".md")
+            .tempfile()
+            .unwrap();
+        write!(tmp, "```rust\nfn main() {{}}\n```").unwrap();
+        let parser = MarkdownParser::new();
+        let result = parser.parse(tmp.path()).unwrap();
+        match result {
+            ParsedContent::Markdown { content, .. } => {
+                assert!(content.contains("font"));
+            }
+            _ => panic!("expected Markdown variant"),
+        }
+    }
+
+    #[test]
+    fn extracts_images() {
+        let mut tmp = tempfile::Builder::new()
+            .suffix(".md")
+            .tempfile()
+            .unwrap();
+        write!(tmp, "![alt](image.png)").unwrap();
+        let parser = MarkdownParser::new();
+        let result = parser.parse(tmp.path()).unwrap();
+        match result {
+            ParsedContent::Markdown { content: _, images } => {
+                assert_eq!(images.len(), 1);
+                assert_eq!(images[0].alt_text, "alt");
+                assert!(images[0].path.ends_with("image.png"));
+            }
+            _ => panic!("expected Markdown variant"),
+        }
+    }
+
+    #[test]
+    fn supports_extension() {
+        let parser = MarkdownParser::new();
+        assert!(parser.is_supported(Path::new("test.md")));
+        assert!(parser.is_supported(Path::new("test.markdown")));
+        assert!(!parser.is_supported(Path::new("test.txt")));
+    }
+
+    #[test]
+    fn returns_error_for_nonexistent_file() {
+        let parser = MarkdownParser::new();
+        let result = parser.parse(Path::new("/nonexistent/file.md"));
+        assert!(result.is_err());
+    }
+}
