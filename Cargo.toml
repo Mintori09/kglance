@@ -10,9 +10,13 @@ resvg = "0.43"
 lopdf = "0.34"
 zip = "2"
 tar = "0.4"
-sevenz-rust = "0.6"
+sevenz-rust = { version = "0.6", optional = true }
 slint = "1"
 zbus = "5"
+
+[features]
+default = ["7z"]
+7z = ["sevenz-rust"]
 
 [build-dependencies]
 slint-build = "1"

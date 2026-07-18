@@ -1,5 +1,6 @@
 #![expect(dead_code)]
 
+pub mod archive;
 pub mod image;
 pub mod pdf;
 pub mod svg;
