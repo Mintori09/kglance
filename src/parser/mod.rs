@@ -1,5 +1,6 @@
 #![expect(dead_code)]
 
+pub mod image;
 pub mod text;
 
 use std::fmt;
