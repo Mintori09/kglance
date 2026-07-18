@@ -73,10 +73,6 @@ impl ArchiveParser {
 }
 
 impl PreviewParser for ArchiveParser {
-    fn name(&self) -> &'static str {
-        "archive"
-    }
-
     fn supported_extensions(&self) -> &[&str] {
         &["zip", "tar", "gz", "tgz", "xz", "txz", "7z"]
     }
@@ -84,7 +80,7 @@ impl PreviewParser for ArchiveParser {
     fn is_supported(&self, path: &Path) -> bool {
         path.extension()
             .and_then(|e| e.to_str())
-            .map(|e| self.supported_extensions().contains(&e))
+            .map(|e| self.supported_extensions().contains(&e.to_lowercase().as_str()))
             .unwrap_or(false)
     }
 

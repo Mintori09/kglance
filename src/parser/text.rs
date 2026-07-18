@@ -1,19 +1,16 @@
 use std::path::Path;
 use syntect::parsing::SyntaxSet;
-use syntect::highlighting::ThemeSet;
 
 use crate::parser::{PreviewParser, ParsedContent, ParseError};
 
 pub struct TextParser {
     syntax_set: SyntaxSet,
-    _theme_set: ThemeSet,
 }
 
 impl TextParser {
     pub fn new() -> Self {
         Self {
             syntax_set: SyntaxSet::load_defaults_newlines(),
-            _theme_set: ThemeSet::load_defaults(),
         }
     }
 }
@@ -25,10 +22,6 @@ impl Default for TextParser {
 }
 
 impl PreviewParser for TextParser {
-    fn name(&self) -> &'static str {
-        "text"
-    }
-
     fn supported_extensions(&self) -> &[&str] {
         &[
             "rs", "py", "js", "ts", "jsx", "tsx", "html", "css", "scss", "json",

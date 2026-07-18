@@ -1,4 +1,4 @@
-#![expect(dead_code)]
+
 
 pub mod archive;
 pub mod image;
@@ -34,7 +34,6 @@ impl fmt::Display for ParseError {
 impl std::error::Error for ParseError {}
 
 pub trait PreviewParser: Send + Sync {
-    fn name(&self) -> &'static str;
     fn supported_extensions(&self) -> &[&str];
     fn is_supported(&self, path: &Path) -> bool;
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError>;
@@ -62,7 +61,6 @@ pub enum ImageFormat {
     WebP,
     Gif,
     Bmp,
-    Svg,
 }
 
 #[derive(Debug)]
@@ -78,12 +76,8 @@ pub enum ParsedContent {
         height: u32,
         format: ImageFormat,
     },
-    Svg {
-        data: String,
-    },
     Pdf {
         page_count: u32,
-        pages: Vec<Vec<u8>>,
     },
     Archive {
         entries: Vec<ArchiveEntry>,
@@ -144,6 +138,15 @@ impl ParserRegistry {
             }
         }
 
+        if let Ok(content) = std::fs::read_to_string(path) {
+            let line_count = content.lines().count();
+            return Ok(ParsedContent::Text {
+                content,
+                language: "Plain Text".into(),
+                line_count,
+            });
+        }
+
         Err(ParseError::UnsupportedFormat)
     }
 }
@@ -161,9 +164,6 @@ mod tests {
     struct MockParser;
 
     impl PreviewParser for MockParser {
-        fn name(&self) -> &'static str {
-            "mock"
-        }
         fn supported_extensions(&self) -> &[&str] {
             &["mock"]
         }

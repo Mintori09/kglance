@@ -5,10 +5,6 @@ use crate::parser::{ImageFormat, ParseError, ParsedContent, PreviewParser};
 pub struct ImageParser;
 
 impl PreviewParser for ImageParser {
-    fn name(&self) -> &'static str {
-        "image"
-    }
-
     fn supported_extensions(&self) -> &[&str] {
         &["png", "jpg", "jpeg", "webp", "gif", "bmp", "ico"]
     }

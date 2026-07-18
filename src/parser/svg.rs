@@ -5,10 +5,6 @@ use crate::parser::{ImageFormat, ParseError, ParsedContent, PreviewParser};
 pub struct SvgParser;
 
 impl PreviewParser for SvgParser {
-    fn name(&self) -> &'static str {
-        "svg"
-    }
-
     fn supported_extensions(&self) -> &[&str] {
         &["svg"]
     }
@@ -49,7 +45,7 @@ impl PreviewParser for SvgParser {
             data: png_data,
             width: pixmap_size.width(),
             height: pixmap_size.height(),
-            format: ImageFormat::Svg,
+            format: ImageFormat::Png,
         })
     }
 }
@@ -75,7 +71,7 @@ mod tests {
             } => {
                 assert_eq!(width, 16);
                 assert_eq!(height, 16);
-                assert!(matches!(format, ImageFormat::Svg));
+                assert!(matches!(format, ImageFormat::Png));
             }
             _ => panic!("expected Image variant"),
         }

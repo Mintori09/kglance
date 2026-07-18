@@ -4,10 +4,6 @@ use crate::parser::{PreviewParser, ParsedContent, ParseError, DirEntry};
 pub struct FolderParser;
 
 impl PreviewParser for FolderParser {
-    fn name(&self) -> &'static str {
-        "folder"
-    }
-
     fn supported_extensions(&self) -> &[&str] {
         &[]
     }

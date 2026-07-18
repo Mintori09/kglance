@@ -5,10 +5,6 @@ use crate::parser::{ParseError, ParsedContent, PreviewParser};
 pub struct PdfParser;
 
 impl PreviewParser for PdfParser {
-    fn name(&self) -> &'static str {
-        "pdf"
-    }
-
     fn supported_extensions(&self) -> &[&str] {
         &["pdf"]
     }
@@ -31,7 +27,6 @@ impl PreviewParser for PdfParser {
 
         Ok(ParsedContent::Pdf {
             page_count,
-            pages: Vec::new(),
         })
     }
 }
@@ -74,10 +69,8 @@ mod tests {
         match result {
             ParsedContent::Pdf {
                 page_count,
-                pages,
             } => {
                 assert_eq!(page_count, 1);
-                assert!(pages.is_empty());
             }
             _ => panic!("expected Pdf variant"),
         }
