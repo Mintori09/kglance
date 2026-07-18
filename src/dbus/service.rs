@@ -26,7 +26,7 @@ impl DaemonService {
     }
 }
 
-#[interface(name = "org.mintori.KiviewRust")]
+#[interface(name = "org.mintori.Kglance")]
 impl DaemonService {
     async fn show_preview(&mut self, file_path: &str) -> zbus::fdo::Result<()> {
         let path = std::path::Path::new(file_path);

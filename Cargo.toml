@@ -27,12 +27,8 @@ slint-build = "1"
 tempfile = "3"
 
 [[bin]]
-name = "kiview-daemon"
+name = "kglance"
 path = "src/main.rs"
-
-[[bin]]
-name = "kiview-trigger"
-path = "src/bin/trigger.rs"
 
 [profile.release]
 lto = true

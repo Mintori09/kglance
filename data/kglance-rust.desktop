@@ -8,5 +8,5 @@ X-KDE-Priority=TopLevel
 [Desktop Action previewWithRust]
 Name=Quick Preview
 Icon=document-preview
-Exec=busctl --user call org.mintori.KiviewRust /org/mintori/KiviewRust org.mintori.KiviewRust ShowPreview s "%f"
+Exec=kglance "%f"
 X-KDE-Shortcuts=Space

@@ -13,14 +13,14 @@ pub struct PreviewWindow {
 }
 
 impl PreviewWindow {
-    pub fn new() -> Result<Self, Box<dyn Error>> {
+    pub fn new(standalone: bool) -> Result<Self, Box<dyn Error>> {
         let ui = generated::PreviewWindow::new()?;
-        let weak = ui.as_weak();
-        ui.on_hide_requested(move || {
-            if let Some(handle) = weak.upgrade() {
-                let _ = handle.window().hide();
-            }
-        });
+        if standalone {
+            ui.window().on_close_requested(move || {
+                let _ = slint::quit_event_loop();
+                slint::CloseRequestResponse::HideWindow
+            });
+        }
         Ok(Self { ui })
     }
 
@@ -32,8 +32,8 @@ impl PreviewWindow {
 
         match content {
             ParsedContent::Text { content, language, line_count } => {
-                self.ui.set_show_text(true);
                 self.ui.set_text_content(content.into());
+                self.ui.set_show_text(true);
                 self.ui.set_status_text(format!("{language}  |  {line_count} lines").into());
             }
             ParsedContent::Image { data, width, height, format } => {
@@ -54,26 +54,21 @@ impl PreviewWindow {
                     self.ui.set_preview_image(slint::Image::from_rgba8(buffer));
                 }
                 self.ui.set_show_image(true);
-                self.ui.set_status_text(format!("{format:?}  |  {width}×{height}").into());
-            }
-            ParsedContent::Svg { data } => {
-                self.ui.set_show_text(true);
-                self.ui.set_text_content(data.into());
-                self.ui.set_status_text("SVG".into());
+                self.ui.set_status_text(format!("{format:?}  |  {width}x{height}").into());
             }
             ParsedContent::Pdf { page_count, .. } => {
-                self.ui.set_show_text(true);
                 self.ui.set_text_content(
-                    format!("PDF document — {page_count} pages\n(rendering not yet supported)")
+                    format!("PDF document - {page_count} pages\n(rendering not yet supported)")
                         .into(),
                 );
+                self.ui.set_show_text(true);
                 self.ui.set_status_text(format!("PDF  |  {page_count} pages").into());
             }
             ParsedContent::Archive { entries, total_files } => {
                 let tree = entries
                     .iter()
                     .map(|e| {
-                        let prefix = if e.is_dir { "📁 " } else { "📄 " };
+                        let prefix = if e.is_dir { "[DIR] " } else { "[FILE] " };
                         format!("{}{}  ({} bytes)", prefix, e.path, e.size)
                     })
                     .collect::<Vec<_>>()
@@ -86,7 +81,7 @@ impl PreviewWindow {
                 let tree = entries
                     .iter()
                     .map(|e| {
-                        let icon = if e.is_dir { "📁 " } else { "📄 " };
+                        let icon = if e.is_dir { "[DIR] " } else { "" };
                         format!("{}{}  {}  {}", icon, e.name, e.modified, e.size)
                     })
                     .collect::<Vec<_>>()

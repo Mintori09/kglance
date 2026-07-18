@@ -16,6 +16,30 @@ fn build_registry() -> parser::ParserRegistry {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = std::env::args().collect();
+    match args.get(1).map(|s| s.as_str()) {
+        Some("daemon") => run_daemon(),
+        Some("--standalone") | Some("-s") => {
+            let path = args.get(2).ok_or("Usage: kglance --standalone <path>")?;
+            run_standalone(path)
+        }
+        Some(path) if !path.starts_with('-') => {
+            if send_via_dbus(path).is_ok() {
+                return Ok(());
+            }
+            run_standalone(path)
+        }
+        _ => {
+            eprintln!("Usage:");
+            eprintln!("  kglance daemon                Start preview daemon (autostart)");
+            eprintln!("  kglance <file-path>           Preview file (DBus or standalone)");
+            eprintln!("  kglance --standalone <path>   Force standalone preview");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     let registry = Arc::new(build_registry());
     let (tx, rx) = std::sync::mpsc::channel::<dbus::DaemonCommand>();
 
@@ -33,7 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let window = ui::PreviewWindow::new()?;
+    let window = ui::PreviewWindow::new(false)?;
 
     let rx = Arc::new(std::sync::Mutex::new(rx));
     let window_rc = std::rc::Rc::new(window);
@@ -67,6 +91,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn run_standalone(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let registry = build_registry();
+    let content = registry
+        .parse(std::path::Path::new(path))
+        .map_err(|e| format!("Cannot preview: {e}"))?;
+    let window = ui::PreviewWindow::new(true)?;
+    window.show(path, &content);
+    slint::run_event_loop()?;
+    Ok(())
+}
+
+fn send_via_dbus(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let status = std::process::Command::new("busctl")
+        .args([
+            "--user",
+            "call",
+            "org.mintori.Kglance",
+            "/org/mintori/Kglance",
+            "org.mintori.Kglance",
+            "ShowPreview",
+            "s",
+            path,
+        ])
+        .status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err("daemon not running".into())
+    }
+}
+
 async fn run_zbus(
     registry: Arc<parser::ParserRegistry>,
     tx: std::sync::mpsc::Sender<dbus::DaemonCommand>,
@@ -74,9 +129,9 @@ async fn run_zbus(
     let service = dbus::DaemonService::new(registry, tx);
     let _conn = zbus::connection::Builder::session()
         .map_err(|e| format!("session: {e}"))?
-        .name("org.mintori.KiviewRust")
+        .name("org.mintori.Kglance")
         .map_err(|e| format!("name: {e}"))?
-        .serve_at("/org/mintori/KiviewRust", service)
+        .serve_at("/org/mintori/Kglance", service)
         .map_err(|e| format!("serve_at: {e}"))?
         .build()
         .await
