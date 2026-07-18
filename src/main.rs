@@ -12,6 +12,7 @@ fn build_registry() -> parser::ParserRegistry {
     r.register(Box::new(parser::pdf::PdfParser));
     r.register(Box::new(parser::archive::ArchiveParser));
     r.register(Box::new(parser::folder::FolderParser));
+    r.register(Box::new(parser::markdown::MarkdownParser::new()));
     r
 }
 

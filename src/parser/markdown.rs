@@ -13,7 +13,6 @@ pub struct MarkdownParser {
     theme_set: ThemeSet,
 }
 
-#[allow(dead_code)]
 impl MarkdownParser {
     pub fn new() -> Self {
         Self {
@@ -27,7 +26,8 @@ impl MarkdownParser {
             .and_then(|l| self.syntax_set.find_syntax_by_token(l))
             .unwrap_or_else(|| self.syntax_set.find_syntax_plain_text());
 
-        let theme = &self.theme_set.themes["InspiredGitHub"];
+        let theme = self.theme_set.themes.get("InspiredGitHub")
+            .unwrap_or_else(|| &self.theme_set.themes["base16-ocean.dark"]);
 
         let mut highlighter = HighlightLines::new(syntax, theme);
         let mut highlighted = String::new();
@@ -79,6 +79,7 @@ impl PreviewParser for MarkdownParser {
         let mut output = String::new();
         let mut images: Vec<ImageRef> = Vec::new();
         let mut in_code_block = false;
+        let mut in_image = false;
         let mut code_block_lang: Option<String> = None;
         let mut code_block_text = String::new();
         let mut image_alt = String::new();
@@ -106,17 +107,21 @@ impl PreviewParser for MarkdownParser {
                         highlighted));
                 }
                 Event::Text(text) => {
-                    if in_code_block {
+                    if in_image {
+                        image_alt.push_str(&text);
+                    } else if in_code_block {
                         code_block_text.push_str(&text);
                     } else {
                         output.push_str(&text);
                     }
                 }
                 Event::Start(Tag::Image { link_type: _, dest_url, title: _, .. }) => {
+                    in_image = true;
                     image_url = dest_url.to_string();
                     image_alt.clear();
                 }
                 Event::End(TagEnd::Image) => {
+                    in_image = false;
                     let resolved = if image_url.starts_with('/') {
                         image_url.clone()
                     } else {
