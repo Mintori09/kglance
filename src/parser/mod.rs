@@ -5,6 +5,7 @@ pub mod image;
 pub mod pdf;
 pub mod svg;
 pub mod text;
+pub mod folder;
 
 use std::fmt;
 use std::path::Path;
@@ -113,6 +114,11 @@ impl ParserRegistry {
             return Err(ParseError::FileNotFound);
         }
         if path.is_dir() {
+            for parser in &self.parsers {
+                if parser.is_supported(path) {
+                    return parser.parse(path);
+                }
+            }
             return Err(ParseError::UnsupportedFormat);
         }
         let metadata = path.metadata().map_err(|_| ParseError::PermissionDenied)?;

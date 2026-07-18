@@ -13,6 +13,7 @@ tar = "0.4"
 sevenz-rust = { version = "0.6", optional = true }
 slint = "1"
 zbus = "5"
+chrono = "0.4"
 
 [features]
 default = ["7z"]
