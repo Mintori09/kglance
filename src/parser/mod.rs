@@ -86,3 +86,107 @@ pub enum ParsedContent {
         entries: Vec<DirEntry>,
     },
 }
+
+pub struct ParserRegistry {
+    parsers: Vec<Box<dyn PreviewParser>>,
+}
+
+impl ParserRegistry {
+    pub fn new() -> Self {
+        Self {
+            parsers: Vec::new(),
+        }
+    }
+
+    pub fn register(&mut self, parser: Box<dyn PreviewParser>) {
+        self.parsers.push(parser);
+    }
+
+    pub fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
+        if !path.exists() {
+            return Err(ParseError::FileNotFound);
+        }
+        if path.is_dir() {
+            return Err(ParseError::UnsupportedFormat);
+        }
+        let metadata = path.metadata().map_err(|_| ParseError::PermissionDenied)?;
+        if metadata.len() > 100 * 1024 * 1024 {
+            return Err(ParseError::TooLarge);
+        }
+
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .unwrap_or_default();
+
+        for parser in &self.parsers {
+            if parser.supported_extensions().contains(&ext.as_str()) {
+                return parser.parse(path);
+            }
+        }
+
+        for parser in &self.parsers {
+            if parser.is_supported(path) {
+                return parser.parse(path);
+            }
+        }
+
+        Err(ParseError::UnsupportedFormat)
+    }
+}
+
+impl Default for ParserRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MockParser;
+
+    impl PreviewParser for MockParser {
+        fn name(&self) -> &'static str {
+            "mock"
+        }
+        fn supported_extensions(&self) -> &[&str] {
+            &["mock"]
+        }
+        fn is_supported(&self, _path: &Path) -> bool {
+            true
+        }
+        fn parse(&self, _path: &Path) -> Result<ParsedContent, ParseError> {
+            Ok(ParsedContent::Text {
+                content: "mock".into(),
+                language: "plaintext".into(),
+                line_count: 1,
+            })
+        }
+    }
+
+    #[test]
+    fn registry_matches_by_extension() {
+        let mut registry = ParserRegistry::new();
+        registry.register(Box::new(MockParser));
+
+        let dir = std::env::temp_dir().join("kglance-test-mock");
+        let _ = std::fs::create_dir_all(&dir);
+        let file_path = dir.join("test.mock");
+        assert!(std::fs::write(&file_path, b"content").is_ok());
+
+        let result = registry.parse(&file_path);
+        assert!(result.is_ok());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn registry_returns_error_for_missing_file() {
+        let registry = ParserRegistry::new();
+        let result = registry.parse(Path::new("/nonexistent/file.xyz"));
+        assert!(matches!(result, Err(ParseError::FileNotFound)));
+    }
+}
