@@ -77,7 +77,19 @@ impl PreviewWindow {
                 self.ui.set_show_tree(true);
                 self.ui.set_status_text(format!("Archive  |  {total_files} files").into());
             }
-            ParsedContent::Markdown { .. } => todo!(),
+            ParsedContent::Markdown { content, images } => {
+                match slint::StyledText::from_markdown(content) {
+                    Ok(st) => self.ui.set_styled_content(st),
+                    Err(_) => {
+                        self.ui.set_text_content(content.as_str().into());
+                        self.ui.set_show_text(true);
+                        self.ui.set_status_text("Markdown  |  parse error, showing plain text".into());
+                    }
+                }
+                self.ui.set_show_markdown(true);
+                let img_count = images.len();
+                self.ui.set_status_text(format!("Markdown  |  {} images", img_count).into());
+            }
             ParsedContent::Folder { entries } => {
                 let tree = entries
                     .iter()
