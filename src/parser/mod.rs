@@ -56,6 +56,7 @@ pub struct ArchiveEntry {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ImageRef {
     pub alt_text: String,
     pub path: String,
@@ -93,6 +94,7 @@ pub enum ParsedContent {
     Folder {
         entries: Vec<DirEntry>,
     },
+    #[allow(dead_code)]
     Markdown {
         content: String,
         images: Vec<ImageRef>,

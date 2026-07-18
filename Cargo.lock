@@ -9,6 +9,7 @@ dependencies = [
  "chrono",
  "image",
  "lopdf",
+ "pulldown-cmark",
  "resvg 0.43.0",
  "sevenz-rust",
  "slint",
