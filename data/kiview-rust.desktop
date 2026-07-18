@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Service
+X-KDE-ServiceTypes=KonqPopupMenu/Plugin
+MimeType=all/allfiles;
+Actions=previewWithRust
+X-KDE-Priority=TopLevel
+
+[Desktop Action previewWithRust]
+Name=Quick Preview
+Icon=document-preview
+Exec=busctl --user call org.mintori.KiviewRust /org/mintori/KiviewRust org.mintori.KiviewRust ShowPreview s "%f"
+X-KDE-Shortcuts=Space

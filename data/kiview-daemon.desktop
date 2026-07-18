@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Kglance Preview Daemon
+Exec=/usr/bin/kiview-daemon
+Icon=document-preview
+Terminal=false
+X-KDE-autostart-after=panel

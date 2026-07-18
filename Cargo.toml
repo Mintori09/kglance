@@ -26,6 +26,14 @@ slint-build = "1"
 [dev-dependencies]
 tempfile = "3"
 
+[[bin]]
+name = "kiview-daemon"
+path = "src/main.rs"
+
+[[bin]]
+name = "kiview-trigger"
+path = "src/bin/trigger.rs"
+
 [profile.release]
 lto = true
 opt-level = "z"
