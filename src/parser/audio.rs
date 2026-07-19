@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use symphonia::core::formats::FormatOptions;
 use symphonia::core::formats::probe::Hint;
+use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 

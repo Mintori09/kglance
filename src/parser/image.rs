@@ -17,8 +17,13 @@ impl PreviewParser for ImageParser {
     }
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
-        let img = image::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        let mut file =
+            std::fs::File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        let mut data = Vec::new();
+        file.read_to_end(&mut data)
+            .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
+        let img = image::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
         let (width, height) = (img.width(), img.height());
         let format = match path.extension().and_then(|e| e.to_str()) {
             Some("png") => ImageFormat::Png,
@@ -29,14 +34,10 @@ impl PreviewParser for ImageParser {
             _ => ImageFormat::Png,
         };
 
-        let mut buf = std::io::Cursor::new(Vec::new());
-        img.write_to(&mut buf, image::ImageFormat::Png)
-            .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-
         let exif = extract_exif(path);
 
         Ok(ParsedContent::Image {
-            data: buf.into_inner(),
+            data,
             width,
             height,
             format,
@@ -61,7 +62,11 @@ fn extract_exif(path: &Path) -> Option<Box<ExifData>> {
     let gps_val = |tag: exif::Tag| {
         reader.get_field(tag, exif::In::PRIMARY).and_then(|f| {
             let v = f.value.display_as(f.tag).to_string();
-            if v.is_empty() { None } else { Some(v) }
+            if v.is_empty() {
+                None
+            } else {
+                Some(v)
+            }
         })
     };
 
@@ -91,6 +96,7 @@ mod tests {
         let result = parser.parse(tmp.path()).unwrap();
         match result {
             ParsedContent::Image {
+                data,
                 width,
                 height,
                 format,
@@ -99,6 +105,14 @@ mod tests {
                 assert_eq!(width, 2);
                 assert_eq!(height, 2);
                 assert!(matches!(format, ImageFormat::Png));
+
+                // Assert that the generated data can be decoded back to an image correctly
+                let decoded = image::load_from_memory(&data);
+                assert!(
+                    decoded.is_ok(),
+                    "Parsed image data could not be decoded: {:?}",
+                    decoded.err()
+                );
             }
             _ => panic!("expected Image variant"),
         }

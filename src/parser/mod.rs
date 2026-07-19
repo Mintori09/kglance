@@ -1,5 +1,5 @@
 pub mod archive;
-pub use archive::{ExtractedFile, extract_entry};
+pub use archive::{extract_entry, ExtractedFile};
 
 pub mod audio;
 pub mod folder;
@@ -12,6 +12,7 @@ pub mod svg;
 pub mod text;
 pub mod video;
 
+use crate::{log_debug, log_error, log_info};
 use std::fmt;
 use std::path::Path;
 
@@ -145,6 +146,7 @@ pub enum ParsedContent {
     Video {
         path: String,
         duration: f64,
+        thumbnail: Vec<u8>,
     },
     Audio {
         metadata: String,
@@ -182,15 +184,24 @@ impl ParserRegistry {
     }
 
     pub fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
+        let path_str = path.to_string_lossy();
+        log_info!("ParserRegistry: Parsing path: {}", path_str);
         if !path.exists() {
+            log_error!("ParserRegistry: File not found: {}", path_str);
             return Err(ParseError::FileNotFound);
         }
         if path.is_dir() {
+            log_info!("ParserRegistry: Path is a directory: {}", path_str);
             for parser in &self.parsers {
                 if parser.is_supported(path) {
+                    log_info!("ParserRegistry: Delegating to folder/directory parser");
                     return parser.parse(path);
                 }
             }
+            log_error!(
+                "ParserRegistry: No directory parser found for: {}",
+                path_str
+            );
             return Err(ParseError::UnsupportedFormat);
         }
         let ext = path
@@ -199,7 +210,14 @@ impl ParserRegistry {
             .map(|e| e.to_lowercase())
             .unwrap_or_default();
 
-        let metadata = path.metadata().map_err(|_| ParseError::PermissionDenied)?;
+        let metadata = path.metadata().map_err(|e| {
+            log_error!(
+                "ParserRegistry: Failed to read metadata for {}: {}",
+                path_str,
+                e
+            );
+            ParseError::PermissionDenied
+        })?;
         let limit = match ext.as_str() {
             // Video & Audio: 10 GB limit
             "mp4" | "mkv" | "avi" | "mov" | "wmv" | "webm" | "mp3" | "wav" | "flac" | "ogg"
@@ -218,23 +236,47 @@ impl ParserRegistry {
         };
 
         if metadata.len() > limit {
+            log_error!(
+                "ParserRegistry: File too large. Size: {}, Limit: {} for extension: {}",
+                human_size(metadata.len()),
+                human_size(limit),
+                ext
+            );
             return Err(ParseError::TooLarge);
         }
 
+        log_debug!("ParserRegistry: Matching by extension: .{}", ext);
         for parser in &self.parsers {
             if parser.supported_extensions().contains(&ext.as_str()) {
-                return parser.parse(path);
+                log_info!(
+                    "ParserRegistry: Found matching parser by extension for: .{}",
+                    ext
+                );
+                let start = std::time::Instant::now();
+                let res = parser.parse(path);
+                log_info!("ParserRegistry: Parsing completed in {:?}", start.elapsed());
+                return res;
             }
         }
 
+        log_debug!("ParserRegistry: Attempting fallback matching by content check");
         for parser in &self.parsers {
             if parser.is_supported(path) {
-                return parser.parse(path);
+                log_info!("ParserRegistry: Found fallback parser by is_supported check");
+                let start = std::time::Instant::now();
+                let res = parser.parse(path);
+                log_info!("ParserRegistry: Parsing completed in {:?}", start.elapsed());
+                return res;
             }
         }
 
+        log_debug!("ParserRegistry: Falling back to plain text read");
         if let Ok(content) = std::fs::read_to_string(path) {
             let line_count = content.lines().count();
+            log_info!(
+                "ParserRegistry: Read file as plain text ({} lines)",
+                line_count
+            );
             return Ok(ParsedContent::Text {
                 content,
                 language: "Plain Text".into(),
@@ -243,6 +285,10 @@ impl ParserRegistry {
             });
         }
 
+        log_error!(
+            "ParserRegistry: Unsupported format and cannot be read as plain text: {}",
+            path_str
+        );
         Err(ParseError::UnsupportedFormat)
     }
 }

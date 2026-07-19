@@ -123,7 +123,7 @@ fn extract_docx_text(xml: &str) -> String {
 }
 
 fn try_xlsx_direct(path: &str) -> Result<String, ParseError> {
-    use calamine::{Reader, Xlsx, open_workbook};
+    use calamine::{open_workbook, Reader, Xlsx};
 
     let mut workbook: Xlsx<_> = match open_workbook(path) {
         Ok(w) => w,
