@@ -1,74 +1,79 @@
 import { VerticalBox } from "std-widgets.slint";
 import { Header } from "./components/header.slint";
-import { ContentArea, TableRow, SlintTableRow, SlintMarkdownBlock } from "./components/content_area.slint";
+import {
+    ContentArea,
+    TableRow,
+    SlintTableRow,
+    SlintMarkdownBlock,
+} from "./components/content_area.slint";
 import { StatusBar } from "./components/status_bar.slint";
 import { AppTheme } from "./theme.slint";
 export { AppTheme } from "./theme.slint";
 
 export component PreviewWindow inherits Window {
-    in-out property<string> file-name;
-    in-out property<string> title-text;
-    in-out property<string> status-text;
-    in-out property<image> preview-image;
-    in-out property<string> text-content;
-    in-out property<bool> show-text;
-    in-out property<bool> show-highlighted;
-    in-out property<bool> show-image;
-    in-out property<bool> show-markdown;
-    in-out property<bool> show-table;
-    in-out property<[TableRow]> table-data;
-    in-out property<[SlintMarkdownBlock]> markdown-blocks;
-    in-out property<styled-text> styled-content;
-    in-out property<string> line-numbers-content;
-    in-out property<bool> show-pdf-nav;
-    in-out property<int> pdf-current-page;
-    in-out property<int> pdf-page-count;
-    in-out property<bool> show-video;
-    in-out property<bool> show-audio;
-    in-out property<bool> show-office;
-    in-out property<bool> show-font;
-    in-out property<string> audio-metadata;
-    in-out property<image> audio-waveform;
-    in-out property<bool> video-playing;
-    in-out property<string> video-time;
-    in-out property<float> video-progress;
-    in-out property<int> office-page;
-    in-out property<image> font-sample;
-    in-out property<string> file-size-text;
-    in-out property<string> file-modified-text;
-    in-out property<string> file-type-text;
-    in-out property<bool> show-file-info;
-    in-out property<bool> content-ready: true;
+    in-out property <string> file-name;
+    in-out property <string> title-text;
+    in-out property <string> status-text;
+    in-out property <image> preview-image;
+    in-out property <string> text-content;
+    in-out property <bool> show-text;
+    in-out property <bool> show-highlighted;
+    in-out property <bool> show-image;
+    in-out property <bool> show-markdown;
+    in-out property <bool> show-table;
+    in-out property <[TableRow]> table-data;
+    in-out property <[SlintMarkdownBlock]> markdown-blocks;
+    in-out property <styled-text> styled-content;
+    in-out property <string> line-numbers-content;
+    in-out property <bool> show-pdf-nav;
+    in-out property <int> pdf-current-page;
+    in-out property <int> pdf-page-count;
+    in-out property <bool> show-video;
+    in-out property <bool> show-audio;
+    in-out property <bool> show-office;
+    in-out property <bool> show-font;
+    in-out property <string> audio-metadata;
+    in-out property <image> audio-waveform;
+    in-out property <bool> video-playing;
+    in-out property <string> video-time;
+    in-out property <float> video-progress;
+    in-out property <int> office-page;
+    in-out property <image> font-sample;
+    in-out property <string> file-size-text;
+    in-out property <string> file-modified-text;
+    in-out property <string> file-type-text;
+    in-out property <bool> show-file-info;
+    in-out property <bool> content-ready: true;
 
-    in-out property<bool> show-back-button;
+    in-out property <bool> show-back-button;
 
     // --- Phase 3: Image interaction ---
-    in-out property<float> image-zoom: 1.0;
-    in-out property<int> image-rotation: 0;
-    in-out property<float> image-pan-x: 0.0;
-    in-out property<float> image-pan-y: 0.0;
-    in-out property<bool> show-exif-sidebar;
-    in-out property<string> exif-content;
+    in-out property <float> image-zoom: 1.0;
+    in-out property <int> image-rotation: 0;
+    in-out property <float> image-pan-x: 0.0;
+    in-out property <float> image-pan-y: 0.0;
+    in-out property <bool> show-exif-sidebar;
+    in-out property <string> exif-content;
 
     // --- Phase 3: Navigation history ---
-    in-out property<bool> can-go-back;
-    in-out property<bool> can-go-forward;
+    in-out property <bool> can-go-back;
+    in-out property <bool> can-go-forward;
 
     // --- Phase 3: Multi-file ---
-    in-out property<bool> has-prev-file;
-    in-out property<bool> has-next-file;
+    in-out property <bool> has-prev-file;
+    in-out property <bool> has-next-file;
 
     // --- Phase 3: Text interaction ---
-    in-out property<bool> show-text-search;
-    in-out property<string> text-search-query;
-    in-out property<string> text-search-info;
-    in-out property<bool> text-wrap: true;
+    in-out property <bool> show-text-search;
+    in-out property <string> text-search-query;
+    in-out property <string> text-search-info;
+    in-out property <bool> text-wrap: true;
 
     // --- Phase 3: PDF ---
-    in-out property<float> pdf-zoom: 1.0;
-    in-out property<image> pdf-scroll-image;
-    in-out property<int> pdf-thumb-count;
-    in-out property<int> pdf-thumb-current;
+    in-out property <float> pdf-zoom: 1.0;
+    in-out property <image> pdf-scroll-image;
+    in-out property <int> pdf-thumb-count;
+    in-out property <int> pdf-thumb-current;
 
     // --- Callbacks ---
     callback open-clicked();
@@ -82,7 +87,6 @@ export component PreviewWindow inherits Window {
     callback seek-clicked(float);
     callback seek-relative-clicked(float);
     callback close-requested();
-
 
     // Image
     callback image-zoom-in();
@@ -128,11 +132,21 @@ export component PreviewWindow inherits Window {
             pdf-current-page: root.pdf-current-page;
             pdf-page-count: root.pdf-page-count;
 
-            open-clicked => { root.open-clicked(); }
-            copy-path-clicked => { root.copy-path-clicked(); }
-            prev-page-clicked => { root.prev-page-clicked(); }
-            next-page-clicked => { root.next-page-clicked(); }
-            back-clicked => { root.back-clicked(); }
+            open-clicked => {
+                root.open-clicked();
+            }
+            copy-path-clicked => {
+                root.copy-path-clicked();
+            }
+            prev-page-clicked => {
+                root.prev-page-clicked();
+            }
+            next-page-clicked => {
+                root.next-page-clicked();
+            }
+            back-clicked => {
+                root.back-clicked();
+            }
         }
 
         ContentArea {
@@ -167,21 +181,43 @@ export component PreviewWindow inherits Window {
             image-pan-y: root.image-pan-y;
             show-exif-sidebar: root.show-exif-sidebar;
             exif-content: root.exif-content;
-            image-zoom-in => { root.image-zoom-in(); }
-            image-zoom-out => { root.image-zoom-out(); }
-            image-rotate-l => { root.image-rotate-l(); }
-            image-rotate-r => { root.image-rotate-r(); }
-            image-reset => { root.image-reset(); }
-            image-drag-moved(dx, dy) => { root.image-drag-moved(dx, dy); }
-            image-drag-started(x, y) => { root.image-drag-started(x, y); }
-            image-drag-finished => { root.image-drag-finished(); }
-            image-scroll-zoom(dy) => { root.image-scroll-zoom(dy); }
+            image-zoom-in => {
+                root.image-zoom-in();
+            }
+            image-zoom-out => {
+                root.image-zoom-out();
+            }
+            image-rotate-l => {
+                root.image-rotate-l();
+            }
+            image-rotate-r => {
+                root.image-rotate-r();
+            }
+            image-reset => {
+                root.image-reset();
+            }
+            image-drag-moved(dx, dy) => {
+                root.image-drag-moved(dx, dy);
+            }
+            image-drag-started(x, y) => {
+                root.image-drag-started(x, y);
+            }
+            image-drag-finished => {
+                root.image-drag-finished();
+            }
+            image-scroll-zoom(dy) => {
+                root.image-scroll-zoom(dy);
+            }
 
             // Multi-file
             has-prev-file: root.has-prev-file;
             has-next-file: root.has-next-file;
-            prev-file-clicked => { root.prev-file-clicked(); }
-            next-file-clicked => { root.next-file-clicked(); }
+            prev-file-clicked => {
+                root.prev-file-clicked();
+            }
+            next-file-clicked => {
+                root.next-file-clicked();
+            }
 
             // Text interaction
             show-text-search: root.show-text-search;
@@ -189,16 +225,36 @@ export component PreviewWindow inherits Window {
             text-search-info: root.text-search-info;
             text-wrap: root.text-wrap;
 
-            sort-by-field-clicked(field) => { root.sort-by-field-clicked(field); }
-            file-clicked(index) => { root.file-clicked(index); }
-            play-pause-clicked => { root.play-pause-clicked(); }
-            seek-clicked(pos) => { root.seek-clicked(pos); }
-            seek-relative-clicked(seconds) => { root.seek-relative-clicked(seconds); }
-            text-search-next => { root.text-search-next(); }
-            text-search-prev => { root.text-search-prev(); }
-            text-search-closed => { root.text-search-closed(); }
-            text-wrap-toggled => { root.text-wrap-toggled(); }
-            copy-content-clicked => { root.copy-content-clicked(); }
+            sort-by-field-clicked(field) => {
+                root.sort-by-field-clicked(field);
+            }
+            file-clicked(index) => {
+                root.file-clicked(index);
+            }
+            play-pause-clicked => {
+                root.play-pause-clicked();
+            }
+            seek-clicked(pos) => {
+                root.seek-clicked(pos);
+            }
+            seek-relative-clicked(seconds) => {
+                root.seek-relative-clicked(seconds);
+            }
+            text-search-next => {
+                root.text-search-next();
+            }
+            text-search-prev => {
+                root.text-search-prev();
+            }
+            text-search-closed => {
+                root.text-search-closed();
+            }
+            text-wrap-toggled => {
+                root.text-wrap-toggled();
+            }
+            copy-content-clicked => {
+                root.copy-content-clicked();
+            }
         }
 
         StatusBar {
@@ -254,8 +310,8 @@ export component PreviewWindow inherits Window {
                     return accept;
                 }
             }
-            // Escape: close search or hide
-            if (KeyEvent.text == "\u{1b}") {
+            // Escape or Backspace: close search or hide
+            if (KeyEvent.text == "\u{1b}" || KeyEvent.text == " ") {
                 if (root.show-text-search) {
                     root.text-search-closed();
                     return accept;
