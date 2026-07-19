@@ -1,37 +1,81 @@
 [package]
-name = "Kglance"
+name = "kglance"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-syntect = { version = "5", default-features = false, features = ["default-onig"] }
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp"] }
-resvg = "0.43"
-lopdf = "0.34"
-pulldown-cmark = "0.13"
-zip = "2"
-tar = "0.4"
-sevenz-rust = { version = "0.6", optional = true }
-slint = "1"
-zbus = "5"
-chrono = "0.4"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+syntect = { version = "5.3.0", default-features = false, features = [
+  "default-onig",
+  "default-syntaxes",
+  "default-themes",
+] }
+image = { version = "0.25.10", default-features = false, features = [
+  "png",
+  "jpeg",
+  "webp",
+  "gif",
+  "bmp",
+] }
+kamadak-exif = "0.6.1"
+resvg = "0.47"
+
+mupdf = { version = "0.8", default-features = false, features = [
+  "img",
+  "system-fonts",
+  "base14-fonts",
+  "brotli",
+] }
+pulldown-cmark = "0.13.4"
+zip = "8.6.0"
+tar = "0.4.46"
+sevenz-rust = { version = "0.6.1", optional = true }
+slint = "1.17.1"
+zbus = "5.18.0"
+chrono = "0.4.45"
+tokio = { version = "1.53.0", features = ["rt-multi-thread", "macros", "time"] }
+tempfile = "3.27.0"
+mpv = "0.2.3"
+symphonia = { version = "0.6", default-features = false, features = [
+  "mp3",
+  "vorbis",
+  "flac",
+  "wav",
+  "aac",
+  "isomp4",
+  "ogg",
+  "mkv",
+] }
+rodio = { version = "0.22", default-features = false, features = [
+  "mp3",
+  "vorbis",
+  "flac",
+  "wav",
+] }
+docx-rs = "0.4"
+calamine = "0.36"
+fontdue = "0.9"
+imageproc = "0.25"
 
 [features]
 default = ["7z"]
 7z = ["sevenz-rust"]
 
 [build-dependencies]
-slint-build = "1"
+slint-build = "1.17.1"
 
 [dev-dependencies]
-tempfile = "3"
+criterion = { version = "0.8.2", features = ["html_reports"] }
+tempfile = "3.27.0"
+
+[[bench]]
+name = "parser_bench"
+harness = false
 
 [[bin]]
 name = "kglance"
 path = "src/main.rs"
 
 [profile.release]
-lto = true
-opt-level = "z"
+lto = "thin"
+opt-level = 3
 strip = true

@@ -1,5 +1,5 @@
+use crate::parser::{DirEntry, ParseError, ParsedContent, PreviewParser};
 use std::path::Path;
-use crate::parser::{PreviewParser, ParsedContent, ParseError, DirEntry};
 
 pub struct FolderParser;
 
@@ -14,22 +14,23 @@ impl PreviewParser for FolderParser {
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
         let mut entries = Vec::new();
-        let dir = std::fs::read_dir(path)
-            .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        let dir = std::fs::read_dir(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
         for entry in dir {
-            let entry = entry
-                .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-            let metadata = entry.metadata()
+            let entry = entry.map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+            let metadata = entry
+                .metadata()
                 .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
             entries.push(DirEntry {
                 name: entry.file_name().to_string_lossy().to_string(),
                 is_dir: metadata.is_dir(),
                 size: metadata.len(),
-                modified: chrono::DateTime::<
-                    chrono::Local,
-                >::from(metadata.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH))
+                modified: chrono::DateTime::<chrono::Local>::from(
+                    metadata
+                        .modified()
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH),
+                )
                 .format("%Y-%m-%d %H:%M")
                 .to_string(),
             });

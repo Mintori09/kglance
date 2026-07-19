@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Service
 X-KDE-ServiceTypes=KonqPopupMenu/Plugin
-MimeType=all/allfiles;
+MimeType=all/all;
 Actions=previewWithRust
 X-KDE-Priority=TopLevel
 
@@ -9,4 +9,4 @@ X-KDE-Priority=TopLevel
 Name=Quick Preview
 Icon=document-preview
 Exec=kglance "%f"
-X-KDE-Shortcuts=Space
+X-KDE-Shortcuts=Meta+Space

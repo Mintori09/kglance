@@ -1,4 +1,4 @@
-use std::sync::{mpsc, Arc};
+use std::sync::{Arc, mpsc};
 
 use zbus::interface;
 
@@ -31,12 +31,8 @@ impl DaemonService {
     async fn show_preview(&mut self, file_path: &str) -> zbus::fdo::Result<()> {
         let path = std::path::Path::new(file_path);
         let content = self.parser_registry.parse(path).map_err(|e| match e {
-            ParseError::FileNotFound => {
-                zbus::fdo::Error::Failed("File not found".into())
-            }
-            ParseError::PermissionDenied => {
-                zbus::fdo::Error::Failed("Permission denied".into())
-            }
+            ParseError::FileNotFound => zbus::fdo::Error::Failed("File not found".into()),
+            ParseError::PermissionDenied => zbus::fdo::Error::Failed("Permission denied".into()),
             ParseError::UnsupportedFormat => {
                 zbus::fdo::Error::Failed("Unsupported file format".into())
             }

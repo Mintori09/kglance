@@ -17,19 +17,16 @@ impl PreviewParser for SvgParser {
     }
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
-        let svg_data = std::fs::read_to_string(path)
-            .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        let svg_data =
+            std::fs::read_to_string(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
         let opt = resvg::usvg::Options::default();
         let rtree = resvg::usvg::Tree::from_str(&svg_data, &opt)
             .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
         let pixmap_size = rtree.size().to_int_size();
-        let mut pixmap = resvg::tiny_skia::Pixmap::new(
-            pixmap_size.width(),
-            pixmap_size.height(),
-        )
-        .ok_or_else(|| ParseError::ParseFailed("invalid SVG dimensions".into()))?;
+        let mut pixmap = resvg::tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height())
+            .ok_or_else(|| ParseError::ParseFailed("invalid SVG dimensions".into()))?;
 
         resvg::render(
             &rtree,
@@ -46,6 +43,7 @@ impl PreviewParser for SvgParser {
             width: pixmap_size.width(),
             height: pixmap_size.height(),
             format: ImageFormat::Png,
+            exif: None,
         })
     }
 }
@@ -57,17 +55,17 @@ mod tests {
     #[test]
     fn parses_svg() {
         let svg_content = r#"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="red"/></svg>"#;
-        let mut tmp = tempfile::Builder::new()
-            .suffix(".svg")
-            .tempfile()
-            .unwrap();
+        let mut tmp = tempfile::Builder::new().suffix(".svg").tempfile().unwrap();
         use std::io::Write;
         write!(tmp, "{svg_content}").unwrap();
         let parser = SvgParser;
         let result = parser.parse(tmp.path()).unwrap();
         match result {
             ParsedContent::Image {
-                width, height, format, ..
+                width,
+                height,
+                format,
+                ..
             } => {
                 assert_eq!(width, 16);
                 assert_eq!(height, 16);
@@ -87,10 +85,7 @@ mod tests {
 
     #[test]
     fn returns_error_for_invalid_svg() {
-        let mut tmp = tempfile::Builder::new()
-            .suffix(".svg")
-            .tempfile()
-            .unwrap();
+        let mut tmp = tempfile::Builder::new().suffix(".svg").tempfile().unwrap();
         use std::io::Write;
         write!(tmp, "not valid svg content").unwrap();
         let parser = SvgParser;
