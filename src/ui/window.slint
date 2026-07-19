@@ -1,6 +1,6 @@
 import { VerticalBox } from "std-widgets.slint";
 import { Header } from "./components/header.slint";
-import { ContentArea, TableRow } from "./components/content_area.slint";
+import { ContentArea, TableRow, SlintTableRow, SlintMarkdownBlock } from "./components/content_area.slint";
 import { StatusBar } from "./components/status_bar.slint";
 import { AppTheme } from "./theme.slint";
 export { AppTheme } from "./theme.slint";
@@ -17,6 +17,7 @@ export component PreviewWindow inherits Window {
     in-out property<bool> show-markdown;
     in-out property<bool> show-table;
     in-out property<[TableRow]> table-data;
+    in-out property<[SlintMarkdownBlock]> markdown-blocks;
     in-out property<styled-text> styled-content;
     in-out property<string> line-numbers-content;
     in-out property<bool> show-pdf-nav;
@@ -30,6 +31,7 @@ export component PreviewWindow inherits Window {
     in-out property<image> audio-waveform;
     in-out property<bool> video-playing;
     in-out property<string> video-time;
+    in-out property<float> video-progress;
     in-out property<int> office-page;
     in-out property<image> font-sample;
     in-out property<string> file-size-text;
@@ -78,6 +80,9 @@ export component PreviewWindow inherits Window {
     callback back-clicked();
     callback play-pause-clicked();
     callback seek-clicked(float);
+    callback seek-relative-clicked(float);
+    callback close-requested();
+
 
     // Image
     callback image-zoom-in();
@@ -145,11 +150,13 @@ export component PreviewWindow inherits Window {
             preview-image: root.preview-image;
             styled-content: root.styled-content;
             table-data: root.table-data;
+            markdown-blocks: root.markdown-blocks;
             line-numbers-content: root.line-numbers-content;
             audio-metadata: root.audio-metadata;
             audio-waveform: root.audio-waveform;
             video-playing: root.video-playing;
             video-time: root.video-time;
+            video-progress: root.video-progress;
             office-page: root.office-page;
             font-sample: root.font-sample;
 
@@ -186,6 +193,7 @@ export component PreviewWindow inherits Window {
             file-clicked(index) => { root.file-clicked(index); }
             play-pause-clicked => { root.play-pause-clicked(); }
             seek-clicked(pos) => { root.seek-clicked(pos); }
+            seek-relative-clicked(seconds) => { root.seek-relative-clicked(seconds); }
             text-search-next => { root.text-search-next(); }
             text-search-prev => { root.text-search-prev(); }
             text-search-closed => { root.text-search-closed(); }
@@ -204,10 +212,22 @@ export component PreviewWindow inherits Window {
 
     global-focus := FocusScope {
         key-pressed(KeyEvent) => {
+            if (KeyEvent.text == " " && root.show-video) {
+                root.play-pause-clicked();
+                return accept;
+            }
             if (KeyEvent.text == "\u{f702}" || KeyEvent.text == "k") {
-                // Left / k: previous page (PDF) or navigate back
+                // Left / k: previous page (PDF), prev file, or navigate back
+                if (root.show-video) {
+                    root.seek-relative-clicked(-5.0);
+                    return accept;
+                }
                 if (root.show-pdf-nav) {
                     root.prev-page-clicked();
+                    return accept;
+                }
+                if (root.has-prev-file && !root.show-table) {
+                    root.prev-file-clicked();
                     return accept;
                 }
                 if (root.can-go-back) {
@@ -216,8 +236,17 @@ export component PreviewWindow inherits Window {
                 }
             }
             if (KeyEvent.text == "\u{f703}" || KeyEvent.text == "j") {
+                // Right / j: next page (PDF), next file, or navigate forward
+                if (root.show-video) {
+                    root.seek-relative-clicked(5.0);
+                    return accept;
+                }
                 if (root.show-pdf-nav) {
                     root.next-page-clicked();
+                    return accept;
+                }
+                if (root.has-next-file && !root.show-table) {
+                    root.next-file-clicked();
                     return accept;
                 }
                 if (root.can-go-forward) {
@@ -231,6 +260,8 @@ export component PreviewWindow inherits Window {
                     root.text-search-closed();
                     return accept;
                 }
+                root.close-requested();
+                return accept;
             }
             // Ctrl+F: toggle text search
             if (KeyEvent.text == "\u{6}" && root.show-text) {

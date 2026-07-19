@@ -3,8 +3,8 @@ import { AppTheme } from "../theme.slint";
 import { ToolbarButton } from "./common.slint";
 import { ExifPanel } from "./exif_panel.slint";
 import { ImageToolbar } from "./image_toolbar.slint";
-import { NavBar } from "./nav_bar.slint";
 import { SearchBar } from "./search_bar.slint";
+
 
 export struct TableRow {
     name: string,
@@ -12,6 +12,19 @@ export struct TableRow {
     modified: string,
     size: string,
     path: string,
+}
+
+export struct SlintTableRow {
+    cells: [string],
+}
+
+export struct SlintMarkdownBlock {
+    is_table: bool,
+    is_image: bool,
+    text_content: styled-text,
+    image_content: image,
+    table_rows: [SlintTableRow],
+    col_count: int,
 }
 
 
@@ -29,6 +42,7 @@ export component ContentArea inherits ScrollView {
     in-out property<string> text-content;
     in-out property<styled-text> styled-content;
     in-out property<[TableRow]> table-data;
+    in-out property<[SlintMarkdownBlock]> markdown-blocks;
     in-out property<string> line-numbers-content;
     in-out property<string> audio-metadata;
     in-out property<image> audio-waveform;
@@ -56,6 +70,8 @@ export component ContentArea inherits ScrollView {
     in-out property<string> text-search-info;
     in-out property<bool> text-wrap: true;
 
+    in-out property<float> video-progress;
+
     callback sort-by-field-clicked(int);
     callback file-clicked(int);
     callback play-pause-clicked();
@@ -71,6 +87,10 @@ export component ContentArea inherits ScrollView {
     callback image-drag-started(float, float);
     callback image-drag-finished();
     callback image-scroll-zoom(float);
+
+
+    // Video
+    callback seek-relative-clicked(float);
 
     // Multi-file
     callback prev-file-clicked();
@@ -98,8 +118,8 @@ export component ContentArea inherits ScrollView {
 
     container := VerticalBox {
         opacity: 0.0;
-        padding: 12px;
-        spacing: 8px;
+        padding: 0px;
+        spacing: 0px;
 
         // ===== TEXT PREVIEW =====
         if (show-text) : VerticalBox {
@@ -131,18 +151,7 @@ export component ContentArea inherits ScrollView {
                     horizontal-stretch: 1;
                 }
             }
-            HorizontalBox {
-                spacing: 4px;
-                padding: 2px;
 
-                ToolbarButton { icon-text: "📋"; width: 24px; height: 24px; clicked => { root.copy-content-clicked(); } }
-                ToolbarButton {
-                    icon-text: "↩";
-                    width: 24px; height: 24px;
-                    icon-color: root.text-wrap ? AppTheme.header-hover : AppTheme.text-muted;
-                    clicked => { root.text-wrap-toggled(); }
-                }
-            }
         }
 
         // ===== HIGHLIGHTED TEXT =====
@@ -173,155 +182,324 @@ export component ContentArea inherits ScrollView {
                     horizontal-stretch: 1;
                 }
             }
-            HorizontalBox {
-                spacing: 4px;
-                padding: 2px;
 
-                ToolbarButton { icon-text: "📋"; width: 24px; height: 24px; clicked => { root.copy-content-clicked(); } }
-                ToolbarButton {
-                    icon-text: "↩";
-                    width: 24px; height: 24px;
-                    icon-color: root.text-wrap ? AppTheme.header-hover : AppTheme.text-muted;
-                    clicked => { root.text-wrap-toggled(); }
+        }
+
+// ===== IMAGE PREVIEW =====
+if (show-image) : VerticalBox {
+    padding: 0px;
+    spacing: 0px;
+    vertical-stretch: 1;
+
+    HorizontalBox {
+        padding: 0px;
+        spacing: 8px;
+        horizontal-stretch: 1;
+        vertical-stretch: 1;
+
+        Rectangle {
+            horizontal-stretch: 1;
+            background: transparent;
+        }
+
+        img-area := Rectangle {
+            clip: true;
+
+    preferred-width: 800px;
+    preferred-height: 800px;
+
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+
+            background: AppTheme.row-even;
+            border-radius: 4px;
+            border-width: 1px;
+            border-color: AppTheme.border;
+
+            in-out property<bool> dragging: false;
+            in-out property<float> drag-last-x: 0.0;
+            in-out property<float> drag-last-y: 0.0;
+
+            img-touch := TouchArea {
+                scroll-event(e) => {
+                    root.image-scroll-zoom(e.delta_y / 1px);
+                    return accept;
+                }
+
+                pointer-event(e) => {
+                    if (e.kind == PointerEventKind.down) {
+                        img-area.dragging = true;
+                        img-area.drag-last-x = self.mouse-x / 1px;
+                        img-area.drag-last-y = self.mouse-y / 1px;
+
+                        root.image-drag-started(
+                            self.mouse-x / 1px,
+                            self.mouse-y / 1px
+                        );
+                    } else if (
+                        e.kind == PointerEventKind.move
+                        && img-area.dragging
+                    ) {
+                        root.image-drag-moved(
+                            self.mouse-x / 1px - img-area.drag-last-x,
+                            self.mouse-y / 1px - img-area.drag-last-y
+                        );
+
+                        img-area.drag-last-x = self.mouse-x / 1px;
+                        img-area.drag-last-y = self.mouse-y / 1px;
+                    } else if (e.kind == PointerEventKind.up) {
+                        img-area.dragging = false;
+                        root.image-drag-finished();
+                    }
+                }
+            }
+
+            Image {
+                source: preview-image;
+
+                x: root.image-pan-x * 1px;
+                y: root.image-pan-y * 1px;
+
+                width: parent.width * root.image-zoom;
+                height: parent.height * root.image-zoom;
+
+                transform-rotation: root.image-rotation * 1deg;
+                image-fit: contain;
+            }
+
+            // Toolbar nổi
+            Rectangle {
+                x: (parent.width - self.width) / 2;
+                y: 12px;
+
+                height: 40px;
+
+                background: #1a1a1acc;
+                border-radius: 6px;
+                border-width: 1px;
+                border-color: #ffffff1a;
+
+                opacity:
+                    (img-touch.has-hover || toolbar-touch.has-hover)
+                    ? 1.0
+                    : 0.0;
+
+                visible: self.opacity > 0.0;
+
+                animate opacity {
+                    duration: 150ms;
+                    easing: ease-out;
+                }
+
+                toolbar-touch := TouchArea {}
+
+                ImageToolbar {
+                    zoom-in => {
+                        root.image-zoom-in();
+                    }
+
+                    zoom-out => {
+                        root.image-zoom-out();
+                    }
+
+                    rotate-l => {
+                        root.image-rotate-l();
+                    }
+
+                    rotate-r => {
+                        root.image-rotate-r();
+                    }
+
+                    reset-view => {
+                        root.image-reset();
+                    }
                 }
             }
         }
 
-        // ===== IMAGE PREVIEW =====
-        if (show-image) : VerticalBox {
-            spacing: 4px;
-            ImageToolbar {
-                zoom-in => { root.image-zoom-in(); }
-                zoom-out => { root.image-zoom-out(); }
-                rotate-l => { root.image-rotate-l(); }
-                rotate-r => { root.image-rotate-r(); }
-                reset-view => { root.image-reset(); }
-            }
-            HorizontalBox {
-                spacing: 8px;
-                horizontal-stretch: 1;
-                vertical-stretch: 1;
+        // Spacer phải để căn giữa ảnh
+        Rectangle {
+            horizontal-stretch: 1;
+            background: transparent;
+        }
 
-                img-area := Rectangle {
-                    clip: true;
+        if (show-exif-sidebar) : ExifPanel {
+            exif-text: root.exif-content;
+        }
+    }
+}
+        if (show-markdown) : VerticalBox {
+            padding: 16px;
+            spacing: 12px;
+
+            for block in markdown-blocks : VerticalBox {
+                spacing: 6px;
+                if (!block.is-table && !block.is-image) : StyledText {
+                    text: block.text-content;
+                    default-font-family: "sans-serif";
+                    default-font-size: 14px;
                     horizontal-stretch: 1;
-                    vertical-stretch: 1;
-                    background: AppTheme.row-even;
-                    border-radius: 4px;
+                }
+                if (block.is-image) : Image {
+                    source: block.image-content;
+                    image-fit: contain;
+                    horizontal-stretch: 1;
+                }
+                if (block.is-table) : Rectangle {
                     border-width: 1px;
                     border-color: AppTheme.border;
+                    border-radius: 4px;
+                    clip: true;
 
-                    in-out property<bool> dragging: false;
-                    in-out property<float> drag-last-x: 0.0;
-                    in-out property<float> drag-last-y: 0.0;
+                    VerticalBox {
+                        spacing: 0px;
+                        padding: 0px;
 
-                    img-touch := TouchArea {
-                        scroll-event(e) => {
-                            root.image-scroll-zoom(e.delta_y / 1px);
-                            return accept;
-                        }
-                        pointer-event(e) => {
-                            if (e.kind == PointerEventKind.down) {
-                                img-area.dragging = true;
-                                img-area.drag-last-x = self.mouse-x / 1px;
-                                img-area.drag-last-y = self.mouse-y / 1px;
-                                root.image-drag-started(self.mouse-x / 1px, self.mouse-y / 1px);
-                            } else if (e.kind == PointerEventKind.move && img-area.dragging) {
-                                root.image-drag-moved(self.mouse-x / 1px - img-area.drag-last-x, self.mouse-y / 1px - img-area.drag-last-y);
-                                img-area.drag-last-x = self.mouse-x / 1px;
-                                img-area.drag-last-y = self.mouse-y / 1px;
-                            } else if (e.kind == PointerEventKind.up) {
-                                img-area.dragging = false;
-                                root.image-drag-finished();
+                    for row[r-idx] in block.table-rows : Rectangle {
+                        background: (r-idx == 0) ? AppTheme.header-hover : ((Math.mod(r-idx, 2) == 0) ? AppTheme.row-even : AppTheme.row-odd);
+                        height: row-layout.preferred-height;
+
+                        row-layout := HorizontalLayout {
+                            spacing: 0px;
+
+                            for cell in row.cells : Rectangle {
+                                border-width: 0.5px;
+                                border-color: AppTheme.border;
+                                background: transparent;
+                                horizontal-stretch: 1;
+
+                                HorizontalLayout {
+                                    padding: 6px;
+                                    Text {
+                                        text: cell;
+                                        color: (r-idx == 0) ? AppTheme.text : AppTheme.text-muted;
+                                        font-size: 13px;
+                                        font-weight: (r-idx == 0) ? 700 : 400;
+                                        wrap: word-wrap;
+                                        vertical-alignment: center;
+                                    }
+                                }
                             }
                         }
                     }
-
-                    Image {
-                        source: preview-image;
-                        x: root.image-pan-x * 1px;
-                        y: root.image-pan-y * 1px;
-                        width: parent.width * root.image-zoom;
-                        height: parent.height * root.image-zoom;
-                        transform-rotation: root.image-rotation * 1deg;
-                        image-fit: contain;
                     }
                 }
-                if (show-exif-sidebar) : ExifPanel {
-                    exif-text: root.exif-content;
-                }
-            }
-        }
-
-        // ===== MARKDOWN =====
-        if (show-markdown) : VerticalBox {
-            padding: 16px;
-
-            StyledText {
-                text: styled-content;
-
-                default-font-family: "sans-serif";
-                default-font-size: 14px;
-
-                horizontal-stretch: 1;
             }
         }
 
         // ===== VIDEO =====
         if (show-video) : VerticalBox {
-            padding: 12px;
-            spacing: 8px;
+            padding: 0px;
+            spacing: 0px;
+            vertical-stretch: 1;
+
             Rectangle {
-                height: 300px;
                 background: #000;
                 border-radius: 4px;
-                Text {
-                    text: "Video (libmpv)";
+                clip: true; 
+                vertical-stretch: 1;
+
+                Image {
+                    source: root.preview-image;
+                    width: 100%;
+                    height: 100%;
+                    image-fit: contain; 
+                }
+
+                if (root.video-time == "") : Text {
+                    text: "Loading video info...";
                     color: #fff;
                     font-size: 14px;
                     x: (parent.width - self.width) / 2;
                     y: (parent.height - self.height) / 2;
                 }
-            }
-            HorizontalBox {
-                alignment: center;
-                spacing: 12px;
-                ta-play := TouchArea {
-                    width: 40px; height: 40px;
-                    clicked => { root.play-pause-clicked(); }
-                    Rectangle {
-                        background: ta-play.has-hover ? AppTheme.row-hover : AppTheme.row-even;
-                        border-radius: 20px;
-                        width: 40px; height: 40px;
-                        Text {
-                            text: root.video-playing ? "⏸" : "▶";
-                            font-size: 20px;
-                            x: (parent.width - self.width) / 2;
-                            y: (parent.height - self.height) / 2;
-                        }
+
+                video-touch := TouchArea {
+                    clicked => {
+                        root.play-pause-clicked();
                     }
-                }
-                Text {
-                    text: root.video-time;
-                    color: AppTheme.text-muted;
-                    font-size: 12px;
+                    scroll-event(e) => {
+                        if (e.delta-y > 0) {
+                            root.seek-relative-clicked(5.0);
+                        } else if (e.delta-y < 0) {
+                            root.seek-relative-clicked(-5.0);
+                        }
+                        return accept;
+                    }
                 }
 
                 Rectangle {
-                    height: 4px;
-                    border-radius: 2px;
-                    background: AppTheme.border;
-                    horizontal-stretch: 1;
+                    y: parent.height - self.height - 12px;
+                    x: 12px;
+                    width: parent.width - 24px;
+                    height: 48px;
+                    background: #1a1a1acc;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #ffffff1a;
+                    opacity: (video-touch.has-hover || controls-touch.has-hover || ta-seek.has-hover || ta-play.has-hover) ? 1.0 : 0.0;
+                    visible: self.opacity > 0.0;
 
-                    ta-seek := TouchArea {
-                        clicked => {
-                            root.seek-clicked(self.mouse-x / self.width);
-                        }
+                    animate opacity { duration: 150ms; easing: ease-out; }
+
+                    controls-touch := TouchArea {
+                        width: 100%;
+                        height: 100%;
                     }
-                    Rectangle {
-                        height: 4px;
-                        background: AppTheme.header-hover;
-                        width: parent.width * 0.0;
+
+                    HorizontalBox {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        padding-top: 8px;
+                        padding-bottom: 8px;
+                        spacing: 12px;
+
+                        ta-play := TouchArea {
+                            width: 32px; height: 32px;
+                            clicked => { root.play-pause-clicked(); }
+                            Rectangle {
+                                background: ta-play.has-hover ? #ffffff2a : #ffffff10;
+                                border-radius: 16px;
+                                width: 32px; height: 32px;
+                                Text {
+                                    text: root.video-playing ? "⏸" : "▶";
+                                    font-size: 16px;
+                                    color: #fff;
+                                    x: (parent.width - self.width) / 2;
+                                    y: (parent.height - self.height) / 2;
+                                }
+                            }
+                        }
+
+                        Text {
+                            text: root.video-time;
+                            color: #fff;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                        }
+
+                        Rectangle {
+                            height: 6px;
+                            border-radius: 3px;
+                            background: #ffffff33;
+                            horizontal-stretch: 1;
+
+                            ta-seek := TouchArea {
+                                pointer-event(e) => {
+                                    if (e.kind == PointerEventKind.down || (e.kind == PointerEventKind.move && self.pressed)) {
+                                        root.seek-clicked(self.mouse-x / self.width);
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                x: 0px;
+                                height: 6px;
+                                border-radius: 3px;
+                                background: #3498db; 
+                                width: parent.width * root.video-progress;
+                            }
+                        }
                     }
                 }
             }
@@ -476,12 +654,9 @@ export component ContentArea inherits ScrollView {
             }
         }
 
-        // ===== Multi-file navigation =====
-        if (show-image || show-text || show-highlighted || show-video || show-audio) : NavBar {
-            has-prev: root.has-prev-file;
-            has-next: root.has-next-file;
-            prev-clicked => { root.prev-file-clicked(); }
-            next-clicked => { root.next-file-clicked(); }
+        // Spacer to push content to the top and prevent vertical stretching
+        Rectangle {
+            background: transparent;
         }
     }
 }
