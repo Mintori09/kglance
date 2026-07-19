@@ -1,0 +1,52 @@
+import { HorizontalBox } from "std-widgets.slint";
+import { AppTheme } from "../theme.slint";
+
+export component StatusBar inherits Rectangle {
+    in-out property<string> status-text;
+    in-out property<bool> show-file-info;
+    in-out property<string> file-type-text;
+    in-out property<string> file-size-text;
+    in-out property<string> file-modified-text;
+
+    background: AppTheme.status-bg;
+    height: 24px;
+
+    HorizontalBox {
+        padding-top: 2px;
+        padding-bottom: 2px;
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 4px;
+
+        Text {
+            text: status-text;
+            font-size: 12px;
+            color: AppTheme.text-faint;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        if (show-file-info) : HorizontalBox {
+            padding: 0;
+            spacing: 12px;
+            Text {
+                text: file-type-text;
+                font-size: 12px;
+                color: AppTheme.text-muted;
+                vertical-alignment: center;
+            }
+            Text {
+                text: file-size-text;
+                font-size: 12px;
+                color: AppTheme.text-faint;
+                vertical-alignment: center;
+            }
+            Text {
+                text: file-modified-text;
+                font-size: 12px;
+                color: AppTheme.text-faint;
+                vertical-alignment: center;
+            }
+        }
+    }
+}

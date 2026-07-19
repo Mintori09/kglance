@@ -1,0 +1,48 @@
+import { HorizontalBox, LineEdit } from "std-widgets.slint";
+import { AppTheme } from "../theme.slint";
+import { ToolbarButton } from "./common.slint";
+
+export component SearchBar inherits Rectangle {
+    in-out property<string> query;
+    in-out property<string> info;
+    callback searched();
+    callback next();
+    callback prev();
+    callback closed();
+
+    background: AppTheme.status-bg;
+    border-radius: 4px;
+    horizontal-stretch: 1;
+
+    HorizontalBox {
+        spacing: 4px;
+        padding: 4px;
+
+        LineEdit {
+            text: query;
+            horizontal-stretch: 1;
+            placeholder-text: "Find in text...";
+            font-size: 13px;
+            edited => {
+                query = self.text;
+                searched();
+            }
+            accepted => {
+                query = self.text;
+                searched();
+            }
+        }
+        Text {
+            text: info;
+            font-size: 12px;
+            color: AppTheme.text-muted;
+            vertical-alignment: center;
+            min-width: 50px;
+            horizontal-alignment: center;
+        }
+
+        ToolbarButton { icon-text: "▲"; width: 24px; height: 24px; clicked => { prev(); } }
+        ToolbarButton { icon-text: "▼"; width: 24px; height: 24px; clicked => { next(); } }
+        ToolbarButton { icon-text: "✕"; width: 24px; height: 24px; icon-color: AppTheme.text-muted; clicked => { closed(); } }
+    }
+}

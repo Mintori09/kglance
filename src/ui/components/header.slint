@@ -1,0 +1,63 @@
+import { HorizontalBox, Button } from "std-widgets.slint";
+import { AppTheme } from "../theme.slint";
+
+export component Header inherits HorizontalBox {
+    in-out property<string> title-text;
+    in-out property<bool> show-pdf-nav;
+    in-out property<bool> show-back-button;
+    in-out property<int> pdf-current-page;
+    in-out property<int> pdf-page-count;
+
+    callback open-clicked();
+    callback copy-path-clicked();
+    callback prev-page-clicked();
+    callback next-page-clicked();
+    callback back-clicked();
+
+    padding-top: 8px;
+    padding-bottom: 8px;
+    padding-left: 12px;
+    padding-right: 12px;
+    spacing: 8px;
+    vertical-stretch: 0;
+
+    Text {
+        text: title-text;
+        font-size: 15px;
+        font-weight: 700;
+        horizontal-stretch: 1;
+        vertical-alignment: center;
+        overflow: elide;
+        color: AppTheme.text;
+    }
+    if (show-back-button) : Button {
+        text: "← Back";
+        clicked => { back-clicked(); }
+    }
+    if (show-pdf-nav) : HorizontalBox {
+        spacing: 4px;
+        Button {
+            text: "◀";
+            clicked => { prev-page-clicked(); }
+        }
+        Text {
+            text: pdf-current-page + " / " + pdf-page-count;
+            font-size: 13px;
+            color: AppTheme.text-muted;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
+        Button {
+            text: "▶";
+            clicked => { next-page-clicked(); }
+        }
+    }
+    Button {
+        text: "Copy Path";
+        clicked => { copy-path-clicked(); }
+    }
+    Button {
+        text: "Open by default";
+        clicked => { open-clicked(); }
+    }
+}

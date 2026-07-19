@@ -1,66 +1,267 @@
-import { VerticalBox, HorizontalBox, ScrollView } from "std-widgets.slint";
+import { VerticalBox } from "std-widgets.slint";
+import { Header } from "./components/header.slint";
+import { ContentArea, TableRow } from "./components/content_area.slint";
+import { StatusBar } from "./components/status_bar.slint";
+import { AppTheme } from "./theme.slint";
+export { AppTheme } from "./theme.slint";
 
 export component PreviewWindow inherits Window {
     in-out property<string> file-name;
+    in-out property<string> title-text;
     in-out property<string> status-text;
-    in-out property<bool> is-visible;
     in-out property<image> preview-image;
     in-out property<string> text-content;
-    in-out property<string> tree-content;
     in-out property<bool> show-text;
+    in-out property<bool> show-highlighted;
     in-out property<bool> show-image;
-    in-out property<bool> show-tree;
     in-out property<bool> show-markdown;
+    in-out property<bool> show-table;
+    in-out property<[TableRow]> table-data;
     in-out property<styled-text> styled-content;
+    in-out property<string> line-numbers-content;
+    in-out property<bool> show-pdf-nav;
+    in-out property<int> pdf-current-page;
+    in-out property<int> pdf-page-count;
+    in-out property<bool> show-video;
+    in-out property<bool> show-audio;
+    in-out property<bool> show-office;
+    in-out property<bool> show-font;
+    in-out property<string> audio-metadata;
+    in-out property<image> audio-waveform;
+    in-out property<bool> video-playing;
+    in-out property<string> video-time;
+    in-out property<int> office-page;
+    in-out property<image> font-sample;
+    in-out property<string> file-size-text;
+    in-out property<string> file-modified-text;
+    in-out property<string> file-type-text;
+    in-out property<bool> show-file-info;
+    in-out property<bool> content-ready: true;
+
+    in-out property<bool> show-back-button;
+
+    // --- Phase 3: Image interaction ---
+    in-out property<float> image-zoom: 1.0;
+    in-out property<int> image-rotation: 0;
+    in-out property<float> image-pan-x: 0.0;
+    in-out property<float> image-pan-y: 0.0;
+    in-out property<bool> show-exif-sidebar;
+    in-out property<string> exif-content;
+
+    // --- Phase 3: Navigation history ---
+    in-out property<bool> can-go-back;
+    in-out property<bool> can-go-forward;
+
+    // --- Phase 3: Multi-file ---
+    in-out property<bool> has-prev-file;
+    in-out property<bool> has-next-file;
+
+    // --- Phase 3: Text interaction ---
+    in-out property<bool> show-text-search;
+    in-out property<string> text-search-query;
+    in-out property<string> text-search-info;
+    in-out property<bool> text-wrap: true;
+
+    // --- Phase 3: PDF ---
+    in-out property<float> pdf-zoom: 1.0;
+    in-out property<image> pdf-scroll-image;
+    in-out property<int> pdf-thumb-count;
+    in-out property<int> pdf-thumb-current;
+
+    // --- Callbacks ---
+    callback open-clicked();
+    callback copy-path-clicked();
+    callback prev-page-clicked();
+    callback next-page-clicked();
+    callback sort-by-field-clicked(int);
+    callback file-clicked(int);
+    callback back-clicked();
+    callback play-pause-clicked();
+    callback seek-clicked(float);
+
+    // Image
+    callback image-zoom-in();
+    callback image-zoom-out();
+    callback image-rotate-l();
+    callback image-rotate-r();
+    callback image-reset();
+    callback image-drag-moved(float, float);
+    callback image-drag-started(float, float);
+    callback image-drag-finished();
+    callback image-scroll-zoom(float);
+
+    // History
+    callback history-back();
+    callback history-forward();
+
+    // Multi-file
+    callback prev-file-clicked();
+    callback next-file-clicked();
+
+    // Text
+    callback text-search-next();
+    callback text-search-prev();
+    callback text-search-closed();
+    callback text-wrap-toggled();
+    callback copy-content-clicked();
+
+    forward-focus: global-focus;
 
     title: file-name;
-    min-width: 600px;
-    min-height: 400px;
+    min-width: 650px;
+    min-height: 450px;
+    background: AppTheme.background;
 
     VerticalBox {
-        ScrollView {
-            horizontal-stretch: 1;
-            vertical-stretch: 1;
+        spacing: 0;
+        padding: 0;
 
-            VerticalBox {
-                Text {
-                    text: text-content;
-                    visible: show-text;
-                    wrap: word-wrap;
-                    font-family: "monospace";
-                    font-size: 13px;
-                }
-                Image {
-                    source: preview-image;
-                    visible: show-image;
-                    image-fit: contain;
-                    horizontal-stretch: 1;
-                    vertical-stretch: 1;
-                }
-                Text {
-                    text: tree-content;
-                    visible: show-tree;
-                    wrap: no-wrap;
-                    font-family: "monospace";
-                    font-size: 13px;
-                }
-                StyledText {
-                    text: styled-content;
-                    visible: show-markdown;
-                }
-            }
+        Header {
+            title-text: root.title-text;
+            show-pdf-nav: root.show-pdf-nav;
+            show-back-button: root.show-back-button;
+            pdf-current-page: root.pdf-current-page;
+            pdf-page-count: root.pdf-page-count;
+
+            open-clicked => { root.open-clicked(); }
+            copy-path-clicked => { root.copy-path-clicked(); }
+            prev-page-clicked => { root.prev-page-clicked(); }
+            next-page-clicked => { root.next-page-clicked(); }
+            back-clicked => { root.back-clicked(); }
         }
 
-        HorizontalBox {
-            padding-top: 4px;
-            padding-bottom: 4px;
-            padding-left: 8px;
-            padding-right: 8px;
-            Text {
-                text: status-text;
-                font-size: 12px;
-                color: gray;
+        ContentArea {
+            content-ready: root.content-ready;
+            show-text: root.show-text;
+            show-highlighted: root.show-highlighted;
+            show-image: root.show-image;
+            show-markdown: root.show-markdown;
+            show-table: root.show-table;
+            show-video: root.show-video;
+            show-audio: root.show-audio;
+            show-office: root.show-office;
+            show-font: root.show-font;
+            text-content: root.text-content;
+            preview-image: root.preview-image;
+            styled-content: root.styled-content;
+            table-data: root.table-data;
+            line-numbers-content: root.line-numbers-content;
+            audio-metadata: root.audio-metadata;
+            audio-waveform: root.audio-waveform;
+            video-playing: root.video-playing;
+            video-time: root.video-time;
+            office-page: root.office-page;
+            font-sample: root.font-sample;
+
+            // Image interaction props
+            image-zoom: root.image-zoom;
+            image-rotation: root.image-rotation;
+            image-pan-x: root.image-pan-x;
+            image-pan-y: root.image-pan-y;
+            show-exif-sidebar: root.show-exif-sidebar;
+            exif-content: root.exif-content;
+            image-zoom-in => { root.image-zoom-in(); }
+            image-zoom-out => { root.image-zoom-out(); }
+            image-rotate-l => { root.image-rotate-l(); }
+            image-rotate-r => { root.image-rotate-r(); }
+            image-reset => { root.image-reset(); }
+            image-drag-moved(dx, dy) => { root.image-drag-moved(dx, dy); }
+            image-drag-started(x, y) => { root.image-drag-started(x, y); }
+            image-drag-finished => { root.image-drag-finished(); }
+            image-scroll-zoom(dy) => { root.image-scroll-zoom(dy); }
+
+            // Multi-file
+            has-prev-file: root.has-prev-file;
+            has-next-file: root.has-next-file;
+            prev-file-clicked => { root.prev-file-clicked(); }
+            next-file-clicked => { root.next-file-clicked(); }
+
+            // Text interaction
+            show-text-search: root.show-text-search;
+            text-search-query: root.text-search-query;
+            text-search-info: root.text-search-info;
+            text-wrap: root.text-wrap;
+
+            sort-by-field-clicked(field) => { root.sort-by-field-clicked(field); }
+            file-clicked(index) => { root.file-clicked(index); }
+            play-pause-clicked => { root.play-pause-clicked(); }
+            seek-clicked(pos) => { root.seek-clicked(pos); }
+            text-search-next => { root.text-search-next(); }
+            text-search-prev => { root.text-search-prev(); }
+            text-search-closed => { root.text-search-closed(); }
+            text-wrap-toggled => { root.text-wrap-toggled(); }
+            copy-content-clicked => { root.copy-content-clicked(); }
+        }
+
+        StatusBar {
+            status-text: root.status-text;
+            show-file-info: root.show-file-info;
+            file-type-text: root.file-type-text;
+            file-size-text: root.file-size-text;
+            file-modified-text: root.file-modified-text;
+        }
+    }
+
+    global-focus := FocusScope {
+        key-pressed(KeyEvent) => {
+            if (KeyEvent.text == "\u{f702}" || KeyEvent.text == "k") {
+                // Left / k: previous page (PDF) or navigate back
+                if (root.show-pdf-nav) {
+                    root.prev-page-clicked();
+                    return accept;
+                }
+                if (root.can-go-back) {
+                    root.history-back();
+                    return accept;
+                }
             }
+            if (KeyEvent.text == "\u{f703}" || KeyEvent.text == "j") {
+                if (root.show-pdf-nav) {
+                    root.next-page-clicked();
+                    return accept;
+                }
+                if (root.can-go-forward) {
+                    root.history-forward();
+                    return accept;
+                }
+            }
+            // Escape: close search or hide
+            if (KeyEvent.text == "\u{1b}") {
+                if (root.show-text-search) {
+                    root.text-search-closed();
+                    return accept;
+                }
+            }
+            // Ctrl+F: toggle text search
+            if (KeyEvent.text == "\u{6}" && root.show-text) {
+                root.text-search-query = "";
+                root.show-text-search = !root.show-text-search;
+                return accept;
+            }
+            // R: rotate image right
+            if ((KeyEvent.text == "r" || KeyEvent.text == "R") && root.show-image) {
+                root.image-rotate-r();
+                return accept;
+            }
+            // +/- : zoom
+            if (KeyEvent.text == "+" && root.show-image) {
+                root.image-zoom-in();
+                return accept;
+            }
+            if (KeyEvent.text == "-" && root.show-image) {
+                root.image-zoom-out();
+                return accept;
+            }
+            // 0: reset
+            if (KeyEvent.text == "0" && root.show-image) {
+                root.image-reset();
+                return accept;
+            }
+            // Delete: hide
+            if (KeyEvent.text == "\u{7f}") {
+                return accept;
+            }
+            return reject;
         }
     }
 }

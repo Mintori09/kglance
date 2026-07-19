@@ -1,0 +1,19 @@
+import { HorizontalBox } from "std-widgets.slint";
+import { ToolbarButton } from "./common.slint";
+
+export component ImageToolbar inherits HorizontalBox {
+    callback zoom-in();
+    callback zoom-out();
+    callback rotate-l();
+    callback rotate-r();
+    callback reset-view();
+
+    spacing: 4px;
+    padding: 4px;
+
+    ToolbarButton { icon-text: "＋"; clicked => { zoom-in(); } }
+    ToolbarButton { icon-text: "－"; clicked => { zoom-out(); } }
+    ToolbarButton { icon-text: "↺"; clicked => { rotate-l(); } }
+    ToolbarButton { icon-text: "↻"; clicked => { rotate-r(); } }
+    ToolbarButton { icon-text: "⟲"; clicked => { reset-view(); } }
+}

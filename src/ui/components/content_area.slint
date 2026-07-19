@@ -1,0 +1,487 @@
+import { VerticalBox, HorizontalBox, ScrollView, LineEdit } from "std-widgets.slint";
+import { AppTheme } from "../theme.slint";
+import { ToolbarButton } from "./common.slint";
+import { ExifPanel } from "./exif_panel.slint";
+import { ImageToolbar } from "./image_toolbar.slint";
+import { NavBar } from "./nav_bar.slint";
+import { SearchBar } from "./search_bar.slint";
+
+export struct TableRow {
+    name: string,
+    kind: string,
+    modified: string,
+    size: string,
+    path: string,
+}
+
+
+export component ContentArea inherits ScrollView {
+    in-out property<bool> show-text;
+    in-out property<bool> show-highlighted;
+    in-out property<bool> show-image;
+    in-out property<bool> show-markdown;
+    in-out property<bool> show-table;
+    in-out property<bool> show-video;
+    in-out property<bool> show-audio;
+    in-out property<bool> show-office;
+    in-out property<bool> show-font;
+    in-out property<image> preview-image;
+    in-out property<string> text-content;
+    in-out property<styled-text> styled-content;
+    in-out property<[TableRow]> table-data;
+    in-out property<string> line-numbers-content;
+    in-out property<string> audio-metadata;
+    in-out property<image> audio-waveform;
+    in-out property<bool> video-playing;
+    in-out property<string> video-time;
+    in-out property<int> office-page;
+    in-out property<image> font-sample;
+    in-out property<bool> content-ready: true;
+
+    // Image interaction
+    in-out property<float> image-zoom: 1.0;
+    in-out property<int> image-rotation: 0;
+    in-out property<float> image-pan-x: 0.0;
+    in-out property<float> image-pan-y: 0.0;
+    in-out property<bool> show-exif-sidebar;
+    in-out property<string> exif-content;
+
+    // Multi-file
+    in-out property<bool> has-prev-file;
+    in-out property<bool> has-next-file;
+
+    // Text interaction
+    in-out property<bool> show-text-search;
+    in-out property<string> text-search-query;
+    in-out property<string> text-search-info;
+    in-out property<bool> text-wrap: true;
+
+    callback sort-by-field-clicked(int);
+    callback file-clicked(int);
+    callback play-pause-clicked();
+    callback seek-clicked(float);
+
+    // Image
+    callback image-zoom-in();
+    callback image-zoom-out();
+    callback image-rotate-l();
+    callback image-rotate-r();
+    callback image-reset();
+    callback image-drag-moved(float, float);
+    callback image-drag-started(float, float);
+    callback image-drag-finished();
+    callback image-scroll-zoom(float);
+
+    // Multi-file
+    callback prev-file-clicked();
+    callback next-file-clicked();
+
+    // Text
+    callback text-search-next();
+    callback text-search-prev();
+    callback text-search-closed();
+    callback text-wrap-toggled();
+    callback copy-content-clicked();
+
+    states [
+        ready when content-ready : {
+            container.opacity: 1.0;
+            in {
+                animate container.opacity { duration: 100ms; easing: ease-out; }
+            }
+        }
+    ]
+
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+    viewport-width: self.width;
+
+    container := VerticalBox {
+        opacity: 0.0;
+        padding: 12px;
+        spacing: 8px;
+
+        // ===== TEXT PREVIEW =====
+        if (show-text) : VerticalBox {
+            spacing: 4px;
+            if (show-text-search) : SearchBar {
+                query: root.text-search-query;
+                info: root.text-search-info;
+                searched => { root.text-search-query = self.query; root.text-search-next(); }
+                next => { root.text-search-next(); }
+                prev => { root.text-search-prev(); }
+                closed => { root.text-search-closed(); }
+            }
+            HorizontalBox {
+                spacing: 8px;
+                Text {
+                    text: line-numbers-content;
+                    font-family: "monospace";
+                    font-size: 13px;
+                    color: AppTheme.line-number;
+                    horizontal-alignment: right;
+                    width: 40px;
+                }
+                Text {
+                    text: text-content;
+                    wrap: root.text-wrap ? word-wrap : no-wrap;
+                    font-family: "monospace";
+                    font-size: 13px;
+                    color: AppTheme.text-mono;
+                    horizontal-stretch: 1;
+                }
+            }
+            HorizontalBox {
+                spacing: 4px;
+                padding: 2px;
+
+                ToolbarButton { icon-text: "📋"; width: 24px; height: 24px; clicked => { root.copy-content-clicked(); } }
+                ToolbarButton {
+                    icon-text: "↩";
+                    width: 24px; height: 24px;
+                    icon-color: root.text-wrap ? AppTheme.header-hover : AppTheme.text-muted;
+                    clicked => { root.text-wrap-toggled(); }
+                }
+            }
+        }
+
+        // ===== HIGHLIGHTED TEXT =====
+        if (show-highlighted) : VerticalBox {
+            spacing: 4px;
+            if (show-text-search) : SearchBar {
+                query: root.text-search-query;
+                info: root.text-search-info;
+                searched => { root.text-search-query = self.query; root.text-search-next(); }
+                next => { root.text-search-next(); }
+                prev => { root.text-search-prev(); }
+                closed => { root.text-search-closed(); }
+            }
+            HorizontalBox {
+                spacing: 8px;
+                Text {
+                    text: line-numbers-content;
+                    font-family: "monospace";
+                    font-size: 13px;
+                    color: AppTheme.line-number;
+                    horizontal-alignment: right;
+                    width: 40px;
+                }
+                StyledText {
+                    text: styled-content;
+                    default-font-family: "monospace";
+                    default-font-size: 13px;
+                    horizontal-stretch: 1;
+                }
+            }
+            HorizontalBox {
+                spacing: 4px;
+                padding: 2px;
+
+                ToolbarButton { icon-text: "📋"; width: 24px; height: 24px; clicked => { root.copy-content-clicked(); } }
+                ToolbarButton {
+                    icon-text: "↩";
+                    width: 24px; height: 24px;
+                    icon-color: root.text-wrap ? AppTheme.header-hover : AppTheme.text-muted;
+                    clicked => { root.text-wrap-toggled(); }
+                }
+            }
+        }
+
+        // ===== IMAGE PREVIEW =====
+        if (show-image) : VerticalBox {
+            spacing: 4px;
+            ImageToolbar {
+                zoom-in => { root.image-zoom-in(); }
+                zoom-out => { root.image-zoom-out(); }
+                rotate-l => { root.image-rotate-l(); }
+                rotate-r => { root.image-rotate-r(); }
+                reset-view => { root.image-reset(); }
+            }
+            HorizontalBox {
+                spacing: 8px;
+                horizontal-stretch: 1;
+                vertical-stretch: 1;
+
+                img-area := Rectangle {
+                    clip: true;
+                    horizontal-stretch: 1;
+                    vertical-stretch: 1;
+                    background: AppTheme.row-even;
+                    border-radius: 4px;
+                    border-width: 1px;
+                    border-color: AppTheme.border;
+
+                    in-out property<bool> dragging: false;
+                    in-out property<float> drag-last-x: 0.0;
+                    in-out property<float> drag-last-y: 0.0;
+
+                    img-touch := TouchArea {
+                        scroll-event(e) => {
+                            root.image-scroll-zoom(e.delta_y / 1px);
+                            return accept;
+                        }
+                        pointer-event(e) => {
+                            if (e.kind == PointerEventKind.down) {
+                                img-area.dragging = true;
+                                img-area.drag-last-x = self.mouse-x / 1px;
+                                img-area.drag-last-y = self.mouse-y / 1px;
+                                root.image-drag-started(self.mouse-x / 1px, self.mouse-y / 1px);
+                            } else if (e.kind == PointerEventKind.move && img-area.dragging) {
+                                root.image-drag-moved(self.mouse-x / 1px - img-area.drag-last-x, self.mouse-y / 1px - img-area.drag-last-y);
+                                img-area.drag-last-x = self.mouse-x / 1px;
+                                img-area.drag-last-y = self.mouse-y / 1px;
+                            } else if (e.kind == PointerEventKind.up) {
+                                img-area.dragging = false;
+                                root.image-drag-finished();
+                            }
+                        }
+                    }
+
+                    Image {
+                        source: preview-image;
+                        x: root.image-pan-x * 1px;
+                        y: root.image-pan-y * 1px;
+                        width: parent.width * root.image-zoom;
+                        height: parent.height * root.image-zoom;
+                        transform-rotation: root.image-rotation * 1deg;
+                        image-fit: contain;
+                    }
+                }
+                if (show-exif-sidebar) : ExifPanel {
+                    exif-text: root.exif-content;
+                }
+            }
+        }
+
+        // ===== MARKDOWN =====
+        if (show-markdown) : VerticalBox {
+            padding: 16px;
+
+            StyledText {
+                text: styled-content;
+
+                default-font-family: "sans-serif";
+                default-font-size: 14px;
+
+                horizontal-stretch: 1;
+            }
+        }
+
+        // ===== VIDEO =====
+        if (show-video) : VerticalBox {
+            padding: 12px;
+            spacing: 8px;
+            Rectangle {
+                height: 300px;
+                background: #000;
+                border-radius: 4px;
+                Text {
+                    text: "Video (libmpv)";
+                    color: #fff;
+                    font-size: 14px;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                }
+            }
+            HorizontalBox {
+                alignment: center;
+                spacing: 12px;
+                ta-play := TouchArea {
+                    width: 40px; height: 40px;
+                    clicked => { root.play-pause-clicked(); }
+                    Rectangle {
+                        background: ta-play.has-hover ? AppTheme.row-hover : AppTheme.row-even;
+                        border-radius: 20px;
+                        width: 40px; height: 40px;
+                        Text {
+                            text: root.video-playing ? "⏸" : "▶";
+                            font-size: 20px;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                        }
+                    }
+                }
+                Text {
+                    text: root.video-time;
+                    color: AppTheme.text-muted;
+                    font-size: 12px;
+                }
+
+                Rectangle {
+                    height: 4px;
+                    border-radius: 2px;
+                    background: AppTheme.border;
+                    horizontal-stretch: 1;
+
+                    ta-seek := TouchArea {
+                        clicked => {
+                            root.seek-clicked(self.mouse-x / self.width);
+                        }
+                    }
+                    Rectangle {
+                        height: 4px;
+                        background: AppTheme.header-hover;
+                        width: parent.width * 0.0;
+                    }
+                }
+            }
+        }
+
+        // ===== AUDIO =====
+        if (show-audio) : VerticalBox {
+            padding: 12px;
+            spacing: 8px;
+            Text {
+                text: audio-metadata;
+                wrap: word-wrap;
+                font-size: 14px;
+                color: AppTheme.text;
+            }
+            if (audio-waveform.width > 0) : Image {
+                source: audio-waveform;
+                height: 100px;
+                image-fit: fill;
+                horizontal-stretch: 1;
+            }
+            HorizontalBox {
+                alignment: center;
+                ta-play-audio := TouchArea {
+                    width: 40px; height: 40px;
+                    clicked => { root.play-pause-clicked(); }
+                    Rectangle {
+                        background: ta-play-audio.has-hover ? AppTheme.row-hover : AppTheme.row-even;
+                        border-radius: 20px;
+                        width: 40px; height: 40px;
+                        Text { text: root.video-playing ? "⏸" : "▶"; font-size: 20px; x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2; color: AppTheme.text; }
+                    }
+                }
+            }
+        }
+
+        // ===== OFFICE =====
+        if (show-office) : VerticalBox {
+            padding: 12px;
+            spacing: 8px;
+            Text {
+                text: text-content;
+                wrap: word-wrap;
+                font-size: 13px;
+                color: AppTheme.text;
+                horizontal-stretch: 1;
+            }
+        }
+
+        // ===== FONT =====
+        if (show-font) : VerticalBox {
+            padding: 12px;
+            spacing: 8px;
+            Text {
+                text: text-content;
+                wrap: word-wrap;
+                font-size: 13px;
+                color: AppTheme.text;
+            }
+            if (font-sample.width > 0) : Image {
+                source: font-sample;
+                image-fit: contain;
+                horizontal-stretch: 1;
+            }
+        }
+
+        // ===== FOLDER / ARCHIVE TABLE =====
+        if (show-table) : VerticalBox {
+            padding: 0px;
+            spacing: 0px;
+
+            HorizontalBox {
+                spacing: 8px;
+                padding: 8px;
+
+                Rectangle {
+                    horizontal-stretch: 3;
+                    ta-name := TouchArea { clicked => { root.sort-by-field-clicked(0); } }
+                    Text {
+                        text: "Name";
+                        font-weight: 700;
+                        font-size: 13px;
+                        color: ta-name.has-hover ? AppTheme.header-hover : AppTheme.text-muted;
+                    }
+                }
+                Rectangle {
+                    width: 70px;
+                    ta-kind := TouchArea { clicked => { root.sort-by-field-clicked(1); } }
+                    Text {
+                        text: "Kind";
+                        font-weight: 700;
+                        font-size: 13px;
+                        color: ta-kind.has-hover ? AppTheme.header-hover : AppTheme.text-muted;
+                    }
+                }
+                Rectangle {
+                    width: 140px;
+                    ta-mod := TouchArea { clicked => { root.sort-by-field-clicked(2); } }
+                    Text {
+                        text: "Modified";
+                        font-weight: 700;
+                        font-size: 13px;
+                        color: ta-mod.has-hover ? AppTheme.header-hover : AppTheme.text-muted;
+                    }
+                }
+                Rectangle {
+                    width: 80px;
+                    ta-size := TouchArea { clicked => { root.sort-by-field-clicked(3); } }
+                    Text {
+                        text: "Size";
+                        font-weight: 700;
+                        font-size: 13px;
+                        color: ta-size.has-hover ? AppTheme.header-hover : AppTheme.text-muted;
+                    }
+                }
+            }
+
+            Rectangle {
+                height: 2px;
+                background: AppTheme.border;
+            }
+
+            for item[index] in table-data : VerticalBox {
+                padding: 0px;
+                spacing: 0px;
+
+                row-rect := Rectangle {
+                    background: row-touch.has-hover ? AppTheme.row-hover : (mod(index, 2) == 0 ? AppTheme.row-even : AppTheme.row-odd);
+
+                    row-touch := TouchArea {
+                        clicked => { root.file-clicked(index); }
+                    }
+
+                    HorizontalBox {
+                        spacing: 8px;
+                        padding-top: 6px;
+                        padding-bottom: 6px;
+                        padding-left: 8px;
+                        padding-right: 8px;
+
+                        Text { text: item.name; font-size: 13px; horizontal-stretch: 3; overflow: elide; color: AppTheme.text; }
+                        Text { text: item.kind; font-size: 13px; width: 70px; overflow: elide; color: AppTheme.text-muted; }
+                        Text { text: item.modified; font-size: 13px; width: 140px; color: AppTheme.text-muted; }
+                        Text { text: item.size; font-size: 13px; width: 80px; horizontal-alignment: right; color: AppTheme.text-muted; }
+                    }
+                }
+
+                Rectangle {
+                    height: 1px;
+                    background: AppTheme.border;
+                }
+            }
+        }
+
+        // ===== Multi-file navigation =====
+        if (show-image || show-text || show-highlighted || show-video || show-audio) : NavBar {
+            has-prev: root.has-prev-file;
+            has-next: root.has-next-file;
+            prev-clicked => { root.prev-file-clicked(); }
+            next-clicked => { root.next-file-clicked(); }
+        }
+    }
+}

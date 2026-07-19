@@ -8,7 +8,10 @@ Cua so xem truoc file sieu toc cho KDE Plasma 6. Ho tro 2 che do: **Daemon** (ch
 - Xem truoc hinh anh (PNG, JPEG, WebP, GIF, BMP) va SVG
 - Xem thong tin PDF (so trang)
 - Xem cau truc file luu tru (ZIP, Tar, 7z) dang cay thu muc
-- Xem noi dung thu muc
+- Xem truoc file trong file luu tru (ZIP/Tar/7z) bang cach nhan vao entry
+- Xem noi dung thu muc, sap xep theo ten/loai/ngay/dung luong
+- Hien thi thong tin EXIF: camera, ISO, f/, ngay chup
+- Hien thi tu dong che do Dark/Light theo KDE Plasma
 - Che do Daemon: Hien/An cua so tuc thoi, chay ngam khong tat
 - Che do Standalone: Mo file truc tiep, thoat khi dong cua so
 - Tich hop phim Space trong Dolphin (KIO Service Menu)
@@ -83,12 +86,23 @@ Kglance/
 │   │   ├── text.rs        # Text + ma nguon (syntect)
 │   │   ├── image.rs       # Hinh anh (image crate)
 │   │   ├── svg.rs         # SVG -> PNG (resvg)
-│   │   ├── pdf.rs         # PDF metadata (lopdf)
+│   │   ├── pdf.rs         # PDF render + page nav (mupdf)
 │   │   ├── archive.rs     # Zip/Tar/7z tree list
 │   │   └── folder.rs      # Thu muc (std::fs)
 │   ├── ui/
 │   │   ├── mod.rs         # Cau noi Slint Window
-│   │   └── window.slint   # Giao dien Slint
+│   │   ├── components/    # Cac Slint UI components nho
+│   │   │   ├── common.slint        # Shared UI elements (buttons)
+│   │   │   ├── exif_panel.slint    # EXIF Panel component
+│   │   │   ├── image_toolbar.slint # Image Toolbar component
+│   │   │   ├── nav_bar.slint       # Navigation Bar component
+│   │   │   ├── search_bar.slint    # Search Bar component
+│   │   │   ├── content_area.slint  # Main content viewport
+│   │   │   ├── header.slint        # Thanh header
+│   │   │   └── status_bar.slint    # Thanh trang thai
+│   │   ├── window.slint   # Giao dien Slint chinh
+│   │   ├── theme.slint    # Global theme (AppTheme) dark/light
+│   │   └── theme.rs       # KDE palette detection + color mapping
 │   └── dbus/
 │       └── service.rs     # DBus interface (zbus)
 └── data/
@@ -102,13 +116,13 @@ Kglance/
 
 ## Dinh dang ho tro
 
-| Loai     | Dinh dang                                                        |
-| -------- | ---------------------------------------------------------------- |
+| Loai | Dinh dang |
+| --- | --- |
 | Ma nguon | rs, py, js, ts, jsx, tsx, html, css, json, md, toml, yaml, sh, c, cpp, go, java, ... |
-| Hinh anh | PNG, JPEG, WebP, GIF, BMP, SVG                                  |
-| Tai lieu | PDF (thong tin)                                                  |
-| Luu tru  | ZIP, Tar, GZ, TGZ, XZ, TXZ, 7z                                  |
-| Khac     | Folder, Plain text (fallback)                                    |
+| Hinh anh | PNG, JPEG, WebP, GIF, BMP, SVG (+ EXIF) |
+| Tai lieu | PDF (render + page navigation) |
+| Luu tru | ZIP, Tar, GZ, TGZ, XZ, TXZ, 7z (+ inner preview) |
+| Khac | Folder (sortable by name/kind/date/size), Plain text (fallback) |
 
 Gioi han dung luong: 100MB.
 
