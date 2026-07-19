@@ -82,6 +82,7 @@ kglance --standalone /path/to/file
 Kglance/
 ├── src/
 │   ├── main.rs            # Entrypoint (dispatch Daemon / Standalone)
+│   ├── logger.rs          # Macro ghi log co thoi gian cho debug
 │   ├── parser/            # Module phan tich dinh dang file
 │   │   ├── text.rs        # Text + ma nguon (syntect)
 │   │   ├── image.rs       # Hinh anh (image crate)
@@ -90,12 +91,15 @@ Kglance/
 │   │   ├── archive.rs     # Zip/Tar/7z tree list
 │   │   └── folder.rs      # Thu muc (std::fs)
 │   ├── ui/
-│   │   ├── mod.rs         # Cau noi Slint Window
+│   │   ├── mod.rs         # Entrypoint module
+│   │   ├── helpers.rs     # UI helpers (file scans, clipboard, conversion)
+│   │   ├── image_handler.rs # Image transformation, EXIF formatting
+│   │   ├── table.rs       # Table model row builder, sorting helper
+│   │   ├── window.rs      # Main PreviewWindow interface & flow
 │   │   ├── components/    # Cac Slint UI components nho
 │   │   │   ├── common.slint        # Shared UI elements (buttons)
 │   │   │   ├── exif_panel.slint    # EXIF Panel component
 │   │   │   ├── image_toolbar.slint # Image Toolbar component
-│   │   │   ├── nav_bar.slint       # Navigation Bar component
 │   │   │   ├── search_bar.slint    # Search Bar component
 │   │   │   ├── content_area.slint  # Main content viewport
 │   │   │   ├── header.slint        # Thanh header
@@ -103,6 +107,7 @@ Kglance/
 │   │   ├── window.slint   # Giao dien Slint chinh
 │   │   ├── theme.slint    # Global theme (AppTheme) dark/light
 │   │   └── theme.rs       # KDE palette detection + color mapping
+
 │   └── dbus/
 │       └── service.rs     # DBus interface (zbus)
 └── data/
@@ -152,4 +157,5 @@ cargo run -- --standalone /path/to/file
 
 - Project dang o giai doan phat trien ban dau
 - PDF rendering chua duoc ho tro (chi hien thi so trang)
-- Media file (audio/video) chua duoc ho tro
+- Media file (audio/video) duoc ho tro xem/nghe thong qua trinh phat ngoai (mpv hoac fallback xdg-open) khi an vao nut Play
+

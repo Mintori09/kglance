@@ -108,10 +108,9 @@ macOS sở hữu hai công cụ xem trước file cực kỳ mạnh mẽ:
 
 - [x] Hiển thị thông tin video (định dạng, thời lượng)
 - [x] Placeholder đen + nút play/pause + thanh seek trong Slint UI
-- [ ] Phát video trực tiếp trong cửa sổ preview (cần `libmpv` embed)
-- [ ] Tự động phát khi mở, dừng khi ẩn cửa sổ
-- **Đã triển khai:** `ffprobe` parse info; UI placeholder cho video playback
-- **TODO:** Nhúng `mpv` client API hoặc sử dụng pipeline GStreamer
+- [x] Phát video trực tiếp trong cửa sổ preview (sử dụng `mpv` background controller)
+- [x] Tự động phát khi mở, dừng khi ẩn cửa sổ
+- **Đã triển khai:** `ffprobe` parse info; Tích hợp `mpv` client API để điều khiển phát video (audio qua null video output) và đồng bộ thanh tiến trình (seek, time) trực tiếp từ giao diện Slint.
 
 #### 2.2 Audio Preview
 

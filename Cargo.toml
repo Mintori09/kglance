@@ -75,6 +75,18 @@ harness = false
 name = "kglance"
 path = "src/main.rs"
 
+[profile.dev]
+opt-level = 0
+debug = 1
+rpath = false
+lto = false
+incremental = true
+overflow-checks = true
+
+[profile.dev.package."*"]
+opt-level = 0
+debug = 0
+
 [profile.release]
 lto = "thin"
 opt-level = 3
