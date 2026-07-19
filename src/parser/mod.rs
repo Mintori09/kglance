@@ -1,12 +1,16 @@
-
-
 pub mod archive;
+pub use archive::{ExtractedFile, extract_entry};
+
+pub mod audio;
+pub mod folder;
+pub mod font;
 pub mod image;
 pub mod markdown;
+pub mod office;
 pub mod pdf;
 pub mod svg;
 pub mod text;
-pub mod folder;
+pub mod video;
 
 use std::fmt;
 use std::path::Path;
@@ -34,13 +38,28 @@ impl fmt::Display for ParseError {
 
 impl std::error::Error for ParseError {}
 
+pub(crate) fn human_size(bytes: u64) -> String {
+    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
+    let mut size = bytes as f64;
+    let mut unit_idx = 0;
+    while size >= 1024.0 && unit_idx < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit_idx += 1;
+    }
+    if unit_idx == 0 {
+        format!("{} B", bytes)
+    } else {
+        format!("{:.1} {}", size, UNITS[unit_idx])
+    }
+}
+
 pub trait PreviewParser: Send + Sync {
     fn supported_extensions(&self) -> &[&str];
     fn is_supported(&self, path: &Path) -> bool;
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DirEntry {
     pub name: String,
     pub is_dir: bool,
@@ -48,11 +67,13 @@ pub struct DirEntry {
     pub modified: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ArchiveEntry {
     pub path: String,
     pub size: u64,
     pub is_dir: bool,
+    pub modified: String,
+    pub archive_path: String,
 }
 
 #[derive(Debug)]
@@ -62,7 +83,7 @@ pub struct ImageRef {
     pub path: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum ImageFormat {
     Png,
     Jpeg,
@@ -71,21 +92,44 @@ pub enum ImageFormat {
     Bmp,
 }
 
+#[derive(Debug, Clone)]
+pub struct ExifData {
+    pub camera_make: Option<String>,
+    pub camera_model: Option<String>,
+    pub date_taken: Option<String>,
+    pub gps_lat: Option<String>,
+    pub gps_lon: Option<String>,
+    pub exposure: Option<String>,
+    pub f_number: Option<String>,
+    pub iso: Option<String>,
+    pub focal_length: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PageData {
+    pub width: u32,
+    pub height: u32,
+    pub data: Vec<u8>,
+}
+
 #[derive(Debug)]
 pub enum ParsedContent {
     Text {
         content: String,
         language: String,
         line_count: usize,
+        highlighted_html: Option<String>,
     },
     Image {
         data: Vec<u8>,
         width: u32,
         height: u32,
         format: ImageFormat,
+        exif: Option<Box<ExifData>>,
     },
     Pdf {
         page_count: u32,
+        first_page: PageData,
     },
     Archive {
         entries: Vec<ArchiveEntry>,
@@ -97,6 +141,28 @@ pub enum ParsedContent {
     Markdown {
         content: String,
         images: Vec<ImageRef>,
+    },
+    Video {
+        path: String,
+        duration: f64,
+    },
+    Audio {
+        metadata: String,
+        waveform: Vec<u8>,
+        waveform_width: u32,
+        waveform_height: u32,
+    },
+    Office {
+        content: String,
+        format: String,
+        page_count: usize,
+    },
+    Font {
+        name: String,
+        metadata: String,
+        sample: Vec<u8>,
+        sample_width: u32,
+        sample_height: u32,
     },
 }
 
@@ -127,16 +193,33 @@ impl ParserRegistry {
             }
             return Err(ParseError::UnsupportedFormat);
         }
-        let metadata = path.metadata().map_err(|_| ParseError::PermissionDenied)?;
-        if metadata.len() > 100 * 1024 * 1024 {
-            return Err(ParseError::TooLarge);
-        }
-
         let ext = path
             .extension()
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
             .unwrap_or_default();
+
+        let metadata = path.metadata().map_err(|_| ParseError::PermissionDenied)?;
+        let limit = match ext.as_str() {
+            // Video & Audio: 10 GB limit
+            "mp4" | "mkv" | "avi" | "mov" | "wmv" | "webm" | "mp3" | "wav" | "flac" | "ogg"
+            | "aac" | "m4a" => 10 * 1024 * 1024 * 1024,
+            // Archives: 2 GB
+            "zip" | "tar" | "gz" | "bz2" | "xz" | "7z" | "rar" => 2 * 1024 * 1024 * 1024,
+            // PDF/Office: 500 MB
+            "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "ods" | "odp" => {
+                500 * 1024 * 1024
+            }
+            // Images & Fonts: 100 MB
+            "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg" | "ico" | "ttf" | "otf"
+            | "woff" | "woff2" => 100 * 1024 * 1024,
+            // Default (Text/Code fallback): 20 MB
+            _ => 20 * 1024 * 1024,
+        };
+
+        if metadata.len() > limit {
+            return Err(ParseError::TooLarge);
+        }
 
         for parser in &self.parsers {
             if parser.supported_extensions().contains(&ext.as_str()) {
@@ -156,6 +239,7 @@ impl ParserRegistry {
                 content,
                 language: "Plain Text".into(),
                 line_count,
+                highlighted_html: None,
             });
         }
 
@@ -187,6 +271,7 @@ mod tests {
                 content: "mock".into(),
                 language: "plaintext".into(),
                 line_count: 1,
+                highlighted_html: None,
             })
         }
     }
