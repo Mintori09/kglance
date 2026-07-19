@@ -1,8 +1,6 @@
-mod dbus;
-mod parser;
-mod ui;
-
 use std::sync::Arc;
+
+use kglance::{dbus, parser, ui};
 
 fn build_registry() -> parser::ParserRegistry {
     let mut r = parser::ParserRegistry::new();
@@ -13,6 +11,10 @@ fn build_registry() -> parser::ParserRegistry {
     r.register(Box::new(parser::pdf::PdfParser));
     r.register(Box::new(parser::archive::ArchiveParser));
     r.register(Box::new(parser::folder::FolderParser));
+    r.register(Box::new(parser::font::FontParser));
+    r.register(Box::new(parser::audio::AudioParser));
+    r.register(Box::new(parser::video::VideoParser));
+    r.register(Box::new(parser::office::OfficeParser));
     r
 }
 
@@ -20,21 +22,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(|s| s.as_str()) {
         Some("daemon") => run_daemon(),
-        Some("--standalone") | Some("-s") => {
-            let path = args.get(2).ok_or("Usage: kglance --standalone <path>")?;
-            run_standalone(path)
-        }
         Some(path) if !path.starts_with('-') => {
-            if send_via_dbus(path).is_ok() {
+            let resolved = std::fs::canonicalize(path)?;
+            let resolved_str = resolved.to_string_lossy();
+            if dbus::send_via_dbus(&resolved_str).is_ok() {
                 return Ok(());
             }
-            run_standalone(path)
+            run_standalone(&resolved_str)
         }
         _ => {
             eprintln!("Usage:");
             eprintln!("  kglance daemon                Start preview daemon (autostart)");
             eprintln!("  kglance <file-path>           Preview file (DBus or standalone)");
-            eprintln!("  kglance --standalone <path>   Force standalone preview");
             std::process::exit(1);
         }
     }
@@ -53,17 +52,28 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
                 return;
             }
         };
-        if let Err(e) = rt.block_on(run_zbus(zbus_registry, tx)) {
+        if let Err(e) = rt.block_on(dbus::run_zbus(zbus_registry, tx)) {
             eprintln!("zbus daemon error: {e}");
         }
     });
 
     let window = ui::PreviewWindow::new(false)?;
-
-    let rx = Arc::new(std::sync::Mutex::new(rx));
     let window_rc = std::rc::Rc::new(window);
 
+    {
+        let reg = registry.clone();
+        let win = window_rc.clone();
+        window_rc.set_file_selected_handler(move |path| {
+            if let Ok(content) = reg.parse(std::path::Path::new(&path)) {
+                win.show(&path, &content);
+            }
+        });
+    }
+
+    let rx = Arc::new(std::sync::Mutex::new(rx));
+
     let timer = slint::Timer::default();
+
     timer.start(
         slint::TimerMode::Repeated,
         std::time::Duration::from_millis(50),
@@ -87,57 +97,26 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
         },
     );
 
-    let _ = window_rc.window().show();
-    slint::run_event_loop()?;
+    slint::run_event_loop_until_quit()?;
     Ok(())
 }
 
 fn run_standalone(path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let registry = build_registry();
+    let registry = std::sync::Arc::new(build_registry());
     let content = registry
         .parse(std::path::Path::new(path))
         .map_err(|e| format!("Cannot preview: {e}"))?;
-    let window = ui::PreviewWindow::new(true)?;
+    let window = std::rc::Rc::new(ui::PreviewWindow::new(true)?);
+    {
+        let reg = registry.clone();
+        let win = window.clone();
+        window.set_file_selected_handler(move |p| {
+            if let Ok(content) = reg.parse(std::path::Path::new(&p)) {
+                win.show(&p, &content);
+            }
+        });
+    }
     window.show(path, &content);
     slint::run_event_loop()?;
     Ok(())
-}
-
-fn send_via_dbus(path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let status = std::process::Command::new("busctl")
-        .args([
-            "--user",
-            "call",
-            "org.mintori.Kglance",
-            "/org/mintori/Kglance",
-            "org.mintori.Kglance",
-            "ShowPreview",
-            "s",
-            path,
-        ])
-        .status()?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err("daemon not running".into())
-    }
-}
-
-async fn run_zbus(
-    registry: Arc<parser::ParserRegistry>,
-    tx: std::sync::mpsc::Sender<dbus::DaemonCommand>,
-) -> Result<(), String> {
-    let service = dbus::DaemonService::new(registry, tx);
-    let _conn = zbus::connection::Builder::session()
-        .map_err(|e| format!("session: {e}"))?
-        .name("org.mintori.Kglance")
-        .map_err(|e| format!("name: {e}"))?
-        .serve_at("/org/mintori/Kglance", service)
-        .map_err(|e| format!("serve_at: {e}"))?
-        .build()
-        .await
-        .map_err(|e| format!("build: {e}"))?;
-    loop {
-        tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
-    }
 }
