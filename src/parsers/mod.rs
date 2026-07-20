@@ -1,4 +1,5 @@
 pub mod archive;
+pub mod csv;
 pub use archive::{ExtractedFile, extract_entry};
 
 pub mod audio;
@@ -54,10 +55,60 @@ pub(crate) fn human_size(bytes: u64) -> String {
     }
 }
 
+pub fn icon_for_entry(name: &str, is_dir: bool) -> &'static str {
+    if is_dir {
+        return "📁";
+    }
+    let ext = std::path::Path::new(name)
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    match ext.as_str() {
+        "rs" => "🦀",
+        "md" | "txt" => "📄",
+        "pdf" => "📑",
+        "png" | "jpg" | "jpeg" => "🖼",
+        "zip" | "tar" | "gz" | "7z" | "rar" => "📦",
+        _ => "📄",
+    }
+}
+
+pub fn human_time(datetime: std::time::SystemTime) -> String {
+    let now = chrono::Local::now();
+    let dt = chrono::DateTime::<chrono::Local>::from(datetime);
+    let duration = now.signed_duration_since(dt);
+
+    if duration.num_seconds() < 0 {
+        return dt.format("%b %d").to_string();
+    }
+
+    if duration.num_minutes() < 1 {
+        return "Just now".to_string();
+    } else if duration.num_hours() < 1 {
+        return format!("{}m ago", duration.num_minutes());
+    } else if duration.num_days() < 1 {
+        return format!("{}h ago", duration.num_hours());
+    } else if duration.num_days() == 1 {
+        return "Yesterday".to_string();
+    } else if duration.num_days() < 7 {
+        return format!("{}d ago", duration.num_days());
+    }
+
+    dt.format("%b %d").to_string()
+}
+
 pub trait PreviewParser: Send + Sync {
     fn supported_extensions(&self) -> &[&str];
     fn is_supported(&self, path: &Path) -> bool;
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError>;
+}
+
+#[derive(Debug, Clone)]
+pub struct SheetData {
+    pub name: String,
+    pub headers: Vec<String>,
+    pub rows: Vec<Vec<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -150,6 +201,7 @@ pub enum ParsedContent {
         thumbnail: Vec<u8>,
     },
     Audio {
+        path: String,
         metadata: String,
         waveform: Vec<u8>,
         waveform_width: u32,
@@ -159,6 +211,9 @@ pub enum ParsedContent {
         content: String,
         format: String,
         page_count: usize,
+    },
+    Spreadsheet {
+        sheets: Vec<SheetData>,
     },
     Font {
         name: String,
@@ -374,41 +429,64 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 width: first_page.width,
                 height: first_page.height,
             },
+            ParsedContent::Spreadsheet { sheets } => {
+                crate::core::preview::PreviewData::Spreadsheet {
+                    sheets: sheets
+                        .into_iter()
+                        .map(|s| crate::core::types::SheetInfo {
+                            name: s.name,
+                            headers: s.headers,
+                            rows: s.rows,
+                        })
+                        .collect(),
+                    active_sheet: 0,
+                }
+            }
             ParsedContent::Archive { entries, .. } => {
+                let total_size = entries.iter().map(|e| e.size).sum();
                 let rows = entries
                     .into_iter()
-                    .map(|entry| crate::core::TableRowState {
-                        name: entry.path.clone(),
-                        kind: if entry.is_dir {
-                            "Directory".to_string()
-                        } else {
-                            "File".to_string()
-                        },
-                        size: crate::parsers::human_size(entry.size),
-                        modified: entry.modified.clone(),
-                        path: entry.path,
-                        is_dir: entry.is_dir,
+                    .map(|entry| {
+                        let icon = icon_for_entry(&entry.path, entry.is_dir);
+                        crate::core::TableRowState {
+                            name: entry.path.clone(),
+                            kind: if entry.is_dir {
+                                "Directory".to_string()
+                            } else {
+                                "File".to_string()
+                            },
+                            size: crate::parsers::human_size(entry.size),
+                            modified: entry.modified.clone(),
+                            path: entry.path,
+                            is_dir: entry.is_dir,
+                            icon,
+                        }
                     })
                     .collect();
-                crate::core::preview::PreviewData::Folder { rows }
+                crate::core::preview::PreviewData::Folder { rows, total_size }
             }
             ParsedContent::Folder { entries } => {
+                let total_size = entries.iter().map(|e| e.size).sum();
                 let rows = entries
                     .into_iter()
-                    .map(|entry| crate::core::TableRowState {
-                        name: entry.name.clone(),
-                        kind: if entry.is_dir {
-                            "Directory".to_string()
-                        } else {
-                            "File".to_string()
-                        },
-                        size: crate::parsers::human_size(entry.size),
-                        modified: entry.modified.clone(),
-                        path: entry.name,
-                        is_dir: entry.is_dir,
+                    .map(|entry| {
+                        let icon = icon_for_entry(&entry.name, entry.is_dir);
+                        crate::core::TableRowState {
+                            name: entry.name.clone(),
+                            kind: if entry.is_dir {
+                                "Directory".to_string()
+                            } else {
+                                "File".to_string()
+                            },
+                            size: crate::parsers::human_size(entry.size),
+                            modified: entry.modified.clone(),
+                            path: entry.name,
+                            is_dir: entry.is_dir,
+                            icon,
+                        }
                     })
                     .collect();
-                crate::core::preview::PreviewData::Folder { rows }
+                crate::core::preview::PreviewData::Folder { rows, total_size }
             }
             ParsedContent::Markdown { blocks, .. } => {
                 crate::core::preview::PreviewData::Markdown { blocks }
@@ -425,12 +503,13 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 height: 240,
             },
             ParsedContent::Audio {
+                path,
                 metadata,
                 waveform,
                 waveform_width,
                 waveform_height,
             } => crate::core::preview::PreviewData::Media {
-                url: String::new(),
+                url: path,
                 metadata,
                 thumbnail_or_waveform: waveform,
                 width: waveform_width,

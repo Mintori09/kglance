@@ -65,6 +65,7 @@ pub fn glass_root(theme: &Theme) -> container::Style {
         text_color: Some(if is_dark { DARK_TEXT } else { LIGHT_TEXT }),
         border: Border::default(),
         shadow: Shadow::default(),
+        snap: false,
     }
 }
 
@@ -80,6 +81,7 @@ pub fn glass_card(theme: &Theme) -> container::Style {
             radius: 12.0.into(),
         },
         shadow: card_shadow(is_dark),
+        snap: false,
     }
 }
 
@@ -102,6 +104,7 @@ pub fn glass_raised(theme: &Theme) -> container::Style {
             radius: 10.0.into(),
         },
         shadow: subtle_shadow(is_dark),
+        snap: false,
     }
 }
 
@@ -117,6 +120,7 @@ pub fn glass_inset(theme: &Theme) -> container::Style {
             radius: 6.0.into(),
         },
         shadow: Shadow::default(),
+        snap: false,
     }
 }
 
@@ -149,6 +153,52 @@ pub fn glass_button(theme: &Theme, status: button::Status) -> button::Style {
         },
         text_color,
         shadow: subtle_shadow(is_dark),
+        snap: false,
+    }
+}
+
+/// Dynamic list-item style for file rows supporting Finder-like hover and selection.
+pub fn glass_row_button(theme: &Theme, status: button::Status, is_selected: bool) -> button::Style {
+    let is_dark = matches!(theme, Theme::Dark);
+    let text_color = if is_dark { DARK_TEXT } else { LIGHT_TEXT };
+
+    let bg_color = match (is_selected, status) {
+        (true, button::Status::Hovered) => {
+            let mut c = ACCENT;
+            c.a = 0.20;
+            Some(c.into())
+        }
+        (true, _) => {
+            let mut c = ACCENT;
+            c.a = 0.15;
+            Some(c.into())
+        }
+        (false, button::Status::Hovered) => {
+            let mut c = if is_dark { Color::WHITE } else { Color::BLACK };
+            c.a = 0.06;
+            Some(c.into())
+        }
+        (false, _) => None,
+    };
+
+    let border = if is_selected {
+        let mut bc = ACCENT;
+        bc.a = 0.15;
+        Border {
+            color: bc,
+            width: 1.0,
+            radius: 6.0.into(),
+        }
+    } else {
+        Border::default()
+    };
+
+    button::Style {
+        background: bg_color,
+        text_color,
+        border,
+        shadow: Shadow::default(),
+        snap: false,
     }
 }
 
@@ -171,6 +221,7 @@ pub fn glass_button_primary(theme: &Theme, status: button::Status) -> button::St
         },
         text_color: Color::WHITE,
         shadow: subtle_shadow(is_dark),
+        snap: false,
     }
 }
 
@@ -182,13 +233,13 @@ pub fn glass_text_input(theme: &Theme, status: text_input::Status) -> text_input
 
     let (bg, border_color) = if is_dark {
         match status {
-            text_input::Status::Focused => (DARK_SURFACE_RAISED, ACCENT),
+            text_input::Status::Focused { .. } => (DARK_SURFACE_RAISED, ACCENT),
             text_input::Status::Hovered => (DARK_SURFACE_RAISED, DARK_BORDER_FOCUS),
             _ => (DARK_SURFACE, DARK_BORDER),
         }
     } else {
         match status {
-            text_input::Status::Focused => (LIGHT_SURFACE_RAISED, ACCENT),
+            text_input::Status::Focused { .. } => (LIGHT_SURFACE_RAISED, ACCENT),
             text_input::Status::Hovered => (LIGHT_SURFACE_RAISED, LIGHT_BORDER_FOCUS),
             _ => (LIGHT_SURFACE, LIGHT_BORDER),
         }
@@ -222,7 +273,7 @@ pub fn glass_scrollable(theme: &Theme, status: scrollable::Status) -> scrollable
         ..Border::default()
     };
 
-    let (rail_bg, scroller_color) = match status {
+    let (rail_bg, scroller_bg) = match status {
         scrollable::Status::Dragged { .. } | scrollable::Status::Hovered { .. } => (
             if is_dark {
                 Color::from_rgba(1.0, 1.0, 1.0, 0.06)
@@ -242,7 +293,7 @@ pub fn glass_scrollable(theme: &Theme, status: scrollable::Status) -> scrollable
     };
 
     let scroller = scrollable::Scroller {
-        color: scroller_color,
+        background: scroller_bg.into(),
         border,
     };
 
@@ -259,6 +310,19 @@ pub fn glass_scrollable(theme: &Theme, status: scrollable::Status) -> scrollable
             scroller,
         },
         gap: None,
+        auto_scroll: scrollable::AutoScroll {
+            background: (if is_dark { DARK_SURFACE } else { LIGHT_SURFACE }).into(),
+            border: Border {
+                radius: 4.0.into(),
+                ..Border::default()
+            },
+            shadow: Shadow::default(),
+            icon: if is_dark {
+                DARK_TEXT_DIM
+            } else {
+                LIGHT_TEXT_DIM
+            },
+        },
     }
 }
 
@@ -344,9 +408,9 @@ pub fn glass_rule(theme: &Theme) -> rule::Style {
     let is_dark = matches!(theme, Theme::Dark);
     rule::Style {
         color: if is_dark { DARK_RULE } else { LIGHT_RULE },
-        width: 1,
         radius: 0.0.into(),
         fill_mode: rule::FillMode::Full,
+        snap: false,
     }
 }
 
@@ -357,7 +421,7 @@ pub fn glass_pick_list(theme: &Theme, status: pick_list::Status) -> pick_list::S
     let is_dark = matches!(theme, Theme::Dark);
 
     let (bg, border_color) = match status {
-        pick_list::Status::Opened => (
+        pick_list::Status::Opened { .. } => (
             if is_dark {
                 DARK_SURFACE_RAISED
             } else {

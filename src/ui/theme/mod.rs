@@ -2,7 +2,8 @@ pub mod glass;
 
 pub use glass::{
     glass_button, glass_button_primary, glass_card, glass_checkbox, glass_inset, glass_pick_list,
-    glass_raised, glass_root, glass_rule, glass_scrollable, glass_slider, glass_text_input,
+    glass_raised, glass_root, glass_row_button, glass_rule, glass_scrollable, glass_slider,
+    glass_text_input,
 };
 
 // ── Backward-compat aliases (kept so existing call-sites compile without change) ──

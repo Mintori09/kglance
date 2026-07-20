@@ -26,13 +26,11 @@ impl PreviewParser for FolderParser {
                 name: entry.file_name().to_string_lossy().to_string(),
                 is_dir: metadata.is_dir(),
                 size: metadata.len(),
-                modified: chrono::DateTime::<chrono::Local>::from(
+                modified: crate::parsers::human_time(
                     metadata
                         .modified()
                         .unwrap_or(std::time::SystemTime::UNIX_EPOCH),
-                )
-                .format("%Y-%m-%d %H:%M")
-                .to_string(),
+                ),
             });
         }
 
