@@ -1,7 +1,9 @@
 use std::path::Path;
 use std::process::Command;
 
-use crate::parsers::{ParseError, ParsedContent, PreviewParser};
+use chrono::NaiveDate;
+
+use crate::parsers::{ParseError, ParsedContent, PreviewParser, SheetData};
 
 pub struct OfficeParser;
 
@@ -40,12 +42,8 @@ impl PreviewParser for OfficeParser {
                 }
             }
             "xlsx" => {
-                if let Ok(content) = try_xlsx_direct(&path_str) {
-                    return Ok(ParsedContent::Office {
-                        content,
-                        format: "XLSX".into(),
-                        page_count: 1,
-                    });
+                if let Ok(spreadsheet) = try_xlsx_direct(&path_str) {
+                    return Ok(spreadsheet);
                 }
             }
             _ => {}
@@ -122,7 +120,51 @@ fn extract_docx_text(xml: &str) -> String {
         .join("\n")
 }
 
-fn try_xlsx_direct(path: &str) -> Result<String, ParseError> {
+fn excel_serial_to_date(serial: f64) -> String {
+    let days = serial as i64;
+    let frac = serial - days as f64;
+
+    if days == 60 {
+        return "1900-02-29".to_string();
+    }
+
+    let epoch = match NaiveDate::from_ymd_opt(1899, 12, 30) {
+        Some(d) => d,
+        None => return format!("{serial}"),
+    };
+
+    let date = epoch + chrono::Duration::days(days + 1);
+    if frac > 0.0 {
+        let total_secs = (frac * 86400.0).round() as u32;
+        let h = total_secs / 3600;
+        let m = (total_secs % 3600) / 60;
+        let s = total_secs % 60;
+        date.format("%Y-%m-%d").to_string() + &format!(" {h:02}:{m:02}:{s:02}")
+    } else {
+        date.format("%Y-%m-%d").to_string()
+    }
+}
+
+fn cell_to_string(cell: &calamine::Data) -> String {
+    match cell {
+        calamine::Data::String(s) => s.clone(),
+        calamine::Data::Float(fv) => {
+            if *fv == fv.trunc() {
+                format!("{}", *fv as i64)
+            } else {
+                format!("{fv}")
+            }
+        }
+        calamine::Data::Int(i) => i.to_string(),
+        calamine::Data::Bool(b) => b.to_string(),
+        calamine::Data::Empty => String::new(),
+        calamine::Data::DateTime(dt) => excel_serial_to_date(dt.as_f64()),
+        calamine::Data::Error(e) => format!("#{e}"),
+        _ => String::new(),
+    }
+}
+
+fn try_xlsx_direct(path: &str) -> Result<ParsedContent, ParseError> {
     use calamine::{Reader, Xlsx, open_workbook};
 
     let mut workbook: Xlsx<_> = match open_workbook(path) {
@@ -130,45 +172,33 @@ fn try_xlsx_direct(path: &str) -> Result<String, ParseError> {
         Err(e) => return Err(ParseError::ParseFailed(e.to_string())),
     };
 
-    let mut result = String::new();
     let sheet_names = workbook.sheet_names().to_vec();
+    let mut sheets = Vec::new();
 
-    for (i, name) in sheet_names.iter().enumerate() {
-        if i > 0 {
-            result.push('\n');
-        }
-        result.push_str(&format!("=== {name} ===\n"));
+    for name in &sheet_names {
         if let Ok(range) = workbook.worksheet_range(name) {
-            for row in range.rows() {
-                let line: Vec<String> = row
-                    .iter()
-                    .map(|cell| match cell {
-                        calamine::Data::String(s) => s.clone(),
-                        calamine::Data::Float(fv) => {
-                            if *fv == fv.trunc() {
-                                format!("{}", *fv as i64)
-                            } else {
-                                format!("{fv}")
-                            }
-                        }
-                        calamine::Data::Int(i) => i.to_string(),
-                        calamine::Data::Bool(b) => b.to_string(),
-                        calamine::Data::Empty => String::new(),
-                        calamine::Data::DateTime(_) => cell.to_string(),
-                        calamine::Data::Error(e) => format!("#{e}"),
-                        _ => String::new(),
-                    })
-                    .collect();
-                result.push_str(&line.join("\t"));
-                result.push('\n');
-            }
+            let mut rows_iter = range.rows();
+            let headers: Vec<String> = rows_iter
+                .next()
+                .map(|row| row.iter().map(cell_to_string).collect())
+                .unwrap_or_default();
+
+            let rows: Vec<Vec<String>> = rows_iter
+                .map(|row| row.iter().map(cell_to_string).collect())
+                .collect();
+
+            sheets.push(SheetData {
+                name: name.clone(),
+                headers,
+                rows,
+            });
         }
     }
 
-    if result.trim().is_empty() {
+    if sheets.is_empty() {
         Err(ParseError::ParseFailed("empty spreadsheet".into()))
     } else {
-        Ok(result)
+        Ok(ParsedContent::Spreadsheet { sheets })
     }
 }
 

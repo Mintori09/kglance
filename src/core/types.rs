@@ -29,37 +29,26 @@ pub struct TableRowState {
     pub modified: String,
     pub path: String,
     pub is_dir: bool,
+    pub icon: &'static str,
 }
 
 #[derive(Debug, Clone)]
 pub struct ImageState {
     pub zoom: f32,
-    pub rotation: i32,
-    pub pan_x: f32,
-    pub pan_y: f32,
-    pub show_exif: bool,
     pub exif_content: String,
-    pub picker_enabled: bool,
-    pub picked_color: Option<(u8, u8, u8)>,
-    pub picked_color_hex: String,
-    pub cursor_color: Option<(u8, u8, u8)>,
-    pub cursor_color_hex: String,
+    pub image_bytes: Vec<u8>,
+    pub image_width: u32,
+    pub image_height: u32,
 }
 
 impl Default for ImageState {
     fn default() -> Self {
         Self {
             zoom: 1.0,
-            rotation: 0,
-            pan_x: 0.0,
-            pan_y: 0.0,
-            show_exif: false,
             exif_content: String::new(),
-            picker_enabled: false,
-            picked_color: None,
-            picked_color_hex: String::new(),
-            cursor_color: None,
-            cursor_color_hex: String::new(),
+            image_bytes: Vec::new(),
+            image_width: 0,
+            image_height: 0,
         }
     }
 }
@@ -93,21 +82,19 @@ impl Default for TextState {
 
 #[derive(Debug, Clone)]
 pub struct PdfState {
-    pub current_page: usize,
+    pub pages: Vec<Option<(Vec<u8>, u32, u32)>>,
     pub page_count: usize,
     pub zoom: f32,
-    pub thumbnails: Vec<(Vec<u8>, u32, u32)>, // RGB/RGBA bytes, width, height
-    pub show_nav: bool,
+    pub loading: bool,
 }
 
 impl Default for PdfState {
     fn default() -> Self {
         Self {
-            current_page: 0,
+            pages: Vec::new(),
             page_count: 0,
             zoom: 1.0,
-            thumbnails: Vec::new(),
-            show_nav: false,
+            loading: false,
         }
     }
 }
@@ -116,6 +103,24 @@ impl Default for PdfState {
 pub struct TableState {
     pub rows: Vec<TableRowState>,
     pub sort_state: SortState,
+    pub selected_index: Option<usize>,
+    pub total_size: u64,
+    pub folder_path: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SheetInfo {
+    pub name: String,
+    pub headers: Vec<String>,
+    pub rows: Vec<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SpreadsheetState {
+    pub sheets: Vec<SheetInfo>,
+    pub active_sheet: usize,
+    pub sort_col: Option<usize>,
+    pub sort_ascending: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -125,6 +130,12 @@ pub struct MediaState {
     pub progress: f32,
     pub metadata: String,
     pub has_video: bool,
+    pub show_controls: bool,
+    pub position_secs: f64,
+    pub duration_secs: f64,
+    pub frame_data: Vec<u8>,
+    pub frame_width: u32,
+    pub frame_height: u32,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -156,6 +167,7 @@ pub struct KglanceState {
     pub text: TextState,
     pub pdf: PdfState,
     pub table: TableState,
+    pub spreadsheet: SpreadsheetState,
     pub media: MediaState,
     pub history: HistoryState,
     pub dir: DirState,
@@ -180,6 +192,7 @@ impl Default for KglanceState {
             text: TextState::default(),
             pdf: PdfState::default(),
             table: TableState::default(),
+            spreadsheet: SpreadsheetState::default(),
             media: MediaState::default(),
             history: HistoryState::default(),
             dir: DirState::default(),

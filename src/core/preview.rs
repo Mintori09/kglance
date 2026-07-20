@@ -34,6 +34,11 @@ pub enum PreviewData {
     },
     Folder {
         rows: Vec<crate::core::types::TableRowState>,
+        total_size: u64,
+    },
+    Spreadsheet {
+        sheets: Vec<crate::core::types::SheetInfo>,
+        active_sheet: usize,
     },
     Error(String),
 }
