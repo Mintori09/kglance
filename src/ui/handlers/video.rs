@@ -1,5 +1,7 @@
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -95,10 +97,11 @@ pub fn spawn_video_player(
         let mut fps = 30.0;
         let mut target_w = 640;
         let mut target_h = 360;
-        let mut frame_count = 0;
         let mut ffmpeg_start_pos = 0.0;
         let mut seek_target: Option<f64> = None;
         let mut has_video_stream = false;
+
+        let shared_pos = Arc::new(AtomicU64::new(0.0f64.to_bits()));
 
         let kill_and_reap_ffmpeg = |ffmpeg_child: &mut Option<Child>| {
             if let Some(mut child) = ffmpeg_child.take() {
@@ -106,6 +109,45 @@ pub fn spawn_video_player(
                 let _ = child.wait();
             }
         };
+
+        let spawn_ffmpeg_reader =
+            |child: &mut Child,
+             start_pos: f64,
+             target_w: u32,
+             target_h: u32,
+             fps: f64,
+             shared_pos: Arc<AtomicU64>,
+             event_tx: tokio::sync::mpsc::Sender<VideoEvent>| {
+                let mut stdout = child
+                    .stdout
+                    .take()
+                    .expect("Failed to open stdout of ffmpeg");
+                let event_tx_clone = event_tx.clone();
+                thread::spawn(move || {
+                    let mut frame_count = 0;
+                    let frame_size = (target_w * target_h * 4) as usize;
+                    let mut buffer = vec![0u8; frame_size];
+                    loop {
+                        let next_frame_time = start_pos + (frame_count as f64 / fps);
+                        loop {
+                            let cur_pos = f64::from_bits(shared_pos.load(Ordering::Relaxed));
+                            if cur_pos >= next_frame_time {
+                                break;
+                            }
+                            thread::sleep(Duration::from_millis(2));
+                        }
+                        if stdout.read_exact(&mut buffer).is_err() {
+                            break; // Process killed or EOF
+                        }
+                        frame_count += 1;
+                        let _ = event_tx_clone.try_send(VideoEvent::Frame {
+                            data: buffer.clone(),
+                            width: target_w,
+                            height: target_h,
+                        });
+                    }
+                });
+            };
 
         loop {
             // Try to receive a command with a timeout depending on play status
@@ -155,8 +197,8 @@ pub fn spawn_video_player(
                         current_path = path.clone();
                         is_playing = false;
                         current_pos = 0.0;
-                        frame_count = 0;
                         ffmpeg_start_pos = 0.0;
+                        shared_pos.store(0.0f64.to_bits(), Ordering::Relaxed);
 
                         if let Some((w, h, f, d)) = probe_video_info(&path) {
                             has_video_stream = true;
@@ -191,15 +233,15 @@ pub fn spawn_video_player(
                             if current_pos >= duration - 0.5 {
                                 let _ = mpv.command(&["seek", "0.0", "absolute"]);
                                 current_pos = 0.0;
+                                shared_pos.store(0.0f64.to_bits(), Ordering::Relaxed);
                             }
                             let _ = mpv.set_property("pause", false);
                             is_playing = true;
 
                             if has_video_stream {
                                 kill_and_reap_ffmpeg(&mut ffmpeg_child);
-                                frame_count = 0;
                                 ffmpeg_start_pos = current_pos;
-                                ffmpeg_child = Command::new("ffmpeg")
+                                if let Ok(mut child) = Command::new("ffmpeg")
                                     .stdin(Stdio::null())
                                     .args([
                                         "-ss",
@@ -217,7 +259,18 @@ pub fn spawn_video_player(
                                     .stdout(Stdio::piped())
                                     .stderr(Stdio::null())
                                     .spawn()
-                                    .ok();
+                                {
+                                    spawn_ffmpeg_reader(
+                                        &mut child,
+                                        ffmpeg_start_pos,
+                                        target_w,
+                                        target_h,
+                                        fps,
+                                        shared_pos.clone(),
+                                        event_tx.clone(),
+                                    );
+                                    ffmpeg_child = Some(child);
+                                }
                             }
                         }
                     }
@@ -233,14 +286,14 @@ pub fn spawn_video_player(
                             let target = percent * duration;
                             let _ = mpv.command(&["seek", &target.to_string(), "absolute"]);
                             current_pos = target;
+                            shared_pos.store(target.to_bits(), Ordering::Relaxed);
                             seek_target = Some(target);
 
                             if is_playing {
                                 if has_video_stream {
                                     kill_and_reap_ffmpeg(&mut ffmpeg_child);
-                                    frame_count = 0;
                                     ffmpeg_start_pos = current_pos;
-                                    ffmpeg_child = Command::new("ffmpeg")
+                                    if let Ok(mut child) = Command::new("ffmpeg")
                                         .stdin(Stdio::null())
                                         .args([
                                             "-ss",
@@ -258,7 +311,18 @@ pub fn spawn_video_player(
                                         .stdout(Stdio::piped())
                                         .stderr(Stdio::null())
                                         .spawn()
-                                        .ok();
+                                    {
+                                        spawn_ffmpeg_reader(
+                                            &mut child,
+                                            ffmpeg_start_pos,
+                                            target_w,
+                                            target_h,
+                                            fps,
+                                            shared_pos.clone(),
+                                            event_tx.clone(),
+                                        );
+                                        ffmpeg_child = Some(child);
+                                    }
                                 }
                             } else if has_video_stream {
                                 let event_tx_clone = event_tx.clone();
@@ -306,13 +370,13 @@ pub fn spawn_video_player(
                             let target = (current_pos + seconds).clamp(0.0, duration);
                             let _ = mpv.command(&["seek", &target.to_string(), "absolute"]);
                             current_pos = target;
+                            shared_pos.store(target.to_bits(), Ordering::Relaxed);
                             seek_target = Some(target);
                             if is_playing {
                                 if has_video_stream {
                                     kill_and_reap_ffmpeg(&mut ffmpeg_child);
-                                    frame_count = 0;
                                     ffmpeg_start_pos = current_pos;
-                                    ffmpeg_child = Command::new("ffmpeg")
+                                    if let Ok(mut child) = Command::new("ffmpeg")
                                         .stdin(Stdio::null())
                                         .args([
                                             "-ss",
@@ -330,7 +394,18 @@ pub fn spawn_video_player(
                                         .stdout(Stdio::piped())
                                         .stderr(Stdio::null())
                                         .spawn()
-                                        .ok();
+                                    {
+                                        spawn_ffmpeg_reader(
+                                            &mut child,
+                                            ffmpeg_start_pos,
+                                            target_w,
+                                            target_h,
+                                            fps,
+                                            shared_pos.clone(),
+                                            event_tx.clone(),
+                                        );
+                                        ffmpeg_child = Some(child);
+                                    }
                                 }
                             } else if has_video_stream {
                                 let event_tx_clone = event_tx.clone();
@@ -377,6 +452,7 @@ pub fn spawn_video_player(
                         kill_and_reap_ffmpeg(&mut ffmpeg_child);
                         mpv_opt = None;
                         is_playing = false;
+                        shared_pos.store(0.0f64.to_bits(), Ordering::Relaxed);
                     }
                 };
 
@@ -414,26 +490,7 @@ pub fn spawn_video_player(
                 } else {
                     current_pos = raw_pos;
                 }
-
-                // Read video frames only for video streams
-                if is_playing && has_video_stream {
-                    let next_frame_time = ffmpeg_start_pos + (frame_count as f64 / fps);
-                    if current_pos >= next_frame_time {
-                        let stdout_opt = ffmpeg_child.as_mut().and_then(|c| c.stdout.as_mut());
-                        if let Some(stdout) = stdout_opt {
-                            let frame_size = (target_w * target_h * 4) as usize;
-                            let mut buffer = vec![0u8; frame_size];
-                            if stdout.read_exact(&mut buffer).is_ok() {
-                                frame_count += 1;
-                                let _ = event_tx.try_send(VideoEvent::Frame {
-                                    data: buffer,
-                                    width: target_w,
-                                    height: target_h,
-                                });
-                            }
-                        }
-                    }
-                }
+                shared_pos.store(current_pos.to_bits(), Ordering::Relaxed);
 
                 // Send progress update
                 let _ = event_tx.try_send(VideoEvent::Progress {
