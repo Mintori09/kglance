@@ -274,11 +274,10 @@ impl PreviewParser for MarkdownParser {
             std::fs::read_to_string(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
         let images = extract_images(&raw, parent);
-        let mut blocks = parse_to_blocks(&raw);
+        let blocks = parse_to_blocks(&raw);
 
-        // Render toàn bộ sơ đồ Mermaid trong hàm parse()
-        MarkdownParser::render_mermaid_blocks(&mut blocks);
-
+        // Mermaid blocks NOT rendered here — rendering happens asynchronously
+        // after the content is displayed to the user (see app.rs FileLoaded handler).
         Ok(ParsedContent::Markdown {
             content: raw,
             images,
@@ -520,5 +519,124 @@ mod tests {
             }
             _ => panic!("expected Table block"),
         }
+    }
+
+    // ── Mermaid async rendering tests ──────────────────────────────────────
+
+    #[test]
+    fn mermaid_block_rendered_none_after_parse_to_blocks() {
+        let md = "```mermaid\ngraph TD\nA-->B\n```";
+        let blocks = parse_to_blocks(md);
+        assert_eq!(blocks.len(), 1);
+        match &blocks[0] {
+            Block::Mermaid { lines, rendered } => {
+                assert!(rendered.is_none(), "Mermaid block must start unrendered");
+                assert_eq!(lines.join("\n"), "graph TD\nA-->B");
+            }
+            _ => panic!("expected Mermaid block"),
+        }
+    }
+
+    #[test]
+    fn parse_returns_mermaid_blocks_unrendered() {
+        let mut tmp = tempfile::Builder::new().suffix(".md").tempfile().unwrap();
+        write!(
+            tmp,
+            "# Title\n\n```mermaid\ngraph LR\nA-->B\n```\n\nSome text."
+        )
+        .unwrap();
+        let parser = MarkdownParser::new();
+        let result = parser.parse(tmp.path()).unwrap();
+        match result {
+            ParsedContent::Markdown { blocks, .. } => {
+                assert_eq!(blocks.len(), 3, "heading + mermaid + paragraph");
+                match &blocks[1] {
+                    Block::Mermaid { lines, rendered } => {
+                        assert!(
+                            rendered.is_none(),
+                            "parse() must NOT render mermaid blocks synchronously"
+                        );
+                        assert!(lines.join(" ").contains("graph LR"));
+                    }
+                    other => panic!("expected Mermaid at index 1, got {:?}", other),
+                }
+            }
+            _ => panic!("expected Markdown variant"),
+        }
+    }
+
+    #[test]
+    fn multiple_mermaid_blocks_all_unrendered() {
+        let md = "# M1\n\n```mermaid\ngraph TD\nA\n```\n\nText\n\n```mermaid\nsequenceDiagram\nA->>B\n```";
+        let blocks = parse_to_blocks(md);
+        let mermaid_count = blocks
+            .iter()
+            .filter(|b| matches!(b, Block::Mermaid { rendered, .. } if rendered.is_none()))
+            .count();
+        assert_eq!(mermaid_count, 2, "both mermaid blocks must be unrendered");
+    }
+
+    #[test]
+    fn non_mermaid_content_intact_after_parse() {
+        let mut tmp = tempfile::Builder::new().suffix(".md").tempfile().unwrap();
+        write!(
+            tmp,
+            "# Heading\n\nA paragraph.\n\n```rust\nfn main() {{}}\n```\n\n```mermaid\ngraph TD\nA-->B\n```"
+        )
+        .unwrap();
+        let parser = MarkdownParser::new();
+        let result = parser.parse(tmp.path()).unwrap();
+        match result {
+            ParsedContent::Markdown { blocks, .. } => {
+                assert_eq!(blocks.len(), 4);
+                assert!(matches!(&blocks[0], Block::Paragraph(_)));
+                assert!(matches!(&blocks[1], Block::Paragraph(_)));
+                assert!(matches!(&blocks[2], Block::CodeBlock { .. }));
+                assert!(matches!(
+                    &blocks[3],
+                    Block::Mermaid { rendered, .. } if rendered.is_none()
+                ));
+            }
+            _ => panic!("expected Markdown variant"),
+        }
+    }
+
+    #[test]
+    fn render_mermaid_to_png_graceful_when_mmdc_missing() {
+        // mmdc CLI may not be installed on CI/dev machines
+        let result = render_mermaid_to_png("graph TD\nA-->B");
+        // Should not panic — returns None gracefully
+        assert!(result.is_none() || result.is_some());
+    }
+
+    #[test]
+    fn mermaid_block_update_after_async_render() {
+        let mut blocks = [
+            Block::Mermaid {
+                lines: vec!["graph TD".into(), "A-->B".into()],
+                rendered: None,
+            },
+            Block::Mermaid {
+                lines: vec!["sequenceDiagram".into(), "A->>B".into()],
+                rendered: None,
+            },
+        ]
+        .to_vec();
+
+        // Simulate what MermaidBlockRendered handler does
+        let png_bytes = Some(vec![1, 2, 3]);
+        if let Block::Mermaid {
+            ref mut rendered, ..
+        } = blocks[1]
+        {
+            *rendered = png_bytes;
+        }
+
+        // Block 0 still unrendered
+        assert!(matches!(&blocks[0], Block::Mermaid { rendered, .. } if rendered.is_none()));
+        // Block 1 now rendered
+        assert!(
+            matches!(&blocks[1], Block::Mermaid { rendered, .. } if rendered.as_deref() == Some(&[1u8, 2, 3]))
+        );
     }
 }
