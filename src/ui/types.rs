@@ -238,4 +238,7 @@ pub enum Message {
         path: String,
         content: Arc<ParsedContent>,
     },
+    WindowEvent(iced::window::Id, iced::window::Event),
 }
+
+

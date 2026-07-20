@@ -1,11 +1,11 @@
 // tests/test.rs
 
 use kglance::dbus::{run_zbus, send_via_dbus};
-use std::sync::{Arc, mpsc};
+use std::sync::Arc;
 use std::time::Duration;
 
-async fn setup_mock_daemon() -> mpsc::Receiver<kglance::dbus::DaemonCommand> {
-    let (tx, rx) = mpsc::channel();
+async fn setup_mock_daemon() -> tokio::sync::mpsc::Receiver<kglance::dbus::DaemonCommand> {
+    let (tx, rx) = tokio::sync::mpsc::channel(100);
     let registry = Arc::new(kglance::parser::ParserRegistry::new());
 
     tokio::spawn(async move {
