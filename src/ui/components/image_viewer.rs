@@ -1,6 +1,6 @@
-use iced::{Element, Length};
-use iced::widget::{column, row, text, scrollable, container, button, image, svg};
 use crate::ui::types::{ImageState, Message};
+use iced::widget::{button, column, container, image, row, scrollable, svg, text};
+use iced::{Element, Length};
 
 pub fn view_image<'a>(
     state: &'a ImageState,
@@ -9,12 +9,24 @@ pub fn view_image<'a>(
 ) -> Element<'a, Message> {
     // Toolbar for zoom/rotation
     let toolbar = row![
-        button(text("Zoom In")).on_press(Message::ImageZoomIn),
-        button(text("Zoom Out")).on_press(Message::ImageZoomOut),
-        button(text("Rotate L")).on_press(Message::ImageRotateLeft),
-        button(text("Rotate R")).on_press(Message::ImageRotateRight),
-        button(text("Reset")).on_press(Message::ImageReset),
-        button(text("Exif Info")).on_press(Message::ToggleExifSidebar),
+        button(text("Zoom In"))
+            .on_press(Message::ImageZoomIn)
+            .style(crate::ui::theme::breeze_button),
+        button(text("Zoom Out"))
+            .on_press(Message::ImageZoomOut)
+            .style(crate::ui::theme::breeze_button),
+        button(text("Rotate L"))
+            .on_press(Message::ImageRotateLeft)
+            .style(crate::ui::theme::breeze_button),
+        button(text("Rotate R"))
+            .on_press(Message::ImageRotateRight)
+            .style(crate::ui::theme::breeze_button),
+        button(text("Reset"))
+            .on_press(Message::ImageReset)
+            .style(crate::ui::theme::breeze_button),
+        button(text("Exif Info"))
+            .on_press(Message::ToggleExifSidebar)
+            .style(crate::ui::theme::breeze_button),
     ]
     .spacing(10)
     .padding(5);
@@ -22,10 +34,7 @@ pub fn view_image<'a>(
     // Display image or SVG
     let img_element: Element<'a, Message> = if is_svg {
         let handle = svg::Handle::from_memory(image_bytes.to_vec());
-        svg(handle)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+        svg(handle).width(Length::Fill).height(Length::Fill).into()
     } else {
         let handle = image::Handle::from_bytes(image_bytes.to_vec());
         image(handle)
@@ -54,13 +63,7 @@ pub fn view_image<'a>(
             container(scrollable(text(&state.exif_content).size(14)))
                 .width(Length::FillPortion(1))
                 .padding(10)
-                .style(|theme: &iced::Theme| {
-                    let palette = theme.extended_palette();
-                    container::Style {
-                        background: Some(palette.background.weak.color.into()),
-                        ..Default::default()
-                    }
-                })
+                .style(crate::ui::theme::breeze_header_container)
         ]
         .spacing(5)
     } else {

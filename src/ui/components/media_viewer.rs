@@ -1,6 +1,6 @@
-use iced::{Element, Length};
-use iced::widget::{column, row, text, container, button, image};
 use crate::ui::types::{MediaState, Message};
+use iced::widget::{button, column, container, image, row, text};
+use iced::{Element, Length};
 
 pub fn view_media<'a>(
     state: &'a MediaState,
@@ -27,9 +27,9 @@ pub fn view_media<'a>(
     // Controls
     let play_button_text = if state.playing { "Pause" } else { "Play" };
     let controls = row![
-        button(text(play_button_text)).on_press(Message::PlayPauseClicked),
-        button(text("Seek -10s")).on_press(Message::SeekRelativeClicked(-10.0)),
-        button(text("Seek +10s")).on_press(Message::SeekRelativeClicked(10.0)),
+        button(text(play_button_text)).on_press(Message::PlayPauseClicked).style(crate::ui::theme::breeze_button),
+        button(text("Seek -10s")).on_press(Message::SeekRelativeClicked(-10.0)).style(crate::ui::theme::breeze_button),
+        button(text("Seek +10s")).on_press(Message::SeekRelativeClicked(10.0)).style(crate::ui::theme::breeze_button),
         text(format!("Time: {}", state.time)).size(14),
     ]
     .spacing(15)
