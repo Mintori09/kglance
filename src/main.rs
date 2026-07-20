@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use kglance::{dbus, log_error, log_info, parsers, ui};
+use kglance::app::KglanceApp;
+use kglance::{dbus, log_error, log_info, parsers};
 
 fn build_registry() -> parsers::ParserRegistry {
     let mut r = parsers::ParserRegistry::new();
@@ -69,21 +70,16 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     log_info!("Running Iced GUI in daemon mode...");
-    iced::application(
-        ui::KglanceApp::title,
-        ui::KglanceApp::update,
-        ui::KglanceApp::view,
-    )
-    .window(iced::window::Settings {
-        visible: false,
-        exit_on_close_request: false,
-        ..Default::default()
-    })
-    .subscription(ui::KglanceApp::subscription)
-    .theme(ui::KglanceApp::theme)
-    .run_with(move || {
-        ui::KglanceApp::new(registry, Some(rx), None, true)
-    })?;
+    iced::application(KglanceApp::title, KglanceApp::update, KglanceApp::view)
+        .window(iced::window::Settings {
+            visible: false,
+            exit_on_close_request: false,
+            decorations: false,
+            ..Default::default()
+        })
+        .subscription(KglanceApp::subscription)
+        .theme(KglanceApp::theme)
+        .run_with(move || KglanceApp::new(registry, Some(rx), None, true))?;
 
     log_info!("Daemon event loop quit.");
     Ok(())
@@ -96,26 +92,22 @@ fn run_standalone(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let path_str = path.to_string();
 
     log_info!("Running Iced GUI in standalone mode...");
-    iced::application(
-        ui::KglanceApp::title,
-        ui::KglanceApp::update,
-        ui::KglanceApp::view,
-    )
-    .window(iced::window::Settings {
-        visible: true,
-        exit_on_close_request: true,
-        ..Default::default()
-    })
-    .theme(ui::KglanceApp::theme)
-    .run_with(move || {
-        let (app, task) = ui::KglanceApp::new(registry, None, Some(&path_str), false);
-        let duration = start_time.elapsed();
-        log_info!("[PERF] PreviewWindow GUI initialized in: {:?}", duration);
-        (app, task)
-    })?;
-
+    iced::application(KglanceApp::title, KglanceApp::update, KglanceApp::view)
+        .window(iced::window::Settings {
+            visible: true,
+            exit_on_close_request: true,
+            decorations: false,
+            ..Default::default()
+        })
+        .subscription(KglanceApp::subscription)
+        .theme(KglanceApp::theme)
+        .run_with(move || {
+            let (app, task) = KglanceApp::new(registry, None, Some(&path_str), false);
+            let duration = start_time.elapsed();
+            log_info!("[PERF] PreviewWindow GUI initialized in: {:?}", duration);
+            (app, task)
+        })?;
 
     log_info!("Standalone event loop quit.");
     Ok(())
 }
-

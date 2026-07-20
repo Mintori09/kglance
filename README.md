@@ -12,6 +12,7 @@ Cua so xem truoc file sieu toc cho KDE Plasma 6. Ho tro 2 che do: **Daemon** (ch
 - Xem noi dung thu muc, sap xep theo ten/loai/ngay/dung luong
 - Hien thi thong tin EXIF: camera, ISO, f/, ngay chup
 - Hien thi tu dong che do Dark/Light theo KDE Plasma
+- Giao dien Liquid Glass cao cap: Cac panel va nut bam co do bo goc mem mai (corner radius 8px - 12px), kieu dang translucent phan chieu hien dai va hieu ung highlight khi hover.
 - Che do Daemon: Hien/An cua so tuc thoi, chay ngam khong tat
 - Che do Standalone: Mo file truc tiep, thoat khi dong cua so
 - Tich hop phim Space trong Dolphin (KIO Service Menu)

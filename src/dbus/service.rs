@@ -1,18 +1,22 @@
-use std::sync::{Arc, mpsc};
+use std::sync::Arc;
+use tokio::sync::mpsc;
+
 use zbus::interface;
+
+use crate::core::preview::{FilePreviewer, PreviewData};
 use crate::parsers::{ParseError, ParserRegistry};
 use crate::{log_error, log_info};
+
 pub enum DaemonCommand {
-    ShowPreview {
-        path: String,
-        content: crate::parsers::ParsedContent,
-    },
+    ShowPreview { path: String, content: PreviewData },
     HidePreview,
 }
+
 pub struct DaemonService {
     parser_registry: Arc<ParserRegistry>,
     tx: mpsc::Sender<DaemonCommand>,
 }
+
 impl DaemonService {
     pub fn new(parser_registry: Arc<ParserRegistry>, tx: mpsc::Sender<DaemonCommand>) -> Self {
         Self {
@@ -21,6 +25,7 @@ impl DaemonService {
         }
     }
 }
+
 #[interface(name = "org.mintori.Kglance")]
 impl DaemonService {
     async fn show_preview(&mut self, file_path: &str) -> zbus::fdo::Result<()> {
@@ -29,7 +34,7 @@ impl DaemonService {
             file_path
         );
         let path = std::path::Path::new(file_path);
-        let content = self.parser_registry.parse(path).map_err(|e| {
+        let content = FilePreviewer::parse(&*self.parser_registry, path).map_err(|e| {
             log_error!("DaemonService: Failed to parse path {}: {:?}", file_path, e);
             match e {
                 ParseError::FileNotFound => zbus::fdo::Error::Failed("File not found".into()),
@@ -43,6 +48,7 @@ impl DaemonService {
                 ParseError::ParseFailed(msg) => zbus::fdo::Error::Failed(msg),
             }
         })?;
+
         log_info!(
             "DaemonService: Sending ShowPreview event for: {}",
             file_path
@@ -52,6 +58,7 @@ impl DaemonService {
                 path: file_path.to_string(),
                 content,
             })
+            .await
             .map_err(|err| {
                 log_error!(
                     "DaemonService: Failed to send ShowPreview to channels: {:?}",
@@ -61,15 +68,19 @@ impl DaemonService {
             })?;
         Ok(())
     }
+
     async fn hide_preview(&mut self) -> zbus::fdo::Result<()> {
         log_info!("DaemonService: hide_preview request received");
-        self.tx.send(DaemonCommand::HidePreview).map_err(|err| {
-            log_error!(
-                "DaemonService: Failed to send HidePreview to channels: {:?}",
-                err
-            );
-            zbus::fdo::Error::Failed("Internal error".into())
-        })?;
+        self.tx
+            .send(DaemonCommand::HidePreview)
+            .await
+            .map_err(|err| {
+                log_error!(
+                    "DaemonService: Failed to send HidePreview to channels: {:?}",
+                    err
+                );
+                zbus::fdo::Error::Failed("Internal error".into())
+            })?;
         Ok(())
     }
 }

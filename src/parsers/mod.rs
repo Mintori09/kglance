@@ -142,6 +142,7 @@ pub enum ParsedContent {
     Markdown {
         content: String,
         images: Vec<ImageRef>,
+        blocks: Vec<markdown::Block>,
     },
     Video {
         path: String,
@@ -296,6 +297,147 @@ impl ParserRegistry {
 impl Default for ParserRegistry {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl crate::core::preview::FilePreviewer for ParserRegistry {
+    fn parse(&self, path: &Path) -> Result<crate::core::preview::PreviewData, ParseError> {
+        let content = self.parse(path)?;
+        let preview = match content {
+            ParsedContent::Text {
+                content,
+                language,
+                line_count,
+                ..
+            } => {
+                let line_numbers = (1..=line_count)
+                    .map(|n| n.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                crate::core::preview::PreviewData::Text {
+                    content,
+                    line_numbers,
+                    language,
+                }
+            }
+            ParsedContent::Office {
+                content,
+                format,
+                page_count,
+            } => crate::core::preview::PreviewData::Text {
+                content,
+                line_numbers: String::new(),
+                language: format!("Office ({}, {} pages)", format, page_count),
+            },
+            ParsedContent::Font { name, metadata, .. } => crate::core::preview::PreviewData::Text {
+                content: format!("Font: {}\n\n{}", name, metadata),
+                line_numbers: String::new(),
+                language: "Font File".to_string(),
+            },
+            ParsedContent::Image {
+                data,
+                width,
+                height,
+                format,
+                exif,
+            } => {
+                let format_info = format!("Image ({:?} - {}x{})", format, width, height);
+                let exif_content = exif.map(|exif_data| {
+                    format!(
+                        "Camera Make: {}\nCamera Model: {}\nDate Taken: {}\nGPS Lat: {}\nGPS Lon: {}\nExposure: {}\nF-Number: {}\nISO: {}\nFocal Length: {}",
+                        exif_data.camera_make.as_deref().unwrap_or("N/A"),
+                        exif_data.camera_model.as_deref().unwrap_or("N/A"),
+                        exif_data.date_taken.as_deref().unwrap_or("N/A"),
+                        exif_data.gps_lat.as_deref().unwrap_or("N/A"),
+                        exif_data.gps_lon.as_deref().unwrap_or("N/A"),
+                        exif_data.exposure.as_deref().unwrap_or("N/A"),
+                        exif_data.f_number.as_deref().unwrap_or("N/A"),
+                        exif_data.iso.as_deref().unwrap_or("N/A"),
+                        exif_data.focal_length.as_deref().unwrap_or("N/A")
+                    )
+                });
+                crate::core::preview::PreviewData::Image {
+                    data,
+                    width,
+                    height,
+                    format_info,
+                    exif_content,
+                }
+            }
+            ParsedContent::Pdf {
+                page_count,
+                first_page,
+            } => crate::core::preview::PreviewData::Pdf {
+                page_count: page_count as usize,
+                current_page: 0,
+                data: first_page.data,
+                width: first_page.width,
+                height: first_page.height,
+            },
+            ParsedContent::Archive { entries, .. } => {
+                let rows = entries
+                    .into_iter()
+                    .map(|entry| crate::core::TableRowState {
+                        name: entry.path.clone(),
+                        kind: if entry.is_dir {
+                            "Directory".to_string()
+                        } else {
+                            "File".to_string()
+                        },
+                        size: crate::parsers::human_size(entry.size),
+                        modified: entry.modified.clone(),
+                        path: entry.path,
+                        is_dir: entry.is_dir,
+                    })
+                    .collect();
+                crate::core::preview::PreviewData::Folder { rows }
+            }
+            ParsedContent::Folder { entries } => {
+                let rows = entries
+                    .into_iter()
+                    .map(|entry| crate::core::TableRowState {
+                        name: entry.name.clone(),
+                        kind: if entry.is_dir {
+                            "Directory".to_string()
+                        } else {
+                            "File".to_string()
+                        },
+                        size: crate::parsers::human_size(entry.size),
+                        modified: entry.modified.clone(),
+                        path: entry.name,
+                        is_dir: entry.is_dir,
+                    })
+                    .collect();
+                crate::core::preview::PreviewData::Folder { rows }
+            }
+            ParsedContent::Markdown { blocks, .. } => {
+                crate::core::preview::PreviewData::Markdown { blocks }
+            }
+            ParsedContent::Video {
+                path,
+                duration,
+                thumbnail,
+            } => crate::core::preview::PreviewData::Media {
+                url: path,
+                metadata: format!("Video Duration: {:.2}s", duration),
+                thumbnail_or_waveform: thumbnail,
+                width: 320,
+                height: 240,
+            },
+            ParsedContent::Audio {
+                metadata,
+                waveform,
+                waveform_width,
+                waveform_height,
+            } => crate::core::preview::PreviewData::Media {
+                url: String::new(),
+                metadata,
+                thumbnail_or_waveform: waveform,
+                width: waveform_width,
+                height: waveform_height,
+            },
+        };
+        Ok(preview)
     }
 }
 

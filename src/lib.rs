@@ -1,3 +1,5 @@
+pub mod app;
+pub mod core;
 pub mod dbus;
 pub mod logger;
 pub mod parsers;

@@ -1,14 +1,24 @@
+use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
 
-use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
-
-use crate::parser::{ImageRef, ParseError, ParsedContent, PreviewParser};
+use crate::parsers::{ImageRef, ParseError, ParsedContent, PreviewParser};
 
 pub struct MarkdownParser;
 
 impl MarkdownParser {
     pub fn new() -> Self {
         Self
+    }
+
+    pub fn render_mermaid_blocks(blocks: &mut [Block]) {
+        for block in blocks {
+            if let Block::Mermaid { lines, rendered } = block
+                && rendered.is_none()
+            {
+                let code = lines.join("\n");
+                *rendered = render_mermaid_to_png(&code);
+            }
+        }
     }
 }
 
@@ -20,10 +30,20 @@ impl Default for MarkdownParser {
 
 #[derive(Debug, Clone)]
 pub enum Block {
-    Heading { level: u8, text: String },
+    Heading {
+        level: u8,
+        text: String,
+    },
     Paragraph(String),
-    CodeBlock { lang: String, code: String },
+    CodeBlock {
+        lang: String,
+        code: String,
+    },
     Table(TableBlock),
+    Mermaid {
+        lines: Vec<String>,
+        rendered: Option<Vec<u8>>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -40,9 +60,7 @@ fn extract_images(raw: &str, parent: &Path) -> Vec<ImageRef> {
 
     for event in Parser::new_ext(raw, pulldown_cmark::Options::all()) {
         match event {
-            Event::Start(Tag::Image {
-                dest_url, title: _, ..
-            }) => {
+            Event::Start(Tag::Image { dest_url, .. }) => {
                 in_image = true;
                 image_url = dest_url.to_string();
                 image_alt.clear();
@@ -77,6 +95,11 @@ pub fn parse_to_blocks(content: &str) -> Vec<Block> {
         current_row: Vec<String>,
         current_cell: String,
     }
+
+    fn lines_from_code(code: &str) -> Vec<String> {
+        code.lines().map(|l| l.trim().to_string()).collect()
+    }
+
     let mut table_accum: Option<TableAccum> = None;
     let mut code_accum: Option<(String, String)> = None;
     let mut current_text = String::new();
@@ -96,11 +119,12 @@ pub fn parse_to_blocks(content: &str) -> Vec<Block> {
                     state.current_cell.clear();
                 }
                 Event::End(TagEnd::TableCell) => {
-                    state.current_row.push(state.current_cell.clone());
+                    state
+                        .current_row
+                        .push(std::mem::take(&mut state.current_cell));
                 }
                 Event::End(TagEnd::TableRow) | Event::End(TagEnd::TableHead) => {
-                    state.rows.push(state.current_row.clone());
-                    state.current_row.clear();
+                    state.rows.push(std::mem::take(&mut state.current_row));
                 }
                 Event::End(TagEnd::Table) => {
                     let headers = state.rows.first().cloned().unwrap_or_default();
@@ -129,7 +153,14 @@ pub fn parse_to_blocks(content: &str) -> Vec<Block> {
             match event {
                 Event::End(TagEnd::CodeBlock) => {
                     let (lang, code) = std::mem::take(accum);
-                    blocks.push(Block::CodeBlock { lang, code });
+                    if lang == "mermaid" {
+                        blocks.push(Block::Mermaid {
+                            lines: lines_from_code(&code),
+                            rendered: None,
+                        });
+                    } else {
+                        blocks.push(Block::CodeBlock { lang, code });
+                    }
                     code_accum = None;
                 }
                 Event::Text(t) => accum.1.push_str(&t),
@@ -168,10 +199,7 @@ pub fn parse_to_blocks(content: &str) -> Vec<Block> {
                 };
                 code_accum = Some((lang, String::new()));
             }
-            Event::Start(Tag::List(_)) => {
-                current_text.push('\n');
-            }
-            Event::End(TagEnd::List(_)) => {
+            Event::Start(Tag::List(_)) | Event::End(TagEnd::List(_)) => {
                 current_text.push('\n');
             }
             Event::Start(Tag::Item) => {
@@ -202,6 +230,33 @@ pub fn parse_to_blocks(content: &str) -> Vec<Block> {
     blocks
 }
 
+/// Helper function render Mermaid diagram sang PNG byte buffer bằng mmdc
+pub fn render_mermaid_to_png(code: &str) -> Option<Vec<u8>> {
+    use std::io::Write;
+
+    let dir = tempfile::tempdir().ok()?;
+    let input = dir.path().join("d.mmd");
+    let output = dir.path().join("d.png");
+
+    let mut f = std::fs::File::create(&input).ok()?;
+    write!(f, "{}", code).ok()?;
+    drop(f);
+
+    let status = std::process::Command::new("mmdc")
+        .args(["-i", input.to_str()?, "-o", output.to_str()?, "-b", "white"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .ok()?;
+
+    if !status.success() {
+        return None;
+    }
+
+    let png = std::fs::read(&output).ok()?;
+    if png.is_empty() { None } else { Some(png) }
+}
+
 impl PreviewParser for MarkdownParser {
     fn supported_extensions(&self) -> &[&str] {
         &["md", "markdown", "mdown", "mdwn", "mkd", "mkdn"]
@@ -219,10 +274,15 @@ impl PreviewParser for MarkdownParser {
             std::fs::read_to_string(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
         let images = extract_images(&raw, parent);
+        let mut blocks = parse_to_blocks(&raw);
+
+        // Render toàn bộ sơ đồ Mermaid trong hàm parse()
+        MarkdownParser::render_mermaid_blocks(&mut blocks);
 
         Ok(ParsedContent::Markdown {
             content: raw,
             images,
+            blocks,
         })
     }
 }
@@ -239,7 +299,9 @@ mod tests {
         let parser = MarkdownParser::new();
         let result = parser.parse(tmp.path()).unwrap();
         match result {
-            ParsedContent::Markdown { content, images } => {
+            ParsedContent::Markdown {
+                content, images, ..
+            } => {
                 assert!(content.contains("Hello"));
                 assert!(images.is_empty());
             }
@@ -269,7 +331,7 @@ mod tests {
         let parser = MarkdownParser::new();
         let result = parser.parse(tmp.path()).unwrap();
         match result {
-            ParsedContent::Markdown { content: _, images } => {
+            ParsedContent::Markdown { images, .. } => {
                 assert_eq!(images.len(), 1);
                 assert_eq!(images[0].alt_text, "alt");
                 assert!(images[0].path.ends_with("image.png"));
@@ -292,6 +354,7 @@ mod tests {
         let result = parser.parse(Path::new("/nonexistent/file.md"));
         assert!(result.is_err());
     }
+
     #[test]
     fn parses_large_markdown_file_over_3000_lines() {
         let mut tmp = tempfile::Builder::new().suffix(".md").tempfile().unwrap();
@@ -313,7 +376,9 @@ mod tests {
         let duration = start_time.elapsed();
 
         match result {
-            ParsedContent::Markdown { content, images } => {
+            ParsedContent::Markdown {
+                content, images, ..
+            } => {
                 assert!(content.contains("Heading Level 2 at line 3500"));
                 assert_eq!(content.lines().count(), large_content.lines().count());
                 assert!(images.is_empty());
@@ -330,7 +395,6 @@ mod tests {
     #[test]
     fn extracts_multiple_images_from_large_file() {
         let mut tmp = tempfile::Builder::new().suffix(".md").tempfile().unwrap();
-
         let parent_dir = tmp.path().parent().unwrap().to_path_buf();
 
         let mut large_content = String::new();
@@ -355,7 +419,6 @@ mod tests {
         match result {
             ParsedContent::Markdown { images, .. } => {
                 assert_eq!(images.len(), 3);
-
                 assert_eq!(images[0].alt_text, "First Image");
                 let expected_first_path = parent_dir
                     .join("assets/img_first.png")
@@ -380,11 +443,9 @@ mod tests {
     #[test]
     fn handles_images_inside_code_blocks_in_large_file() {
         let mut tmp = tempfile::Builder::new().suffix(".md").tempfile().unwrap();
-
         let mut large_content = String::new();
 
         large_content.push_str("![Valid Image](valid.png)\n");
-
         for i in 2..3200 {
             if i == 1600 {
                 large_content.push_str(

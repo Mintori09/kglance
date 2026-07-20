@@ -1,4 +1,6 @@
-use crate::ui::types::{Message, PdfState};
+use crate::app::Message;
+use crate::core::PdfState;
+use crate::ui::theme::{breeze_button, glass_scrollable};
 use iced::widget::{button, column, container, image, row, scrollable, text};
 use iced::{Element, Length};
 
@@ -8,22 +10,24 @@ pub fn view_pdf<'a>(
     width: u32,
     height: u32,
 ) -> Element<'a, Message> {
-    // Navigation bar for PDF pages
     let nav_bar = row![
-        button(text("Previous Page")).on_press(Message::PrevPageClicked).style(crate::ui::theme::breeze_button),
+        button(text("Previous Page"))
+            .on_press(Message::PrevPageClicked)
+            .style(breeze_button),
         text(format!(
             " Page {} of {} ",
             state.current_page + 1,
             state.page_count
         ))
         .size(16),
-        button(text("Next Page")).on_press(Message::NextPageClicked).style(crate::ui::theme::breeze_button),
+        button(text("Next Page"))
+            .on_press(Message::NextPageClicked)
+            .style(breeze_button),
     ]
     .spacing(15)
     .padding(10)
     .align_y(iced::Alignment::Center);
 
-    // Render the page image
     let handle = image::Handle::from_rgba(width, height, page_rgba.to_vec());
     let page_image = image(handle).width(Length::Shrink).height(Length::Shrink);
 
@@ -36,6 +40,7 @@ pub fn view_pdf<'a>(
                 .center_x(Length::Fill)
                 .center_y(Length::Fill)
         )
+        .style(glass_scrollable)
         .height(Length::Fill)
     ]
     .spacing(5);
