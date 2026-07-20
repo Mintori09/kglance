@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::parser::{ParseError, ParsedContent, PreviewParser};
+use crate::parsers::{ParseError, ParsedContent, PreviewParser};
 
 pub struct FontParser;
 
@@ -42,7 +42,7 @@ impl PreviewParser for FontParser {
         meta.push(format!("Descender: {desc}"));
         meta.push(format!(
             "File size: {}",
-            crate::parser::human_size(file_size)
+            crate::parsers::human_size(file_size)
         ));
         let metadata = meta.join("\n");
 

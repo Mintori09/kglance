@@ -1,4 +1,4 @@
-use crate::parser::{ParseError, ParsedContent, PreviewParser};
+use crate::parsers::{ParseError, ParsedContent, PreviewParser};
 use std::path::Path;
 
 pub struct VideoParser;

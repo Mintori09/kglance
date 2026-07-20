@@ -1,20 +1,20 @@
 use std::sync::Arc;
 
-use kglance::{dbus, log_error, log_info, parser, ui};
+use kglance::{dbus, log_error, log_info, parsers, ui};
 
-fn build_registry() -> parser::ParserRegistry {
-    let mut r = parser::ParserRegistry::new();
-    r.register(Box::new(parser::markdown::MarkdownParser::new()));
-    r.register(Box::new(parser::text::TextParser::new()));
-    r.register(Box::new(parser::image::ImageParser));
-    r.register(Box::new(parser::svg::SvgParser));
-    r.register(Box::new(parser::pdf::PdfParser));
-    r.register(Box::new(parser::archive::ArchiveParser));
-    r.register(Box::new(parser::folder::FolderParser));
-    r.register(Box::new(parser::font::FontParser));
-    r.register(Box::new(parser::audio::AudioParser));
-    r.register(Box::new(parser::video::VideoParser));
-    r.register(Box::new(parser::office::OfficeParser));
+fn build_registry() -> parsers::ParserRegistry {
+    let mut r = parsers::ParserRegistry::new();
+    r.register(Box::new(parsers::markdown::MarkdownParser::new()));
+    r.register(Box::new(parsers::text::TextParser::new()));
+    r.register(Box::new(parsers::image::ImageParser));
+    r.register(Box::new(parsers::svg::SvgParser));
+    r.register(Box::new(parsers::pdf::PdfParser));
+    r.register(Box::new(parsers::archive::ArchiveParser));
+    r.register(Box::new(parsers::folder::FolderParser));
+    r.register(Box::new(parsers::font::FontParser));
+    r.register(Box::new(parsers::audio::AudioParser));
+    r.register(Box::new(parsers::video::VideoParser));
+    r.register(Box::new(parsers::office::OfficeParser));
     r
 }
 

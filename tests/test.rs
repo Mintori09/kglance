@@ -6,7 +6,7 @@ use std::time::Duration;
 
 async fn setup_mock_daemon() -> tokio::sync::mpsc::Receiver<kglance::dbus::DaemonCommand> {
     let (tx, rx) = tokio::sync::mpsc::channel(100);
-    let registry = Arc::new(kglance::parser::ParserRegistry::new());
+    let registry = Arc::new(kglance::parsers::ParserRegistry::new());
 
     tokio::spawn(async move {
         let _ = run_zbus(registry, tx).await;

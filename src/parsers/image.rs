@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::path::Path;
 
-use crate::parser::{ExifData, ImageFormat, ParseError, ParsedContent, PreviewParser};
+use crate::parsers::{ExifData, ImageFormat, ParseError, ParsedContent, PreviewParser};
 
 pub struct ImageParser;
 

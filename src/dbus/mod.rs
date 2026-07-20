@@ -29,7 +29,7 @@ pub fn send_via_dbus(path: &str) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub async fn run_zbus(
-    registry: Arc<crate::parser::ParserRegistry>,
+    registry: Arc<crate::parsers::ParserRegistry>,
     tx: std::sync::mpsc::Sender<DaemonCommand>,
 ) -> Result<(), String> {
     log_info!("DBus: Starting zbus connection setup for org.mintori.Kglance...");

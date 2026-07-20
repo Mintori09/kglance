@@ -2,7 +2,7 @@ use std::path::Path;
 
 use mupdf::{Colorspace, Document, Error, Matrix};
 
-use crate::parser::{PageData, ParseError, ParsedContent, PreviewParser};
+use crate::parsers::{PageData, ParseError, ParsedContent, PreviewParser};
 
 const RENDER_DPI: f32 = 150.0;
 

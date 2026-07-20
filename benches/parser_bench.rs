@@ -3,7 +3,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use image::GenericImageView;
-use kglance::parser::PreviewParser;
+use kglance::parsers::PreviewParser;
 
 fn create_text_file(lines: usize) -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();
@@ -156,15 +156,15 @@ fn create_pdf_file(page_count: usize) -> (tempfile::TempDir, PathBuf) {
     (dir, path)
 }
 
-fn build_registry() -> kglance::parser::ParserRegistry {
-    let mut r = kglance::parser::ParserRegistry::new();
-    r.register(Box::new(kglance::parser::markdown::MarkdownParser::new()));
-    r.register(Box::new(kglance::parser::text::TextParser::new()));
-    r.register(Box::new(kglance::parser::image::ImageParser));
-    r.register(Box::new(kglance::parser::svg::SvgParser));
-    r.register(Box::new(kglance::parser::pdf::PdfParser));
-    r.register(Box::new(kglance::parser::archive::ArchiveParser));
-    r.register(Box::new(kglance::parser::folder::FolderParser));
+fn build_registry() -> kglance::parsers::ParserRegistry {
+    let mut r = kglance::parsers::ParserRegistry::new();
+    r.register(Box::new(kglance::parsers::markdown::MarkdownParser::new()));
+    r.register(Box::new(kglance::parsers::text::TextParser::new()));
+    r.register(Box::new(kglance::parsers::image::ImageParser));
+    r.register(Box::new(kglance::parsers::svg::SvgParser));
+    r.register(Box::new(kglance::parsers::pdf::PdfParser));
+    r.register(Box::new(kglance::parsers::archive::ArchiveParser));
+    r.register(Box::new(kglance::parsers::folder::FolderParser));
     r
 }
 
@@ -269,7 +269,7 @@ fn bench_pdf_parser(c: &mut Criterion) {
 fn bench_registry_dispatch(c: &mut Criterion) {
     let (_dir, path) = create_text_file(100);
     let registry = build_registry();
-    let direct_parser = kglance::parser::text::TextParser::new();
+    let direct_parser = kglance::parsers::text::TextParser::new();
 
     let mut group = c.benchmark_group("dispatch_overhead");
     group.bench_function("via_registry", |b| {

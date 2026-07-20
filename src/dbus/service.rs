@@ -1,23 +1,18 @@
 use std::sync::{Arc, mpsc};
-
 use zbus::interface;
-
-use crate::parser::{ParseError, ParserRegistry};
+use crate::parsers::{ParseError, ParserRegistry};
 use crate::{log_error, log_info};
-
 pub enum DaemonCommand {
     ShowPreview {
         path: String,
-        content: crate::parser::ParsedContent,
+        content: crate::parsers::ParsedContent,
     },
     HidePreview,
 }
-
 pub struct DaemonService {
     parser_registry: Arc<ParserRegistry>,
     tx: mpsc::Sender<DaemonCommand>,
 }
-
 impl DaemonService {
     pub fn new(parser_registry: Arc<ParserRegistry>, tx: mpsc::Sender<DaemonCommand>) -> Self {
         Self {
@@ -26,7 +21,6 @@ impl DaemonService {
         }
     }
 }
-
 #[interface(name = "org.mintori.Kglance")]
 impl DaemonService {
     async fn show_preview(&mut self, file_path: &str) -> zbus::fdo::Result<()> {
@@ -49,7 +43,6 @@ impl DaemonService {
                 ParseError::ParseFailed(msg) => zbus::fdo::Error::Failed(msg),
             }
         })?;
-
         log_info!(
             "DaemonService: Sending ShowPreview event for: {}",
             file_path
@@ -68,7 +61,6 @@ impl DaemonService {
             })?;
         Ok(())
     }
-
     async fn hide_preview(&mut self) -> zbus::fdo::Result<()> {
         log_info!("DaemonService: hide_preview request received");
         self.tx.send(DaemonCommand::HidePreview).map_err(|err| {

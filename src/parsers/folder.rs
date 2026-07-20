@@ -1,4 +1,4 @@
-use crate::parser::{DirEntry, ParseError, ParsedContent, PreviewParser};
+use crate::parsers::{DirEntry, ParseError, ParsedContent, PreviewParser};
 use std::path::Path;
 
 pub struct FolderParser;

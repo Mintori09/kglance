@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::parser::{ArchiveEntry, ParseError, ParsedContent, PreviewParser};
+use crate::parsers::{ArchiveEntry, ParseError, ParsedContent, PreviewParser};
 
 fn format_timestamp(secs: u64) -> String {
     let dur = std::time::Duration::from_secs(secs);

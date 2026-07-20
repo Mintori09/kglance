@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::parser::{ImageFormat, ParseError, ParsedContent, PreviewParser};
+use crate::parsers::{ImageFormat, ParseError, ParsedContent, PreviewParser};
 
 pub struct SvgParser;
 

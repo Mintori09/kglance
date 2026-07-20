@@ -4,7 +4,7 @@ use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
 
-use crate::parser::{ParseError, ParsedContent, PreviewParser};
+use crate::parsers::{ParseError, ParsedContent, PreviewParser};
 
 const MAX_HIGHLIGHT_LINES: usize = 200;
 

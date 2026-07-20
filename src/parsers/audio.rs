@@ -5,7 +5,7 @@ use symphonia::core::formats::probe::Hint;
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 
-use crate::parser::{ParseError, ParsedContent, PreviewParser};
+use crate::parsers::{ParseError, ParsedContent, PreviewParser};
 
 pub struct AudioParser;
 

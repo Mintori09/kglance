@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use crate::parser::{ParseError, ParsedContent, PreviewParser};
+use crate::parsers::{ParseError, ParsedContent, PreviewParser};
 
 pub struct OfficeParser;
 
