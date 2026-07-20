@@ -29,6 +29,13 @@ pub enum Message {
 
     // Image viewer
     ImageZoom(f32),
+    ScrollDelta {
+        x: f32,
+        y: f32,
+    },
+    CtrlHeldChanged(bool),
+    ShiftHeldChanged(bool),
+    ModifiersUpdated(iced::keyboard::Modifiers),
 
     // Text search & wrap
     SearchQueryChanged(String),
@@ -51,13 +58,19 @@ pub enum Message {
 
     // System
     ThemeToggled,
+    /// Open the preview window immediately (loading state) before content is ready.
+    DaemonOpenWindow {
+        path: String,
+    },
     FileLoaded {
         path: String,
         content: PreviewData,
     },
     WindowEvent(iced::window::Id, iced::window::Event),
-    KeyPressed(iced::keyboard::Key),
+    KeyPressed(iced::keyboard::Key, iced::keyboard::Modifiers),
     PdfPagesLoaded(Vec<Option<(Vec<u8>, u32, u32)>>),
+    PdfPageReady(usize, Vec<u8>, u32, u32),
+    PdfScrolled(iced::widget::scrollable::Viewport),
 
     // Spreadsheet
     SheetTabClicked(usize),
@@ -80,6 +93,8 @@ pub struct KglanceApp {
     pub video_tx: Option<tokio::sync::mpsc::Sender<crate::ui::handlers::video::PlayerCommand>>,
     pub video_rx:
         Arc<Mutex<Option<tokio::sync::mpsc::Receiver<crate::ui::handlers::video::VideoEvent>>>>,
+    pub ctrl_held: bool,
+    pub shift_held: bool,
 }
 
 impl KglanceApp {
@@ -102,8 +117,11 @@ impl KglanceApp {
             current_content: None,
             video_tx: Some(cmd_tx),
             video_rx: Arc::new(Mutex::new(Some(event_rx))),
+            ctrl_held: false,
+            shift_held: false,
         };
 
+        // Daemon starts with no window — window is opened on demand via DaemonOpenWindow.
         let task = if let Some(path) = initial_path {
             let path_str = path.to_string();
             let reg = app.registry.clone();
@@ -139,7 +157,9 @@ impl KglanceApp {
                 line_numbers,
                 language,
             } => {
-                self.state.text.content = text_content;
+                self.state.text.content =
+                    iced::widget::text_editor::Content::with_text(&text_content);
+                self.state.text.extension = language.clone();
                 self.state.text.line_numbers = line_numbers;
                 self.state.file_type_text = language;
             }
@@ -151,6 +171,7 @@ impl KglanceApp {
                 exif_content,
             } => {
                 self.state.image = crate::core::ImageState {
+                    handle: Some(iced::widget::image::Handle::from_bytes(data.clone())),
                     image_bytes: data,
                     image_width: width,
                     image_height: height,
@@ -163,6 +184,7 @@ impl KglanceApp {
                 self.state.pdf = crate::core::PdfState::default();
                 self.state.pdf.page_count = page_count;
                 self.state.pdf.pages = vec![None; page_count];
+                self.state.pdf.cached_handles = vec![None; page_count];
                 self.state.file_type_text = "PDF Document".to_string();
             }
             PreviewData::Folder { rows, total_size } => {
@@ -172,7 +194,22 @@ impl KglanceApp {
                 self.state.table.selected_index = None;
                 self.state.file_type_text = "Folder / Archive".to_string();
             }
-            PreviewData::Markdown { .. } => {
+            PreviewData::Markdown { blocks } => {
+                self.state.markdown = crate::core::types::MarkdownState::default();
+                self.state.markdown.cached_mermaid_handles = blocks
+                    .iter()
+                    .map(|block| {
+                        if let Block::Mermaid {
+                            rendered: Some(png),
+                            ..
+                        } = block
+                        {
+                            Some(iced::widget::image::Handle::from_bytes(png.clone()))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
                 self.state.file_type_text = "Markdown Document".to_string();
             }
             PreviewData::Spreadsheet {
@@ -208,9 +245,13 @@ impl KglanceApp {
                 Task::none()
             }
             Message::CloseRequested => {
+                if let Some(tx) = &self.video_tx {
+                    let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Stop);
+                }
                 if self.is_daemon {
-                    if let Some(id) = self.window_id {
-                        iced::window::set_mode(id, iced::window::Mode::Hidden)
+                    self.current_content = None;
+                    if let Some(id) = self.window_id.take() {
+                        iced::window::close(id)
                     } else {
                         Task::none()
                     }
@@ -222,9 +263,13 @@ impl KglanceApp {
                 let _ = std::process::Command::new("xdg-open")
                     .arg(&self.state.file_name)
                     .spawn();
+                if let Some(tx) = &self.video_tx {
+                    let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Stop);
+                }
                 if self.is_daemon {
-                    if let Some(id) = self.window_id {
-                        iced::window::set_mode(id, iced::window::Mode::Hidden)
+                    self.current_content = None;
+                    if let Some(id) = self.window_id.take() {
+                        iced::window::close(id)
                     } else {
                         Task::none()
                     }
@@ -233,6 +278,44 @@ impl KglanceApp {
                 }
             }
             Message::CopyPathClicked => iced::clipboard::write(self.state.file_name.clone()),
+            Message::DaemonOpenWindow { path } => {
+                // Window open signal arrived before content — show loading state immediately.
+                self.state.file_name = path;
+                self.state.content_ready = false;
+                self.current_content = None;
+
+                if let Some(id) = self.window_id {
+                    // Window already exists from a previous preview — un-hide and focus.
+                    Task::batch(vec![
+                        iced::window::set_mode(id, iced::window::Mode::Windowed),
+                        iced::window::gain_focus(id),
+                    ])
+                } else {
+                    // First open — create the window now (overlaps with file parsing).
+                    let settings = iced::window::Settings {
+                        size: iced::Size::new(1024.0, 768.0),
+                        min_size: Some(iced::Size::new(800.0, 600.0)),
+                        exit_on_close_request: false,
+                        decorations: false,
+                        ..Default::default()
+                    };
+                    let (id, open_task) = iced::window::open(settings);
+                    // Store ID immediately so subsequent messages can reference the window.
+                    // SAFETY: id is pre-allocated by Iced before the window is mapped.
+                    // We shadow self.window_id here via a returned task side-effect;
+                    // the Opened event from event_sub will also call self.window_id = Some(id).
+                    let _ = id; // stored via WindowEvent::Opened handler
+                    open_task.map(|wid| {
+                        Message::WindowEvent(
+                            wid,
+                            iced::window::Event::Opened {
+                                position: None,
+                                size: iced::Size::ZERO,
+                            },
+                        )
+                    })
+                }
+            }
             Message::FileLoaded { path, content } => {
                 self.state.file_name = path.clone();
                 self.state.content_ready = true;
@@ -274,7 +357,7 @@ impl KglanceApp {
 
                 let is_pdf = matches!(content, PreviewData::Pdf { .. });
 
-                // Populate page 0 from initial data
+                // Populate page 0 from initial data and build its handle immediately
                 if let PreviewData::Pdf {
                     ref data,
                     width,
@@ -284,32 +367,69 @@ impl KglanceApp {
                     && !data.is_empty()
                     && !self.state.pdf.pages.is_empty()
                 {
+                    let handle =
+                        iced::widget::image::Handle::from_rgba(width, height, data.clone());
                     self.state.pdf.pages[0] = Some((data.clone(), width, height));
+                    self.state.pdf.cached_handles[0] = Some(handle);
                 }
 
-                // Spawn background PDF page loading
+                // Lazy load PDF pages one-by-one in background tasks
                 let pdf_task: Option<Task<Message>> = if is_pdf && self.state.pdf.page_count > 1 {
-                    let path = path.clone();
-                    let page_count = self.state.pdf.page_count;
                     self.state.pdf.loading = true;
-                    Some(Task::perform(
-                        async move {
-                            let mut pages: Vec<Option<(Vec<u8>, u32, u32)>> =
-                                vec![None; page_count];
-                            let path = std::path::Path::new(&path);
-                            for (i, page_slot) in
-                                pages.iter_mut().enumerate().take(page_count).skip(1)
-                            {
-                                if let Ok(data) =
-                                    crate::parsers::pdf::render_pdf_page(path, i as u32)
-                                {
-                                    *page_slot = Some((data.data, data.width, data.height));
+                    let page_count = self.state.pdf.page_count;
+                    let path = path.clone();
+                    let visible_page = self.state.pdf.visible_page.clone();
+                    let stream = iced::stream::channel(
+                        10,
+                        move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                            use iced::futures::SinkExt;
+                            let mut rendered = vec![false; page_count];
+                            if page_count > 0 {
+                                rendered[0] = true;
+                            } // index 0 unused, 1-indexed
+
+                            loop {
+                                let curr = visible_page.load(std::sync::atomic::Ordering::Relaxed);
+
+                                // Find unrendered pages
+                                let mut unrendered: Vec<usize> =
+                                    (1..page_count).filter(|&i| !rendered[i]).collect();
+                                if unrendered.is_empty() {
+                                    break;
+                                }
+
+                                // Sort by distance to current view
+                                unrendered.sort_by_key(|&i| (i as isize - curr as isize).abs());
+
+                                // Take up to 4 pages to render concurrently
+                                let to_render: Vec<usize> =
+                                    unrendered.into_iter().take(4).collect();
+                                let mut tasks = Vec::new();
+
+                                for &i in &to_render {
+                                    rendered[i] = true;
+                                    let p = path.clone();
+                                    tasks.push(tokio::task::spawn_blocking(move || {
+                                        let p_path = std::path::Path::new(&p);
+                                        crate::parsers::pdf::render_pdf_page(p_path, i as u32).ok()
+                                    }));
+                                }
+
+                                let results = iced::futures::future::join_all(tasks).await;
+                                for (idx, res) in to_render.iter().zip(results) {
+                                    if let Some(d) = res.ok().flatten() {
+                                        let _ = output
+                                            .send(Message::PdfPageReady(
+                                                *idx, d.data, d.width, d.height,
+                                            ))
+                                            .await;
+                                    }
                                 }
                             }
-                            Message::PdfPagesLoaded(pages)
+                            let _ = output.send(Message::PdfPagesLoaded(vec![])).await;
                         },
-                        |msg| msg,
-                    ))
+                    );
+                    Some(Task::run(stream, |msg| msg))
                 } else {
                     None
                 };
@@ -332,36 +452,64 @@ impl KglanceApp {
 
                 self.state.media.has_video = is_video;
 
-                if let Some(tx) = &self.video_tx
-                    && (is_video || is_audio)
-                {
-                    let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Load(
-                        path.clone(),
-                    ));
-                    let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Play);
+                if let Some(tx) = &self.video_tx {
+                    if is_video || is_audio {
+                        let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Load(
+                            path.clone(),
+                        ));
+                        let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Play);
+                    } else {
+                        let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Stop);
+                    }
                 }
 
-                // Show window and focus
-                if let Some(id) = self.window_id {
-                    let t1 = iced::window::set_mode(id, iced::window::Mode::Windowed);
-                    let t2 = iced::window::gain_focus(id);
-                    Task::batch(
-                        mermaid_tasks
-                            .into_iter()
-                            .chain(pdf_task)
-                            .chain(std::iter::once(t1))
-                            .chain(std::iter::once(t2)),
-                    )
+                // Show window and focus.
+                // DaemonOpenWindow already opened the window; here we just ensure it's visible
+                // and focused when content arrives (window may have been closed between events).
+                let mut window_tasks: Vec<Task<Message>> = if self.is_daemon {
+                    if let Some(id) = self.window_id {
+                        vec![
+                            iced::window::set_mode(id, iced::window::Mode::Windowed),
+                            iced::window::gain_focus(id),
+                        ]
+                    } else {
+                        vec![]
+                    }
+                } else if let Some(id) = self.window_id {
+                    vec![iced::window::gain_focus(id)]
                 } else {
-                    Task::batch(mermaid_tasks.into_iter().chain(pdf_task))
+                    vec![]
+                };
+
+                if let PreviewData::Image { width, height, .. } = &content
+                    && let Some(id) = self.window_id
+                {
+                    let size = crate::ui::handlers::image::calculate_window_size(*width, *height);
+                    window_tasks.push(iced::window::resize(id, size));
                 }
+
+                Task::batch(
+                    mermaid_tasks
+                        .into_iter()
+                        .chain(pdf_task)
+                        .chain(window_tasks),
+                )
             }
             Message::WindowEvent(id, event) => {
-                if let iced::window::Event::Opened { .. } = event {
-                    self.window_id = Some(id);
-                    if self.is_daemon && self.current_content.is_none() {
-                        return iced::window::set_mode(id, iced::window::Mode::Hidden);
+                match event {
+                    iced::window::Event::Opened { .. } => {
+                        self.window_id = Some(id);
                     }
+                    iced::window::Event::CloseRequested => {
+                        if self.is_daemon {
+                            self.current_content = None;
+                            self.window_id = None;
+                            return iced::window::close(id);
+                        } else {
+                            return iced::exit();
+                        }
+                    }
+                    _ => {}
                 }
                 Task::none()
             }
@@ -369,12 +517,69 @@ impl KglanceApp {
                 self.state.image.zoom = (self.state.image.zoom + delta).clamp(0.1, 10.0);
                 Task::none()
             }
-            Message::PdfPagesLoaded(pages) => {
-                self.state.pdf.loading = false;
-                for (i, page_opt) in pages.into_iter().enumerate() {
-                    if page_opt.is_some() {
-                        self.state.pdf.pages[i] = page_opt;
+            Message::CtrlHeldChanged(held) => {
+                self.ctrl_held = held;
+                Task::none()
+            }
+            Message::ShiftHeldChanged(held) => {
+                self.shift_held = held;
+                Task::none()
+            }
+            Message::ModifiersUpdated(modifiers) => {
+                self.ctrl_held = modifiers.control();
+                self.shift_held = modifiers.shift();
+                Task::none()
+            }
+            Message::ScrollDelta { x: _x, y } => {
+                use iced::widget::operation;
+                use iced::widget::operation::AbsoluteOffset;
+                if self.ctrl_held {
+                    // Ctrl+scroll: zoom image
+                    if matches!(self.current_content, Some(PreviewData::Image { .. })) {
+                        let factor = if y > 0.0 { 0.1 } else { -0.1 };
+                        self.state.image.zoom = (self.state.image.zoom + factor).clamp(0.1, 10.0);
                     }
+                    Task::none()
+                } else if self.shift_held {
+                    // Shift+scroll: horizontal scroll
+                    operation::scroll_by("content_scroll", AbsoluteOffset { x: -y, y: 0.0 })
+                } else {
+                    // Normal scroll: vertical
+                    operation::scroll_by("content_scroll", AbsoluteOffset { x: 0.0, y: -y })
+                }
+            }
+            Message::PdfScrolled(viewport) => {
+                let y = viewport.absolute_offset().y;
+                let content_h = viewport.content_bounds().height;
+                let count = self.state.pdf.page_count;
+                if count > 0 && content_h > 0.0 {
+                    let mut page_index = ((y / content_h) * count as f32) as usize;
+                    if page_index >= count {
+                        page_index = count - 1;
+                    }
+                    self.state
+                        .pdf
+                        .visible_page
+                        .store(page_index, std::sync::atomic::Ordering::Relaxed);
+                }
+                Task::none()
+            }
+            Message::PdfPagesLoaded(_) => {
+                // Batch load fallback — unused in lazy path but kept for compatibility
+                self.state.pdf.loading = false;
+                Task::none()
+            }
+            Message::PdfPageReady(index, data, width, height) => {
+                if index < self.state.pdf.pages.len() {
+                    let handle =
+                        iced::widget::image::Handle::from_rgba(width, height, data.clone());
+                    self.state.pdf.pages[index] = Some((data, width, height));
+                    self.state.pdf.cached_handles[index] = Some(handle);
+                }
+                // Clear loading flag when last page arrives
+                let all_loaded = self.state.pdf.pages.iter().all(|p| p.is_some());
+                if all_loaded {
+                    self.state.pdf.loading = false;
                 }
                 Task::none()
             }
@@ -462,8 +667,9 @@ impl KglanceApp {
                 self.state.media.show_controls = false;
                 Task::none()
             }
-            Message::KeyPressed(key) => {
+            Message::KeyPressed(key, modifiers) => {
                 use iced::keyboard::key::Named;
+                let ctrl = modifiers.control();
 
                 // Handle folder preview specific keyboard selection
                 if matches!(self.current_content, Some(PreviewData::Folder { .. })) {
@@ -515,15 +721,40 @@ impl KglanceApp {
                     }
                 }
 
-                // Ctrl+C: copy image to clipboard
                 // Ctrl+C: copy file path
-                if let iced::keyboard::Key::Character(ref c) = key
-                    && c == "c"
-                {
-                    return iced::clipboard::write(self.state.file_name.clone());
+                if ctrl {
+                    if let iced::keyboard::Key::Character(ref c) = key {
+                        match c.as_str() {
+                            "c" => return iced::clipboard::write(self.state.file_name.clone()),
+                            "+" | "=" => {
+                                if matches!(self.current_content, Some(PreviewData::Image { .. })) {
+                                    self.state.image.zoom =
+                                        (self.state.image.zoom + 0.2).clamp(0.1, 10.0);
+                                    return Task::none();
+                                }
+                            }
+                            "-" => {
+                                if matches!(self.current_content, Some(PreviewData::Image { .. })) {
+                                    self.state.image.zoom =
+                                        (self.state.image.zoom - 0.2).clamp(0.1, 10.0);
+                                    return Task::none();
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    // Ctrl+0: reset zoom
+                    if let iced::keyboard::Key::Character(ref c) = key
+                        && c == "0"
+                        && matches!(self.current_content, Some(PreviewData::Image { .. }))
+                    {
+                        self.state.image.zoom = 1.0;
+                        return Task::none();
+                    }
                 }
 
                 let scroll_amount = 80.0;
+                let half_page_scroll_amout = 600.0;
                 let scroll_task: Option<Task<Message>> = match &key {
                     iced::keyboard::Key::Named(Named::ArrowDown) => Some(operation::scroll_by(
                         "content_scroll",
@@ -553,6 +784,35 @@ impl KglanceApp {
                             y: -scroll_amount,
                         },
                     )),
+                    iced::keyboard::Key::Named(Named::PageUp) => Some(operation::scroll_by(
+                        "content_scroll",
+                        AbsoluteOffset {
+                            x: 0.0,
+                            y: -half_page_scroll_amout,
+                        },
+                    )),
+                    iced::keyboard::Key::Named(Named::PageDown) => Some(operation::scroll_by(
+                        "content_scroll",
+                        AbsoluteOffset {
+                            x: 0.0,
+                            y: -half_page_scroll_amout,
+                        },
+                    )),
+
+                    iced::keyboard::Key::Character(c) if c == "d" => Some(operation::scroll_by(
+                        "content_scroll",
+                        AbsoluteOffset {
+                            x: 0.0,
+                            y: -half_page_scroll_amout,
+                        },
+                    )),
+                    iced::keyboard::Key::Character(c) if c == "u" => Some(operation::scroll_by(
+                        "content_scroll",
+                        AbsoluteOffset {
+                            x: 0.0,
+                            y: half_page_scroll_amout,
+                        },
+                    )),
                     _ => None,
                 };
                 if let Some(task) = scroll_task {
@@ -573,8 +833,9 @@ impl KglanceApp {
 
                 if should_close {
                     if self.is_daemon {
-                        if let Some(id) = self.window_id {
-                            iced::window::set_mode(id, iced::window::Mode::Hidden)
+                        self.current_content = None;
+                        if let Some(id) = self.window_id.take() {
+                            iced::window::close(id)
                         } else {
                             Task::none()
                         }
@@ -617,8 +878,12 @@ impl KglanceApp {
     pub fn view(&self) -> Element<'_, Message> {
         let preview_body: Element<'_, Message> = if let Some(content) = &self.current_content {
             match content {
-                PreviewData::Text { .. } => crate::ui::views::view_text(&self.state.text),
-                PreviewData::Markdown { blocks } => crate::ui::views::view_markdown(blocks),
+                PreviewData::Text { .. } => {
+                    crate::ui::views::view_text(&self.state.text, self.state.theme_dark)
+                }
+                PreviewData::Markdown { blocks } => {
+                    crate::ui::views::view_markdown(blocks, &self.state.markdown)
+                }
                 PreviewData::Image { .. } => crate::ui::views::view_image(&self.state.image),
                 PreviewData::Pdf { .. } => crate::ui::views::view_pdf(&self.state.pdf),
                 PreviewData::Folder { .. } => {
@@ -648,6 +913,11 @@ impl KglanceApp {
         crate::ui::window::view_window(&self.state, preview_body, is_media)
     }
 
+    /// Variant for [`iced::daemon`] which requires a `window::Id` parameter.
+    pub fn view_daemon(&self, _window_id: iced::window::Id) -> Element<'_, Message> {
+        self.view()
+    }
+
     pub fn subscription(&self) -> Subscription<Message> {
         let dbus_sub = subscription::from_recipe(DaemonRecipe {
             rx: self.daemon_rx.lock().unwrap().take(),
@@ -659,24 +929,20 @@ impl KglanceApp {
 
         let event_sub = iced::window::events().map(|(id, event)| Message::WindowEvent(id, event));
 
-        let global_event_sub = iced::event::listen_with(|event, _status, window_id| match event {
-            iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, .. }) => {
-                Some(Message::KeyPressed(key))
+        let global_event_sub = iced::event::listen_with(|event, _status, _window_id| match event {
+            iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, modifiers, .. }) => {
+                Some(Message::KeyPressed(key, modifiers))
+            }
+            iced::Event::Keyboard(iced::keyboard::Event::ModifiersChanged(modifiers)) => {
+                Some(Message::ModifiersUpdated(modifiers))
             }
             iced::Event::Mouse(iced::mouse::Event::WheelScrolled { delta }) => {
-                let delta_y = match delta {
-                    iced::mouse::ScrollDelta::Lines { y, .. } => y,
-                    iced::mouse::ScrollDelta::Pixels { y, .. } => y,
+                let (dx, dy) = match delta {
+                    iced::mouse::ScrollDelta::Lines { x, y } => (x * 40.0, y * 40.0),
+                    iced::mouse::ScrollDelta::Pixels { x, y } => (x, y),
                 };
-                Some(Message::ImageZoom(delta_y * 0.1))
+                Some(Message::ScrollDelta { x: dx, y: dy })
             }
-            iced::Event::Window(iced::window::Event::Opened { .. }) => Some(Message::WindowEvent(
-                window_id,
-                iced::window::Event::Opened {
-                    position: None,
-                    size: iced::Size::ZERO,
-                },
-            )),
             _ => None,
         });
         Subscription::batch(vec![dbus_sub, event_sub, video_sub, global_event_sub])
@@ -688,6 +954,11 @@ impl KglanceApp {
         } else {
             Theme::Light
         }
+    }
+
+    /// Variant for [`iced::daemon`] which requires a `window::Id` parameter.
+    pub fn theme_daemon(&self, _window_id: iced::window::Id) -> Theme {
+        self.theme()
     }
 }
 
@@ -714,6 +985,9 @@ impl Recipe for DaemonRecipe {
                     use iced::futures::SinkExt;
                     while let Some(cmd) = rx.recv().await {
                         match cmd {
+                            DaemonCommand::OpenWindow { path } => {
+                                let _ = output.send(Message::DaemonOpenWindow { path }).await;
+                            }
                             DaemonCommand::ShowPreview { path, content } => {
                                 let _ = output.send(Message::FileLoaded { path, content }).await;
                             }
