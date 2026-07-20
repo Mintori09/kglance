@@ -42,7 +42,7 @@ fn file_info<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     .into()
 }
 
-use crate::ui::components::button::glass_button;
+use crate::ui::components::button::{close_button, glass_button};
 
 pub fn header_actions<'a>() -> Element<'a, Message> {
     row![
@@ -57,7 +57,7 @@ pub fn header_actions<'a>() -> Element<'a, Message> {
         button("×")
             .on_press(Message::CloseRequested)
             .padding([6, 10])
-            .style(glass_button),
+            .style(close_button),
     ]
     .spacing(8)
     .align_y(Alignment::Center)

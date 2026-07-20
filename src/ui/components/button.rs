@@ -61,3 +61,50 @@ pub fn glass_button(theme: &Theme, status: button::Status) -> button::Style {
         }
     }
 }
+pub fn close_button(_theme: &Theme, status: button::Status) -> button::Style {
+    match status {
+        button::Status::Active => button::Style {
+            background: None,
+            text_color: Color::WHITE,
+            border: Border {
+                radius: 12.0.into(),
+                width: 0.0,
+                color: Color::TRANSPARENT,
+            },
+            shadow: Shadow::default(),
+        },
+
+        button::Status::Hovered => button::Style {
+            background: Some(Background::Color(Color::from_rgb8(232, 17, 35))),
+            text_color: Color::WHITE,
+            border: Border {
+                radius: 12.0.into(),
+                width: 0.0,
+                color: Color::TRANSPARENT,
+            },
+            shadow: Shadow {
+                offset: Vector::new(0.0, 2.0),
+                blur_radius: 12.0,
+                color: Color::from_rgba(0.0, 0.0, 0.0, 0.25),
+            },
+        },
+
+        button::Status::Pressed => button::Style {
+            background: Some(Background::Color(Color::from_rgb8(180, 0, 0))),
+            text_color: Color::WHITE,
+            border: Border {
+                radius: 12.0.into(),
+                width: 0.0,
+                color: Color::TRANSPARENT,
+            },
+            shadow: Shadow::default(),
+        },
+
+        button::Status::Disabled => button::Style {
+            background: None,
+            text_color: Color::from_rgba(1.0, 1.0, 1.0, 0.4),
+            border: Border::default(),
+            shadow: Shadow::default(),
+        },
+    }
+}
