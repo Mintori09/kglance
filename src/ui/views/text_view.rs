@@ -4,7 +4,7 @@ use crate::ui::theme::{breeze_button, breeze_text_input, glass_inset, glass_scro
 use iced::widget::{button, column, container, row, scrollable, text, text_input};
 use iced::{Element, Length};
 
-pub fn view_text<'a>(state: &'a TextState) -> Element<'a, Message> {
+pub fn view_text<'a>(state: &'a TextState, is_dark: bool) -> Element<'a, Message> {
     let mut main_content = column![].spacing(5);
 
     if state.search_visible {
@@ -29,11 +29,15 @@ pub fn view_text<'a>(state: &'a TextState) -> Element<'a, Message> {
         main_content = main_content.push(search_bar);
     }
 
-    let text_widget = if state.wrap {
-        text(&state.content).width(Length::Fill)
+    // In Iced 0.14, highlight takes (extension, theme)
+    let extension = state.extension.as_str();
+    let theme = if is_dark {
+        iced::highlighter::Theme::Base16Mocha
     } else {
-        text(&state.content)
+        iced::highlighter::Theme::InspiredGitHub
     };
+
+    let text_widget = iced::widget::text_editor(&state.content).highlight(extension, theme);
 
     let content_scroll = scrollable(container(text_widget).padding(15).style(glass_inset))
         .style(glass_scrollable)

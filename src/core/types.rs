@@ -31,7 +31,7 @@ pub struct TableRowState {
     pub is_dir: bool,
     pub icon: &'static str,
 }
-
+use iced::widget::image;
 #[derive(Debug, Clone)]
 pub struct ImageState {
     pub zoom: f32,
@@ -39,6 +39,7 @@ pub struct ImageState {
     pub image_bytes: Vec<u8>,
     pub image_width: u32,
     pub image_height: u32,
+    pub handle: Option<image::Handle>,
 }
 
 impl Default for ImageState {
@@ -49,13 +50,15 @@ impl Default for ImageState {
             image_bytes: Vec::new(),
             image_width: 0,
             image_height: 0,
+            handle: None,
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TextState {
-    pub content: String,
+    pub content: iced::widget::text_editor::Content,
+    pub extension: String,
     pub line_numbers: String,
     pub wrap: bool,
     pub search_visible: bool,
@@ -68,7 +71,8 @@ pub struct TextState {
 impl Default for TextState {
     fn default() -> Self {
         Self {
-            content: String::new(),
+            content: iced::widget::text_editor::Content::new(),
+            extension: String::new(),
             line_numbers: String::new(),
             wrap: true,
             search_visible: false,
@@ -83,18 +87,24 @@ impl Default for TextState {
 #[derive(Debug, Clone)]
 pub struct PdfState {
     pub pages: Vec<Option<(Vec<u8>, u32, u32)>>,
+    pub cached_handles: Vec<Option<iced::widget::image::Handle>>,
     pub page_count: usize,
     pub zoom: f32,
     pub loading: bool,
+    pub current_page: usize,
+    pub visible_page: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl Default for PdfState {
     fn default() -> Self {
         Self {
             pages: Vec::new(),
+            cached_handles: Vec::new(),
             page_count: 0,
             zoom: 1.0,
             loading: false,
+            current_page: 0,
+            visible_page: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         }
     }
 }
@@ -145,12 +155,17 @@ pub struct HistoryState {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct MarkdownState {
+    pub cached_mermaid_handles: Vec<Option<iced::widget::image::Handle>>,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct DirState {
     pub files: Vec<String>,
     pub current_index: Option<usize>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct KglanceState {
     pub file_name: String,
     pub title_text: String,
@@ -171,6 +186,7 @@ pub struct KglanceState {
     pub media: MediaState,
     pub history: HistoryState,
     pub dir: DirState,
+    pub markdown: MarkdownState,
 
     pub theme_dark: bool,
 }
@@ -196,6 +212,7 @@ impl Default for KglanceState {
             media: MediaState::default(),
             history: HistoryState::default(),
             dir: DirState::default(),
+            markdown: MarkdownState::default(),
             theme_dark: true,
         }
     }
