@@ -359,6 +359,9 @@ impl KglanceApp {
             Message::WindowEvent(id, event) => {
                 if let iced::window::Event::Opened { .. } = event {
                     self.window_id = Some(id);
+                    if self.is_daemon && self.current_content.is_none() {
+                        return iced::window::set_mode(id, iced::window::Mode::Hidden);
+                    }
                 }
                 Task::none()
             }
@@ -552,16 +555,19 @@ impl KglanceApp {
                     )),
                     _ => None,
                 };
-
                 if let Some(task) = scroll_task {
                     return task;
                 }
 
-                let should_close = match key {
+                let should_close = match &key {
                     iced::keyboard::Key::Named(Named::Escape | Named::Backspace | Named::Space) => {
                         true
                     }
-                    iced::keyboard::Key::Character(ref c) if c == " " => true,
+                    iced::keyboard::Key::Character(c)
+                        if c == " " || c == "\u{8}" || c == "\u{7f}" =>
+                    {
+                        true
+                    }
                     _ => false,
                 };
 
@@ -656,6 +662,13 @@ impl KglanceApp {
         let global_event_sub = iced::event::listen_with(|event, _status, window_id| match event {
             iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, .. }) => {
                 Some(Message::KeyPressed(key))
+            }
+            iced::Event::Mouse(iced::mouse::Event::WheelScrolled { delta }) => {
+                let delta_y = match delta {
+                    iced::mouse::ScrollDelta::Lines { y, .. } => y,
+                    iced::mouse::ScrollDelta::Pixels { y, .. } => y,
+                };
+                Some(Message::ImageZoom(delta_y * 0.1))
             }
             iced::Event::Window(iced::window::Event::Opened { .. }) => Some(Message::WindowEvent(
                 window_id,
