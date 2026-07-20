@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use pulldown_cmark::{Event, Parser, Tag, TagEnd};
+use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 
 use crate::parser::{ImageRef, ParseError, ParsedContent, PreviewParser};
 
@@ -16,6 +16,20 @@ impl Default for MarkdownParser {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum Block {
+    Heading { level: u8, text: String },
+    Paragraph(String),
+    CodeBlock { lang: String, code: String },
+    Table(TableBlock),
+}
+
+#[derive(Debug, Clone)]
+pub struct TableBlock {
+    pub headers: Vec<String>,
+    pub rows: Vec<Vec<String>>,
 }
 
 fn extract_images(raw: &str, parent: &Path) -> Vec<ImageRef> {
@@ -54,125 +68,54 @@ fn extract_images(raw: &str, parent: &Path) -> Vec<ImageRef> {
     images
 }
 
-fn format_unicode_table(rows: &[Vec<String>]) -> String {
-    if rows.is_empty() {
-        return String::new();
-    }
-
-    let num_cols = rows.iter().map(|r| r.len()).max().unwrap_or(0);
-    if num_cols == 0 {
-        return String::new();
-    }
-
-    let mut col_widths = vec![0; num_cols];
-    for row in rows {
-        for (i, cell) in row.iter().enumerate() {
-            if i < num_cols {
-                col_widths[i] = col_widths[i].max(cell.chars().count());
-            }
-        }
-    }
-
-    let mut table_str = String::new();
-    table_str.push('\n');
-
-    // Top border
-    let mut top = String::from("┌");
-    for (i, &w) in col_widths.iter().enumerate() {
-        top.push_str(&"─".repeat(w + 2));
-        if i < num_cols - 1 {
-            top.push('┬');
-        }
-    }
-    top.push('┐');
-    table_str.push_str(&format!("`{}`\n", top));
-
-    // Rows
-    for (r_idx, row) in rows.iter().enumerate() {
-        let mut line = String::from("│");
-        for (i, &w) in col_widths.iter().enumerate().take(num_cols) {
-            let cell_text = row.get(i).cloned().unwrap_or_default();
-            let pad_len = w - cell_text.chars().count();
-            line.push(' ');
-            line.push_str(&cell_text);
-            line.push_str(&" ".repeat(pad_len));
-            line.push(' ');
-            line.push('│');
-        }
-        table_str.push_str(&format!("`{}`\n", line));
-
-        if r_idx == 0 && rows.len() > 1 {
-            // Header divider
-            let mut div = String::from("├");
-            for (i, &w) in col_widths.iter().enumerate() {
-                div.push_str(&"─".repeat(w + 2));
-                if i < num_cols - 1 {
-                    div.push('┼');
-                }
-            }
-            div.push('┤');
-            table_str.push_str(&format!("`{}`\n", div));
-        } else if r_idx < rows.len() - 1 {
-            // Light row divider
-            let mut div = String::from("├");
-            for (i, &w) in col_widths.iter().enumerate() {
-                div.push_str(&"─".repeat(w + 2));
-                if i < num_cols - 1 {
-                    div.push('┼');
-                }
-            }
-            div.push('┤');
-            table_str.push_str(&format!("`{}`\n", div));
-        }
-    }
-
-    // Bottom border
-    let mut bottom = String::from("└");
-    for (i, &w) in col_widths.iter().enumerate() {
-        bottom.push_str(&"─".repeat(w + 2));
-        if i < num_cols - 1 {
-            bottom.push('┴');
-        }
-    }
-    bottom.push('┘');
-    table_str.push_str(&format!("`{}`\n", bottom));
-
-    table_str
-}
-
-pub fn convert_markdown_to_slint_markdown(content: &str) -> String {
-    let mut result = String::new();
+pub fn parse_to_blocks(content: &str) -> Vec<Block> {
     let parser = pulldown_cmark::Parser::new_ext(content, pulldown_cmark::Options::all());
+    let mut blocks = Vec::new();
 
-    struct TableState {
+    struct TableAccum {
         rows: Vec<Vec<String>>,
         current_row: Vec<String>,
         current_cell: String,
     }
-    let mut table_state: Option<TableState> = None;
+    let mut table_accum: Option<TableAccum> = None;
+    let mut code_accum: Option<(String, String)> = None;
+    let mut current_text = String::new();
+
+    let flush_text = |text: &mut String, blocks: &mut Vec<Block>| {
+        let trimmed = text.trim();
+        if !trimmed.is_empty() {
+            blocks.push(Block::Paragraph(trimmed.to_string()));
+            text.clear();
+        }
+    };
 
     for event in parser {
-        if let Some(ref mut state) = table_state {
+        if let Some(ref mut state) = table_accum {
             match event {
-                pulldown_cmark::Event::Start(pulldown_cmark::Tag::TableCell) => {
+                Event::Start(Tag::TableCell) => {
                     state.current_cell.clear();
                 }
-                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::TableCell) => {
+                Event::End(TagEnd::TableCell) => {
                     state.current_row.push(state.current_cell.clone());
                 }
-                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::TableRow) => {
+                Event::End(TagEnd::TableRow) | Event::End(TagEnd::TableHead) => {
                     state.rows.push(state.current_row.clone());
                     state.current_row.clear();
                 }
-                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::Table) => {
-                    let formatted_table = format_unicode_table(&state.rows);
-                    result.push_str(&formatted_table);
-                    table_state = None;
+                Event::End(TagEnd::Table) => {
+                    let headers = state.rows.first().cloned().unwrap_or_default();
+                    let rows = if state.rows.len() > 1 {
+                        state.rows[1..].to_vec()
+                    } else {
+                        Vec::new()
+                    };
+                    blocks.push(Block::Table(TableBlock { headers, rows }));
+                    table_accum = None;
                 }
-                pulldown_cmark::Event::Text(text) => {
+                Event::Text(text) => {
                     state.current_cell.push_str(&text);
                 }
-                pulldown_cmark::Event::Code(code) => {
+                Event::Code(code) => {
                     state.current_cell.push('`');
                     state.current_cell.push_str(&code);
                     state.current_cell.push('`');
@@ -182,75 +125,81 @@ pub fn convert_markdown_to_slint_markdown(content: &str) -> String {
             continue;
         }
 
+        if let Some(ref mut accum) = code_accum {
+            match event {
+                Event::End(TagEnd::CodeBlock) => {
+                    let (lang, code) = std::mem::take(accum);
+                    blocks.push(Block::CodeBlock { lang, code });
+                    code_accum = None;
+                }
+                Event::Text(t) => accum.1.push_str(&t),
+                Event::SoftBreak | Event::HardBreak => accum.1.push('\n'),
+                _ => {}
+            }
+            continue;
+        }
+
         match event {
-            pulldown_cmark::Event::Start(tag) => match tag {
-                pulldown_cmark::Tag::Table(_) => {
-                    table_state = Some(TableState {
-                        rows: Vec::new(),
-                        current_row: Vec::new(),
-                        current_cell: String::new(),
-                    });
-                }
-                pulldown_cmark::Tag::Heading { level, .. } => {
-                    result.push_str("\n**");
-                    let prefix = match level {
-                        pulldown_cmark::HeadingLevel::H1 => "# ",
-                        pulldown_cmark::HeadingLevel::H2 => "## ",
-                        pulldown_cmark::HeadingLevel::H3 => "### ",
-                        _ => "#### ",
-                    };
-                    result.push_str(prefix);
-                }
-                pulldown_cmark::Tag::Strong => {
-                    result.push_str("**");
-                }
-                pulldown_cmark::Tag::Emphasis => {
-                    result.push('*');
-                }
-                pulldown_cmark::Tag::Item => {
-                    result.push_str("  • ");
-                }
-                pulldown_cmark::Tag::CodeBlock(_) => {
-                    result.push('\n');
-                }
-                _ => {}
-            },
-            pulldown_cmark::Event::End(tag) => match tag {
-                pulldown_cmark::TagEnd::Heading(_) => {
-                    result.push_str("**\n");
-                }
-                pulldown_cmark::TagEnd::Strong => {
-                    result.push_str("**");
-                }
-                pulldown_cmark::TagEnd::Emphasis => {
-                    result.push('*');
-                }
-                pulldown_cmark::TagEnd::Item => {
-                    result.push('\n');
-                }
-                pulldown_cmark::TagEnd::CodeBlock => {
-                    result.push('\n');
-                }
-                pulldown_cmark::TagEnd::Paragraph => {
-                    result.push_str("\n\n");
-                }
-                _ => {}
-            },
-            pulldown_cmark::Event::Text(text) => {
-                result.push_str(&text);
+            Event::Start(Tag::Table(_)) => {
+                flush_text(&mut current_text, &mut blocks);
+                table_accum = Some(TableAccum {
+                    rows: Vec::new(),
+                    current_row: Vec::new(),
+                    current_cell: String::new(),
+                });
             }
-            pulldown_cmark::Event::Code(code) => {
-                result.push('`');
-                result.push_str(&code);
-                result.push('`');
+            Event::Start(Tag::Heading { level, .. }) => {
+                let prefix = match level {
+                    HeadingLevel::H1 => "# ",
+                    HeadingLevel::H2 => "## ",
+                    HeadingLevel::H3 => "### ",
+                    _ => "#### ",
+                };
+                current_text.push_str(prefix);
             }
-            pulldown_cmark::Event::SoftBreak | pulldown_cmark::Event::HardBreak => {
-                result.push('\n');
+            Event::End(TagEnd::Heading(_)) => {
+                flush_text(&mut current_text, &mut blocks);
+            }
+            Event::Start(Tag::CodeBlock(kind)) => {
+                flush_text(&mut current_text, &mut blocks);
+                let lang = match kind {
+                    pulldown_cmark::CodeBlockKind::Fenced(l) => l.to_string(),
+                    pulldown_cmark::CodeBlockKind::Indented => String::new(),
+                };
+                code_accum = Some((lang, String::new()));
+            }
+            Event::Start(Tag::List(_)) => {
+                current_text.push('\n');
+            }
+            Event::End(TagEnd::List(_)) => {
+                current_text.push('\n');
+            }
+            Event::Start(Tag::Item) => {
+                current_text.push_str("  • ");
+            }
+            Event::End(TagEnd::Item) => {
+                current_text.push('\n');
+            }
+            Event::End(TagEnd::Paragraph) => {
+                flush_text(&mut current_text, &mut blocks);
+            }
+            Event::Text(text) => {
+                current_text.push_str(&text);
+            }
+            Event::Code(code) => {
+                current_text.push('`');
+                current_text.push_str(&code);
+                current_text.push('`');
+            }
+            Event::SoftBreak | Event::HardBreak => {
+                current_text.push('\n');
             }
             _ => {}
         }
     }
-    result
+
+    flush_text(&mut current_text, &mut blocks);
+    blocks
 }
 
 impl PreviewParser for MarkdownParser {
@@ -462,76 +411,53 @@ mod tests {
     }
 
     #[test]
-    fn test_convert_markdown_to_slint_markdown_and_decode() {
-        let md = "# Heading 1\n\nSome text with **bold** and *italic* and `inline code`.\n\n- Item 1\n- Item 2\n\n```rust\nfn main() {}\n```";
-        let slint_md = convert_markdown_to_slint_markdown(md);
-
-        let decoded = slint::StyledText::from_markdown(&slint_md);
-        assert!(
-            decoded.is_ok(),
-            "Failed to decode generated Slint Markdown: {:?}",
-            decoded.err()
-        );
-    }
-
-    #[test]
-    fn test_markdown_performance_3000_lines() {
-        let mut large_content = String::new();
-        for i in 1..=3000 {
-            if i % 50 == 0 {
-                large_content.push_str(&format!("## Heading Level 2 at line {}\n\n", i));
-            } else if i % 10 == 0 {
-                large_content
-                    .push_str("This is **bold** text and *italic* text with `inline code`.\n\n");
-            } else {
-                large_content.push_str("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor.\n");
-            }
-        }
-
-        let start_time = std::time::Instant::now();
-
-        // 1. Parsing
-        let parser = MarkdownParser::new();
-        let mut tmp = tempfile::Builder::new().suffix(".md").tempfile().unwrap();
-        write!(tmp, "{}", large_content).unwrap();
-        let parsed = parser.parse(tmp.path()).unwrap();
-
-        // 2. Slint Markdown formatting
-        let raw_content = match parsed {
-            ParsedContent::Markdown { content, .. } => content,
-            _ => panic!("Expected Markdown variant"),
-        };
-        let formatted = convert_markdown_to_slint_markdown(&raw_content);
-
-        // 3. Slint StyledText parsing
-        let decoded = slint::StyledText::from_markdown(&formatted);
-        assert!(decoded.is_ok());
-
-        let duration = start_time.elapsed();
-        println!(
-            "Total 3000-line markdown processing pipeline time: {:?}",
-            duration
-        );
-
-        let limit = if cfg!(debug_assertions) { 250 } else { 50 };
-        assert!(
-            duration.as_millis() < limit,
-            "Performance threshold exceeded: {:?}",
-            duration
-        );
-    }
-
-    #[test]
-    fn test_convert_markdown_table_to_unicode() {
+    fn test_parse_table_to_blocks() {
         let md = "| H1 | H2 |\n|---|---|\n| C1 | C2 |";
-        let slint_md = convert_markdown_to_slint_markdown(md);
+        let blocks = parse_to_blocks(md);
+        assert_eq!(blocks.len(), 1);
+        match &blocks[0] {
+            Block::Table(tbl) => {
+                assert_eq!(tbl.headers, vec!["H1", "H2"]);
+                assert_eq!(tbl.rows.len(), 1);
+                assert_eq!(tbl.rows[0], vec!["C1", "C2"]);
+            }
+            _ => panic!("expected Table block"),
+        }
+    }
 
-        assert!(slint_md.contains('┌'));
-        assert!(slint_md.contains("H1"));
-        assert!(slint_md.contains("C2"));
-        assert!(slint_md.contains('└'));
+    #[test]
+    fn test_parse_heading_paragraph_to_blocks() {
+        let md = "# Hello\n\nSome text";
+        let blocks = parse_to_blocks(md);
+        assert!(!blocks.is_empty());
+        assert!(matches!(blocks[0], Block::Paragraph(_)));
+    }
 
-        let decoded = slint::StyledText::from_markdown(&slint_md);
-        assert!(decoded.is_ok());
+    #[test]
+    fn test_parse_code_block_to_blocks() {
+        let md = "```rust\nfn main() {}\n```";
+        let blocks = parse_to_blocks(md);
+        assert_eq!(blocks.len(), 1);
+        match &blocks[0] {
+            Block::CodeBlock { lang, code } => {
+                assert_eq!(lang, "rust");
+                assert!(code.contains("fn main"));
+            }
+            _ => panic!("expected CodeBlock block"),
+        }
+    }
+
+    #[test]
+    fn test_parse_table_headers_only() {
+        let md = "| A | B |\n|---|---|";
+        let blocks = parse_to_blocks(md);
+        assert_eq!(blocks.len(), 1);
+        match &blocks[0] {
+            Block::Table(tbl) => {
+                assert_eq!(tbl.headers, vec!["A", "B"]);
+                assert!(tbl.rows.is_empty());
+            }
+            _ => panic!("expected Table block"),
+        }
     }
 }

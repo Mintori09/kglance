@@ -62,11 +62,7 @@ fn extract_exif(path: &Path) -> Option<Box<ExifData>> {
     let gps_val = |tag: exif::Tag| {
         reader.get_field(tag, exif::In::PRIMARY).and_then(|f| {
             let v = f.value.display_as(f.tag).to_string();
-            if v.is_empty() {
-                None
-            } else {
-                Some(v)
-            }
+            if v.is_empty() { None } else { Some(v) }
         })
     };
 

@@ -66,11 +66,7 @@ pub fn build_folder_rows(
             SortField::Modified => a.modified.cmp(&b.modified),
             SortField::Size => a.size.cmp(&b.size),
         };
-        if sort.ascending {
-            cmp
-        } else {
-            cmp.reverse()
-        }
+        if sort.ascending { cmp } else { cmp.reverse() }
     });
     let rows: Vec<TableRow> = sorted
         .iter()

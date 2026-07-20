@@ -1,6 +1,6 @@
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{Sender, channel};
 use std::thread;
 use std::time::Duration;
 
@@ -44,11 +44,7 @@ fn probe_video_info(path: &str) -> Option<(u32, u32, f64, f64)> {
         let fps = if fps_parts.len() == 2 {
             let num = fps_parts[0].parse::<f64>().unwrap_or(30.0);
             let den = fps_parts[1].parse::<f64>().unwrap_or(1.0);
-            if den > 0.0 {
-                num / den
-            } else {
-                30.0
-            }
+            if den > 0.0 { num / den } else { 30.0 }
         } else {
             parts[2].parse::<f64>().unwrap_or(30.0)
         };

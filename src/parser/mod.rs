@@ -1,5 +1,5 @@
 pub mod archive;
-pub use archive::{extract_entry, ExtractedFile};
+pub use archive::{ExtractedFile, extract_entry};
 
 pub mod audio;
 pub mod folder;

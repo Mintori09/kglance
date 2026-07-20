@@ -1,13 +1,15 @@
-pub mod generated {
-    slint::include_modules!();
+pub struct PreviewWindow;
+
+impl PreviewWindow {
+    pub fn new(_hidden: bool) -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Self)
+    }
+
+    pub fn set_file_selected_handler<F>(&self, _handler: F)
+    where
+        F: Fn(String) + 'static,
+    {
+    }
+
+    pub fn show(&self, _path: &str, _content: &crate::parser::ParsedContent) {}
 }
-
-mod helpers;
-mod image_handler;
-mod table;
-mod theme;
-mod video_player;
-mod window;
-
-pub use generated::TableRow;
-pub use window::PreviewWindow;

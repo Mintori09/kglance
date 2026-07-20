@@ -913,11 +913,60 @@ impl PreviewWindow {
                         .into(),
                     );
                 } else {
-                    let blocks = parse_markdown_to_slint_blocks(content);
-                    self.ui
-                        .set_markdown_blocks(slint::ModelRc::from(std::rc::Rc::new(
-                            slint::VecModel::from(blocks),
-                        )));
+                    let (blocks, mermaid_tasks) = parse_markdown_to_slint_blocks(content);
+                    let model = std::rc::Rc::new(slint::VecModel::from(blocks));
+
+                    for (block_idx, code) in mermaid_tasks {
+                        let cache_path = get_mermaid_cache_path(&code);
+                        if cache_path.exists() {
+                            if let (Ok(img), Some(mut block)) = (
+                                slint::Image::load_from_path(&cache_path),
+                                model.row_data(block_idx),
+                            ) {
+                                block.image_content = img;
+                                model.set_row_data(block_idx, block);
+                            }
+                        } else {
+                            let raw_ptr = std::rc::Rc::into_raw(model.clone()) as usize;
+                            let code_clone = code.clone();
+                            let cp_clone = cache_path.clone();
+                            std::thread::spawn(move || {
+                                if render_mermaid_to_svg(&code_clone, &cp_clone).is_some() {
+                                    let _ = slint::invoke_from_event_loop(move || {
+                                        let model_rc = unsafe {
+                                            std::rc::Rc::from_raw(
+                                                raw_ptr
+                                                    as *const slint::VecModel<
+                                                        super::generated::SlintMarkdownBlock,
+                                                    >,
+                                            )
+                                        };
+                                        if let (Ok(img), Some(mut block)) = (
+                                            slint::Image::load_from_path(&cp_clone),
+                                            model_rc.row_data(block_idx),
+                                        ) {
+                                            block.image_content = img;
+                                            model_rc.set_row_data(block_idx, block);
+                                        }
+                                    });
+                                } else {
+                                    // Make sure we drop the raw pointer reference even if rendering fails
+                                    let _ = slint::invoke_from_event_loop(move || {
+                                        let _ = unsafe {
+                                            std::rc::Rc::from_raw(
+                                                raw_ptr
+                                                    as *const slint::VecModel<
+                                                        super::generated::SlintMarkdownBlock,
+                                                    >,
+                                            )
+                                        };
+                                    });
+                                }
+                            });
+                        }
+                    }
+
+                    self.ui.set_markdown_blocks(slint::ModelRc::from(model));
                     self.ui.set_show_markdown(true);
                     self.ui
                         .set_status_text(format!("Markdown  |  {} images", images.len()).into());
@@ -1135,7 +1184,26 @@ fn reset_dir_state(files: &Rc<RefCell<Vec<String>>>, idx: &Rc<RefCell<Option<usi
     *idx.borrow_mut() = None;
 }
 
-fn render_mermaid_to_png(code: &str) -> Option<Vec<u8>> {
+fn get_mermaid_cache_path(code: &str) -> std::path::PathBuf {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    code.hash(&mut hasher);
+    let hash_val = hasher.finish();
+    let filename = format!("{:016x}.svg", hash_val);
+
+    let cache_dir = std::env::var("HOME")
+        .map(|h| std::path::PathBuf::from(h).join(".cache/kglance/mermaid"))
+        .unwrap_or_else(|_| std::env::temp_dir().join("kglance-mermaid"));
+
+    cache_dir.join(filename)
+}
+
+fn render_mermaid_to_svg(code: &str, cache_path: &Path) -> Option<()> {
+    if let Some(parent) = cache_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
     let mut child = std::process::Command::new("mmdr")
         .args(["-e", "svg"])
         .stdin(std::process::Stdio::piped())
@@ -1154,24 +1222,20 @@ fn render_mermaid_to_png(code: &str) -> Option<Vec<u8>> {
         return None;
     }
 
-    let opt = resvg::usvg::Options::default();
-    let rtree = resvg::usvg::Tree::from_data(&output.stdout, &opt).ok()?;
-    let pixmap_size = rtree.size().to_int_size();
-    let mut pixmap = resvg::tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height())?;
-
-    resvg::render(
-        &rtree,
-        resvg::usvg::Transform::default(),
-        &mut pixmap.as_mut(),
-    );
-
-    pixmap.encode_png().ok()
+    std::fs::write(cache_path, &output.stdout).ok()?;
+    Some(())
 }
 
-fn parse_markdown_to_slint_blocks(content: &str) -> Vec<super::generated::SlintMarkdownBlock> {
+fn parse_markdown_to_slint_blocks(
+    content: &str,
+) -> (
+    Vec<super::generated::SlintMarkdownBlock>,
+    Vec<(usize, String)>,
+) {
     use super::generated::{SlintMarkdownBlock, SlintTableRow};
     let parser = pulldown_cmark::Parser::new_ext(content, pulldown_cmark::Options::all());
     let mut blocks = Vec::new();
+    let mut mermaid_tasks = Vec::new();
 
     struct TableState {
         rows: Vec<Vec<String>>,
@@ -1204,36 +1268,15 @@ fn parse_markdown_to_slint_blocks(content: &str) -> Vec<super::generated::SlintM
                     let mermaid_code = code.clone();
                     mermaid_state = None;
 
-                    let mut rendered = false;
-                    if let Some(png_bytes) = render_mermaid_to_png(&mermaid_code) {
-                        let slint_img = tempfile::Builder::new()
-                            .suffix(".png")
-                            .tempfile()
-                            .ok()
-                            .and_then(|mut tmp| {
-                                use std::io::Write;
-                                tmp.write_all(&png_bytes)
-                                    .ok()
-                                    .and_then(|_| slint::Image::load_from_path(tmp.path()).ok())
-                            });
-                        if let Some(img) = slint_img {
-                            blocks.push(SlintMarkdownBlock {
-                                is_table: false,
-                                is_image: true,
-                                text_content: slint::StyledText::default(),
-                                image_content: img,
-                                table_rows: slint::ModelRc::default(),
-                                col_count: 0,
-                            });
-                            rendered = true;
-                        }
-                    }
-
-                    if !rendered {
-                        current_text.push_str("\n```\n");
-                        current_text.push_str(&mermaid_code);
-                        current_text.push_str("\n```\n");
-                    }
+                    mermaid_tasks.push((blocks.len(), mermaid_code));
+                    blocks.push(SlintMarkdownBlock {
+                        is_table: false,
+                        is_image: true,
+                        text_content: slint::StyledText::default(),
+                        image_content: slint::Image::default(),
+                        table_rows: slint::ModelRc::default(),
+                        col_count: 0,
+                    });
                 }
                 pulldown_cmark::Event::Text(text) => {
                     code.push_str(&text);
@@ -1254,7 +1297,8 @@ fn parse_markdown_to_slint_blocks(content: &str) -> Vec<super::generated::SlintM
                 pulldown_cmark::Event::End(pulldown_cmark::TagEnd::TableCell) => {
                     state.current_row.push(state.current_cell.clone());
                 }
-                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::TableRow) => {
+                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::TableRow)
+                | pulldown_cmark::Event::End(pulldown_cmark::TagEnd::TableHead) => {
                     state.rows.push(state.current_row.clone());
                     state.current_row.clear();
                 }
@@ -1384,5 +1428,5 @@ fn parse_markdown_to_slint_blocks(content: &str) -> Vec<super::generated::SlintM
     }
 
     flush_text(&mut current_text, &mut blocks);
-    blocks
+    (blocks, mermaid_tasks)
 }
