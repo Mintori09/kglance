@@ -116,6 +116,7 @@ impl PreviewParser for AudioParser {
         };
 
         Ok(ParsedContent::Audio {
+            path: path.to_string_lossy().to_string(),
             metadata: metadata_str,
             waveform: Vec::new(),
             waveform_width: 0,

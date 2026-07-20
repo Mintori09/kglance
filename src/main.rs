@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use iced::Font;
+use iced::{Font, Size};
 use kglance::app::KglanceApp;
 use kglance::{dbus, log_error, log_info, parsers};
 
@@ -16,6 +16,7 @@ fn build_registry() -> parsers::ParserRegistry {
     r.register(Box::new(parsers::font::FontParser));
     r.register(Box::new(parsers::audio::AudioParser));
     r.register(Box::new(parsers::video::VideoParser));
+    r.register(Box::new(parsers::epub::EpubParser));
     r.register(Box::new(parsers::csv::CsvParser));
     r.register(Box::new(parsers::office::OfficeParser));
     r
@@ -71,24 +72,17 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    log_info!("Running Iced GUI in daemon mode...");
+    log_info!("Running Iced daemon (no initial window)...");
     let reg = registry.clone();
     let rx = std::cell::Cell::new(Some(rx));
-    iced::application(
+    iced::daemon(
         move || KglanceApp::new(reg.clone(), rx.take(), None, true),
         KglanceApp::update,
-        KglanceApp::view,
+        KglanceApp::view_daemon,
     )
-    .window(iced::window::Settings {
-        visible: false,
-        exit_on_close_request: false,
-        decorations: false,
-        ..Default::default()
-    })
-    .default_font(Font::with_name("Inter"))
-    .title(KglanceApp::title)
+    .default_font(iced::Font::with_name("Inter"))
     .subscription(KglanceApp::subscription)
-    .theme(KglanceApp::theme)
+    .theme(KglanceApp::theme_daemon)
     .run()?;
 
     log_info!("Daemon event loop quit.");
@@ -115,6 +109,8 @@ fn run_standalone(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     )
     .window(iced::window::Settings {
         visible: true,
+        min_size: Some(Size::new(800.0, 600.0)),
+        size: Size::new(1024.0, 768.0),
         exit_on_close_request: true,
         decorations: false,
         ..Default::default()

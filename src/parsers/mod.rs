@@ -3,6 +3,7 @@ pub mod csv;
 pub use archive::{ExtractedFile, extract_entry};
 
 pub mod audio;
+pub mod epub;
 pub mod folder;
 pub mod font;
 pub mod image;
@@ -281,9 +282,8 @@ impl ParserRegistry {
             // Archives: 2 GB
             "zip" | "tar" | "gz" | "bz2" | "xz" | "7z" | "rar" => 2 * 1024 * 1024 * 1024,
             // PDF/Office: 500 MB
-            "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "ods" | "odp" => {
-                500 * 1024 * 1024
-            }
+            "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "ods" | "odp"
+            | "epub" => 500 * 1024 * 1024,
             // Images & Fonts: 100 MB
             "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg" | "ico" | "ttf" | "otf"
             | "woff" | "woff2" => 100 * 1024 * 1024,
@@ -298,6 +298,25 @@ impl ParserRegistry {
                 human_size(limit),
                 ext
             );
+            let file_name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("Unknown file");
+            let _ = std::process::Command::new("notify-send")
+                .args([
+                    "-u",
+                    "normal",
+                    "-i",
+                    "dialog-warning",
+                    "Kglance Preview",
+                    &format!(
+                        "File \"{}\" is too large to preview.\nSize: {} (Limit: {})",
+                        file_name,
+                        human_size(metadata.len()),
+                        human_size(limit)
+                    ),
+                ])
+                .status();
             return Err(ParseError::TooLarge);
         }
 
