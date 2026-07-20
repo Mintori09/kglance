@@ -10,17 +10,34 @@ pub fn view_media<'a>(
     wf_width: u32,
     wf_height: u32,
 ) -> Element<'a, Message> {
-    let display: Element<'a, Message> = if !state.frame_data.is_empty() && state.has_video {
-        let handle = image::Handle::from_rgba(
-            state.frame_width,
-            state.frame_height,
-            state.frame_data.clone(),
-        );
-        image(handle)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .content_fit(iced::ContentFit::Contain)
+    let display: Element<'a, Message> = if state.has_video {
+        if !state.frame_data.is_empty() {
+            let handle = image::Handle::from_rgba(
+                state.frame_width,
+                state.frame_height,
+                state.frame_data.clone(),
+            );
+            image(handle)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .content_fit(iced::ContentFit::Contain)
+                .into()
+        } else if !data.is_empty() {
+            let handle = image::Handle::from_bytes(data.to_vec());
+            image(handle)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .content_fit(iced::ContentFit::Contain)
+                .into()
+        } else {
+            text(if state.metadata.is_empty() {
+                "No preview"
+            } else {
+                ""
+            })
+            .size(14)
             .into()
+        }
     } else if !data.is_empty() && wf_width > 0 && wf_height > 0 {
         let handle = image::Handle::from_rgba(wf_width, wf_height, data.to_vec());
         image(handle)

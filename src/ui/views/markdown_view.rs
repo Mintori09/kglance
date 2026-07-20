@@ -30,6 +30,7 @@ fn code_block_style(theme: &iced::Theme) -> container::Style {
             radius: 4.0.into(),
         },
         shadow: Shadow::default(),
+        snap: false,
     }
 }
 
@@ -103,8 +104,11 @@ fn render_table<'a>(table: &'a TableBlock) -> Element<'a, Message> {
         .into()
 }
 
-pub fn view_markdown<'a>(blocks: &'a [Block]) -> Element<'a, Message> {
-    let content = blocks.iter().map(|block| match block {
+pub fn view_markdown<'a>(
+    blocks: &'a [Block],
+    state: &'a crate::core::MarkdownState,
+) -> Element<'a, Message> {
+    let content = blocks.iter().enumerate().map(|(i, block)| match block {
         Block::Heading { level, text: t } => {
             let size: f32 = match level {
                 1 => 28.0,
@@ -175,13 +179,19 @@ pub fn view_markdown<'a>(blocks: &'a [Block]) -> Element<'a, Message> {
                     ..Default::default()
                 });
 
-            if let Some(png) = rendered {
-                // `png.clone()` tạo `Bytes` mang 'static lifetime thỏa mãn Iced
-                let handle = image::Handle::from_bytes(png.clone());
-                let img = container(image(handle).width(Length::Shrink).height(Length::Shrink))
+            if rendered.is_some() {
+                if let Some(Some(handle)) = state.cached_mermaid_handles.get(i) {
+                    let img = container(
+                        image(handle.clone())
+                            .width(Length::Shrink)
+                            .height(Length::Shrink),
+                    )
                     .center_x(Length::Fill)
                     .padding(10);
-                column![badge, img].spacing(0).into()
+                    column![badge, img].spacing(0).into()
+                } else {
+                    column![badge].spacing(0).into()
+                }
             } else {
                 let line_widgets = lines.iter().map(|line| {
                     let display = if line.contains("-->") {
@@ -209,8 +219,8 @@ pub fn view_markdown<'a>(blocks: &'a [Block]) -> Element<'a, Message> {
     let inner = column(content).spacing(6).padding(15);
 
     scrollable(inner)
+        .id("content_scroll")
         .style(crate::ui::theme::glass_scrollable)
         .height(Length::Fill)
-        .width(Length::Fill)
         .into()
 }

@@ -13,7 +13,8 @@ impl PreviewParser for ImageParser {
     fn is_supported(&self, path: &Path) -> bool {
         path.extension()
             .and_then(|e| e.to_str())
-            .is_some_and(|e| self.supported_extensions().contains(&e))
+            .map(|e| e.to_lowercase())
+            .is_some_and(|e| self.supported_extensions().contains(&e.as_str()))
     }
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
@@ -24,8 +25,14 @@ impl PreviewParser for ImageParser {
             .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
         let img = image::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        // Extract original dimensions to fit the window with proportional scaling on open
         let (width, height) = (img.width(), img.height());
-        let format = match path.extension().and_then(|e| e.to_str()) {
+        let format = match path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .as_deref()
+        {
             Some("png") => ImageFormat::Png,
             Some("jpg") | Some("jpeg") => ImageFormat::Jpeg,
             Some("webp") => ImageFormat::WebP,

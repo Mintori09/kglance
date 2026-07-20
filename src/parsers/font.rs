@@ -1,6 +1,5 @@
-use std::path::Path;
-
 use crate::parsers::{ParseError, ParsedContent, PreviewParser};
+use std::path::Path;
 
 pub struct FontParser;
 
@@ -27,11 +26,9 @@ impl PreviewParser for FontParser {
         let name = font.name().unwrap_or("Unknown").to_string();
         let glyph_count = font.glyph_count();
         let units_per_em = font.units_per_em();
-
         let line_metrics = font.horizontal_line_metrics(36.0);
         let asc = line_metrics.map(|lm| lm.ascent as i32).unwrap_or(0);
         let desc = line_metrics.map(|lm| lm.descent as i32).unwrap_or(0);
-
         let file_size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
 
         let mut meta = Vec::new();
@@ -44,10 +41,11 @@ impl PreviewParser for FontParser {
             "File size: {}",
             crate::parsers::human_size(file_size)
         ));
-        let metadata = meta.join("\n");
 
+        let metadata = meta.join("\n");
         let sample_text = "The quick brown fox jumps over the lazy dog\nABCabc 123 !@#";
         let px = 36.0;
+
         let (sample, w, h) = render_text(&font, sample_text, px);
 
         Ok(ParsedContent::Font {
@@ -63,6 +61,7 @@ impl PreviewParser for FontParser {
 fn render_text(font: &fontdue::Font, text: &str, px: f32) -> (Vec<u8>, u32, u32) {
     let line_metrics = font.horizontal_line_metrics(px);
     let line_height = line_metrics.map(|lm| lm.new_line_size).unwrap_or(px * 1.4);
+
     let mut lines: Vec<Vec<(fontdue::Metrics, Vec<u8>)>> = Vec::new();
     let mut current_line = Vec::new();
     let mut max_line_width: f32 = 0.0;
@@ -75,13 +74,16 @@ fn render_text(font: &fontdue::Font, text: &str, px: f32) -> (Vec<u8>, u32, u32)
             x_offset = 0.0;
             continue;
         }
+
         let (metrics, bitmap) = font.rasterize(ch, px);
         x_offset += metrics.advance_width;
         current_line.push((metrics, bitmap));
+
         if x_offset > max_line_width {
             max_line_width = x_offset;
         }
     }
+
     if !current_line.is_empty() {
         lines.push(current_line);
     }
@@ -90,15 +92,18 @@ fn render_text(font: &fontdue::Font, text: &str, px: f32) -> (Vec<u8>, u32, u32)
     let total_height = (num_lines as f32 * line_height + 10.0) as u32;
     let width = (max_line_width.ceil() as u32).max(1) + 20;
     let height = total_height.max(1);
+
     let mut img: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> =
         image::ImageBuffer::from_pixel(width, height, image::Rgba([255, 255, 255, 255]));
 
     for (line_idx, line) in lines.iter().enumerate() {
         let line_y = 5.0 + line_idx as f32 * line_height;
         let mut x: f32 = 10.0;
+
         for (metrics, bitmap) in line {
             let gx = (x + metrics.xmin as f32) as i32;
             let gy = (line_y - metrics.ymin as f32) as i32;
+
             for row in 0..metrics.height {
                 for col in 0..metrics.width {
                     let idx = row * metrics.width + col;
@@ -114,6 +119,7 @@ fn render_text(font: &fontdue::Font, text: &str, px: f32) -> (Vec<u8>, u32, u32)
                     }
                 }
             }
+
             x += metrics.advance_width;
         }
     }

@@ -19,6 +19,7 @@ pub fn glass_button(theme: &Theme, status: button::Status) -> button::Style {
             },
 
             shadow: Shadow::default(),
+            snap: false,
         },
 
         _ => {
@@ -57,6 +58,7 @@ pub fn glass_button(theme: &Theme, status: button::Status) -> button::Style {
 
                     color: Color::from_rgba(0.0, 0.0, 0.0, shadow_alpha),
                 },
+                snap: false,
             }
         }
     }
@@ -72,6 +74,7 @@ pub fn close_button(_theme: &Theme, status: button::Status) -> button::Style {
                 color: Color::TRANSPARENT,
             },
             shadow: Shadow::default(),
+            snap: false,
         },
 
         button::Status::Hovered => button::Style {
@@ -87,6 +90,7 @@ pub fn close_button(_theme: &Theme, status: button::Status) -> button::Style {
                 blur_radius: 12.0,
                 color: Color::from_rgba(0.0, 0.0, 0.0, 0.25),
             },
+            snap: false,
         },
 
         button::Status::Pressed => button::Style {
@@ -98,6 +102,7 @@ pub fn close_button(_theme: &Theme, status: button::Status) -> button::Style {
                 color: Color::TRANSPARENT,
             },
             shadow: Shadow::default(),
+            snap: false,
         },
 
         button::Status::Disabled => button::Style {
@@ -105,6 +110,7 @@ pub fn close_button(_theme: &Theme, status: button::Status) -> button::Style {
             text_color: Color::from_rgba(1.0, 1.0, 1.0, 0.4),
             border: Border::default(),
             shadow: Shadow::default(),
+            snap: false,
         },
     }
 }
