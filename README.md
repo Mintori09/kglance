@@ -91,23 +91,12 @@ Kglance/
 │   │   ├── archive.rs     # Zip/Tar/7z tree list
 │   │   └── folder.rs      # Thu muc (std::fs)
 │   ├── ui/
-│   │   ├── mod.rs         # Entrypoint module
+│   │   ├── mod.rs         # Entrypoint module (stubbed / transition to Iced)
 │   │   ├── helpers.rs     # UI helpers (file scans, clipboard, conversion)
 │   │   ├── image_handler.rs # Image transformation, EXIF formatting
 │   │   ├── table.rs       # Table model row builder, sorting helper
 │   │   ├── window.rs      # Main PreviewWindow interface & flow
-│   │   ├── components/    # Cac Slint UI components nho
-│   │   │   ├── common.slint        # Shared UI elements (buttons)
-│   │   │   ├── exif_panel.slint    # EXIF Panel component
-│   │   │   ├── image_toolbar.slint # Image Toolbar component
-│   │   │   ├── search_bar.slint    # Search Bar component
-│   │   │   ├── content_area.slint  # Main content viewport
-│   │   │   ├── header.slint        # Thanh header
-│   │   │   └── status_bar.slint    # Thanh trang thai
-│   │   ├── window.slint   # Giao dien Slint chinh
-│   │   ├── theme.slint    # Global theme (AppTheme) dark/light
 │   │   └── theme.rs       # KDE palette detection + color mapping
-
 │   └── dbus/
 │       └── service.rs     # DBus interface (zbus)
 └── data/
@@ -115,8 +104,8 @@ Kglance/
     └── kglance-rust.desktop    # KIO Service Menu
 ```
 
-- **Che do Daemon:** 2 luong (zbus + Slint), giao tiep qua `mpsc::channel`. Cua so an/hien, khong tat.
-- **Che do Standalone:** Parse va show truc tiep trong Slint event loop. Thoat khi dong cua so.
+- **Che do Daemon:** 2 luong (zbus + Iced), giao tiep qua `mpsc::channel`. Cua so an/hien, khong tat.
+- **Che do Standalone:** Parse va show truc tiep trong Iced. Thoat khi dong cua so.
 - DBus: `org.mintori.Kglance` tren Session Bus.
 
 ## Dinh dang ho tro
