@@ -42,22 +42,22 @@ fn file_info<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     .into()
 }
 
-use crate::ui::components::button::{close_button, glass_button};
+use crate::ui::components::button as component_button;
 
 pub fn header_actions<'a>() -> Element<'a, Message> {
     row![
         button("Copy")
             .on_press(Message::CopyPathClicked)
             .padding([6, 12])
-            .style(glass_button),
+            .style(component_button::glass_button),
         button("Open")
             .on_press(Message::OpenClicked)
             .padding([6, 12])
-            .style(glass_button),
+            .style(component_button::glass_button),
         button("×")
             .on_press(Message::CloseRequested)
             .padding([6, 10])
-            .style(close_button),
+            .style(component_button::close_button),
     ]
     .spacing(8)
     .align_y(Alignment::Center)
@@ -75,19 +75,21 @@ fn header<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     .into()
 }
 
-fn content<'a>(preview_body: Element<'a, Message>) -> Element<'a, Message> {
+fn content<'a>(preview_body: Element<'a, Message>, edge_to_edge: bool) -> Element<'a, Message> {
+    let padding = if edge_to_edge { 0 } else { 10 };
     container(preview_body)
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(10)
+        .padding(padding)
         .into()
 }
 
 pub fn view_window<'a>(
     state: &'a KglanceState,
     preview_body: Element<'a, Message>,
+    edge_to_edge: bool,
 ) -> Element<'a, Message> {
-    let layout = column![header(state), content(preview_body),]
+    let layout = column![header(state), content(preview_body, edge_to_edge),]
         .width(Length::Fill)
         .height(Length::Fill);
 

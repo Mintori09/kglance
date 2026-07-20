@@ -98,6 +98,7 @@ pub fn spawn_video_player(
         let mut frame_count = 0;
         let mut ffmpeg_start_pos = 0.0;
         let mut seek_target: Option<f64> = None;
+        let mut has_video_stream = false;
 
         let kill_and_reap_ffmpeg = |ffmpeg_child: &mut Option<Child>| {
             if let Some(mut child) = ffmpeg_child.take() {
@@ -158,14 +159,16 @@ pub fn spawn_video_player(
                         ffmpeg_start_pos = 0.0;
 
                         if let Some((w, h, f, d)) = probe_video_info(&path) {
+                            has_video_stream = true;
                             duration = d;
                             fps = f;
 
-                            let max_dim = 720.0;
+                            let max_dim = 1080.0;
                             let scale = (max_dim / (w.max(h) as f64)).min(1.0);
                             target_w = (((w as f64 * scale) as u32) & !1).max(16);
                             target_h = (((h as f64 * scale) as u32) & !1).max(16);
                         } else {
+                            has_video_stream = false;
                             duration = 0.0;
                             fps = 30.0;
                             target_w = 640;
@@ -192,48 +195,12 @@ pub fn spawn_video_player(
                             let _ = mpv.set_property("pause", false);
                             is_playing = true;
 
-                            kill_and_reap_ffmpeg(&mut ffmpeg_child);
-                            frame_count = 0;
-                            ffmpeg_start_pos = current_pos;
-                            ffmpeg_child = Command::new("ffmpeg")
-                                .args([
-                                    "-ss",
-                                    &current_pos.to_string(),
-                                    "-i",
-                                    current_path.as_str(),
-                                    "-vf",
-                                    &format!("scale={target_w}:{target_h}"),
-                                    "-f",
-                                    "rawvideo",
-                                    "-pix_fmt",
-                                    "rgba",
-                                    "-",
-                                ])
-                                .stdout(Stdio::piped())
-                                .stderr(Stdio::null())
-                                .spawn()
-                                .ok();
-                        }
-                    }
-                    PlayerCommand::Pause => {
-                        if let Some(ref mut mpv) = mpv_opt {
-                            let _ = mpv.set_property("pause", true);
-                            is_playing = false;
-                            kill_and_reap_ffmpeg(&mut ffmpeg_child);
-                        }
-                    }
-                    PlayerCommand::Seek(percent) => {
-                        if let Some(ref mut mpv) = mpv_opt {
-                            let target = percent * duration;
-                            let _ = mpv.command(&["seek", &target.to_string(), "absolute"]);
-                            current_pos = target;
-                            seek_target = Some(target);
-
-                            if is_playing {
+                            if has_video_stream {
                                 kill_and_reap_ffmpeg(&mut ffmpeg_child);
                                 frame_count = 0;
                                 ffmpeg_start_pos = current_pos;
                                 ffmpeg_child = Command::new("ffmpeg")
+                                    .stdin(Stdio::null())
                                     .args([
                                         "-ss",
                                         &current_pos.to_string(),
@@ -251,7 +218,49 @@ pub fn spawn_video_player(
                                     .stderr(Stdio::null())
                                     .spawn()
                                     .ok();
-                            } else {
+                            }
+                        }
+                    }
+                    PlayerCommand::Pause => {
+                        if let Some(ref mut mpv) = mpv_opt {
+                            let _ = mpv.set_property("pause", true);
+                            is_playing = false;
+                            kill_and_reap_ffmpeg(&mut ffmpeg_child);
+                        }
+                    }
+                    PlayerCommand::Seek(percent) => {
+                        if let Some(ref mut mpv) = mpv_opt {
+                            let target = percent * duration;
+                            let _ = mpv.command(&["seek", &target.to_string(), "absolute"]);
+                            current_pos = target;
+                            seek_target = Some(target);
+
+                            if is_playing {
+                                if has_video_stream {
+                                    kill_and_reap_ffmpeg(&mut ffmpeg_child);
+                                    frame_count = 0;
+                                    ffmpeg_start_pos = current_pos;
+                                    ffmpeg_child = Command::new("ffmpeg")
+                                        .stdin(Stdio::null())
+                                        .args([
+                                            "-ss",
+                                            &current_pos.to_string(),
+                                            "-i",
+                                            current_path.as_str(),
+                                            "-vf",
+                                            &format!("scale={target_w}:{target_h}"),
+                                            "-f",
+                                            "rawvideo",
+                                            "-pix_fmt",
+                                            "rgba",
+                                            "-",
+                                        ])
+                                        .stdout(Stdio::piped())
+                                        .stderr(Stdio::null())
+                                        .spawn()
+                                        .ok();
+                                }
+                            } else if has_video_stream {
                                 let event_tx_clone = event_tx.clone();
                                 let path_clone = current_path.clone();
                                 let tw = target_w;
@@ -259,6 +268,7 @@ pub fn spawn_video_player(
                                 let target_seek = current_pos;
                                 thread::spawn(move || {
                                     let output = Command::new("ffmpeg")
+                                        .stdin(Stdio::null())
                                         .args([
                                             "-ss",
                                             &target_seek.to_string(),
@@ -298,28 +308,31 @@ pub fn spawn_video_player(
                             current_pos = target;
                             seek_target = Some(target);
                             if is_playing {
-                                kill_and_reap_ffmpeg(&mut ffmpeg_child);
-                                frame_count = 0;
-                                ffmpeg_start_pos = current_pos;
-                                ffmpeg_child = Command::new("ffmpeg")
-                                    .args([
-                                        "-ss",
-                                        &current_pos.to_string(),
-                                        "-i",
-                                        current_path.as_str(),
-                                        "-vf",
-                                        &format!("scale={target_w}:{target_h}"),
-                                        "-f",
-                                        "rawvideo",
-                                        "-pix_fmt",
-                                        "rgba",
-                                        "-",
-                                    ])
-                                    .stdout(Stdio::piped())
-                                    .stderr(Stdio::null())
-                                    .spawn()
-                                    .ok();
-                            } else {
+                                if has_video_stream {
+                                    kill_and_reap_ffmpeg(&mut ffmpeg_child);
+                                    frame_count = 0;
+                                    ffmpeg_start_pos = current_pos;
+                                    ffmpeg_child = Command::new("ffmpeg")
+                                        .stdin(Stdio::null())
+                                        .args([
+                                            "-ss",
+                                            &current_pos.to_string(),
+                                            "-i",
+                                            current_path.as_str(),
+                                            "-vf",
+                                            &format!("scale={target_w}:{target_h}"),
+                                            "-f",
+                                            "rawvideo",
+                                            "-pix_fmt",
+                                            "rgba",
+                                            "-",
+                                        ])
+                                        .stdout(Stdio::piped())
+                                        .stderr(Stdio::null())
+                                        .spawn()
+                                        .ok();
+                                }
+                            } else if has_video_stream {
                                 let event_tx_clone = event_tx.clone();
                                 let path_clone = current_path.clone();
                                 let tw = target_w;
@@ -327,6 +340,7 @@ pub fn spawn_video_player(
                                 let target_seek = current_pos;
                                 thread::spawn(move || {
                                     let output = Command::new("ffmpeg")
+                                        .stdin(Stdio::null())
                                         .args([
                                             "-ss",
                                             &target_seek.to_string(),
@@ -373,9 +387,8 @@ pub fn spawn_video_player(
                 }
             }
 
-            // If playing and ffmpeg is active, read the next frame based on synchronization
-            if let (true, Some(ref mut mpv)) = (is_playing, mpv_opt.as_mut()) {
-                // Empty event queue
+            // Process MPV events and track progress for both audio and video
+            if let Some(ref mut mpv) = mpv_opt.as_mut() {
                 while let Some(event) = mpv.wait_event(0.0) {
                     match event {
                         mpv::Event::Shutdown | mpv::Event::Idle => {
@@ -387,6 +400,9 @@ pub fn spawn_video_player(
 
                 let raw_pos = mpv.get_property::<f64>("time-pos").unwrap_or(0.0);
                 let dur = mpv.get_property::<f64>("duration").unwrap_or(0.0);
+                if dur > 0.0 {
+                    duration = dur;
+                }
 
                 if let Some(target) = seek_target {
                     if (raw_pos - target).abs() < 0.5 {
@@ -399,20 +415,22 @@ pub fn spawn_video_player(
                     current_pos = raw_pos;
                 }
 
-                // Synchronize video frames to audio clock
-                let next_frame_time = ffmpeg_start_pos + (frame_count as f64 / fps);
-                if current_pos >= next_frame_time {
-                    let stdout_opt = ffmpeg_child.as_mut().and_then(|c| c.stdout.as_mut());
-                    if let Some(stdout) = stdout_opt {
-                        let frame_size = (target_w * target_h * 4) as usize;
-                        let mut buffer = vec![0u8; frame_size];
-                        if stdout.read_exact(&mut buffer).is_ok() {
-                            frame_count += 1;
-                            let _ = event_tx.try_send(VideoEvent::Frame {
-                                data: buffer,
-                                width: target_w,
-                                height: target_h,
-                            });
+                // Read video frames only for video streams
+                if is_playing && has_video_stream {
+                    let next_frame_time = ffmpeg_start_pos + (frame_count as f64 / fps);
+                    if current_pos >= next_frame_time {
+                        let stdout_opt = ffmpeg_child.as_mut().and_then(|c| c.stdout.as_mut());
+                        if let Some(stdout) = stdout_opt {
+                            let frame_size = (target_w * target_h * 4) as usize;
+                            let mut buffer = vec![0u8; frame_size];
+                            if stdout.read_exact(&mut buffer).is_ok() {
+                                frame_count += 1;
+                                let _ = event_tx.try_send(VideoEvent::Frame {
+                                    data: buffer,
+                                    width: target_w,
+                                    height: target_h,
+                                });
+                            }
                         }
                     }
                 }

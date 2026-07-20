@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use iced::Font;
 use kglance::app::KglanceApp;
 use kglance::{dbus, log_error, log_info, parsers};
 
@@ -15,6 +16,7 @@ fn build_registry() -> parsers::ParserRegistry {
     r.register(Box::new(parsers::font::FontParser));
     r.register(Box::new(parsers::audio::AudioParser));
     r.register(Box::new(parsers::video::VideoParser));
+    r.register(Box::new(parsers::csv::CsvParser));
     r.register(Box::new(parsers::office::OfficeParser));
     r
 }
@@ -70,16 +72,24 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     log_info!("Running Iced GUI in daemon mode...");
-    iced::application(KglanceApp::title, KglanceApp::update, KglanceApp::view)
-        .window(iced::window::Settings {
-            visible: false,
-            exit_on_close_request: false,
-            decorations: false,
-            ..Default::default()
-        })
-        .subscription(KglanceApp::subscription)
-        .theme(KglanceApp::theme)
-        .run_with(move || KglanceApp::new(registry, Some(rx), None, true))?;
+    let reg = registry.clone();
+    let rx = std::cell::Cell::new(Some(rx));
+    iced::application(
+        move || KglanceApp::new(reg.clone(), rx.take(), None, true),
+        KglanceApp::update,
+        KglanceApp::view,
+    )
+    .window(iced::window::Settings {
+        visible: false,
+        exit_on_close_request: false,
+        decorations: false,
+        ..Default::default()
+    })
+    .default_font(Font::with_name("Inter"))
+    .title(KglanceApp::title)
+    .subscription(KglanceApp::subscription)
+    .theme(KglanceApp::theme)
+    .run()?;
 
     log_info!("Daemon event loop quit.");
     Ok(())
@@ -92,21 +102,28 @@ fn run_standalone(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let path_str = path.to_string();
 
     log_info!("Running Iced GUI in standalone mode...");
-    iced::application(KglanceApp::title, KglanceApp::update, KglanceApp::view)
-        .window(iced::window::Settings {
-            visible: true,
-            exit_on_close_request: true,
-            decorations: false,
-            ..Default::default()
-        })
-        .subscription(KglanceApp::subscription)
-        .theme(KglanceApp::theme)
-        .run_with(move || {
-            let (app, task) = KglanceApp::new(registry, None, Some(&path_str), false);
+    let reg = registry.clone();
+    iced::application(
+        move || {
+            let (app, task) = KglanceApp::new(reg.clone(), None, Some(&path_str), false);
             let duration = start_time.elapsed();
             log_info!("[PERF] PreviewWindow GUI initialized in: {:?}", duration);
             (app, task)
-        })?;
+        },
+        KglanceApp::update,
+        KglanceApp::view,
+    )
+    .window(iced::window::Settings {
+        visible: true,
+        exit_on_close_request: true,
+        decorations: false,
+        ..Default::default()
+    })
+    .default_font(Font::with_name("Inter"))
+    .title(KglanceApp::title)
+    .subscription(KglanceApp::subscription)
+    .theme(KglanceApp::theme)
+    .run()?;
 
     log_info!("Standalone event loop quit.");
     Ok(())
