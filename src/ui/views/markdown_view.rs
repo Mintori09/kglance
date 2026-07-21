@@ -5,10 +5,6 @@ use crate::ui::theme::glass;
 use iced::widget::{column, container, image, row, scrollable, text};
 use iced::{Border, Color, Element, Length, Shadow};
 
-fn on_scrolled(viewport: iced::widget::scrollable::Viewport) -> Message {
-    Message::ContentScrolled(viewport.absolute_offset().y)
-}
-
 fn code_block_style(theme: &iced::Theme) -> container::Style {
     let is_dark = matches!(theme, iced::Theme::Dark);
     container::Style {
@@ -313,7 +309,6 @@ pub fn view_markdown<'a>(
 
     scrollable(inner)
         .id("content_scroll")
-        .on_scroll(on_scrolled)
         .style(crate::ui::theme::glass_scrollable)
         .height(Length::Fill)
         .into()

@@ -1,5 +1,3 @@
-use std::sync::atomic::Ordering;
-
 use iced::Task;
 use iced::widget::operation::{self, AbsoluteOffset};
 
@@ -9,28 +7,25 @@ use crate::ui::handlers::video::VideoEvent;
 
 impl super::KglanceApp {
     pub fn handle_scroll_delta(&mut self, _x: f32, y: f32) -> Task<Message> {
-        if self.ctrl_held.load(Ordering::Relaxed) {
-            if matches!(self.current_content, Some(PreviewData::Image { .. })) {
-                let factor = if y > 0.0 { 0.1 } else { -0.1 };
-                self.state.image.zoom = (self.state.image.zoom + factor).clamp(0.1, 10.0);
-                Task::none()
-            } else if matches!(
+        if self.shift_held && matches!(self.current_content, Some(PreviewData::Image { .. })) {
+            let factor = if y > 0.0 { 0.1 } else { -0.1 };
+            self.state.image.zoom = (self.state.image.zoom + factor).clamp(0.1, 10.0);
+            Task::none()
+        } else if self.shift_held {
+            if matches!(
                 self.current_content,
                 Some(PreviewData::Markdown { .. }) | Some(PreviewData::Text { .. })
             ) {
                 let delta = if y > 0.0 { 1.0 } else { -1.0 };
-                let old = self.state.font_size;
-                let new = (old + delta).clamp(8.0, 48.0);
-                let ratio = new / old;
-                self.state.font_size = new;
-                let target = self.state.scroll_offset * ratio;
-                self.state.pending_font_target = Some(target);
-                operation::scroll_to("content_scroll", AbsoluteOffset { x: 0.0, y: target })
-            } else {
+                self.state.font_size = (self.state.font_size + delta).clamp(8.0, 48.0);
                 Task::none()
+            } else {
+                operation::scroll_by("content_scroll", AbsoluteOffset { x: -y, y: 0.0 })
             }
-        } else if self.shift_held.load(Ordering::Relaxed) {
-            operation::scroll_by("content_scroll", AbsoluteOffset { x: -y, y: 0.0 })
+        } else if matches!(self.current_content, Some(PreviewData::Image { .. }))
+            && self.state.image.zoom == 1.0
+        {
+            Task::none()
         } else {
             operation::scroll_by("content_scroll", AbsoluteOffset { x: 0.0, y: -y })
         }

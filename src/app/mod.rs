@@ -3,13 +3,11 @@ mod media;
 pub mod probe;
 mod window;
 
-use iced::widget::operation::{self, AbsoluteOffset};
 use iced::{Element, Subscription, Task, Theme};
 use iced_futures::subscription;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::atomic::AtomicBool;
 use std::time::Instant;
 use tokio::sync::mpsc;
 
@@ -83,8 +81,6 @@ pub enum Message {
     SheetTabClicked(usize),
     SpreadsheetColumnClicked(usize),
 
-    ContentScrolled(f32),
-
     // Async Mermaid rendering
     MermaidBlockRendered {
         index: usize,
@@ -144,8 +140,8 @@ pub struct KglanceApp {
     pub video_tx: Option<tokio::sync::mpsc::Sender<crate::ui::handlers::video::PlayerCommand>>,
     pub video_rx:
         Arc<Mutex<Option<tokio::sync::mpsc::Receiver<crate::ui::handlers::video::VideoEvent>>>>,
-    pub ctrl_held: Arc<AtomicBool>,
-    pub shift_held: Arc<AtomicBool>,
+    pub ctrl_held: bool,
+    pub shift_held: bool,
     pub probe: probe::StartupProbe,
 }
 
@@ -169,8 +165,8 @@ impl KglanceApp {
             current_content: None,
             video_tx: Some(cmd_tx),
             video_rx: Arc::new(Mutex::new(Some(event_rx))),
-            ctrl_held: Arc::new(AtomicBool::new(false)),
-            shift_held: Arc::new(AtomicBool::new(false)),
+            ctrl_held: false,
+            shift_held: false,
             probe: probe::StartupProbe::default(),
         };
 
@@ -506,14 +502,6 @@ impl KglanceApp {
             Message::MediaMouseEnter => self.handle_media_mouse_enter(),
             Message::MediaMouseLeave => self.handle_media_mouse_leave(),
             Message::KeyPressed(key, modifiers) => self.handle_key_pressed(key, modifiers),
-            Message::ContentScrolled(y) => {
-                self.state.scroll_offset = y;
-                if let Some(target) = self.state.pending_font_target.take() {
-                    operation::scroll_to("content_scroll", AbsoluteOffset { x: 0.0, y: target })
-                } else {
-                    Task::none()
-                }
-            }
             Message::SheetTabClicked(index) => {
                 if index < self.state.spreadsheet.sheets.len() {
                     self.state.spreadsheet.active_sheet = index;

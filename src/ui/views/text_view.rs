@@ -4,10 +4,6 @@ use crate::ui::theme::{breeze_button, breeze_text_input, glass_inset, glass_scro
 use iced::widget::{button, column, container, row, scrollable, text, text_input};
 use iced::{Element, Length};
 
-fn on_scrolled(viewport: iced::widget::scrollable::Viewport) -> Message {
-    Message::ContentScrolled(viewport.absolute_offset().y)
-}
-
 pub fn view_text<'a>(state: &'a TextState, is_dark: bool, font_size: f32) -> Element<'a, Message> {
     let mut main_content = column![].spacing(5);
 
@@ -47,7 +43,6 @@ pub fn view_text<'a>(state: &'a TextState, is_dark: bool, font_size: f32) -> Ele
 
     let content_scroll = scrollable(container(text_widget).padding(15).style(glass_inset))
         .id("content_scroll")
-        .on_scroll(on_scrolled)
         .style(glass_scrollable)
         .height(Length::Fill)
         .width(Length::Fill);
