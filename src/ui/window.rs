@@ -5,6 +5,7 @@ use iced::{
 
 use crate::app::Message;
 use crate::core::KglanceState;
+use crate::log_debug;
 
 fn metadata_text(state: &KglanceState) -> String {
     let mut parts = Vec::new();
@@ -26,6 +27,8 @@ fn metadata_text(state: &KglanceState) -> String {
 
 fn file_info<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     let metadata = metadata_text(state);
+
+    log_debug!("{:#}", metadata);
 
     column![
         text(&state.file_name).size(15).line_height(1.1),
