@@ -156,7 +156,8 @@ pub struct HistoryState {
 
 #[derive(Debug, Clone, Default)]
 pub struct MarkdownState {
-    pub cached_mermaid_handles: Vec<Option<iced::widget::image::Handle>>,
+    pub cached_mermaid_handles: std::collections::HashMap<usize, iced::widget::image::Handle>,
+    pub cached_image_handles: std::collections::HashMap<usize, iced::widget::image::Handle>,
 }
 
 #[derive(Debug, Clone, Default)]
