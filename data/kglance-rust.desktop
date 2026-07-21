@@ -9,4 +9,3 @@ X-KDE-Priority=TopLevel
 Name=Quick Preview
 Icon=document-preview
 Exec=kglance "%f"
-X-KDE-Shortcuts=Meta+Space

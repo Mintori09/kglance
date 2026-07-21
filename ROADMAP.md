@@ -250,7 +250,7 @@ pub trait PreviewPlugin: Send + Sync {
 #### 5.5 Phím tắt toàn cục
 
 - [ ] Đăng ký global shortcut qua KDE Global Shortcuts (ngoài phạm vi Dolphin)
-- [ ] Hỗ trợ preview file từ các file manager khác (Thunar, Nautilus, terminal)
+- [x] Hỗ trợ preview file từ các file manager khác (Thunar, Nautilus, terminal) (kglance <file_name>)
 
 ---
 
@@ -308,14 +308,14 @@ pub trait PreviewPlugin: Send + Sync {
 | Markdown render           |       ✅        |       —       |         ✅         |
 | Font preview              |       ✅        |       —       |         ✅         |
 
-> * Video/Audio: metadata + play/pause placeholder buttons done; actual playback engine pending
-| Zoom / Pan ảnh            |        —        |      ✅       |         ✅         |
-| Multi-file navigation     |       ✅        |      ✅       |         ✅         |
-| Tìm kiếm text             |        —        |      ✅       |         ✅         |
-| Plugin system             |       ✅        |       —       |     🔲 Phase 4     |
-| Thumbnail provider        |        —        |       —       |     🔲 Phase 5     |
-| Global shortcut           |       ✅        |       —       |     🔲 Phase 5     |
-| Đóng gói đa distro        |       N/A       |      N/A      |     🔲 Phase 6     |
+> - Video/Audio: metadata + play/pause placeholder buttons done; actual playback engine pending
+>   | Zoom / Pan ảnh | — | ✅ | ✅ |
+>   | Multi-file navigation | ✅ | ✅ | ✅ |
+>   | Tìm kiếm text | — | ✅ | ✅ |
+>   | Plugin system | ✅ | — | 🔲 Phase 4 |
+>   | Thumbnail provider | — | — | 🔲 Phase 5 |
+>   | Global shortcut | ✅ | — | 🔲 Phase 5 |
+>   | Đóng gói đa distro | N/A | N/A | 🔲 Phase 6 |
 
 ---
 
