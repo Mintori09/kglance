@@ -31,26 +31,32 @@ pub struct TableRowState {
     pub is_dir: bool,
     pub icon: &'static str,
 }
+use crate::preview::image::{Camera, ImageLoadState};
 use iced::widget::image;
+
 #[derive(Debug, Clone)]
 pub struct ImageState {
-    pub zoom: f32,
     pub exif_content: String,
     pub image_bytes: Vec<u8>,
-    pub image_width: u32,
-    pub image_height: u32,
+    pub width: u32,
+    pub height: u32,
     pub handle: Option<image::Handle>,
+    pub format_info: String,
+    pub camera: Camera,
+    pub load_state: ImageLoadState,
 }
 
 impl Default for ImageState {
     fn default() -> Self {
         Self {
-            zoom: 1.0,
             exif_content: String::new(),
             image_bytes: Vec::new(),
-            image_width: 0,
-            image_height: 0,
+            width: 0,
+            height: 0,
             handle: None,
+            format_info: String::new(),
+            camera: Camera::new(),
+            load_state: ImageLoadState::Loading,
         }
     }
 }

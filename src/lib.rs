@@ -3,4 +3,5 @@ pub mod core;
 pub mod dbus;
 pub mod logger;
 pub mod parsers;
+pub mod preview;
 pub mod ui;

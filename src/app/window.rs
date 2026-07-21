@@ -75,6 +75,12 @@ impl super::KglanceApp {
             iced::window::Event::Opened { .. } => {
                 self.probe.mark_window_opened(); // P2
                 self.window_id = Some(id);
+                if let Some(crate::core::PreviewData::Image { width, height, .. }) =
+                    &self.current_content
+                {
+                    let size = crate::ui::handlers::image::calculate_window_size(*width, *height);
+                    return iced::window::resize(id, size);
+                }
             }
             iced::window::Event::CloseRequested => {
                 if self.is_daemon {

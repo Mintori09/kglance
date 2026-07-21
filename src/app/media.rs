@@ -9,7 +9,7 @@ impl super::KglanceApp {
     pub fn handle_scroll_delta(&mut self, _x: f32, y: f32) -> Task<Message> {
         if self.shift_held && matches!(self.current_content, Some(PreviewData::Image { .. })) {
             let factor = if y > 0.0 { 0.1 } else { -0.1 };
-            self.state.image.zoom = (self.state.image.zoom + factor).clamp(0.1, 10.0);
+            self.state.image.camera.zoom = (self.state.image.camera.zoom + factor).clamp(0.1, 10.0);
             Task::none()
         } else if self.shift_held {
             if matches!(
@@ -23,7 +23,7 @@ impl super::KglanceApp {
                 operation::scroll_by("content_scroll", AbsoluteOffset { x: -y, y: 0.0 })
             }
         } else if matches!(self.current_content, Some(PreviewData::Image { .. }))
-            && self.state.image.zoom == 1.0
+            && self.state.image.camera.zoom == 1.0
         {
             Task::none()
         } else {
@@ -32,7 +32,7 @@ impl super::KglanceApp {
     }
 
     pub fn handle_image_zoom(&mut self, delta: f32) -> Task<Message> {
-        self.state.image.zoom = (self.state.image.zoom + delta).clamp(0.1, 10.0);
+        self.state.image.camera.zoom = (self.state.image.camera.zoom + delta).clamp(0.1, 10.0);
         Task::none()
     }
 

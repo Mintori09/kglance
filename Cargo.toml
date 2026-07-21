@@ -35,6 +35,7 @@ iced = { version = "0.14.0", features = [
   "svg",
   "canvas",
   "highlighter",
+  "advanced",
 ] }
 iced_futures = "0.14.0"
 zbus = "5.18.0"

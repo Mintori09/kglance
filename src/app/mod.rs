@@ -34,6 +34,8 @@ pub enum Message {
 
     // Image viewer
     ImageZoom(f32),
+    ImagePanDelta(f32, f32),
+    ImageDoubleClick,
     ScrollDelta {
         x: f32,
         y: f32,
@@ -401,6 +403,16 @@ impl KglanceApp {
             }
             Message::WindowEvent(id, event) => self.handle_window_event(id, event),
             Message::ImageZoom(delta) => self.handle_image_zoom(delta),
+            Message::ImagePanDelta(dx, dy) => {
+                use crate::preview::image::ViewerController;
+                ViewerController::pan(&mut self.state.image.camera, dx, dy);
+                Task::none()
+            }
+            Message::ImageDoubleClick => {
+                use crate::preview::image::ViewerController;
+                ViewerController::reset(&mut self.state.image.camera);
+                Task::none()
+            }
             Message::CtrlHeldChanged(held) => self.handle_ctrl_changed(held),
             Message::ShiftHeldChanged(held) => self.handle_shift_changed(held),
             Message::ModifiersUpdated(modifiers) => self.handle_modifiers_changed(modifiers),

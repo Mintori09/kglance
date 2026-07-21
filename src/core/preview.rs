@@ -72,9 +72,11 @@ impl PreviewData {
                 state.image = crate::core::ImageState {
                     handle: Some(iced::widget::image::Handle::from_bytes(data.clone())),
                     image_bytes: data.clone(),
-                    image_width: *width,
-                    image_height: *height,
+                    width: *width,
+                    height: *height,
                     exif_content: exif_content.clone().unwrap_or_default(),
+                    format_info: format_info.clone(),
+                    load_state: crate::preview::image::ImageLoadState::Ready,
                     ..Default::default()
                 };
                 state.file_type_text.clone_from(format_info);

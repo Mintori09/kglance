@@ -68,7 +68,8 @@ impl super::KglanceApp {
                     "c" => return iced::clipboard::write(self.state.file_name.clone()),
                     "+" | "=" => {
                         if matches!(self.current_content, Some(PreviewData::Image { .. })) {
-                            self.state.image.zoom = (self.state.image.zoom + 0.2).clamp(0.1, 10.0);
+                            self.state.image.camera.zoom =
+                                (self.state.image.camera.zoom + 0.2).clamp(0.1, 10.0);
                             return Task::none();
                         }
                         if matches!(
@@ -81,7 +82,8 @@ impl super::KglanceApp {
                     }
                     "-" => {
                         if matches!(self.current_content, Some(PreviewData::Image { .. })) {
-                            self.state.image.zoom = (self.state.image.zoom - 0.2).clamp(0.1, 10.0);
+                            self.state.image.camera.zoom =
+                                (self.state.image.camera.zoom - 0.2).clamp(0.1, 10.0);
                             return Task::none();
                         }
                         if matches!(
@@ -99,7 +101,9 @@ impl super::KglanceApp {
                 && c == "0"
                 && matches!(self.current_content, Some(PreviewData::Image { .. }))
             {
-                self.state.image.zoom = 1.0;
+                self.state.image.camera.zoom = 1.0;
+                self.state.image.camera.offset_x = 0.0;
+                self.state.image.camera.offset_y = 0.0;
                 return Task::none();
             }
         }

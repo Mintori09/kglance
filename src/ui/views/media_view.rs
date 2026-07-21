@@ -7,8 +7,8 @@ use iced::{Alignment, Element, Length};
 pub fn view_media<'a>(
     state: &'a MediaState,
     data: &'a [u8],
-    wf_width: u32,
-    wf_height: u32,
+    _wf_width: u32,
+    _wf_height: u32,
 ) -> Element<'a, Message> {
     let display: Element<'a, Message> = if state.has_video {
         if !state.frame_data.is_empty() {
@@ -38,13 +38,6 @@ pub fn view_media<'a>(
             .size(14)
             .into()
         }
-    } else if !data.is_empty() && wf_width > 0 && wf_height > 0 {
-        let handle = image::Handle::from_rgba(wf_width, wf_height, data.to_vec());
-        image(handle)
-            .width(Length::Fill)
-            .height(Length::Fixed(150.0))
-            .content_fit(iced::ContentFit::Contain)
-            .into()
     } else if !data.is_empty() {
         let handle = image::Handle::from_bytes(data.to_vec());
         image(handle)
