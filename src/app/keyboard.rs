@@ -1,3 +1,5 @@
+use std::sync::atomic::Ordering;
+
 use iced::Task;
 use iced::widget::operation::{self, AbsoluteOffset};
 
@@ -63,18 +65,48 @@ impl super::KglanceApp {
         }
 
         if ctrl {
+            let shift = modifiers.shift();
             if let iced::keyboard::Key::Character(ref c) = key {
                 match c.as_str() {
                     "c" => return iced::clipboard::write(self.state.file_name.clone()),
                     "+" | "=" => {
+                        if shift {
+                            let old = self.state.font_size;
+                            self.state.pending_font_target =
+                                Some(self.state.scroll_offset * (14.0 / old));
+                            self.state.font_size = 14.0;
+                            return Task::none();
+                        }
                         if matches!(self.current_content, Some(PreviewData::Image { .. })) {
                             self.state.image.zoom = (self.state.image.zoom + 0.2).clamp(0.1, 10.0);
+                            return Task::none();
+                        }
+                        if matches!(
+                            self.current_content,
+                            Some(PreviewData::Markdown { .. }) | Some(PreviewData::Text { .. })
+                        ) {
+                            let old = self.state.font_size;
+                            let new = (old + 1.0).clamp(8.0, 48.0);
+                            self.state.pending_font_target =
+                                Some(self.state.scroll_offset * (new / old));
+                            self.state.font_size = new;
                             return Task::none();
                         }
                     }
                     "-" => {
                         if matches!(self.current_content, Some(PreviewData::Image { .. })) {
                             self.state.image.zoom = (self.state.image.zoom - 0.2).clamp(0.1, 10.0);
+                            return Task::none();
+                        }
+                        if matches!(
+                            self.current_content,
+                            Some(PreviewData::Markdown { .. }) | Some(PreviewData::Text { .. })
+                        ) {
+                            let old = self.state.font_size;
+                            let new = (old - 1.0).clamp(8.0, 48.0);
+                            self.state.pending_font_target =
+                                Some(self.state.scroll_offset * (new / old));
+                            self.state.font_size = new;
                             return Task::none();
                         }
                     }
@@ -169,12 +201,12 @@ impl super::KglanceApp {
     }
 
     pub fn handle_ctrl_changed(&mut self, held: bool) -> Task<Message> {
-        self.ctrl_held = held;
+        self.ctrl_held.store(held, Ordering::Relaxed);
         Task::none()
     }
 
     pub fn handle_shift_changed(&mut self, held: bool) -> Task<Message> {
-        self.shift_held = held;
+        self.shift_held.store(held, Ordering::Relaxed);
         Task::none()
     }
 
@@ -182,8 +214,8 @@ impl super::KglanceApp {
         &mut self,
         modifiers: iced::keyboard::Modifiers,
     ) -> Task<Message> {
-        self.ctrl_held = modifiers.control();
-        self.shift_held = modifiers.shift();
+        self.ctrl_held.store(modifiers.control(), Ordering::Relaxed);
+        self.shift_held.store(modifiers.shift(), Ordering::Relaxed);
         Task::none()
     }
 }

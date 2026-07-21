@@ -158,6 +158,7 @@ pub struct HistoryState {
 pub struct MarkdownState {
     pub cached_mermaid_handles: std::collections::HashMap<usize, iced::widget::image::Handle>,
     pub cached_image_handles: std::collections::HashMap<usize, iced::widget::image::Handle>,
+    pub cached_image_sizes: std::collections::HashMap<usize, (u32, u32)>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -189,6 +190,10 @@ pub struct KglanceState {
     pub dir: DirState,
     pub markdown: MarkdownState,
 
+    pub font_size: f32,
+    pub scroll_offset: f32,
+    pub pending_font_target: Option<f32>,
+
     pub theme_dark: bool,
 }
 
@@ -214,6 +219,9 @@ impl Default for KglanceState {
             history: HistoryState::default(),
             dir: DirState::default(),
             markdown: MarkdownState::default(),
+            font_size: 14.0,
+            scroll_offset: 0.0,
+            pending_font_target: None,
             theme_dark: true,
         }
     }

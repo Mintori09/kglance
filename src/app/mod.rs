@@ -3,11 +3,13 @@ mod media;
 pub mod probe;
 mod window;
 
+use iced::widget::operation::{self, AbsoluteOffset};
 use iced::{Element, Subscription, Task, Theme};
 use iced_futures::subscription;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
 use std::time::Instant;
 use tokio::sync::mpsc;
 
@@ -81,6 +83,8 @@ pub enum Message {
     SheetTabClicked(usize),
     SpreadsheetColumnClicked(usize),
 
+    ContentScrolled(f32),
+
     // Async Mermaid rendering
     MermaidBlockRendered {
         index: usize,
@@ -111,6 +115,25 @@ fn png_to_rgba_handle(png: Vec<u8>) -> Option<iced::widget::image::Handle> {
     }
 }
 
+fn png_to_rgba_handle_with_size(png: Vec<u8>) -> Option<(iced::widget::image::Handle, u32, u32)> {
+    match image::load_from_memory(&png) {
+        Ok(img) => {
+            let rgba = img.to_rgba8();
+            let (width, height) = rgba.dimensions();
+            Some((
+                iced::widget::image::Handle::from_rgba(width, height, rgba.into_raw()),
+                width,
+                height,
+            ))
+        }
+        Err(_) => {
+            log_debug!("image::load_from_memory failed, falling back to Handle::from_bytes");
+            let handle = iced::widget::image::Handle::from_bytes(png);
+            Some((handle, 0, 0))
+        }
+    }
+}
+
 pub struct KglanceApp {
     pub state: KglanceState,
     pub registry: Arc<ParserRegistry>,
@@ -121,8 +144,8 @@ pub struct KglanceApp {
     pub video_tx: Option<tokio::sync::mpsc::Sender<crate::ui::handlers::video::PlayerCommand>>,
     pub video_rx:
         Arc<Mutex<Option<tokio::sync::mpsc::Receiver<crate::ui::handlers::video::VideoEvent>>>>,
-    pub ctrl_held: bool,
-    pub shift_held: bool,
+    pub ctrl_held: Arc<AtomicBool>,
+    pub shift_held: Arc<AtomicBool>,
     pub probe: probe::StartupProbe,
 }
 
@@ -146,8 +169,8 @@ impl KglanceApp {
             current_content: None,
             video_tx: Some(cmd_tx),
             video_rx: Arc::new(Mutex::new(Some(event_rx))),
-            ctrl_held: false,
-            shift_held: false,
+            ctrl_held: Arc::new(AtomicBool::new(false)),
+            shift_held: Arc::new(AtomicBool::new(false)),
             probe: probe::StartupProbe::default(),
         };
 
@@ -454,14 +477,17 @@ impl KglanceApp {
                     if png_bytes.is_some() { "Some" } else { "None" }
                 );
                 if let Some(bytes) = png_bytes {
-                    if let Some(handle) = png_to_rgba_handle(bytes) {
+                    if let Some((handle, w, h)) = png_to_rgba_handle_with_size(bytes) {
                         self.state
                             .markdown
                             .cached_image_handles
                             .insert(index, handle);
+                        self.state.markdown.cached_image_sizes.insert(index, (w, h));
                         log_debug!(
-                            "Inserted image handle at index {}, cache size={}",
+                            "Inserted image handle at index {}, size={}x{}, cache size={}",
                             index,
+                            w,
+                            h,
                             self.state.markdown.cached_image_handles.len()
                         );
                     } else {
@@ -480,6 +506,14 @@ impl KglanceApp {
             Message::MediaMouseEnter => self.handle_media_mouse_enter(),
             Message::MediaMouseLeave => self.handle_media_mouse_leave(),
             Message::KeyPressed(key, modifiers) => self.handle_key_pressed(key, modifiers),
+            Message::ContentScrolled(y) => {
+                self.state.scroll_offset = y;
+                if let Some(target) = self.state.pending_font_target.take() {
+                    operation::scroll_to("content_scroll", AbsoluteOffset { x: 0.0, y: target })
+                } else {
+                    Task::none()
+                }
+            }
             Message::SheetTabClicked(index) => {
                 if index < self.state.spreadsheet.sheets.len() {
                     self.state.spreadsheet.active_sheet = index;
@@ -519,12 +553,16 @@ impl KglanceApp {
 
         let preview_body: Element<'_, Message> = if let Some(content) = &self.current_content {
             match content {
-                PreviewData::Text { .. } => {
-                    crate::ui::views::view_text(&self.state.text, self.state.theme_dark)
-                }
-                PreviewData::Markdown { blocks } => {
-                    crate::ui::views::view_markdown(blocks, &self.state.markdown)
-                }
+                PreviewData::Text { .. } => crate::ui::views::view_text(
+                    &self.state.text,
+                    self.state.theme_dark,
+                    self.state.font_size,
+                ),
+                PreviewData::Markdown { blocks } => crate::ui::views::view_markdown(
+                    blocks,
+                    &self.state.markdown,
+                    self.state.font_size,
+                ),
                 PreviewData::Image { .. } => crate::ui::views::view_image(&self.state.image),
                 PreviewData::Pdf { .. } => crate::ui::views::view_pdf(&self.state.pdf),
                 PreviewData::Folder { .. } => {

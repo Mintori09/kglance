@@ -5,6 +5,10 @@ use crate::ui::theme::glass;
 use iced::widget::{column, container, image, row, scrollable, text};
 use iced::{Border, Color, Element, Length, Shadow};
 
+fn on_scrolled(viewport: iced::widget::scrollable::Viewport) -> Message {
+    Message::ContentScrolled(viewport.absolute_offset().y)
+}
+
 fn code_block_style(theme: &iced::Theme) -> container::Style {
     let is_dark = matches!(theme, iced::Theme::Dark);
     container::Style {
@@ -39,13 +43,18 @@ fn code_block_style(theme: &iced::Theme) -> container::Style {
 // 2. BLOCK RENDERERS
 // ==========================================
 
-fn render_heading<'a>(level: u8, text_content: &'a str) -> Element<'a, Message> {
-    let size: f32 = match level {
+fn scale(s: f32, font_size: f32) -> f32 {
+    (s * font_size / 14.0).round().max(8.0)
+}
+
+fn render_heading<'a>(level: u8, text_content: &'a str, font_size: f32) -> Element<'a, Message> {
+    let raw: f32 = match level {
         1 => 28.0,
         2 => 22.0,
         3 => 18.0,
         _ => 16.0,
     };
+    let size = scale(raw, font_size);
     let padding = match level {
         1 => 8,
         2 => 6,
@@ -59,16 +68,16 @@ fn render_heading<'a>(level: u8, text_content: &'a str) -> Element<'a, Message> 
         .into()
 }
 
-fn render_paragraph<'a>(text_content: &'a str) -> Element<'a, Message> {
-    container(text(text_content).size(14))
+fn render_paragraph<'a>(text_content: &'a str, font_size: f32) -> Element<'a, Message> {
+    container(text(text_content).size(font_size))
         .padding([2, 0])
         .width(Length::Fill)
         .into()
 }
 
-fn render_code_block<'a>(lang: &'a str, code: &'a str) -> Element<'a, Message> {
+fn render_code_block<'a>(lang: &'a str, code: &'a str, font_size: f32) -> Element<'a, Message> {
     let lang_bar: Element<'a, Message> = if !lang.is_empty() {
-        container(text(lang).size(11))
+        container(text(lang).size(scale(11.0, font_size)))
             .padding([2, 8])
             .style(|theme: &iced::Theme| {
                 let is_dark = matches!(theme, iced::Theme::Dark);
@@ -96,7 +105,7 @@ fn render_code_block<'a>(lang: &'a str, code: &'a str) -> Element<'a, Message> {
 
     column![
         lang_bar,
-        container(text(code).size(13))
+        container(text(code).size(scale(13.0, font_size)))
             .padding(10)
             .width(Length::Fill)
             .style(code_block_style),
@@ -105,9 +114,9 @@ fn render_code_block<'a>(lang: &'a str, code: &'a str) -> Element<'a, Message> {
     .into()
 }
 
-fn render_table<'a>(table: &'a TableBlock) -> Element<'a, Message> {
+fn render_table<'a>(table: &'a TableBlock, font_size: f32) -> Element<'a, Message> {
     let header_cells = table.headers.iter().map(|h| {
-        container(text(h).size(14))
+        container(text(h).size(scale(14.0, font_size)))
             .padding(8)
             .width(Length::FillPortion(1))
             .into()
@@ -127,7 +136,7 @@ fn render_table<'a>(table: &'a TableBlock) -> Element<'a, Message> {
 
     let body_rows = table.rows.iter().enumerate().map(|(i, row_data)| {
         let cells = row_data.iter().map(|c| {
-            container(text(c).size(13))
+            container(text(c).size(scale(13.0, font_size)))
                 .padding(6)
                 .width(Length::FillPortion(1))
                 .into()
@@ -169,15 +178,21 @@ fn render_inline_image<'a>(
     state: &'a crate::core::MarkdownState,
 ) -> Element<'a, Message> {
     if let Some(handle) = state.cached_image_handles.get(&index) {
-        container(
-            image(handle.clone())
-                .width(Length::Fill)
-                .height(Length::Shrink),
-        )
-        .center_x(Length::Fill)
-        .padding([4, 0])
-        .width(Length::Fill)
-        .into()
+        let img = image(handle.clone()).height(Length::Shrink);
+        let img = if let Some((w, _h)) = state.cached_image_sizes.get(&index) {
+            if *w > 600 {
+                img.width(Length::Fixed(600.0))
+            } else {
+                img.width(Length::Shrink)
+            }
+        } else {
+            img.width(Length::Shrink)
+        };
+        container(img)
+            .center_x(Length::Fill)
+            .padding([4, 0])
+            .width(Length::Fill)
+            .into()
     } else {
         // Fallback: show alt text while loading
         container(text(if alt.is_empty() { "[image]" } else { alt }).size(13))
@@ -214,8 +229,9 @@ fn render_mermaid<'a>(
     lines: &'a [String],
     _rendered: &Option<Vec<u8>>,
     state: &'a crate::core::MarkdownState,
+    font_size: f32,
 ) -> Element<'a, Message> {
-    let badge = container(text("Mermaid Diagram").size(11))
+    let badge = container(text("Mermaid Diagram").size(scale(11.0, font_size)))
         .padding([2, 8])
         .style(|_theme: &iced::Theme| container::Style {
             background: Some(glass::ACCENT.into()),
@@ -249,7 +265,7 @@ fn render_mermaid<'a>(
             } else {
                 line.clone()
             };
-            text(display).size(13).into()
+            text(display).size(scale(13.0, font_size)).into()
         });
 
         let content = container(column(line_widgets).spacing(2))
@@ -269,13 +285,16 @@ fn render_block<'a>(
     index: usize,
     block: &'a Block,
     state: &'a crate::core::MarkdownState,
+    font_size: f32,
 ) -> Element<'a, Message> {
     match block {
-        Block::Heading { level, text: t } => render_heading(*level, t),
-        Block::Paragraph(t) => render_paragraph(t),
-        Block::CodeBlock { lang, code } => render_code_block(lang, code),
-        Block::Table(tbl) => render_table(tbl),
-        Block::Mermaid { lines, rendered } => render_mermaid(index, lines, rendered, state),
+        Block::Heading { level, text: t } => render_heading(*level, t, font_size),
+        Block::Paragraph(t) => render_paragraph(t, font_size),
+        Block::CodeBlock { lang, code } => render_code_block(lang, code, font_size),
+        Block::Table(tbl) => render_table(tbl, font_size),
+        Block::Mermaid { lines, rendered } => {
+            render_mermaid(index, lines, rendered, state, font_size)
+        }
         Block::Image { alt, .. } => render_inline_image(index, alt, state),
     }
 }
@@ -283,16 +302,18 @@ fn render_block<'a>(
 pub fn view_markdown<'a>(
     blocks: &'a [Block],
     state: &'a crate::core::MarkdownState,
+    font_size: f32,
 ) -> Element<'a, Message> {
     let content = blocks
         .iter()
         .enumerate()
-        .map(|(i, block)| render_block(i, block, state));
+        .map(|(i, block)| render_block(i, block, state, font_size));
 
     let inner = column(content).spacing(6).padding(15);
 
     scrollable(inner)
         .id("content_scroll")
+        .on_scroll(on_scrolled)
         .style(crate::ui::theme::glass_scrollable)
         .height(Length::Fill)
         .into()
