@@ -1,5 +1,6 @@
 mod keyboard;
 mod media;
+pub mod probe;
 mod window;
 
 use iced::{Element, Subscription, Task, Theme};
@@ -7,13 +8,14 @@ use iced_futures::subscription;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::time::Instant;
 use tokio::sync::mpsc;
 
 use crate::core::{FilePreviewer, KglanceState, PreviewData};
 use crate::dbus::DaemonCommand;
-use crate::log_debug;
 use crate::parsers::ParserRegistry;
 use crate::parsers::markdown::Block;
+use crate::{log_debug, log_info};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -121,6 +123,7 @@ pub struct KglanceApp {
         Arc<Mutex<Option<tokio::sync::mpsc::Receiver<crate::ui::handlers::video::VideoEvent>>>>,
     pub ctrl_held: bool,
     pub shift_held: bool,
+    pub probe: probe::StartupProbe,
 }
 
 impl KglanceApp {
@@ -145,6 +148,7 @@ impl KglanceApp {
             video_rx: Arc::new(Mutex::new(Some(event_rx))),
             ctrl_held: false,
             shift_held: false,
+            probe: probe::StartupProbe::default(),
         };
 
         // Daemon starts with no window — window is opened on demand via DaemonOpenWindow.
@@ -177,6 +181,7 @@ impl KglanceApp {
     }
 
     pub fn handle_file_loaded(&mut self, path: String, content: PreviewData) -> Task<Message> {
+        let t0 = Instant::now();
         self.state.file_name = path.clone();
         self.state.content_ready = true;
 
@@ -238,15 +243,10 @@ impl KglanceApp {
                     }
                 }
             }
-            log_debug!("Spawning {} mermaid render tasks", tasks.len());
             tasks
         };
 
         content.populate_state(&mut self.state);
-        log_debug!(
-            "After populate_state: {} handles cached",
-            self.state.markdown.cached_mermaid_handles.len()
-        );
         self.current_content = Some(content.clone());
 
         let is_pdf = matches!(content, PreviewData::Pdf { .. });
@@ -306,14 +306,36 @@ impl KglanceApp {
             }
         }
 
+        // Build window management tasks.
+        // In daemon mode with no existing window, open one now alongside content.
         let mut window_tasks: Vec<Task<Message>> = if self.is_daemon {
             if let Some(id) = self.window_id {
+                // Window already exists — un-hide and focus it.
                 vec![
                     iced::window::set_mode(id, iced::window::Mode::Windowed),
                     iced::window::gain_focus(id),
                 ]
             } else {
-                vec![]
+                // First preview: open window now. Content is already in self.current_content
+                // so the first rendered frame will show content immediately.
+                let settings = iced::window::Settings {
+                    size: iced::Size::new(1024.0, 768.0),
+                    min_size: Some(iced::Size::new(800.0, 600.0)),
+                    exit_on_close_request: false,
+                    decorations: false,
+                    ..Default::default()
+                };
+                let (id, open_task) = iced::window::open(settings);
+                let _ = id;
+                vec![open_task.map(|wid| {
+                    Message::WindowEvent(
+                        wid,
+                        iced::window::Event::Opened {
+                            position: None,
+                            size: iced::Size::ZERO,
+                        },
+                    )
+                })]
             }
         } else if let Some(id) = self.window_id {
             vec![iced::window::gain_focus(id)]
@@ -327,6 +349,12 @@ impl KglanceApp {
             let size = crate::ui::handlers::image::calculate_window_size(*width, *height);
             window_tasks.push(iced::window::resize(id, size));
         }
+
+        self.probe.mark_state_ready(); // P1
+        log_info!(
+            "[PERF] handle_file_loaded state+tasks prepared in {:?}",
+            t0.elapsed()
+        );
 
         Task::batch(
             mermaid_tasks
@@ -348,7 +376,10 @@ impl KglanceApp {
             Message::OpenClicked => self.handle_open_clicked(),
             Message::CopyPathClicked => self.handle_copy_path(),
             Message::DaemonOpenWindow { path } => self.handle_daemon_open_window(path),
-            Message::FileLoaded { path, content } => self.handle_file_loaded(path, content),
+            Message::FileLoaded { path, content } => {
+                self.probe.mark_file_loaded(); // P0
+                self.handle_file_loaded(path, content)
+            }
             Message::WindowEvent(id, event) => self.handle_window_event(id, event),
             Message::ImageZoom(delta) => self.handle_image_zoom(delta),
             Message::CtrlHeldChanged(held) => self.handle_ctrl_changed(held),
@@ -479,6 +510,13 @@ impl KglanceApp {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
+        // PROBE P3+P4: first call marks widget tree build start/end.
+        // SAFETY: probe is interior-mutable via Cell pattern — view() takes &self.
+        // We cast to *mut to write the probe without &mut. This is safe because
+        // view() is only called from the Iced event loop (single thread).
+        let probe_ptr = &self.probe as *const probe::StartupProbe as *mut probe::StartupProbe;
+        unsafe { (*probe_ptr).mark_view_start() }; // P3
+
         let preview_body: Element<'_, Message> = if let Some(content) = &self.current_content {
             match content {
                 PreviewData::Text { .. } => {
@@ -513,7 +551,9 @@ impl KglanceApp {
         };
 
         let is_media = matches!(self.current_content, Some(PreviewData::Media { .. }));
-        crate::ui::window::view_window(&self.state, preview_body, is_media)
+        let res = crate::ui::window::view_window(&self.state, preview_body, is_media);
+        unsafe { (*probe_ptr).mark_view_done() }; // P4
+        res
     }
 
     /// Variant for [`iced::daemon`] which requires a `window::Id` parameter.

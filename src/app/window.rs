@@ -73,6 +73,7 @@ impl super::KglanceApp {
     ) -> Task<Message> {
         match event {
             iced::window::Event::Opened { .. } => {
+                self.probe.mark_window_opened(); // P2
                 self.window_id = Some(id);
             }
             iced::window::Event::CloseRequested => {

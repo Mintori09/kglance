@@ -35,10 +35,12 @@ impl Recipe for DaemonRecipe {
                     use iced::futures::SinkExt;
                     while let Some(cmd) = rx.recv().await {
                         match cmd {
-                            DaemonCommand::OpenWindow { path } => {
-                                let _ = output.send(Message::DaemonOpenWindow { path }).await;
+                            // Single merged event: open window + load content in one Iced cycle.
+                            DaemonCommand::OpenWindowWithContent { path, content } => {
+                                let _ = output.send(Message::FileLoaded { path, content }).await;
                             }
-                            DaemonCommand::ShowPreview { path, content } => {
+                            // Kept for future use (e.g. reloading without window re-open).
+                            DaemonCommand::ShowPreviewExisting { path, content } => {
                                 let _ = output.send(Message::FileLoaded { path, content }).await;
                             }
                             DaemonCommand::HidePreview => {

@@ -53,6 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
+    kglance::app::probe::init();
     log_info!("Initializing daemon...");
     let registry = Arc::new(build_registry());
     let (tx, rx) = tokio::sync::mpsc::channel::<dbus::DaemonCommand>(100);

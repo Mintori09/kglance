@@ -85,6 +85,10 @@ harness = false
 name = "video_resolution"
 harness = false
 
+[[bench]]
+name = "startup_bench"
+harness = false
+
 [[bin]]
 name = "kglance"
 path = "src/main.rs"
