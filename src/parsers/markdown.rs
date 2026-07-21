@@ -1,7 +1,10 @@
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
 
-use crate::parsers::{ImageRef, ParseError, ParsedContent, PreviewParser};
+use crate::{
+    log_debug, log_error,
+    parsers::{ImageRef, ParseError, ParsedContent, PreviewParser},
+};
 
 pub struct MarkdownParser;
 
@@ -43,6 +46,10 @@ pub enum Block {
     Mermaid {
         lines: Vec<String>,
         rendered: Option<Vec<u8>>,
+    },
+    Image {
+        alt: String,
+        path: String,
     },
 }
 
@@ -89,6 +96,7 @@ fn extract_images(raw: &str, parent: &Path) -> Vec<ImageRef> {
 pub fn parse_to_blocks(content: &str) -> Vec<Block> {
     let parser = pulldown_cmark::Parser::new_ext(content, pulldown_cmark::Options::all());
     let mut blocks = Vec::new();
+    let mut heading_accum: Option<(u8, String)> = None;
 
     struct TableAccum {
         rows: Vec<Vec<String>>,
@@ -103,6 +111,7 @@ pub fn parse_to_blocks(content: &str) -> Vec<Block> {
     let mut table_accum: Option<TableAccum> = None;
     let mut code_accum: Option<(String, String)> = None;
     let mut current_text = String::new();
+    let mut image_accum: Option<(String, String)> = None; // (url, alt)
 
     let flush_text = |text: &mut String, blocks: &mut Vec<Block>| {
         let trimmed = text.trim();
@@ -180,16 +189,23 @@ pub fn parse_to_blocks(content: &str) -> Vec<Block> {
                 });
             }
             Event::Start(Tag::Heading { level, .. }) => {
-                let prefix = match level {
-                    HeadingLevel::H1 => "# ",
-                    HeadingLevel::H2 => "## ",
-                    HeadingLevel::H3 => "### ",
-                    _ => "#### ",
+                flush_text(&mut current_text, &mut blocks);
+
+                let level = match level {
+                    HeadingLevel::H1 => 1,
+                    HeadingLevel::H2 => 2,
+                    HeadingLevel::H3 => 3,
+                    HeadingLevel::H4 => 4,
+                    HeadingLevel::H5 => 5,
+                    HeadingLevel::H6 => 6,
                 };
-                current_text.push_str(prefix);
+
+                heading_accum = Some((level, String::new()));
             }
             Event::End(TagEnd::Heading(_)) => {
-                flush_text(&mut current_text, &mut blocks);
+                if let Some((level, text)) = heading_accum.take() {
+                    blocks.push(Block::Heading { level, text });
+                }
             }
             Event::Start(Tag::CodeBlock(kind)) => {
                 flush_text(&mut current_text, &mut blocks);
@@ -211,8 +227,23 @@ pub fn parse_to_blocks(content: &str) -> Vec<Block> {
             Event::End(TagEnd::Paragraph) => {
                 flush_text(&mut current_text, &mut blocks);
             }
+            Event::Start(Tag::Image { dest_url, .. }) => {
+                flush_text(&mut current_text, &mut blocks);
+                image_accum = Some((dest_url.to_string(), String::new()));
+            }
+            Event::End(TagEnd::Image) => {
+                if let Some((url, alt)) = image_accum.take() {
+                    blocks.push(Block::Image { alt, path: url });
+                }
+            }
             Event::Text(text) => {
-                current_text.push_str(&text);
+                if let Some((_, ref mut heading)) = heading_accum {
+                    heading.push_str(&text);
+                } else if let Some((_, ref mut alt)) = image_accum {
+                    alt.push_str(&text);
+                } else {
+                    current_text.push_str(&text);
+                }
             }
             Event::Code(code) => {
                 current_text.push('`');
@@ -234,27 +265,83 @@ pub fn parse_to_blocks(content: &str) -> Vec<Block> {
 pub fn render_mermaid_to_png(code: &str) -> Option<Vec<u8>> {
     use std::io::Write;
 
-    let dir = tempfile::tempdir().ok()?;
-    let input = dir.path().join("d.mmd");
-    let output = dir.path().join("d.png");
+    log_debug!("Rendering Mermaid diagram ({} bytes)", code.len());
 
-    let mut f = std::fs::File::create(&input).ok()?;
-    write!(f, "{}", code).ok()?;
-    drop(f);
+    let dir = match tempfile::tempdir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            log_error!("Failed to create temp dir: {}", e);
+            return None;
+        }
+    };
 
-    let status = std::process::Command::new("mmdc")
-        .args(["-i", input.to_str()?, "-o", output.to_str()?, "-b", "white"])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .ok()?;
+    let input = dir.path().join("diagram.mmd");
+    let output = dir.path().join("diagram.png");
 
-    if !status.success() {
+    let mut file = match std::fs::File::create(&input) {
+        Ok(file) => file,
+        Err(e) => {
+            log_error!("Failed to create Mermaid file: {}", e);
+            return None;
+        }
+    };
+
+    if let Err(e) = write!(file, "{}", code) {
+        log_error!("Failed to write Mermaid source: {}", e);
         return None;
     }
 
-    let png = std::fs::read(&output).ok()?;
-    if png.is_empty() { None } else { Some(png) }
+    drop(file);
+
+    let result = std::process::Command::new("mmdr")
+        .args([
+            "-i",
+            input.to_str()?,
+            "-o",
+            output.to_str()?,
+            "-e",
+            "png",
+            "-w",
+            "1200",
+        ])
+        .output();
+
+    let output_result = match result {
+        Ok(output) => output,
+        Err(e) => {
+            log_error!("Failed to launch mmdr: {}", e);
+            return None;
+        }
+    };
+
+    if !output_result.status.success() {
+        let stderr = String::from_utf8_lossy(&output_result.stderr);
+
+        log_error!(
+            "mmdr exited with status {:?}: {}",
+            output_result.status.code(),
+            stderr.trim()
+        );
+
+        return None;
+    }
+
+    let png = match std::fs::read(&output) {
+        Ok(data) => data,
+        Err(e) => {
+            log_error!("Failed to read generated PNG: {}", e);
+            return None;
+        }
+    };
+
+    if png.is_empty() {
+        log_error!("Generated PNG is empty");
+        return None;
+    }
+
+    log_debug!("Mermaid render succeeded ({} bytes PNG)", png.len());
+
+    Some(png)
 }
 
 impl PreviewParser for MarkdownParser {
@@ -637,6 +724,155 @@ mod tests {
         // Block 1 now rendered
         assert!(
             matches!(&blocks[1], Block::Mermaid { rendered, .. } if rendered.as_deref() == Some(&[1u8, 2, 3]))
+        );
+    }
+
+    #[test]
+    fn markdown_state_caches_mermaid_handles_correctly() {
+        use crate::core::MarkdownState;
+        use iced::widget::image::Handle;
+
+        // Build a mix of blocks like a real parsed markdown file
+        let blocks = vec![
+            Block::Heading {
+                level: 1,
+                text: "Title".into(),
+            },
+            Block::Mermaid {
+                lines: vec!["graph TD".into(), "A-->B".into()],
+                rendered: None,
+            },
+            Block::Paragraph("Some text.".into()),
+            Block::Mermaid {
+                lines: vec!["sequenceDiagram".into(), "A->>B".into()],
+                rendered: None,
+            },
+            Block::Mermaid {
+                lines: vec!["graph LR".into(), "C-->D".into()],
+                rendered: None,
+            },
+        ];
+
+        // 1. Initial state must be empty
+        let mut state = MarkdownState::default();
+        assert!(
+            state.cached_mermaid_handles.is_empty(),
+            "fresh MarkdownState must start with an empty HashMap"
+        );
+
+        // 2. Simulate populate_state: no block has rendered data → cache stays empty
+        for (i, block) in blocks.iter().enumerate() {
+            if let Block::Mermaid {
+                rendered: Some(_), ..
+            } = block
+            {
+                state
+                    .cached_mermaid_handles
+                    .insert(i, Handle::from_rgba(1, 1, vec![0, 0, 0, 255]));
+            }
+        }
+        assert!(
+            state.cached_mermaid_handles.is_empty(),
+            "cache must be empty when no Mermaid block has rendered output yet"
+        );
+
+        // 3. Simulate MermaidBlockRendered for block index 1
+        state
+            .cached_mermaid_handles
+            .insert(1, Handle::from_rgba(2, 2, vec![128; 16]));
+
+        assert_eq!(state.cached_mermaid_handles.len(), 1);
+        assert!(
+            state.cached_mermaid_handles.contains_key(&1),
+            "handle must be stored under block index 1"
+        );
+        assert!(
+            !state.cached_mermaid_handles.contains_key(&0),
+            "non-Mermaid block (heading) must NOT have a cache entry"
+        );
+        assert!(
+            !state.cached_mermaid_handles.contains_key(&3),
+            "unrendered Mermaid block must NOT have a cache entry yet"
+        );
+
+        // 4. Simulate block 3 completing render (index 2 is a Paragraph — skip)
+        state
+            .cached_mermaid_handles
+            .insert(3, Handle::from_rgba(2, 2, vec![255; 16]));
+
+        assert_eq!(
+            state.cached_mermaid_handles.len(),
+            2,
+            "two handles cached after two Mermaid blocks rendered"
+        );
+        assert!(state.cached_mermaid_handles.contains_key(&3));
+
+        // 5. Simulate block 1 being re-rendered (e.g. file reload): overwrite
+        state
+            .cached_mermaid_handles
+            .insert(1, Handle::from_rgba(4, 4, vec![64; 64]));
+
+        assert_eq!(
+            state.cached_mermaid_handles.len(),
+            2,
+            "replacing an existing handle must NOT increase HashMap size"
+        );
+
+        // 6. Verify lookups as render_mermaid would do
+        assert!(
+            state.cached_mermaid_handles.get(&1).is_some(),
+            "render_mermaid must find handle for block[1]"
+        );
+        assert!(
+            state.cached_mermaid_handles.get(&3).is_some(),
+            "render_mermaid must find handle for block[3]"
+        );
+        assert!(
+            state.cached_mermaid_handles.get(&0).is_none(),
+            "render_mermaid must NOT find handle for heading block"
+        );
+        assert!(
+            state.cached_mermaid_handles.get(&2).is_none(),
+            "render_mermaid must NOT find handle for paragraph block"
+        );
+        assert!(
+            state.cached_mermaid_handles.get(&4).is_none(),
+            "render_mermaid must NOT find handle for unrendered Mermaid block"
+        );
+    }
+
+    #[test]
+    fn markdown_state_ignores_non_mermaid_blocks() {
+        use crate::core::MarkdownState;
+        use iced::widget::image::Handle;
+
+        let blocks = vec![
+            Block::Paragraph("Hello".into()),
+            Block::CodeBlock {
+                lang: "rust".into(),
+                code: "fn main() {}".into(),
+            },
+            Block::Table(TableBlock {
+                headers: vec!["A".into()],
+                rows: vec![vec!["1".into()]],
+            }),
+        ];
+
+        // Simulate populate_state: no Mermaid blocks → cache must remain empty
+        let mut state = MarkdownState::default();
+        for (i, block) in blocks.iter().enumerate() {
+            if let Block::Mermaid {
+                rendered: Some(_), ..
+            } = block
+            {
+                state
+                    .cached_mermaid_handles
+                    .insert(i, Handle::from_rgba(1, 1, vec![0, 0, 0, 255]));
+            }
+        }
+        assert!(
+            state.cached_mermaid_handles.is_empty(),
+            "cache must be empty when markdown has zero Mermaid blocks"
         );
     }
 }
