@@ -64,7 +64,11 @@ impl StartupProbe {
             if let Some(t0) = self.t0_file_loaded {
                 eprintln!(
                     "[PROBE] P1 state+tasks ready   +{:>8.3}ms (from P0)",
-                    self.t1_state_ready.unwrap().duration_since(t0).as_secs_f64() * 1000.0
+                    self.t1_state_ready
+                        .unwrap()
+                        .duration_since(t0)
+                        .as_secs_f64()
+                        * 1000.0
                 );
             }
         }
@@ -76,13 +80,21 @@ impl StartupProbe {
             if let Some(t0) = self.t0_file_loaded {
                 eprintln!(
                     "[PROBE] P2 WindowEvent::Opened +{:>8.3}ms (from P0)",
-                    self.t2_window_opened.unwrap().duration_since(t0).as_secs_f64() * 1000.0
+                    self.t2_window_opened
+                        .unwrap()
+                        .duration_since(t0)
+                        .as_secs_f64()
+                        * 1000.0
                 );
             }
             if let Some(t1) = self.t1_state_ready {
                 eprintln!(
                     "[PROBE]    window::open cost   +{:>8.3}ms (P1→P2)",
-                    self.t2_window_opened.unwrap().duration_since(t1).as_secs_f64() * 1000.0
+                    self.t2_window_opened
+                        .unwrap()
+                        .duration_since(t1)
+                        .as_secs_f64()
+                        * 1000.0
                 );
             }
         }
@@ -142,15 +154,18 @@ impl StartupProbe {
         let p0_to_p1 = self
             .t1_state_ready
             .map(|t| t.duration_since(t0).as_secs_f64() * 1000.0);
-        let p1_to_p2 = self.t1_state_ready.zip(self.t2_window_opened).map(|(t1, t2)| {
-            t2.duration_since(t1).as_secs_f64() * 1000.0
-        });
-        let p2_to_p3 = self.t2_window_opened.zip(self.t3_view_start).map(|(t2, t3)| {
-            t3.duration_since(t2).as_secs_f64() * 1000.0
-        });
-        let p3_to_p4 = self.t3_view_start.zip(self.t4_view_done).map(|(t3, t4)| {
-            t4.duration_since(t3).as_secs_f64() * 1000.0
-        });
+        let p1_to_p2 = self
+            .t1_state_ready
+            .zip(self.t2_window_opened)
+            .map(|(t1, t2)| t2.duration_since(t1).as_secs_f64() * 1000.0);
+        let p2_to_p3 = self
+            .t2_window_opened
+            .zip(self.t3_view_start)
+            .map(|(t2, t3)| t3.duration_since(t2).as_secs_f64() * 1000.0);
+        let p3_to_p4 = self
+            .t3_view_start
+            .zip(self.t4_view_done)
+            .map(|(t3, t4)| t4.duration_since(t3).as_secs_f64() * 1000.0);
 
         let fmt = |v: Option<f64>| -> String {
             v.map(|x| format!("{x:>8.3}ms"))

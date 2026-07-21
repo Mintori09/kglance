@@ -5,7 +5,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== KGLANCE STARTUP PROFILER ===");
 
     // Step 1: Kill any existing daemon
-    let _ = Command::new("pkill").arg("-f").arg("kglance daemon").output();
+    let _ = Command::new("pkill")
+        .arg("-f")
+        .arg("kglance daemon")
+        .output();
     std::thread::sleep(Duration::from_millis(500));
 
     // Step 2: Spawn daemon with KGLANCE_PROBE=1
@@ -29,8 +32,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .output()?;
 
     let t_cli_done = t_start.elapsed();
-    println!("[TEST] DBus CLI call returned in: {:.2?}ms", t_cli_done.as_secs_f64() * 1000.0);
-    println!("[TEST] CLI output: {}", String::from_utf8_lossy(&output.stdout).trim());
+    println!(
+        "[TEST] DBus CLI call returned in: {:.2?}ms",
+        t_cli_done.as_secs_f64() * 1000.0
+    );
+    println!(
+        "[TEST] CLI output: {}",
+        String::from_utf8_lossy(&output.stdout).trim()
+    );
 
     // Wait a moment for frame rendering output to print to stderr/daemon log
     std::thread::sleep(Duration::from_secs(2));
