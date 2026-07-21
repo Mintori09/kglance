@@ -96,6 +96,14 @@ fn run_standalone(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let registry = std::sync::Arc::new(build_registry());
     let path_str = path.to_string();
 
+    let resolved = std::path::Path::new(path);
+    let mut initial_size = Size::new(1024.0, 768.0);
+    if let Ok(kglance::parsers::ParsedContent::Image { width, height, .. }) =
+        registry.parse(resolved)
+    {
+        initial_size = kglance::ui::handlers::image::calculate_window_size(width, height);
+    }
+
     log_info!("Running Iced GUI in standalone mode...");
     let reg = registry.clone();
     iced::application(
@@ -110,8 +118,8 @@ fn run_standalone(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     )
     .window(iced::window::Settings {
         visible: true,
-        min_size: Some(Size::new(800.0, 600.0)),
-        size: Size::new(1024.0, 768.0),
+        min_size: Some(Size::new(400.0, 300.0)),
+        size: initial_size,
         exit_on_close_request: true,
         decorations: false,
         ..Default::default()
