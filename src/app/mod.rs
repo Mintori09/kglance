@@ -151,7 +151,7 @@ impl KglanceApp {
             probe: probe::StartupProbe::default(),
         };
 
-        // Daemon starts with no window — window is opened on demand via DaemonOpenWindow.
+        // Daemon starts with no window — window is opened on demand when a preview request arrives.
         let task = if let Some(path) = initial_path {
             let path_str = path.to_string();
             let reg = app.registry.clone();
