@@ -45,11 +45,10 @@ fn make_md_file(lines: usize, mermaid_blocks: usize) -> (tempfile::TempDir, std:
     let path = dir.path().join("test.md");
     let mut f = std::fs::File::create(&path).unwrap();
     writeln!(f, "# Test Document\n").unwrap();
-    let mermaid_every = if mermaid_blocks > 0 {
-        (lines / mermaid_blocks).max(1)
-    } else {
-        usize::MAX
-    };
+    let mermaid_every = lines
+        .checked_div(mermaid_blocks)
+        .map(|v| v.max(1))
+        .unwrap_or(usize::MAX);
     for i in 0..lines {
         writeln!(f, "Line {i}: Lorem ipsum dolor sit amet consectetur.").unwrap();
         if mermaid_blocks > 0 && i % mermaid_every == 0 {

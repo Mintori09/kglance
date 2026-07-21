@@ -576,8 +576,9 @@ mod tests {
     fn test_parse_heading_paragraph_to_blocks() {
         let md = "# Hello\n\nSome text";
         let blocks = parse_to_blocks(md);
-        assert!(!blocks.is_empty());
-        assert!(matches!(blocks[0], Block::Paragraph(_)));
+        assert_eq!(blocks.len(), 2);
+        assert!(matches!(blocks[0], Block::Heading { level: 1, .. }));
+        assert!(matches!(blocks[1], Block::Paragraph(_)));
     }
 
     #[test]
@@ -676,12 +677,12 @@ mod tests {
         match result {
             ParsedContent::Markdown { blocks, .. } => {
                 assert_eq!(blocks.len(), 4);
-                assert!(matches!(&blocks[0], Block::Paragraph(_)));
+                assert!(matches!(&blocks[0], Block::Heading { level: 1, .. }));
                 assert!(matches!(&blocks[1], Block::Paragraph(_)));
                 assert!(matches!(&blocks[2], Block::CodeBlock { .. }));
                 assert!(matches!(
-                    &blocks[3],
-                    Block::Mermaid { rendered, .. } if rendered.is_none()
+                     &blocks[3],
+                     Block::Mermaid { rendered, .. } if rendered.is_none()
                 ));
             }
             _ => panic!("expected Markdown variant"),
@@ -732,8 +733,7 @@ mod tests {
         use crate::core::MarkdownState;
         use iced::widget::image::Handle;
 
-        // Build a mix of blocks like a real parsed markdown file
-        let blocks = vec![
+        let blocks = [
             Block::Heading {
                 level: 1,
                 text: "Title".into(),
@@ -820,23 +820,23 @@ mod tests {
 
         // 6. Verify lookups as render_mermaid would do
         assert!(
-            state.cached_mermaid_handles.get(&1).is_some(),
+            state.cached_mermaid_handles.contains_key(&1),
             "render_mermaid must find handle for block[1]"
         );
         assert!(
-            state.cached_mermaid_handles.get(&3).is_some(),
+            state.cached_mermaid_handles.contains_key(&3),
             "render_mermaid must find handle for block[3]"
         );
         assert!(
-            state.cached_mermaid_handles.get(&0).is_none(),
+            !state.cached_mermaid_handles.contains_key(&0),
             "render_mermaid must NOT find handle for heading block"
         );
         assert!(
-            state.cached_mermaid_handles.get(&2).is_none(),
+            !state.cached_mermaid_handles.contains_key(&2),
             "render_mermaid must NOT find handle for paragraph block"
         );
         assert!(
-            state.cached_mermaid_handles.get(&4).is_none(),
+            !state.cached_mermaid_handles.contains_key(&4),
             "render_mermaid must NOT find handle for unrendered Mermaid block"
         );
     }
@@ -846,7 +846,7 @@ mod tests {
         use crate::core::MarkdownState;
         use iced::widget::image::Handle;
 
-        let blocks = vec![
+        let blocks = [
             Block::Paragraph("Hello".into()),
             Block::CodeBlock {
                 lang: "rust".into(),
