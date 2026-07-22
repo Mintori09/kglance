@@ -152,6 +152,8 @@ pub struct KglanceApp {
         Arc<Mutex<Option<tokio::sync::mpsc::Receiver<crate::ui::handlers::video::VideoEvent>>>>,
     pub ctrl_held: bool,
     pub shift_held: bool,
+    pub pending_g: bool,
+    pub pending_home: bool,
     pub probe: probe::StartupProbe,
 }
 
@@ -177,6 +179,8 @@ impl KglanceApp {
             video_rx: Arc::new(Mutex::new(Some(event_rx))),
             ctrl_held: false,
             shift_held: false,
+            pending_g: false,
+            pending_home: false,
             probe: probe::StartupProbe::default(),
         };
 

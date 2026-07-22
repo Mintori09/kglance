@@ -1,8 +1,11 @@
+use std::path::Path;
+
 use iced::Task;
-use iced::widget::operation::{self, AbsoluteOffset};
+use iced::keyboard::key::Named;
+use iced::widget::operation::{self, AbsoluteOffset, RelativeOffset};
 
 use super::Message;
-use crate::core::PreviewData;
+use crate::core::{FilePreviewer, PreviewData};
 
 impl super::KglanceApp {
     pub fn handle_key_pressed(
@@ -10,188 +13,361 @@ impl super::KglanceApp {
         key: iced::keyboard::Key,
         modifiers: iced::keyboard::Modifiers,
     ) -> Task<Message> {
-        use iced::keyboard::key::{Key, Named};
-        let ctrl = modifiers.control();
-
-        if matches!(self.current_content, Some(PreviewData::Folder { .. })) {
-            let rows_len = self.state.table.rows.len();
-            if rows_len > 0 {
-                match &key {
-                    iced::keyboard::Key::Named(Named::ArrowDown) => {
-                        let new_idx = match self.state.table.selected_index {
-                            Some(idx) => (idx + 1).min(rows_len - 1),
-                            None => 0,
-                        };
-                        self.state.table.selected_index = Some(new_idx);
-                        return Task::none();
-                    }
-                    iced::keyboard::Key::Named(Named::ArrowUp) => {
-                        let new_idx = match self.state.table.selected_index {
-                            Some(idx) => idx.saturating_sub(1),
-                            None => 0,
-                        };
-                        self.state.table.selected_index = Some(new_idx);
-                        return Task::none();
-                    }
-                    iced::keyboard::Key::Named(Named::Home) => {
-                        self.state.table.selected_index = Some(0);
-                        return Task::none();
-                    }
-                    iced::keyboard::Key::Named(Named::End) => {
-                        self.state.table.selected_index = Some(rows_len - 1);
-                        return Task::none();
-                    }
-                    iced::keyboard::Key::Named(Named::PageUp) => {
-                        let new_idx = match self.state.table.selected_index {
-                            Some(idx) => idx.saturating_sub(10),
-                            None => 0,
-                        };
-                        self.state.table.selected_index = Some(new_idx);
-                        return Task::none();
-                    }
-                    iced::keyboard::Key::Named(Named::PageDown) => {
-                        let new_idx = match self.state.table.selected_index {
-                            Some(idx) => (idx + 10).min(rows_len - 1),
-                            None => 0,
-                        };
-                        self.state.table.selected_index = Some(new_idx);
-                        return Task::none();
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        if ctrl {
-            if let iced::keyboard::Key::Character(ref c) = key {
-                match c.as_str() {
-                    "c" => return iced::clipboard::write(self.state.file_name.clone()),
-                    "+" | "=" => {
-                        if matches!(self.current_content, Some(PreviewData::Image { .. })) {
-                            self.state.image.camera.zoom =
-                                (self.state.image.camera.zoom + 0.2).clamp(0.1, 10.0);
-                            return Task::none();
-                        }
-                        if matches!(
-                            self.current_content,
-                            Some(PreviewData::Markdown { .. }) | Some(PreviewData::Text { .. })
-                        ) {
-                            self.state.font_size = (self.state.font_size + 1.0).clamp(8.0, 48.0);
-                            return Task::none();
-                        }
-                    }
-                    "-" => {
-                        if matches!(self.current_content, Some(PreviewData::Image { .. })) {
-                            self.state.image.camera.zoom =
-                                (self.state.image.camera.zoom - 0.2).clamp(0.1, 10.0);
-                            return Task::none();
-                        }
-                        if matches!(
-                            self.current_content,
-                            Some(PreviewData::Markdown { .. }) | Some(PreviewData::Text { .. })
-                        ) {
-                            self.state.font_size = (self.state.font_size - 1.0).clamp(8.0, 48.0);
-                            return Task::none();
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            if let iced::keyboard::Key::Character(ref c) = key
-                && c == "0"
-                && matches!(self.current_content, Some(PreviewData::Image { .. }))
-            {
-                self.state.image.camera.zoom = 1.0;
-                self.state.image.camera.offset_x = 0.0;
-                self.state.image.camera.offset_y = 0.0;
-                return Task::none();
-            }
-        }
-
-        // Shift+= reset font size
-        if let iced::keyboard::Key::Character(ref c) = key
-            && (c == "+" || c == "=")
-            && modifiers.shift()
-        {
-            self.state.font_size = 14.0;
-            return Task::none();
-        }
-
-        let scroll_amount = 80.0;
-        let half_page_scroll_amount = 600.0;
-        let scroll_task: Option<Task<Message>> = match &key {
-            iced::keyboard::Key::Named(Named::ArrowDown) => Some(operation::scroll_by(
-                "content_scroll",
-                AbsoluteOffset {
-                    x: 0.0,
-                    y: scroll_amount,
-                },
-            )),
-            iced::keyboard::Key::Character(c) if c == "j" => Some(operation::scroll_by(
-                "content_scroll",
-                AbsoluteOffset {
-                    x: 0.0,
-                    y: scroll_amount,
-                },
-            )),
-            iced::keyboard::Key::Named(Named::ArrowUp) => Some(operation::scroll_by(
-                "content_scroll",
-                AbsoluteOffset {
-                    x: 0.0,
-                    y: -scroll_amount,
-                },
-            )),
-            iced::keyboard::Key::Character(c) if c == "k" => Some(operation::scroll_by(
-                "content_scroll",
-                AbsoluteOffset {
-                    x: 0.0,
-                    y: -scroll_amount,
-                },
-            )),
-            iced::keyboard::Key::Named(Named::PageUp) => Some(operation::scroll_by(
-                "content_scroll",
-                AbsoluteOffset {
-                    x: 0.0,
-                    y: -half_page_scroll_amount,
-                },
-            )),
-            iced::keyboard::Key::Named(Named::PageDown) => Some(operation::scroll_by(
-                "content_scroll",
-                AbsoluteOffset {
-                    x: 0.0,
-                    y: half_page_scroll_amount,
-                },
-            )),
-            iced::keyboard::Key::Character(c) if c == "d" => Some(operation::scroll_by(
-                "content_scroll",
-                AbsoluteOffset {
-                    x: 0.0,
-                    y: half_page_scroll_amount,
-                },
-            )),
-            iced::keyboard::Key::Character(c) if c == "u" => Some(operation::scroll_by(
-                "content_scroll",
-                AbsoluteOffset {
-                    x: 0.0,
-                    y: -half_page_scroll_amount,
-                },
-            )),
-            _ => None,
-        };
-        if let Some(task) = scroll_task {
+        if let Some(task) = self.handle_folder_navigation(&key) {
             return task;
         }
 
-        let should_close = match &key {
+        if let Some(task) = self.handle_ctrl_shortcuts(&key, modifiers) {
+            return task;
+        }
+
+        if let Some(task) = self.handle_font_shortcuts(&key, modifiers) {
+            return task;
+        }
+
+        if let Some(task) = self.handle_scroll_shortcuts(&key, modifiers) {
+            return task;
+        }
+
+        // Enter -> open file externally (folder navigation handled above)
+        if matches!(key, iced::keyboard::Key::Named(Named::Enter)) {
+            return self.handle_open_clicked();
+        }
+
+        if let Some(task) = self.handle_close_shortcuts(&key) {
+            return task;
+        }
+
+        Task::none()
+    }
+
+    fn handle_folder_navigation(&mut self, key: &iced::keyboard::Key) -> Option<Task<Message>> {
+        let rows_len = self.state.table.rows.len();
+
+        if rows_len == 0 {
+            return None;
+        }
+
+        if !matches!(self.current_content, Some(PreviewData::Folder { .. })) {
+            return None;
+        }
+
+        match key {
+            iced::keyboard::Key::Named(Named::ArrowDown) => {
+                let new_idx = match self.state.table.selected_index {
+                    Some(idx) => (idx + 1).min(rows_len - 1),
+                    None => 0,
+                };
+                self.state.table.selected_index = Some(new_idx);
+                Some(Task::none())
+            }
+            iced::keyboard::Key::Named(Named::ArrowUp) => {
+                let new_idx = match self.state.table.selected_index {
+                    Some(idx) => idx.saturating_sub(1),
+                    None => 0,
+                };
+                self.state.table.selected_index = Some(new_idx);
+                Some(Task::none())
+            }
+            iced::keyboard::Key::Named(Named::Home) => {
+                self.pending_home = false;
+                self.state.table.selected_index = Some(0);
+                Some(Task::none())
+            }
+            iced::keyboard::Key::Named(Named::End) => {
+                self.pending_home = false;
+                self.state.table.selected_index = Some(rows_len - 1);
+                Some(Task::none())
+            }
+            iced::keyboard::Key::Named(Named::PageUp) => {
+                let new_idx = match self.state.table.selected_index {
+                    Some(idx) => idx.saturating_sub(10),
+                    None => 0,
+                };
+                self.state.table.selected_index = Some(new_idx);
+                Some(Task::none())
+            }
+            iced::keyboard::Key::Named(Named::PageDown) => {
+                let new_idx = match self.state.table.selected_index {
+                    Some(idx) => (idx + 10).min(rows_len - 1),
+                    None => 0,
+                };
+                self.state.table.selected_index = Some(new_idx);
+                Some(Task::none())
+            }
+            iced::keyboard::Key::Named(Named::Enter) => {
+                let idx = self.state.table.selected_index?;
+                let row = self.state.table.rows.get(idx)?;
+                let path = row.path.clone();
+                let registry = self.registry.clone();
+                Some(Task::perform(
+                    async move {
+                        let content = FilePreviewer::parse(&*registry, Path::new(&path)).ok()?;
+                        Some(Message::FileLoaded { path, content })
+                    },
+                    |msg| msg.unwrap_or(Message::CloseRequested),
+                ))
+            }
+            _ => None,
+        }
+    }
+
+    fn handle_ctrl_shortcuts(
+        &mut self,
+        key: &iced::keyboard::Key,
+        modifiers: iced::keyboard::Modifiers,
+    ) -> Option<Task<Message>> {
+        if !modifiers.control() {
+            return None;
+        }
+
+        let c = match key {
+            iced::keyboard::Key::Character(c) => c.as_str(),
+            _ => return None,
+        };
+
+        match c {
+            "c" => Some(iced::clipboard::write(self.state.file_name.clone())),
+            "+" | "=" => {
+                if matches!(self.current_content, Some(PreviewData::Image { .. })) {
+                    self.state.image.camera.zoom =
+                        (self.state.image.camera.zoom + 0.2).clamp(0.1, 10.0);
+                    Some(Task::none())
+                } else if matches!(
+                    self.current_content,
+                    Some(PreviewData::Markdown { .. }) | Some(PreviewData::Text { .. })
+                ) {
+                    self.state.font_size = (self.state.font_size + 1.0).clamp(8.0, 48.0);
+                    Some(Task::none())
+                } else {
+                    None
+                }
+            }
+            "-" => {
+                if matches!(self.current_content, Some(PreviewData::Image { .. })) {
+                    self.state.image.camera.zoom =
+                        (self.state.image.camera.zoom - 0.2).clamp(0.1, 10.0);
+                    Some(Task::none())
+                } else if matches!(
+                    self.current_content,
+                    Some(PreviewData::Markdown { .. }) | Some(PreviewData::Text { .. })
+                ) {
+                    self.state.font_size = (self.state.font_size - 1.0).clamp(8.0, 48.0);
+                    Some(Task::none())
+                } else {
+                    None
+                }
+            }
+            "0" if matches!(self.current_content, Some(PreviewData::Image { .. })) => {
+                self.state.image.camera.zoom = 1.0;
+                self.state.image.camera.offset_x = 0.0;
+                self.state.image.camera.offset_y = 0.0;
+                Some(Task::none())
+            }
+            _ => None,
+        }
+    }
+
+    fn handle_font_shortcuts(
+        &mut self,
+        key: &iced::keyboard::Key,
+        modifiers: iced::keyboard::Modifiers,
+    ) -> Option<Task<Message>> {
+        match key {
+            iced::keyboard::Key::Character(c) if (c == "+" || c == "=") && modifiers.shift() => {
+                self.state.font_size = 14.0;
+                Some(Task::none())
+            }
+            _ => None,
+        }
+    }
+
+    fn handle_scroll_shortcuts(
+        &mut self,
+        key: &iced::keyboard::Key,
+        modifiers: iced::keyboard::Modifiers,
+    ) -> Option<Task<Message>> {
+        let scroll_amount = 80.0;
+        use iced::keyboard::Key;
+        let half_page_scroll_amount = 600.0;
+
+        match key {
+            Key::Named(Named::ArrowDown) => {
+                self.pending_g = false;
+                self.pending_home = false;
+
+                Some(operation::scroll_by(
+                    "content_scroll",
+                    AbsoluteOffset {
+                        x: 0.0,
+                        y: scroll_amount,
+                    },
+                ))
+            }
+
+            Key::Character(c) if c == "j" => {
+                self.pending_g = false;
+                self.pending_home = false;
+
+                Some(operation::scroll_by(
+                    "content_scroll",
+                    AbsoluteOffset {
+                        x: 0.0,
+                        y: scroll_amount,
+                    },
+                ))
+            }
+
+            Key::Named(Named::ArrowUp) => {
+                self.pending_g = false;
+                self.pending_home = false;
+
+                Some(operation::scroll_by(
+                    "content_scroll",
+                    AbsoluteOffset {
+                        x: 0.0,
+                        y: -scroll_amount,
+                    },
+                ))
+            }
+
+            Key::Character(c) if c == "k" => {
+                self.pending_g = false;
+                self.pending_home = false;
+
+                Some(operation::scroll_by(
+                    "content_scroll",
+                    AbsoluteOffset {
+                        x: 0.0,
+                        y: -scroll_amount,
+                    },
+                ))
+            }
+
+            Key::Named(Named::PageDown) => {
+                self.pending_g = false;
+                self.pending_home = false;
+
+                Some(operation::scroll_by(
+                    "content_scroll",
+                    AbsoluteOffset {
+                        x: 0.0,
+                        y: half_page_scroll_amount,
+                    },
+                ))
+            }
+
+            Key::Named(Named::PageUp) => {
+                self.pending_g = false;
+                self.pending_home = false;
+
+                Some(operation::scroll_by(
+                    "content_scroll",
+                    AbsoluteOffset {
+                        x: 0.0,
+                        y: -half_page_scroll_amount,
+                    },
+                ))
+            }
+
+            Key::Character(c) if c == "d" => {
+                self.pending_g = false;
+                self.pending_home = false;
+
+                Some(operation::scroll_by(
+                    "content_scroll",
+                    AbsoluteOffset {
+                        x: 0.0,
+                        y: half_page_scroll_amount,
+                    },
+                ))
+            }
+
+            Key::Character(c) if c == "u" => {
+                self.pending_g = false;
+                self.pending_home = false;
+
+                Some(operation::scroll_by(
+                    "content_scroll",
+                    AbsoluteOffset {
+                        x: 0.0,
+                        y: -half_page_scroll_amount,
+                    },
+                ))
+            }
+
+            // gg -> top
+            Key::Character(c) if c == "g" && !modifiers.shift() => {
+                self.pending_home = false;
+                if self.pending_g {
+                    self.pending_g = false;
+
+                    Some(operation::snap_to(
+                        "content_scroll",
+                        RelativeOffset { x: 0.0, y: 0.0 },
+                    ))
+                } else {
+                    self.pending_g = true;
+                    None
+                }
+            }
+
+            // G -> bottom
+            Key::Character(c) if c == "G" || (c == "g" && modifiers.shift()) => {
+                self.pending_g = false;
+                self.pending_home = false;
+
+                Some(operation::snap_to(
+                    "content_scroll",
+                    RelativeOffset { x: 0.0, y: 1.0 },
+                ))
+            }
+
+            // Home (double-tap like gg) -> top
+            Key::Named(Named::Home) => {
+                self.pending_g = false;
+                if self.pending_home {
+                    self.pending_home = false;
+
+                    Some(operation::snap_to(
+                        "content_scroll",
+                        RelativeOffset { x: 0.0, y: 0.0 },
+                    ))
+                } else {
+                    self.pending_home = true;
+                    None
+                }
+            }
+
+            Key::Named(Named::End) => {
+                self.pending_g = false;
+                self.pending_home = false;
+
+                Some(operation::snap_to(
+                    "content_scroll",
+                    RelativeOffset { x: 0.0, y: 1.0 },
+                ))
+            }
+
+            _ => {
+                self.pending_g = false;
+                self.pending_home = false;
+                None
+            }
+        }
+    }
+
+    fn handle_close_shortcuts(&mut self, key: &iced::keyboard::Key) -> Option<Task<Message>> {
+        let should_close = match key {
             iced::keyboard::Key::Named(Named::Escape | Named::Backspace | Named::Space) => true,
             iced::keyboard::Key::Character(c) if c == " " || c == "\u{8}" || c == "\u{7f}" => true,
             _ => false,
         };
 
         if should_close {
-            self.handle_close()
+            Some(self.handle_close())
         } else {
-            Task::none()
+            None
         }
     }
 
