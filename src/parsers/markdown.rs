@@ -255,54 +255,8 @@ impl<'a> EventStream<'a> {
                     });
                 }
                 Some(Event::Start(Tag::CodeBlock(kind))) => {
-                    let (lang, title) = match kind {
-                        CodeBlockKind::Fenced(info) => {
-                            let raw = info.to_string();
-                            let parts: Vec<&str> = raw.splitn(2, ' ').collect();
-                            let lang = if parts[0].is_empty() {
-                                None
-                            } else {
-                                Some(parts[0].to_string())
-                            };
-                            let title = parts.get(1).and_then(|s| {
-                                let s = s.trim();
-                                if let Some(rest) = s.strip_prefix("title=\"") {
-                                    rest.strip_suffix('"').map(|t| t.to_string())
-                                } else if !s.is_empty() {
-                                    Some(s.to_string())
-                                } else {
-                                    None
-                                }
-                            });
-                            (lang, title)
-                        }
-                        CodeBlockKind::Indented => (None, None),
-                    };
-                    let mut code = String::new();
-                    loop {
-                        match self.iter.peek() {
-                            Some(Event::End(TagEnd::CodeBlock)) => {
-                                self.iter.next();
-                                break;
-                            }
-                            Some(_) => match self.iter.next() {
-                                Some(Event::Text(t)) => code.push_str(&t),
-                                Some(Event::SoftBreak) | Some(Event::HardBreak) => {
-                                    code.push('\n');
-                                }
-                                _ => {}
-                            },
-                            None => break,
-                        }
-                    }
-                    if lang.as_deref() == Some("mermaid") {
-                        blocks.push(Block::Mermaid {
-                            lines: code.lines().map(|l| l.trim().to_string()).collect(),
-                            rendered: None,
-                        });
-                    } else {
-                        blocks.push(Block::CodeBlock { lang, title, code });
-                    }
+                    let block = self.parse_code_block(kind);
+                    blocks.push(block);
                 }
                 Some(Event::Start(Tag::List(ordered))) => {
                     let ordered = ordered.is_some();
@@ -377,54 +331,8 @@ impl<'a> EventStream<'a> {
                     blocks.push(Block::HorizontalRule);
                 }
                 Some(Event::Start(Tag::CodeBlock(kind))) => {
-                    let (lang, title) = match kind {
-                        CodeBlockKind::Fenced(info) => {
-                            let raw = info.to_string();
-                            let parts: Vec<&str> = raw.splitn(2, ' ').collect();
-                            let lang = if parts[0].is_empty() {
-                                None
-                            } else {
-                                Some(parts[0].to_string())
-                            };
-                            let title = parts.get(1).and_then(|s| {
-                                let s = s.trim();
-                                if let Some(rest) = s.strip_prefix("title=\"") {
-                                    rest.strip_suffix('"').map(|t| t.to_string())
-                                } else if !s.is_empty() {
-                                    Some(s.to_string())
-                                } else {
-                                    None
-                                }
-                            });
-                            (lang, title)
-                        }
-                        CodeBlockKind::Indented => (None, None),
-                    };
-                    let mut code = String::new();
-                    loop {
-                        match self.iter.peek() {
-                            Some(Event::End(TagEnd::CodeBlock)) => {
-                                self.iter.next();
-                                break;
-                            }
-                            Some(_) => match self.iter.next() {
-                                Some(Event::Text(t)) => code.push_str(&t),
-                                Some(Event::SoftBreak) | Some(Event::HardBreak) => {
-                                    code.push('\n');
-                                }
-                                _ => {}
-                            },
-                            None => break,
-                        }
-                    }
-                    if lang.as_deref() == Some("mermaid") {
-                        blocks.push(Block::Mermaid {
-                            lines: code.lines().map(|l| l.trim().to_string()).collect(),
-                            rendered: None,
-                        });
-                    } else {
-                        blocks.push(Block::CodeBlock { lang, title, code });
-                    }
+                    let block = self.parse_code_block(kind);
+                    blocks.push(block);
                 }
                 Some(Event::Html(text)) | Some(Event::InlineHtml(text)) => {
                     blocks.push(Block::Html(text.to_string()));
@@ -433,6 +341,82 @@ impl<'a> EventStream<'a> {
             }
         }
         blocks
+    }
+
+    fn parse_code_block(&mut self, kind: CodeBlockKind) -> Block {
+        let (lang, title) = match kind {
+            CodeBlockKind::Fenced(info) => {
+                let raw = info.trim();
+                let parts: Vec<&str> = raw.splitn(2, ' ').collect();
+                let lang = if parts[0].is_empty() {
+                    None
+                } else {
+                    Some(parts[0].to_string())
+                };
+                let title = parts.get(1).and_then(|s| {
+                    let s = s.trim();
+                    if let Some(rest) = s.strip_prefix("title=\"") {
+                        rest.strip_suffix('"').map(|t| t.to_string())
+                    } else if !s.is_empty() {
+                        Some(s.to_string())
+                    } else {
+                        None
+                    }
+                });
+                (lang, title)
+            }
+            CodeBlockKind::Indented => (None, None),
+        };
+
+        let mut code = String::new();
+        let mut base_indent = None;
+
+        loop {
+            match self.iter.peek() {
+                Some(Event::End(TagEnd::CodeBlock)) => {
+                    self.iter.next();
+                    break;
+                }
+                Some(_) => match self.iter.next() {
+                    Some(Event::Text(t)) => {
+                        let mut first = true;
+                        for line in t.lines() {
+                            if !first {
+                                code.push('\n');
+                            }
+                            first = false;
+                            let current_base = *base_indent
+                                .get_or_insert_with(|| line.len() - line.trim_start().len());
+                            let trimmed_line = line
+                                .char_indices()
+                                .nth(current_base)
+                                .map(|(idx, _)| &line[idx..])
+                                .unwrap_or(line.trim_start());
+                            code.push_str(trimmed_line);
+                        }
+                        if t.ends_with('\n') {
+                            code.push('\n');
+                            base_indent = None;
+                        }
+                    }
+                    Some(Event::SoftBreak) | Some(Event::HardBreak) => {
+                        base_indent = None;
+                        code.push('\n');
+                    }
+                    _ => {}
+                },
+                None => break,
+            }
+        }
+
+        if lang.as_deref() == Some("mermaid") {
+            Block::Mermaid {
+                lines: code.lines().map(|l| l.trim().to_string()).collect(),
+                rendered: None,
+            }
+        } else {
+            Block::CodeBlock { lang, title, code }
+        }
     }
 
     fn parse_list_items(&mut self) -> Vec<ListItem> {
@@ -780,6 +764,24 @@ mod tests {
                 assert!(content.contains("fn main"));
             }
             _ => panic!("expected Markdown variant"),
+        }
+    }
+
+    #[test]
+    fn parses_indented_code_block() {
+        let md = "- **Bản tin:**\n\n  ```json\n  {\n    \"device_id\": \"string\"\n  }\n  ```";
+        let blocks = parse_to_blocks(md);
+        assert!(!blocks.is_empty());
+
+        let direct_code_md = "```json\n{\n  \"device_id\": \"string\"\n}\n```";
+        let direct_blocks = parse_to_blocks(direct_code_md);
+        assert_eq!(direct_blocks.len(), 1);
+        match &direct_blocks[0] {
+            Block::CodeBlock { lang, code, .. } => {
+                assert_eq!(lang.as_deref(), Some("json"));
+                assert!(code.contains("\"device_id\": \"string\""));
+            }
+            _ => panic!("expected CodeBlock"),
         }
     }
 
