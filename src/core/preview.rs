@@ -51,6 +51,13 @@ pub trait FilePreviewer {
 
 impl PreviewData {
     pub fn populate_state(&self, state: &mut KglanceState) {
+        if !state.file_name.is_empty() {
+            let path = Path::new(&state.file_name);
+            if let Ok(meta) = std::fs::metadata(path) {
+                state.file_size_text = crate::parsers::human_size(meta.len());
+            }
+        }
+
         match self {
             PreviewData::Text {
                 content,
@@ -138,5 +145,44 @@ impl PreviewData {
                 state.file_type_text = format!("Error: {}", err);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_populate_state_metadata() {
+        let temp_dir = std::env::temp_dir().join("kglance-meta-test");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let test_file = temp_dir.join("sample.txt");
+        let test_content = b"Hello, metadata test!";
+        std::fs::write(&test_file, test_content).unwrap();
+
+        let mut state = KglanceState {
+            file_name: test_file.to_string_lossy().to_string(),
+            ..Default::default()
+        };
+
+        let preview_data = PreviewData::Text {
+            content: "Hello, metadata test!".to_string(),
+            line_numbers: "1".to_string(),
+            language: "Plain Text".to_string(),
+        };
+
+        preview_data.populate_state(&mut state);
+
+        assert_eq!(state.file_type_text, "Plain Text");
+        assert!(
+            !state.file_size_text.is_empty(),
+            "file_size_text should be populated"
+        );
+        assert!(
+            state.file_size_text.contains("B"),
+            "file_size_text should display bytes"
+        );
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }
