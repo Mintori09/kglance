@@ -152,6 +152,7 @@ pub struct MediaState {
     pub frame_data: Vec<u8>,
     pub frame_width: u32,
     pub frame_height: u32,
+    pub video_handle: Option<image::Handle>,
 }
 
 #[derive(Debug, Clone, Default)]

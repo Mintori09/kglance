@@ -93,6 +93,10 @@ pub enum Message {
         index: usize,
         png_bytes: Option<Vec<u8>>,
     },
+    // Async video thumbnail
+    VideoThumbnailLoaded {
+        data: Vec<u8>,
+    },
 }
 
 fn png_to_rgba_handle(png: Vec<u8>) -> Option<iced::widget::image::Handle> {
@@ -206,7 +210,7 @@ impl KglanceApp {
         self.state.file_name = path.clone();
         self.state.content_ready = true;
 
-        let mermaid_tasks: Vec<Task<Message>> = {
+        let mut mermaid_tasks: Vec<Task<Message>> = {
             let mut tasks = Vec::new();
             if let PreviewData::Markdown { ref blocks } = content {
                 for (i, block) in blocks.iter().enumerate() {
@@ -318,6 +322,8 @@ impl KglanceApp {
 
         self.state.media.has_video = is_video;
 
+        let thumb_path = if is_video { Some(path.clone()) } else { None };
+
         if let Some(tx) = &self.video_tx {
             if is_video || is_audio {
                 let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Load(path));
@@ -325,6 +331,24 @@ impl KglanceApp {
             } else {
                 let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Stop);
             }
+        }
+
+        if let Some(thumb_path) = thumb_path {
+            mermaid_tasks.push(Task::perform(
+                async move {
+                    let data = tokio::task::spawn_blocking(move || {
+                        crate::parsers::video::extract_video_thumbnail(std::path::Path::new(
+                            &thumb_path,
+                        ))
+                    })
+                    .await
+                    .ok()
+                    .flatten()
+                    .unwrap_or_default();
+                    Message::VideoThumbnailLoaded { data }
+                },
+                |msg| msg,
+            ));
         }
 
         // Build window management tasks.
@@ -507,6 +531,16 @@ impl KglanceApp {
                 }
                 Task::none()
             }
+            Message::VideoThumbnailLoaded { data } => {
+                if let Some(PreviewData::Media {
+                    ref mut thumbnail_or_waveform,
+                    ..
+                }) = self.current_content
+                {
+                    *thumbnail_or_waveform = data;
+                }
+                Task::none()
+            }
             Message::PlayPauseClicked => self.handle_play_pause(),
             Message::SeekClicked(percent) => self.handle_seek(percent),
             Message::SeekRelativeClicked(secs) => self.handle_seek_relative(secs),
@@ -601,11 +635,11 @@ impl KglanceApp {
 
     pub fn subscription(&self) -> Subscription<Message> {
         let dbus_sub = subscription::from_recipe(crate::dbus::recipe::DaemonRecipe::new(
-            self.daemon_rx.lock().unwrap().take(),
+            self.daemon_rx.clone(),
         ));
 
         let video_sub = subscription::from_recipe(crate::ui::handlers::video::VideoRecipe::new(
-            self.video_rx.lock().unwrap().take(),
+            self.video_rx.clone(),
         ));
 
         let event_sub = iced::window::events().map(|(id, event)| Message::WindowEvent(id, event));

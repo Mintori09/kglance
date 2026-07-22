@@ -6,12 +6,14 @@ use std::hash::Hash;
 use crate::app::Message;
 use crate::dbus::DaemonCommand;
 
+use std::sync::{Arc, Mutex};
+
 pub struct DaemonRecipe {
-    rx: Option<mpsc::Receiver<DaemonCommand>>,
+    rx: Arc<Mutex<Option<mpsc::Receiver<DaemonCommand>>>>,
 }
 
 impl DaemonRecipe {
-    pub fn new(rx: Option<mpsc::Receiver<DaemonCommand>>) -> Self {
+    pub fn new(rx: Arc<Mutex<Option<mpsc::Receiver<DaemonCommand>>>>) -> Self {
         Self { rx }
     }
 }
@@ -27,7 +29,7 @@ impl Recipe for DaemonRecipe {
         self: Box<Self>,
         _input: subscription::EventStream,
     ) -> iced_futures::BoxStream<Self::Output> {
-        let rx = self.rx;
+        let rx = self.rx.lock().unwrap().take();
         match rx {
             Some(mut rx) => iced_futures::boxed_stream(iced::stream::channel(
                 100,

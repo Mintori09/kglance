@@ -1,6 +1,7 @@
 use crate::app::Message;
 use crate::core::MediaState;
 use crate::ui::theme::{glass_button, glass_card, glass_slider};
+use crate::ui::video_canvas::VideoCanvas;
 use iced::widget::{Space, button, column, container, image, mouse_area, row, slider, stack, text};
 use iced::{Alignment, Element, Length};
 
@@ -11,16 +12,11 @@ pub fn view_media<'a>(
     _wf_height: u32,
 ) -> Element<'a, Message> {
     let display: Element<'a, Message> = if state.has_video {
-        if !state.frame_data.is_empty() {
-            let handle = image::Handle::from_rgba(
-                state.frame_width,
-                state.frame_height,
-                state.frame_data.clone(),
-            );
-            image(handle)
+        if state.video_handle.is_some() {
+            VideoCanvas::new(state)
+                .content_fit(iced::ContentFit::Contain)
                 .width(Length::Fill)
                 .height(Length::Fill)
-                .content_fit(iced::ContentFit::Contain)
                 .into()
         } else if !data.is_empty() {
             let handle = image::Handle::from_bytes(data.to_vec());

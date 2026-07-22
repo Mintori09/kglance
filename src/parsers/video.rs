@@ -22,12 +22,10 @@ impl PreviewParser for VideoParser {
         let path_str = path.to_string_lossy().to_string();
         let duration = probe_duration(path);
 
-        let thumbnail_bytes = extract_thumbnail(path).unwrap_or_default();
-
         Ok(ParsedContent::Video {
             path: path_str,
             duration,
-            thumbnail: thumbnail_bytes,
+            thumbnail: Vec::new(),
         })
     }
 }
@@ -54,15 +52,17 @@ fn probe_duration(path: &Path) -> f64 {
     }
 }
 
-fn extract_thumbnail(path: &Path) -> Option<Vec<u8>> {
+pub fn extract_video_thumbnail(path: &Path) -> Option<Vec<u8>> {
     use std::process::Command;
 
     let output = Command::new("ffmpeg")
         .args([
             "-ss",
-            "00:00:01",
+            "0.1",
             "-i",
             path.to_string_lossy().as_ref(),
+            "-vf",
+            "scale=512:-1",
             "-vframes",
             "1",
             "-q:v",

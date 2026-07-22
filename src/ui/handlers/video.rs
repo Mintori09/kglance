@@ -5,6 +5,7 @@ use iced_futures::subscription::{self, Recipe};
 use tokio::sync::mpsc;
 
 use crate::app::Message;
+use crate::{log_debug, log_error};
 
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
@@ -109,6 +110,9 @@ pub fn spawn_video_player(
         let mut has_video_stream = false;
 
         let shared_pos = Arc::new(AtomicU64::new(0.0f64.to_bits()));
+        let mut last_progress_sent = std::time::Instant::now();
+        let mut last_sent_playing = false;
+        let mut last_sent_pos = -1.0;
 
         let kill_and_reap_ffmpeg = |ffmpeg_child: &mut Option<Child>| {
             if let Some(mut child) = ffmpeg_child.take() {
@@ -131,27 +135,59 @@ pub fn spawn_video_player(
                     .expect("Failed to open stdout of ffmpeg");
                 let event_tx_clone = event_tx.clone();
                 thread::spawn(move || {
-                    let mut frame_count = 0;
+                    use std::time::Instant;
+                    let mut start_instant = Instant::now();
+                    let mut frame_count = 0usize;
                     let frame_size = (target_w * target_h * 4) as usize;
                     let mut buffer = vec![0u8; frame_size];
+                    let frame_duration = 1.0 / fps;
+
                     loop {
-                        let next_frame_time = start_pos + (frame_count as f64 / fps);
-                        loop {
-                            let cur_pos = f64::from_bits(shared_pos.load(Ordering::Relaxed));
-                            if cur_pos >= next_frame_time {
-                                break;
-                            }
-                            thread::sleep(Duration::from_millis(2));
-                        }
                         if stdout.read_exact(&mut buffer).is_err() {
-                            break; // Process killed or EOF
+                            log_error!(
+                                "ffmpeg reader: read_exact failed after {} frames",
+                                frame_count
+                            );
+                            break;
                         }
+
+                        let elapsed_expected = frame_count as f64 * frame_duration;
+
+                        // Drift correction: check position from MPV
+                        let cur_pos = f64::from_bits(shared_pos.load(Ordering::Relaxed));
+                        let cur_elapsed = (cur_pos - start_pos).max(0.0);
+                        let drift = cur_elapsed - elapsed_expected;
+                        if drift.abs() > 0.15
+                            && let Some(adjusted) =
+                                Instant::now().checked_sub(Duration::from_secs_f64(cur_elapsed))
+                        {
+                            start_instant = adjusted;
+                        }
+
+                        let target_time = start_instant + Duration::from_secs_f64(elapsed_expected);
+                        let now = Instant::now();
+                        if target_time > now {
+                            thread::sleep(target_time - now);
+                        }
+
                         frame_count += 1;
-                        let _ = event_tx_clone.try_send(VideoEvent::Frame {
+                        if frame_count.is_multiple_of(30) {
+                            log_debug!("ffmpeg reader: sent {} frames (fps={})", frame_count, fps);
+                        }
+                        #[allow(clippy::collapsible_if)]
+                        if let Err(e) = event_tx_clone.try_send(VideoEvent::Frame {
                             data: buffer.clone(),
                             width: target_w,
                             height: target_h,
-                        });
+                        }) {
+                            if frame_count <= 5 || frame_count.is_multiple_of(30) {
+                                log_debug!(
+                                    "ffmpeg reader: frame {} dropped ({:?})",
+                                    frame_count,
+                                    e
+                                );
+                            }
+                        }
                     }
                 });
             };
@@ -251,6 +287,7 @@ pub fn spawn_video_player(
                                 if let Ok(mut child) = Command::new("ffmpeg")
                                     .stdin(Stdio::null())
                                     .args([
+                                        "-re",
                                         "-ss",
                                         &current_pos.to_string(),
                                         "-i",
@@ -259,12 +296,14 @@ pub fn spawn_video_player(
                                         &format!("scale={target_w}:{target_h}"),
                                         "-f",
                                         "rawvideo",
+                                        "-vcodec",
+                                        "rawvideo",
                                         "-pix_fmt",
                                         "rgba",
                                         "-",
                                     ])
                                     .stdout(Stdio::piped())
-                                    .stderr(Stdio::null())
+                                    .stderr(Stdio::inherit())
                                     .spawn()
                                 {
                                     spawn_ffmpeg_reader(
@@ -303,6 +342,7 @@ pub fn spawn_video_player(
                                     if let Ok(mut child) = Command::new("ffmpeg")
                                         .stdin(Stdio::null())
                                         .args([
+                                            "-re",
                                             "-ss",
                                             &current_pos.to_string(),
                                             "-i",
@@ -311,12 +351,14 @@ pub fn spawn_video_player(
                                             &format!("scale={target_w}:{target_h}"),
                                             "-f",
                                             "rawvideo",
+                                            "-vcodec",
+                                            "rawvideo",
                                             "-pix_fmt",
                                             "rgba",
                                             "-",
                                         ])
                                         .stdout(Stdio::piped())
-                                        .stderr(Stdio::null())
+                                        .stderr(Stdio::inherit())
                                         .spawn()
                                     {
                                         spawn_ffmpeg_reader(
@@ -332,43 +374,57 @@ pub fn spawn_video_player(
                                     }
                                 }
                             } else if has_video_stream {
-                                let event_tx_clone = event_tx.clone();
-                                let path_clone = current_path.clone();
-                                let tw = target_w;
-                                let th = target_h;
-                                let target_seek = current_pos;
-                                thread::spawn(move || {
-                                    let output = Command::new("ffmpeg")
-                                        .stdin(Stdio::null())
-                                        .args([
-                                            "-ss",
-                                            &target_seek.to_string(),
-                                            "-i",
-                                            &path_clone,
-                                            "-vf",
-                                            &format!("scale={tw}:{th}"),
-                                            "-vframes",
-                                            "1",
-                                            "-f",
-                                            "rawvideo",
-                                            "-pix_fmt",
-                                            "rgba",
-                                            "-",
-                                        ])
-                                        .stdout(Stdio::piped())
-                                        .stderr(Stdio::null())
-                                        .output();
-                                    if let Ok(out) = output {
-                                        let raw_data = out.stdout;
-                                        if raw_data.len() == (tw * th * 4) as usize {
+                                kill_and_reap_ffmpeg(&mut ffmpeg_child);
+                                if let Ok(mut child) = Command::new("ffmpeg")
+                                    .stdin(Stdio::null())
+                                    .args([
+                                        "-ss",
+                                        &current_pos.to_string(),
+                                        "-i",
+                                        current_path.as_str(),
+                                        "-vf",
+                                        &format!("scale={target_w}:{target_h}"),
+                                        "-vframes",
+                                        "1",
+                                        "-f",
+                                        "rawvideo",
+                                        "-vcodec",
+                                        "rawvideo",
+                                        "-pix_fmt",
+                                        "rgba",
+                                        "-",
+                                    ])
+                                    .stdout(Stdio::piped())
+                                    .stderr(Stdio::inherit())
+                                    .spawn()
+                                {
+                                    let event_tx_clone = event_tx.clone();
+                                    let tw = target_w;
+                                    let th = target_h;
+                                    let mut stdout =
+                                        child.stdout.take().expect("Failed to open stdout");
+                                    thread::spawn(move || {
+                                        let frame_size = (tw * th * 4) as usize;
+                                        let mut buffer = vec![0u8; frame_size];
+                                        if stdout.read_exact(&mut buffer).is_ok() {
+                                            log_debug!(
+                                                "ffmpeg single-frame reader: sent frame ({}x{})",
+                                                tw,
+                                                th
+                                            );
                                             let _ = event_tx_clone.try_send(VideoEvent::Frame {
-                                                data: raw_data,
+                                                data: buffer,
                                                 width: tw,
                                                 height: th,
                                             });
+                                        } else {
+                                            log_error!(
+                                                "ffmpeg single-frame reader: read_exact failed"
+                                            );
                                         }
-                                    }
-                                });
+                                    });
+                                    ffmpeg_child = Some(child);
+                                }
                             }
                         }
                     }
@@ -386,6 +442,7 @@ pub fn spawn_video_player(
                                     if let Ok(mut child) = Command::new("ffmpeg")
                                         .stdin(Stdio::null())
                                         .args([
+                                            "-re",
                                             "-ss",
                                             &current_pos.to_string(),
                                             "-i",
@@ -394,12 +451,14 @@ pub fn spawn_video_player(
                                             &format!("scale={target_w}:{target_h}"),
                                             "-f",
                                             "rawvideo",
+                                            "-vcodec",
+                                            "rawvideo",
                                             "-pix_fmt",
                                             "rgba",
                                             "-",
                                         ])
                                         .stdout(Stdio::piped())
-                                        .stderr(Stdio::null())
+                                        .stderr(Stdio::inherit())
                                         .spawn()
                                     {
                                         spawn_ffmpeg_reader(
@@ -415,43 +474,57 @@ pub fn spawn_video_player(
                                     }
                                 }
                             } else if has_video_stream {
-                                let event_tx_clone = event_tx.clone();
-                                let path_clone = current_path.clone();
-                                let tw = target_w;
-                                let th = target_h;
-                                let target_seek = current_pos;
-                                thread::spawn(move || {
-                                    let output = Command::new("ffmpeg")
-                                        .stdin(Stdio::null())
-                                        .args([
-                                            "-ss",
-                                            &target_seek.to_string(),
-                                            "-i",
-                                            &path_clone,
-                                            "-vf",
-                                            &format!("scale={tw}:{th}"),
-                                            "-vframes",
-                                            "1",
-                                            "-f",
-                                            "rawvideo",
-                                            "-pix_fmt",
-                                            "rgba",
-                                            "-",
-                                        ])
-                                        .stdout(Stdio::piped())
-                                        .stderr(Stdio::null())
-                                        .output();
-                                    if let Ok(out) = output {
-                                        let raw_data = out.stdout;
-                                        if raw_data.len() == (tw * th * 4) as usize {
+                                kill_and_reap_ffmpeg(&mut ffmpeg_child);
+                                if let Ok(mut child) = Command::new("ffmpeg")
+                                    .stdin(Stdio::null())
+                                    .args([
+                                        "-ss",
+                                        &current_pos.to_string(),
+                                        "-i",
+                                        current_path.as_str(),
+                                        "-vf",
+                                        &format!("scale={target_w}:{target_h}"),
+                                        "-vframes",
+                                        "1",
+                                        "-f",
+                                        "rawvideo",
+                                        "-vcodec",
+                                        "rawvideo",
+                                        "-pix_fmt",
+                                        "rgba",
+                                        "-",
+                                    ])
+                                    .stdout(Stdio::piped())
+                                    .stderr(Stdio::inherit())
+                                    .spawn()
+                                {
+                                    let event_tx_clone = event_tx.clone();
+                                    let tw = target_w;
+                                    let th = target_h;
+                                    let mut stdout =
+                                        child.stdout.take().expect("Failed to open stdout");
+                                    thread::spawn(move || {
+                                        let frame_size = (tw * th * 4) as usize;
+                                        let mut buffer = vec![0u8; frame_size];
+                                        if stdout.read_exact(&mut buffer).is_ok() {
+                                            log_debug!(
+                                                "ffmpeg single-frame reader: sent frame ({}x{})",
+                                                tw,
+                                                th
+                                            );
                                             let _ = event_tx_clone.try_send(VideoEvent::Frame {
-                                                data: raw_data,
+                                                data: buffer,
                                                 width: tw,
                                                 height: th,
                                             });
+                                        } else {
+                                            log_error!(
+                                                "ffmpeg single-frame reader: read_exact failed"
+                                            );
                                         }
-                                    }
-                                });
+                                    });
+                                    ffmpeg_child = Some(child);
+                                }
                             }
                         }
                     }
@@ -499,23 +572,38 @@ pub fn spawn_video_player(
                 }
                 shared_pos.store(current_pos.to_bits(), Ordering::Relaxed);
 
-                // Send progress update
-                let _ = event_tx.try_send(VideoEvent::Progress {
-                    position: current_pos,
-                    duration: dur,
-                    is_playing,
-                });
+                // Send progress update (rate-limited to avoid channel congestion)
+                let now = std::time::Instant::now();
+                let should_send = is_playing != last_sent_playing
+                    || (current_pos - last_sent_pos).abs() > 0.5
+                    || now.duration_since(last_progress_sent) >= Duration::from_millis(100);
+
+                if should_send
+                    && event_tx
+                        .try_send(VideoEvent::Progress {
+                            position: current_pos,
+                            duration: dur,
+                            is_playing,
+                        })
+                        .is_ok()
+                {
+                    last_progress_sent = now;
+                    last_sent_playing = is_playing;
+                    last_sent_pos = current_pos;
+                }
             }
         }
     });
 }
 
+use std::sync::Mutex;
+
 pub struct VideoRecipe {
-    rx: Option<mpsc::Receiver<VideoEvent>>,
+    rx: Arc<Mutex<Option<mpsc::Receiver<VideoEvent>>>>,
 }
 
 impl VideoRecipe {
-    pub fn new(rx: Option<mpsc::Receiver<VideoEvent>>) -> Self {
+    pub fn new(rx: Arc<Mutex<Option<mpsc::Receiver<VideoEvent>>>>) -> Self {
         Self { rx }
     }
 }
@@ -531,14 +619,32 @@ impl Recipe for VideoRecipe {
         self: Box<Self>,
         _input: subscription::EventStream,
     ) -> iced_futures::BoxStream<Self::Output> {
-        let rx = self.rx;
+        let rx = self.rx.lock().unwrap().take();
         match rx {
             Some(mut rx) => iced_futures::boxed_stream(iced::stream::channel(
                 100,
                 move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
                     use iced::futures::SinkExt;
+                    let mut frame_count = 0usize;
                     while let Some(event) = rx.recv().await {
-                        let _ = output.send(Message::VideoEventReceived(event)).await;
+                        let is_frame = matches!(event, VideoEvent::Frame { .. });
+                        if is_frame {
+                            frame_count += 1;
+                        }
+                        if is_frame && frame_count.is_multiple_of(30) {
+                            log_debug!(
+                                "VideoRecipe: frame {} received from tokio channel",
+                                frame_count
+                            );
+                        }
+                        if output
+                            .send(Message::VideoEventReceived(event))
+                            .await
+                            .is_err()
+                        {
+                            log_error!("VideoRecipe: iced channel closed, stopping stream");
+                            break;
+                        }
                     }
                 },
             )),

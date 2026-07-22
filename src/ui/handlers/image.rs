@@ -11,35 +11,35 @@ pub fn calculate_window_size(img_width: u32, img_height: u32) -> Size {
         return Size::new(1024.0, 768.0);
     }
 
-    let aspect_ratio = img_width / img_height;
-    let max_long_side = 1000.0;
-    let min_width = 400.0;
-    let min_height = 300.0;
+    let max_w = 900.0;
+    let max_h = 700.0;
+    let min_w = 400.0;
+    let min_h = 300.0;
 
-    let (mut w, mut h) = if img_width >= img_height {
-        // Landscape or square: fit width to max_long_side
-        let target_w = img_width.min(max_long_side);
-        let target_h = target_w / aspect_ratio;
-        (target_w, target_h)
-    } else {
-        // Portrait: fit height to max_long_side
-        let target_h = img_height.min(max_long_side);
-        let target_w = target_h * aspect_ratio;
-        (target_w, target_h)
-    };
+    // Calculate scale to fit within max bounds
+    let scale_w = max_w / img_width;
+    let scale_h = max_h / img_height;
+    let scale = scale_w.min(scale_h).min(1.0);
 
-    // Add padding for window decoration / header (around 50px)
+    let mut w = img_width * scale;
+    let mut h = img_height * scale;
+
+    // Apply minimum constraints
+    if w < min_w {
+        w = min_w;
+    }
+    if h < min_h {
+        h = min_h;
+    }
+
+    // Double check that we don't exceed max bounds after applying min bounds
+    if w > max_w {
+        w = max_w;
+    }
+    if h > max_h {
+        h = max_h;
+    }
+
     let header_height = 50.0;
-
-    // Constrain to minimum dimensions while preserving aspect ratio
-    if w < min_width {
-        w = min_width;
-        h = w / aspect_ratio;
-    }
-    if h < min_height {
-        h = min_height;
-        w = h * aspect_ratio;
-    }
-
     Size::new(w, h + header_height)
 }
