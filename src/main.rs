@@ -121,7 +121,7 @@ fn run_standalone(path: &str) -> Result<(), Box<dyn std::error::Error>> {
         min_size: Some(Size::new(400.0, 300.0)),
         size: initial_size,
         exit_on_close_request: true,
-        decorations: false,
+        decorations: true,
         ..Default::default()
     })
     .default_font(Font::with_name("Inter"))
