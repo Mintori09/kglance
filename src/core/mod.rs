@@ -6,4 +6,5 @@ pub use preview::{FilePreviewer, PreviewData};
 pub use types::{
     DirState, HistoryState, ImageState, KglanceState, MarkdownState, MediaState, PdfState,
     SheetInfo, SortField, SortState, SpreadsheetState, TableRowState, TableState, TextState,
+    ToastInfo,
 };

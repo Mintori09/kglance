@@ -1,6 +1,6 @@
 use iced::{
-    Alignment, Element, Length,
-    widget::{button, column, container, row, text},
+    Alignment, Element, Length, Padding,
+    widget::{Stack, button, column, container, row, text},
 };
 
 use crate::app::Message;
@@ -84,6 +84,57 @@ fn content<'a>(preview_body: Element<'a, Message>, edge_to_edge: bool) -> Elemen
         .into()
 }
 
+fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
+    if state.toasts.is_empty() {
+        return Element::from(container(text("")).padding(0));
+    }
+
+    let items: Vec<Element<'a, Message>> = state
+        .toasts
+        .iter()
+        .map(|t| {
+            container(text(&t.message).size(13))
+                .padding(Padding {
+                    top: 6.0,
+                    right: 16.0,
+                    bottom: 6.0,
+                    left: 16.0,
+                })
+                .style(|theme: &iced::Theme| {
+                    use iced::widget::container;
+                    let palette = theme.extended_palette();
+                    container::Style {
+                        background: Some(palette.background.base.color.into()),
+                        text_color: Some(palette.background.base.text),
+                        border: iced::Border {
+                            radius: 6.0.into(),
+                            width: 0.0,
+                            color: iced::Color::TRANSPARENT,
+                        },
+                        shadow: iced::Shadow {
+                            offset: iced::Vector::new(0.0, 2.0),
+                            blur_radius: 8.0,
+                            color: iced::Color::from_rgba(0.0, 0.0, 0.0, 0.25),
+                        },
+                        ..Default::default()
+                    }
+                })
+                .into()
+        })
+        .collect();
+
+    column(items)
+        .spacing(6)
+        .padding(Padding {
+            top: 0.0,
+            right: 0.0,
+            bottom: 24.0,
+            left: 0.0,
+        })
+        .width(Length::Shrink)
+        .into()
+}
+
 pub fn view_window<'a>(
     state: &'a KglanceState,
     preview_body: Element<'a, Message>,
@@ -93,9 +144,16 @@ pub fn view_window<'a>(
         .width(Length::Fill)
         .height(Length::Fill);
 
-    container(layout)
+    let base = container(layout)
         .width(Length::Fill)
         .height(Length::Fill)
-        .style(crate::ui::theme::breeze_container)
-        .into()
+        .style(crate::ui::theme::breeze_container);
+
+    let toast_layer = container(toasts(state))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_y(Alignment::End)
+        .align_x(iced::alignment::Horizontal::Center);
+
+    Stack::new().push(base).push(toast_layer).into()
 }

@@ -98,6 +98,9 @@ pub enum Message {
     VideoThumbnailLoaded {
         data: Vec<u8>,
     },
+
+    // Toast
+    ToastDismissed(u64),
 }
 
 fn png_to_rgba_handle(png: Vec<u8>) -> Option<iced::widget::image::Handle> {
@@ -421,7 +424,10 @@ impl KglanceApp {
             Message::CloseRequested => self.handle_close(),
             Message::OpenClicked => self.handle_open_clicked(),
             Message::CopyPathClicked => self.handle_copy_path(),
-            Message::CopyCode(code) => iced::clipboard::write(code),
+            Message::CopyCode(code) => {
+                let toast = self.show_toast("Copied!");
+                Task::batch(vec![iced::clipboard::write(code), toast])
+            }
             Message::DaemonOpenWindow { path } => self.handle_daemon_open_window(path),
             Message::FileLoaded { path, content } => {
                 self.probe.mark_file_loaded(); // P0
@@ -573,6 +579,10 @@ impl KglanceApp {
                     sort.sort_col = Some(col);
                     sort.sort_ascending = Some(true);
                 }
+                Task::none()
+            }
+            Message::ToastDismissed(id) => {
+                self.state.toasts.retain(|t| t.id != id);
                 Task::none()
             }
             _ => Task::none(),

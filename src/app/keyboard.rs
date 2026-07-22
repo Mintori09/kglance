@@ -10,7 +10,7 @@ impl super::KglanceApp {
         key: iced::keyboard::Key,
         modifiers: iced::keyboard::Modifiers,
     ) -> Task<Message> {
-        use iced::keyboard::key::Named;
+        use iced::keyboard::key::{Key, Named};
         let ctrl = modifiers.control();
 
         if matches!(self.current_content, Some(PreviewData::Folder { .. })) {

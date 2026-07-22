@@ -174,6 +174,12 @@ pub struct DirState {
     pub current_index: Option<usize>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ToastInfo {
+    pub id: u64,
+    pub message: String,
+}
+
 #[derive(Debug)]
 pub struct KglanceState {
     pub file_name: String,
@@ -200,6 +206,9 @@ pub struct KglanceState {
     pub font_size: f32,
 
     pub theme_dark: bool,
+
+    pub toasts: Vec<ToastInfo>,
+    pub next_toast_id: u64,
 }
 
 impl Default for KglanceState {
@@ -226,6 +235,8 @@ impl Default for KglanceState {
             markdown: MarkdownState::default(),
             font_size: 14.0,
             theme_dark: true,
+            toasts: Vec::new(),
+            next_toast_id: 0,
         }
     }
 }
