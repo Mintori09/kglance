@@ -1,9 +1,151 @@
+use std::sync::OnceLock;
+
 use crate::app::Message;
 use crate::log_debug;
-use crate::parsers::markdown::{Block, TableBlock};
+use crate::parsers::markdown::{Block, Inline, ListItem, TableBlock, flatten_inlines};
 use crate::ui::theme::glass;
-use iced::widget::{column, container, image, row, scrollable, text};
-use iced::{Border, Color, Element, Length, Shadow};
+use iced::font::Weight;
+use iced::widget::text::{Rich, Span};
+use iced::widget::{button, column, container, image, row, scrollable, text};
+use iced::{Border, Color, Element, Font, Length, Padding, Pixels, Shadow};
+use syntect::easy::HighlightLines;
+use syntect::highlighting::ThemeSet;
+use syntect::parsing::SyntaxSet;
+use syntect::util::LinesWithEndings;
+
+const CODE_FONT: Font = Font::with_name("JetBrainsMonoNL Nerd Font");
+
+fn syntax_set() -> &'static SyntaxSet {
+    static SS: OnceLock<SyntaxSet> = OnceLock::new();
+    SS.get_or_init(SyntaxSet::load_defaults_newlines)
+}
+
+fn theme_set() -> &'static ThemeSet {
+    static TS: OnceLock<ThemeSet> = OnceLock::new();
+    TS.get_or_init(ThemeSet::load_defaults)
+}
+
+fn syntect_to_iced_color(c: syntect::highlighting::Color) -> Color {
+    Color::from_rgba(
+        c.r as f32 / 255.0,
+        c.g as f32 / 255.0,
+        c.b as f32 / 255.0,
+        c.a as f32 / 255.0,
+    )
+}
+
+fn highlight_code<'a>(
+    lang: &Option<String>,
+    code: &'a str,
+    is_dark: bool,
+) -> Vec<Vec<(Color, &'a str)>> {
+    let ss = syntax_set();
+    let ts = theme_set();
+
+    let syntax = lang
+        .as_deref()
+        .and_then(|l| ss.find_syntax_by_token(l))
+        .unwrap_or_else(|| ss.find_syntax_plain_text());
+
+    let theme_name = if is_dark {
+        "base16-eighties.dark"
+    } else {
+        "InspiredGitHub"
+    };
+    let theme = ts
+        .themes
+        .get(theme_name)
+        .unwrap_or_else(|| &ts.themes["base16-ocean.dark"]);
+
+    let mut highlighter = HighlightLines::new(syntax, theme);
+    let mut result = Vec::new();
+
+    for line in LinesWithEndings::from(code) {
+        let ranges = highlighter
+            .highlight_line(line, ss)
+            .unwrap_or_else(|_| vec![]);
+
+        if ranges.is_empty() {
+            let fg = theme
+                .settings
+                .foreground
+                .map(syntect_to_iced_color)
+                .unwrap_or_else(|| {
+                    if is_dark {
+                        Color::from_rgb(0.8, 0.8, 0.8)
+                    } else {
+                        Color::from_rgb(0.2, 0.2, 0.2)
+                    }
+                });
+            let t = line.strip_suffix('\n').unwrap_or(line);
+            result.push(vec![(fg, t)]);
+            continue;
+        }
+
+        let line_spans: Vec<(Color, &'a str)> = ranges
+            .iter()
+            .map(|(style, text)| {
+                let t = text.strip_suffix('\n').unwrap_or(text);
+                (syntect_to_iced_color(style.foreground), t)
+            })
+            .collect();
+        result.push(line_spans);
+    }
+
+    result
+}
+
+fn inlines_to_spans<'a>(inlines: &'a [Inline]) -> Vec<Span<'a, (), Font>> {
+    let mut spans = Vec::new();
+    for inline in inlines {
+        match inline {
+            Inline::Text(t) => {
+                spans.push(Span::new(t.as_str()));
+            }
+            Inline::Bold(children) => {
+                for s in inlines_to_spans(children) {
+                    spans.push(s.font(Font {
+                        weight: Weight::Bold,
+                        ..Default::default()
+                    }));
+                }
+            }
+            Inline::Italic(children) => {
+                for s in inlines_to_spans(children) {
+                    spans.push(s.font(Font {
+                        style: iced::font::Style::Italic,
+                        ..Default::default()
+                    }));
+                }
+            }
+            Inline::Strikethrough(children) => {
+                for s in inlines_to_spans(children) {
+                    spans.push(s.strikethrough(true));
+                }
+            }
+            Inline::Code(code) => {
+                spans.push(
+                    Span::new(code.as_str())
+                        .font(CODE_FONT)
+                        .color(Color::from_rgb(0.8, 0.35, 0.35)),
+                );
+            }
+            Inline::Link { text, url } => {
+                for s in inlines_to_spans(text) {
+                    spans.push(s.color(Color::from_rgb(0.3, 0.5, 0.9)).underline(true));
+                }
+                spans.push(Span::new(format!(" ({url})")).color(Color::from_rgb(0.5, 0.5, 0.5)));
+            }
+            Inline::SoftBreak => {
+                spans.push(Span::new(" "));
+            }
+            Inline::Image { alt, .. } => {
+                spans.push(Span::new(format!("[{alt}]")).color(Color::from_rgb(0.5, 0.5, 0.5)));
+            }
+        }
+    }
+    spans
+}
 
 fn code_block_style(theme: &iced::Theme) -> container::Style {
     let is_dark = matches!(theme, iced::Theme::Dark);
@@ -43,65 +185,163 @@ fn scale(s: f32, font_size: f32) -> f32 {
     (s * font_size / 14.0).round().max(8.0)
 }
 
-fn render_heading<'a>(level: u8, text_content: &'a str, font_size: f32) -> Element<'a, Message> {
+fn render_heading<'a>(level: u8, content: &'a [Inline], font_size: f32) -> Element<'a, Message> {
     let raw: f32 = match level {
-        1 => 28.0,
-        2 => 22.0,
-        3 => 18.0,
+        1 => 32.0,
+        2 => 24.0,
+        3 => 20.0,
         _ => 16.0,
     };
     let size = scale(raw, font_size);
-    let padding = match level {
-        1 => 8,
-        2 => 6,
-        3 => 4,
-        _ => 2,
+    let (pt, pb) = match level {
+        1 => (24.0, 12.0),
+        2 => (20.0, 8.0),
+        3 => (12.0, 4.0),
+        _ => (8.0, 4.0),
     };
 
-    container(text(text_content).size(size))
-        .padding([padding, 0])
-        .width(Length::Fill)
-        .into()
-}
+    let label: Element<'a, Message> = Rich::with_spans(inlines_to_spans(content))
+        .size(Pixels(size))
+        .into();
+    let heading = container(label)
+        .padding(Padding {
+            top: pt,
+            right: 0.0,
+            bottom: pb,
+            left: 0.0,
+        })
+        .width(Length::Fill);
 
-fn render_paragraph<'a>(text_content: &'a str, font_size: f32) -> Element<'a, Message> {
-    container(text(text_content).size(font_size))
-        .padding([2, 0])
-        .width(Length::Fill)
-        .into()
-}
-
-fn render_code_block<'a>(lang: &'a str, code: &'a str, font_size: f32) -> Element<'a, Message> {
-    let lang_bar: Element<'a, Message> = if !lang.is_empty() {
-        container(text(lang).size(scale(11.0, font_size)))
-            .padding([2, 8])
-            .style(|theme: &iced::Theme| {
-                let is_dark = matches!(theme, iced::Theme::Dark);
+    if level == 1 || level == 2 {
+        let div = container(text(""))
+            .style(move |theme: &iced::Theme| {
+                let d = matches!(theme, iced::Theme::Dark);
+                let color = if d {
+                    glass::DARK_BORDER
+                } else {
+                    glass::LIGHT_BORDER
+                };
                 container::Style {
-                    background: Some(
-                        (if is_dark {
-                            glass::DARK_BG
-                        } else {
-                            glass::LIGHT_BG
-                        })
-                        .into(),
-                    ),
-                    text_color: Some(if is_dark {
-                        glass::DARK_TEXT_DIM
-                    } else {
-                        glass::LIGHT_TEXT_DIM
-                    }),
+                    background: Some(color.into()),
                     ..Default::default()
                 }
             })
-            .into()
+            .height(1)
+            .width(Length::Fill);
+        column![heading, div].spacing(4).into()
     } else {
-        Element::from(container(text("")).padding(0))
+        heading.into()
+    }
+}
+
+fn render_paragraph<'a>(content: &'a [Inline], font_size: f32) -> Element<'a, Message> {
+    let rich: Element<'a, Message> = Rich::with_spans(inlines_to_spans(content))
+        .width(Length::Fill)
+        .size(Pixels(font_size))
+        .into();
+    container(rich).padding([2, 0]).width(Length::Fill).into()
+}
+
+fn render_code_block<'a>(
+    lang: &'a Option<String>,
+    code: &'a str,
+    font_size: f32,
+    is_dark: bool,
+) -> Element<'a, Message> {
+    let lang_str = lang.as_deref().unwrap_or("");
+    let copy_code = code.to_string();
+    let copy_btn = button(text("Copy").font(CODE_FONT).size(scale(11.0, font_size)))
+        .on_press(Message::CopyCode(copy_code))
+        .style(|theme: &iced::Theme, status: button::Status| {
+            let d = matches!(theme, iced::Theme::Dark);
+            let bg = if d { glass::DARK_BG } else { glass::LIGHT_BG };
+            button::Style {
+                background: Some(match status {
+                    button::Status::Hovered | button::Status::Pressed => {
+                        iced::Background::Color(Color { a: 0.3, ..bg })
+                    }
+                    _ => iced::Background::Color(Color { a: 0.0, ..bg }),
+                }),
+                text_color: match status {
+                    button::Status::Hovered => {
+                        if d {
+                            glass::DARK_TEXT
+                        } else {
+                            glass::LIGHT_TEXT
+                        }
+                    }
+                    _ => {
+                        if d {
+                            glass::DARK_TEXT_DIM
+                        } else {
+                            glass::LIGHT_TEXT_DIM
+                        }
+                    }
+                },
+                border: Border {
+                    radius: 4.0.into(),
+                    width: 0.0,
+                    color: Color::TRANSPARENT,
+                },
+                shadow: Shadow::default(),
+                snap: false,
+            }
+        })
+        .padding([2, 8]);
+
+    let top_bar = if !lang_str.is_empty() {
+        row![
+            container(text(lang_str).font(CODE_FONT).size(scale(11.0, font_size)))
+                .padding([2, 8])
+                .style(|theme: &iced::Theme| {
+                    let d = matches!(theme, iced::Theme::Dark);
+                    container::Style {
+                        background: Some((if d { glass::DARK_BG } else { glass::LIGHT_BG }).into()),
+                        text_color: Some(if d {
+                            glass::DARK_TEXT_DIM
+                        } else {
+                            glass::LIGHT_TEXT_DIM
+                        }),
+                        ..Default::default()
+                    }
+                }),
+            container(copy_btn)
+                .padding(0)
+                .width(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Right),
+        ]
+        .into()
+    } else {
+        Element::from(row![
+            container(copy_btn)
+                .padding(0)
+                .width(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Right)
+        ])
     };
 
+    let highlighted = highlight_code(lang, code, is_dark);
+
+    let code_lines: Vec<Element<'a, Message>> = highlighted
+        .iter()
+        .map(|line_spans| {
+            let spans: Vec<Element<'a, Message>> = line_spans
+                .iter()
+                .map(|(color, span_text)| {
+                    text(*span_text)
+                        .font(CODE_FONT)
+                        .size(scale(13.0, font_size))
+                        .color(*color)
+                        .into()
+                })
+                .collect();
+            row(spans).into()
+        })
+        .collect();
+
     column![
-        lang_bar,
-        container(text(code).size(scale(13.0, font_size)))
+        top_bar,
+        container(column(code_lines))
             .padding(10)
             .width(Length::Fill)
             .style(code_block_style),
@@ -110,61 +350,152 @@ fn render_code_block<'a>(lang: &'a str, code: &'a str, font_size: f32) -> Elemen
     .into()
 }
 
-fn render_table<'a>(table: &'a TableBlock, font_size: f32) -> Element<'a, Message> {
-    let header_cells = table.headers.iter().map(|h| {
-        container(text(h).size(scale(14.0, font_size)))
-            .padding(8)
-            .width(Length::FillPortion(1))
-            .into()
+fn render_table<'a>(table: &'a TableBlock, font_size: f32, _is_dark: bool) -> Element<'a, Message> {
+    let hdr_size = scale(14.0, font_size);
+    let cel_size = scale(13.0, font_size);
+
+    let col_weights: Vec<u16> = {
+        let n = table.headers.len();
+        if n == 0 {
+            vec![]
+        } else {
+            let mut max_lens = vec![0usize; n];
+            for (i, h) in table.headers.iter().enumerate() {
+                max_lens[i] = flatten_inlines(&h.content).len();
+            }
+            for row in &table.rows {
+                for (i, c) in row.iter().enumerate().take(n) {
+                    max_lens[i] = max_lens[i].max(flatten_inlines(&c.content).len());
+                }
+            }
+            max_lens
+                .iter()
+                .map(|&l| (l.max(3) as u16).min(20))
+                .collect()
+        }
+    };
+
+    let header_cells: Vec<Element<'a, Message>> = table
+        .headers
+        .iter()
+        .enumerate()
+        .map(|(i, h)| {
+            let w = if i < col_weights.len() {
+                Length::FillPortion(col_weights[i])
+            } else {
+                Length::FillPortion(1)
+            };
+            let cell: Element<'a, Message> = Rich::with_spans(inlines_to_spans(&h.content))
+                .width(Length::Fill)
+                .size(Pixels(hdr_size))
+                .into();
+            container(cell).padding([8, 12]).width(w).into()
+        })
+        .collect();
+
+    let header = container(row(header_cells).spacing(0)).style(move |theme: &iced::Theme| {
+        let d = matches!(theme, iced::Theme::Dark);
+        let bg = if d {
+            Color::from_rgb(0.2, 0.22, 0.25)
+        } else {
+            Color::from_rgb(0.9, 0.91, 0.93)
+        };
+        container::Style {
+            background: Some(bg.into()),
+            text_color: Some(if d {
+                Color::from_rgb(0.95, 0.95, 0.95)
+            } else {
+                Color::from_rgb(0.2, 0.2, 0.2)
+            }),
+            ..Default::default()
+        }
     });
 
-    let header_row = row(header_cells).spacing(1);
+    let mut children: Vec<Element<'a, Message>> = Vec::new();
+    children.push(header.into());
 
-    let header = container(header_row).style(|_theme: &iced::Theme| container::Style {
-        background: Some(glass::ACCENT.into()),
-        text_color: Some(Color::WHITE),
-        ..Default::default()
-    });
-
-    if table.rows.is_empty() {
-        return column![header].into();
+    if !table.rows.is_empty() {
+        children.push(
+            container(text(""))
+                .style(move |theme: &iced::Theme| {
+                    let d = matches!(theme, iced::Theme::Dark);
+                    let color = if d {
+                        Color::from_rgba(0.45, 0.47, 0.5, 0.6)
+                    } else {
+                        Color::from_rgba(0.6, 0.62, 0.65, 0.5)
+                    };
+                    container::Style {
+                        background: Some(color.into()),
+                        ..Default::default()
+                    }
+                })
+                .height(1)
+                .width(Length::Fill)
+                .into(),
+        );
     }
 
-    let body_rows = table.rows.iter().enumerate().map(|(i, row_data)| {
-        let cells = row_data.iter().map(|c| {
-            container(text(c).size(scale(13.0, font_size)))
-                .padding(6)
-                .width(Length::FillPortion(1))
-                .into()
-        });
+    for (i, row_data) in table.rows.iter().enumerate() {
+        let cells: Vec<Element<'a, Message>> = row_data
+            .iter()
+            .enumerate()
+            .map(|(j, c)| {
+                let w = if j < col_weights.len() {
+                    Length::FillPortion(col_weights[j])
+                } else {
+                    Length::FillPortion(1)
+                };
+                let cell: Element<'a, Message> = Rich::with_spans(inlines_to_spans(&c.content))
+                    .width(Length::Fill)
+                    .size(Pixels(cel_size))
+                    .into();
+                container(cell).padding([8, 12]).width(w).into()
+            })
+            .collect();
 
-        let row_widget = row(cells).spacing(1);
+        let row_widget = row(cells).spacing(0);
 
-        let container_bg = move |theme: &iced::Theme| {
-            let is_dark = matches!(theme, iced::Theme::Dark);
-            let bg_color = if i % 2 == 0 {
-                if is_dark {
+        let bg_style = move |theme: &iced::Theme| {
+            let d = matches!(theme, iced::Theme::Dark);
+            let bg = if i % 2 == 0 {
+                if d {
                     glass::DARK_SURFACE
                 } else {
                     glass::LIGHT_SURFACE
                 }
-            } else if is_dark {
+            } else if d {
                 glass::DARK_BG
             } else {
                 glass::LIGHT_BG
             };
-
             container::Style {
-                background: Some(bg_color.into()),
+                background: Some(bg.into()),
                 ..Default::default()
             }
         };
 
-        container(row_widget).style(container_bg).into()
-    });
+        children.push(container(row_widget).style(bg_style).into());
+    }
 
-    column(std::iter::once(header.into()).chain(body_rows))
-        .spacing(0)
+    let table_content = column(children).spacing(0);
+
+    container(table_content)
+        .width(Length::Fill)
+        .style(move |theme: &iced::Theme| {
+            let d = matches!(theme, iced::Theme::Dark);
+            container::Style {
+                border: Border {
+                    color: if d {
+                        Color::from_rgb(0.45, 0.47, 0.5)
+                    } else {
+                        Color::from_rgb(0.6, 0.62, 0.65)
+                    },
+                    width: 1.0,
+                    radius: 6.0.into(),
+                },
+                ..Default::default()
+            }
+        })
         .into()
 }
 
@@ -190,7 +521,6 @@ fn render_inline_image<'a>(
             .width(Length::Fill)
             .into()
     } else {
-        // Fallback: show alt text while loading
         container(text(if alt.is_empty() { "[image]" } else { alt }).size(13))
             .padding([2, 8])
             .style(|theme: &iced::Theme| {
@@ -261,7 +591,10 @@ fn render_mermaid<'a>(
             } else {
                 line.clone()
             };
-            text(display).size(scale(13.0, font_size)).into()
+            text(display)
+                .font(CODE_FONT)
+                .size(scale(13.0, font_size))
+                .into()
         });
 
         let content = container(column(line_widgets).spacing(2))
@@ -273,6 +606,104 @@ fn render_mermaid<'a>(
     }
 }
 
+fn render_list<'a>(ordered: bool, items: &'a [ListItem], font_size: f32) -> Element<'a, Message> {
+    let item_elements = items.iter().map(|item| {
+        let prefix = if ordered { " 1." } else { "  •" };
+        let mut spans = vec![Span::new(format!("{prefix} ")).color(Color::from_rgb(0.5, 0.5, 0.5))];
+        spans.extend(inlines_to_spans(&item.content));
+        let rich: Element<'a, Message> = Rich::with_spans(spans)
+            .width(Length::Fill)
+            .size(Pixels(font_size))
+            .into();
+        container(rich)
+            .padding(Padding {
+                top: 1.0,
+                right: 8.0,
+                bottom: 1.0,
+                left: 0.0,
+            })
+            .width(Length::Fill)
+            .into()
+    });
+
+    column(item_elements).spacing(2).into()
+}
+
+fn render_quote<'a>(
+    blocks: &'a [Block],
+    state: &'a crate::core::MarkdownState,
+    font_size: f32,
+    is_dark: bool,
+) -> Element<'a, Message> {
+    let inner: Element<'a, Message> = column(
+        blocks
+            .iter()
+            .enumerate()
+            .map(|(i, b)| render_block(i, b, state, font_size, is_dark)),
+    )
+    .spacing(4)
+    .into();
+
+    container(inner)
+        .padding([4, 12])
+        .style(move |theme: &iced::Theme| {
+            let d = matches!(theme, iced::Theme::Dark);
+            container::Style {
+                border: Border {
+                    color: if d {
+                        Color::from_rgb(0.45, 0.5, 0.65)
+                    } else {
+                        Color::from_rgb(0.6, 0.5, 0.8)
+                    },
+                    width: 3.0,
+                    radius: 0.0.into(),
+                },
+                ..Default::default()
+            }
+        })
+        .width(Length::Fill)
+        .into()
+}
+
+fn render_horizontal_rule<'a>(_font_size: f32) -> Element<'a, Message> {
+    container(
+        container(text("").size(1))
+            .style(move |theme: &iced::Theme| {
+                let is_dark = matches!(theme, iced::Theme::Dark);
+                container::Style {
+                    background: Some(
+                        (if is_dark {
+                            glass::DARK_BORDER
+                        } else {
+                            glass::LIGHT_BORDER
+                        })
+                        .into(),
+                    ),
+                    ..Default::default()
+                }
+            })
+            .height(1)
+            .width(Length::Fill),
+    )
+    .padding([8, 0])
+    .width(Length::Fill)
+    .into()
+}
+
+fn render_html<'a>(html: &'a str, _font_size: f32) -> Element<'a, Message> {
+    container(
+        text(format!(
+            "[HTML: {}]",
+            html.chars().take(80).collect::<String>()
+        ))
+        .size(12)
+        .color(Color::from_rgb(0.5, 0.5, 0.5)),
+    )
+    .padding([2, 0])
+    .width(Length::Fill)
+    .into()
+}
+
 // ==========================================
 // 3. MAIN ROUTER & VIEW
 // ==========================================
@@ -282,16 +713,37 @@ fn render_block<'a>(
     block: &'a Block,
     state: &'a crate::core::MarkdownState,
     font_size: f32,
+    is_dark: bool,
 ) -> Element<'a, Message> {
     match block {
-        Block::Heading { level, text: t } => render_heading(*level, t, font_size),
-        Block::Paragraph(t) => render_paragraph(t, font_size),
-        Block::CodeBlock { lang, code } => render_code_block(lang, code, font_size),
-        Block::Table(tbl) => render_table(tbl, font_size),
+        Block::Heading { level, content } => render_heading(*level, content, font_size),
+        Block::Paragraph(content) => render_paragraph(content, font_size),
+        Block::CodeBlock { lang, code, .. } => render_code_block(lang, code, font_size, is_dark),
+        Block::Table(tbl) => render_table(tbl, font_size, is_dark),
         Block::Mermaid { lines, rendered } => {
             render_mermaid(index, lines, rendered, state, font_size)
         }
         Block::Image { alt, .. } => render_inline_image(index, alt, state),
+        Block::List { ordered, items } => render_list(*ordered, items, font_size),
+        Block::Quote(blocks) => render_quote(blocks, state, font_size, is_dark),
+        Block::HorizontalRule => render_horizontal_rule(font_size),
+        Block::Html(html) => render_html(html, font_size),
+    }
+}
+
+fn block_margin(block: &Block) -> f32 {
+    match block {
+        Block::Heading { level, .. } if *level == 1 => 24.0,
+        Block::Heading { level, .. } if *level == 2 => 20.0,
+        Block::Heading { .. } => 16.0,
+        Block::HorizontalRule => 24.0,
+        Block::CodeBlock { .. } => 16.0,
+        Block::Table(_) => 16.0,
+        Block::List { .. } => 12.0,
+        Block::Quote(_) => 16.0,
+        Block::Image { .. } => 16.0,
+        Block::Mermaid { .. } => 16.0,
+        Block::Paragraph(_) | Block::Html(_) => 8.0,
     }
 }
 
@@ -299,13 +751,23 @@ pub fn view_markdown<'a>(
     blocks: &'a [Block],
     state: &'a crate::core::MarkdownState,
     font_size: f32,
+    is_dark: bool,
 ) -> Element<'a, Message> {
-    let content = blocks
-        .iter()
-        .enumerate()
-        .map(|(i, block)| render_block(i, block, state, font_size));
+    let content = blocks.iter().enumerate().map(|(i, block)| {
+        let inner = render_block(i, block, state, font_size, is_dark);
+        let mb = block_margin(block);
+        container(inner)
+            .padding(Padding {
+                top: 0.0,
+                right: 0.0,
+                bottom: mb,
+                left: 0.0,
+            })
+            .width(Length::Fill)
+            .into()
+    });
 
-    let inner = column(content).spacing(6).padding(15);
+    let inner = column(content).spacing(0).padding(15);
 
     scrollable(inner)
         .id("content_scroll")

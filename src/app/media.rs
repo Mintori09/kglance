@@ -73,13 +73,12 @@ impl super::KglanceApp {
                 width,
                 height,
             } => {
-                let first_frame = self.state.media.frame_data.is_empty();
+                let first_frame = self.state.media.video_handle.is_none();
                 if first_frame {
                     log_debug!("handle_video_event: first frame ({}x{})", width, height);
                 }
-                let handle = iced::widget::image::Handle::from_rgba(width, height, data.clone());
+                let handle = iced::widget::image::Handle::from_rgba(width, height, data);
                 self.state.media.video_handle = Some(handle);
-                self.state.media.frame_data = data;
                 self.state.media.frame_width = width;
                 self.state.media.frame_height = height;
                 if first_frame && let Some(id) = self.window_id {

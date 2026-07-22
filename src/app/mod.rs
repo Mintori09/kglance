@@ -51,6 +51,7 @@ pub enum Message {
     TextSearchClosed,
     TextWrapToggled,
     CopyContentClicked,
+    CopyCode(String),
 
     // Table sorting
     SortByFieldClicked(crate::core::SortField),
@@ -420,6 +421,7 @@ impl KglanceApp {
             Message::CloseRequested => self.handle_close(),
             Message::OpenClicked => self.handle_open_clicked(),
             Message::CopyPathClicked => self.handle_copy_path(),
+            Message::CopyCode(code) => iced::clipboard::write(code),
             Message::DaemonOpenWindow { path } => self.handle_daemon_open_window(path),
             Message::FileLoaded { path, content } => {
                 self.probe.mark_file_loaded(); // P0
@@ -596,6 +598,7 @@ impl KglanceApp {
                     blocks,
                     &self.state.markdown,
                     self.state.font_size,
+                    self.state.theme_dark,
                 ),
                 PreviewData::Image { .. } => crate::ui::views::view_image(&self.state.image),
                 PreviewData::Pdf { .. } => crate::ui::views::view_pdf(&self.state.pdf),

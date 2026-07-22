@@ -139,10 +139,10 @@ pub fn spawn_video_player(
                     let mut start_instant = Instant::now();
                     let mut frame_count = 0usize;
                     let frame_size = (target_w * target_h * 4) as usize;
-                    let mut buffer = vec![0u8; frame_size];
                     let frame_duration = 1.0 / fps;
 
                     loop {
+                        let mut buffer = vec![0u8; frame_size];
                         if stdout.read_exact(&mut buffer).is_err() {
                             log_error!(
                                 "ffmpeg reader: read_exact failed after {} frames",
@@ -176,7 +176,7 @@ pub fn spawn_video_player(
                         }
                         #[allow(clippy::collapsible_if)]
                         if let Err(e) = event_tx_clone.try_send(VideoEvent::Frame {
-                            data: buffer.clone(),
+                            data: buffer,
                             width: target_w,
                             height: target_h,
                         }) {
@@ -287,7 +287,6 @@ pub fn spawn_video_player(
                                 if let Ok(mut child) = Command::new("ffmpeg")
                                     .stdin(Stdio::null())
                                     .args([
-                                        "-re",
                                         "-ss",
                                         &current_pos.to_string(),
                                         "-i",
@@ -342,7 +341,6 @@ pub fn spawn_video_player(
                                     if let Ok(mut child) = Command::new("ffmpeg")
                                         .stdin(Stdio::null())
                                         .args([
-                                            "-re",
                                             "-ss",
                                             &current_pos.to_string(),
                                             "-i",
@@ -442,7 +440,6 @@ pub fn spawn_video_player(
                                     if let Ok(mut child) = Command::new("ffmpeg")
                                         .stdin(Stdio::null())
                                         .args([
-                                            "-re",
                                             "-ss",
                                             &current_pos.to_string(),
                                             "-i",

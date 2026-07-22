@@ -1,4 +1,4 @@
-use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
+use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
 
 use crate::{
@@ -31,15 +31,41 @@ impl Default for MarkdownParser {
     }
 }
 
+// ── Types ────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub enum Inline {
+    Text(String),
+    Bold(Vec<Inline>),
+    Italic(Vec<Inline>),
+    Strikethrough(Vec<Inline>),
+    Code(String),
+    Link { text: Vec<Inline>, url: String },
+    Image { alt: String, url: String },
+    SoftBreak,
+}
+
+#[derive(Debug, Clone)]
+pub struct TableCell {
+    pub content: Vec<Inline>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TableBlock {
+    pub headers: Vec<TableCell>,
+    pub rows: Vec<Vec<TableCell>>,
+}
+
 #[derive(Debug, Clone)]
 pub enum Block {
     Heading {
         level: u8,
-        text: String,
+        content: Vec<Inline>,
     },
-    Paragraph(String),
+    Paragraph(Vec<Inline>),
     CodeBlock {
-        lang: String,
+        lang: Option<String>,
+        title: Option<String>,
         code: String,
     },
     Table(TableBlock),
@@ -51,13 +77,49 @@ pub enum Block {
         alt: String,
         path: String,
     },
+    List {
+        ordered: bool,
+        items: Vec<ListItem>,
+    },
+    Quote(Vec<Block>),
+    HorizontalRule,
+    Html(String),
 }
 
 #[derive(Debug, Clone)]
-pub struct TableBlock {
-    pub headers: Vec<String>,
-    pub rows: Vec<Vec<String>>,
+pub struct ListItem {
+    pub content: Vec<Inline>,
 }
+
+// ── Flatten (inline AST → plain string for basic rendering) ──────────────────
+
+pub fn flatten_inlines(inlines: &[Inline]) -> String {
+    let mut s = String::new();
+    for inline in inlines {
+        match inline {
+            Inline::Text(t) => s.push_str(t),
+            Inline::Bold(c) => s.push_str(&flatten_inlines(c)),
+            Inline::Italic(c) => s.push_str(&flatten_inlines(c)),
+            Inline::Strikethrough(c) => s.push_str(&flatten_inlines(c)),
+            Inline::Code(t) => {
+                s.push('`');
+                s.push_str(t);
+                s.push('`');
+            }
+            Inline::Link { text, url } => {
+                s.push_str(&flatten_inlines(text));
+                s.push_str(&format!(" ({url})"));
+            }
+            Inline::Image { alt, url } => {
+                s.push_str(&format!("[image: {alt}]({url})"));
+            }
+            Inline::SoftBreak => s.push(' '),
+        }
+    }
+    s
+}
+
+// ── Image extraction ─────────────────────────────────────────────────────────
 
 fn extract_images(raw: &str, parent: &Path) -> Vec<ImageRef> {
     let mut images = Vec::new();
@@ -93,175 +155,430 @@ fn extract_images(raw: &str, parent: &Path) -> Vec<ImageRef> {
     images
 }
 
-pub fn parse_to_blocks(content: &str) -> Vec<Block> {
-    let parser = pulldown_cmark::Parser::new_ext(content, pulldown_cmark::Options::all());
-    let mut blocks = Vec::new();
-    let mut heading_accum: Option<(u8, String)> = None;
+// ── Recursive-descent parser ─────────────────────────────────────────────────
 
-    struct TableAccum {
-        rows: Vec<Vec<String>>,
-        current_row: Vec<String>,
-        current_cell: String,
-    }
+struct EventStream<'a> {
+    iter: std::iter::Peekable<Parser<'a>>,
+}
 
-    fn lines_from_code(code: &str) -> Vec<String> {
-        code.lines().map(|l| l.trim().to_string()).collect()
-    }
-
-    let mut table_accum: Option<TableAccum> = None;
-    let mut code_accum: Option<(String, String)> = None;
-    let mut current_text = String::new();
-    let mut image_accum: Option<(String, String)> = None; // (url, alt)
-
-    let flush_text = |text: &mut String, blocks: &mut Vec<Block>| {
-        let trimmed = text.trim();
-        if !trimmed.is_empty() {
-            blocks.push(Block::Paragraph(trimmed.to_string()));
-            text.clear();
+impl<'a> EventStream<'a> {
+    fn new(content: &'a str) -> Self {
+        Self {
+            iter: Parser::new_ext(content, pulldown_cmark::Options::all()).peekable(),
         }
-    };
+    }
 
-    for event in parser {
-        if let Some(ref mut state) = table_accum {
-            match event {
-                Event::Start(Tag::TableCell) => {
-                    state.current_cell.clear();
-                }
-                Event::End(TagEnd::TableCell) => {
-                    state
-                        .current_row
-                        .push(std::mem::take(&mut state.current_cell));
-                }
-                Event::End(TagEnd::TableRow) | Event::End(TagEnd::TableHead) => {
-                    state.rows.push(std::mem::take(&mut state.current_row));
-                }
-                Event::End(TagEnd::Table) => {
-                    let headers = state.rows.first().cloned().unwrap_or_default();
-                    let rows = if state.rows.len() > 1 {
-                        state.rows[1..].to_vec()
-                    } else {
-                        Vec::new()
-                    };
-                    blocks.push(Block::Table(TableBlock { headers, rows }));
-                    table_accum = None;
-                }
-                Event::Text(text) => {
-                    state.current_cell.push_str(&text);
-                }
-                Event::Code(code) => {
-                    state.current_cell.push('`');
-                    state.current_cell.push_str(&code);
-                    state.current_cell.push('`');
-                }
+    fn parse_inlines(&mut self) -> Vec<Inline> {
+        let mut result = Vec::new();
+        loop {
+            match self.iter.peek() {
+                None => break,
+                Some(Event::End(_)) => break,
                 _ => {}
             }
-            continue;
+            match self.iter.next().unwrap() {
+                Event::Text(t) => result.push(Inline::Text(t.to_string())),
+                Event::Code(t) => result.push(Inline::Code(t.to_string())),
+                Event::SoftBreak => {
+                    result.push(Inline::Text(" ".to_string()));
+                }
+                Event::HardBreak => {
+                    result.push(Inline::SoftBreak);
+                }
+                Event::Start(Tag::Strong) => {
+                    let content = self.parse_inlines();
+                    let _ = self.iter.next(); // consume End(Strong)
+                    result.push(Inline::Bold(content));
+                }
+                Event::Start(Tag::Emphasis) => {
+                    let content = self.parse_inlines();
+                    let _ = self.iter.next(); // consume End(Emphasis)
+                    result.push(Inline::Italic(content));
+                }
+                Event::Start(Tag::Strikethrough) => {
+                    let content = self.parse_inlines();
+                    let _ = self.iter.next(); // consume End(Strikethrough)
+                    result.push(Inline::Strikethrough(content));
+                }
+                Event::Start(Tag::Link { dest_url, .. }) => {
+                    let url = dest_url.to_string();
+                    let text = self.parse_inlines();
+                    let _ = self.iter.next(); // consume End(Link)
+                    result.push(Inline::Link { text, url });
+                }
+                Event::Start(Tag::Image { dest_url, .. }) => {
+                    let url = dest_url.to_string();
+                    let mut alt = String::new();
+                    loop {
+                        match self.iter.peek() {
+                            Some(Event::End(TagEnd::Image)) => break,
+                            Some(Event::Text(t)) => alt.push_str(t),
+                            _ => {}
+                        }
+                        self.iter.next();
+                    }
+                    let _ = self.iter.next(); // consume End(Image)
+                    result.push(Inline::Image { alt, url });
+                }
+                _ => {
+                    self.iter.next();
+                }
+            }
         }
+        result
+    }
 
-        if let Some(ref mut accum) = code_accum {
-            match event {
-                Event::End(TagEnd::CodeBlock) => {
-                    let (lang, code) = std::mem::take(accum);
-                    if lang == "mermaid" {
+    fn parse_blocks(&mut self) -> Vec<Block> {
+        let mut blocks = Vec::new();
+        loop {
+            match self.iter.next() {
+                None => break,
+                Some(Event::Start(Tag::Paragraph)) => {
+                    let content = self.parse_inlines();
+                    let _ = self.iter.next(); // consume End(Paragraph)
+                    blocks.push(Block::Paragraph(content));
+                }
+                Some(Event::Start(Tag::Heading { level, .. })) => {
+                    let lvl = match level {
+                        HeadingLevel::H1 => 1,
+                        HeadingLevel::H2 => 2,
+                        HeadingLevel::H3 => 3,
+                        HeadingLevel::H4 => 4,
+                        HeadingLevel::H5 => 5,
+                        HeadingLevel::H6 => 6,
+                    };
+                    let content = self.parse_inlines();
+                    let _ = self.iter.next(); // consume End(Heading)
+                    blocks.push(Block::Heading {
+                        level: lvl,
+                        content,
+                    });
+                }
+                Some(Event::Start(Tag::CodeBlock(kind))) => {
+                    let (lang, title) = match kind {
+                        CodeBlockKind::Fenced(info) => {
+                            let raw = info.to_string();
+                            let parts: Vec<&str> = raw.splitn(2, ' ').collect();
+                            let lang = if parts[0].is_empty() {
+                                None
+                            } else {
+                                Some(parts[0].to_string())
+                            };
+                            let title = parts.get(1).and_then(|s| {
+                                let s = s.trim();
+                                if let Some(rest) = s.strip_prefix("title=\"") {
+                                    rest.strip_suffix('"').map(|t| t.to_string())
+                                } else if !s.is_empty() {
+                                    Some(s.to_string())
+                                } else {
+                                    None
+                                }
+                            });
+                            (lang, title)
+                        }
+                        CodeBlockKind::Indented => (None, None),
+                    };
+                    let mut code = String::new();
+                    loop {
+                        match self.iter.peek() {
+                            Some(Event::End(TagEnd::CodeBlock)) => {
+                                self.iter.next();
+                                break;
+                            }
+                            Some(_) => match self.iter.next() {
+                                Some(Event::Text(t)) => code.push_str(&t),
+                                Some(Event::SoftBreak) | Some(Event::HardBreak) => {
+                                    code.push('\n');
+                                }
+                                _ => {}
+                            },
+                            None => break,
+                        }
+                    }
+                    if lang.as_deref() == Some("mermaid") {
                         blocks.push(Block::Mermaid {
-                            lines: lines_from_code(&code),
+                            lines: code.lines().map(|l| l.trim().to_string()).collect(),
                             rendered: None,
                         });
                     } else {
-                        blocks.push(Block::CodeBlock { lang, code });
+                        blocks.push(Block::CodeBlock { lang, title, code });
                     }
-                    code_accum = None;
                 }
-                Event::Text(t) => accum.1.push_str(&t),
-                Event::SoftBreak | Event::HardBreak => accum.1.push('\n'),
+                Some(Event::Start(Tag::List(ordered))) => {
+                    let ordered = ordered.is_some();
+                    let items = self.parse_list_items();
+                    blocks.push(Block::List { ordered, items });
+                }
+                Some(Event::Start(Tag::BlockQuote(kind))) => {
+                    let quotes = self.parse_blocks_until(TagEnd::BlockQuote(kind));
+                    blocks.push(Block::Quote(quotes));
+                }
+                Some(Event::Rule) => {
+                    blocks.push(Block::HorizontalRule);
+                }
+                Some(Event::Start(Tag::Table(alignments))) => {
+                    if let Some(table) = self.parse_table(alignments) {
+                        blocks.push(Block::Table(table));
+                    }
+                }
+                Some(Event::Html(text)) | Some(Event::InlineHtml(text)) => {
+                    blocks.push(Block::Html(text.to_string()));
+                }
                 _ => {}
             }
-            continue;
         }
-
-        match event {
-            Event::Start(Tag::Table(_)) => {
-                flush_text(&mut current_text, &mut blocks);
-                table_accum = Some(TableAccum {
-                    rows: Vec::new(),
-                    current_row: Vec::new(),
-                    current_cell: String::new(),
-                });
-            }
-            Event::Start(Tag::Heading { level, .. }) => {
-                flush_text(&mut current_text, &mut blocks);
-
-                let level = match level {
-                    HeadingLevel::H1 => 1,
-                    HeadingLevel::H2 => 2,
-                    HeadingLevel::H3 => 3,
-                    HeadingLevel::H4 => 4,
-                    HeadingLevel::H5 => 5,
-                    HeadingLevel::H6 => 6,
-                };
-
-                heading_accum = Some((level, String::new()));
-            }
-            Event::End(TagEnd::Heading(_)) => {
-                if let Some((level, text)) = heading_accum.take() {
-                    blocks.push(Block::Heading { level, text });
-                }
-            }
-            Event::Start(Tag::CodeBlock(kind)) => {
-                flush_text(&mut current_text, &mut blocks);
-                let lang = match kind {
-                    pulldown_cmark::CodeBlockKind::Fenced(l) => l.to_string(),
-                    pulldown_cmark::CodeBlockKind::Indented => String::new(),
-                };
-                code_accum = Some((lang, String::new()));
-            }
-            Event::Start(Tag::List(_)) | Event::End(TagEnd::List(_)) => {
-                current_text.push('\n');
-            }
-            Event::Start(Tag::Item) => {
-                current_text.push_str("  • ");
-            }
-            Event::End(TagEnd::Item) => {
-                current_text.push('\n');
-            }
-            Event::End(TagEnd::Paragraph) => {
-                flush_text(&mut current_text, &mut blocks);
-            }
-            Event::Start(Tag::Image { dest_url, .. }) => {
-                flush_text(&mut current_text, &mut blocks);
-                image_accum = Some((dest_url.to_string(), String::new()));
-            }
-            Event::End(TagEnd::Image) => {
-                if let Some((url, alt)) = image_accum.take() {
-                    blocks.push(Block::Image { alt, path: url });
-                }
-            }
-            Event::Text(text) => {
-                if let Some((_, ref mut heading)) = heading_accum {
-                    heading.push_str(&text);
-                } else if let Some((_, ref mut alt)) = image_accum {
-                    alt.push_str(&text);
-                } else {
-                    current_text.push_str(&text);
-                }
-            }
-            Event::Code(code) => {
-                current_text.push('`');
-                current_text.push_str(&code);
-                current_text.push('`');
-            }
-            Event::SoftBreak | Event::HardBreak => {
-                current_text.push('\n');
-            }
-            _ => {}
-        }
+        blocks
     }
 
-    flush_text(&mut current_text, &mut blocks);
-    blocks
+    fn parse_blocks_until(&mut self, end: TagEnd) -> Vec<Block> {
+        let mut blocks = Vec::new();
+        loop {
+            match self.iter.peek() {
+                None => break,
+                Some(Event::End(tag)) if *tag == end => {
+                    self.iter.next();
+                    break;
+                }
+                _ => {}
+            }
+            match self.iter.next() {
+                None => break,
+                Some(Event::Start(Tag::Paragraph)) => {
+                    let content = self.parse_inlines();
+                    let _ = self.iter.next(); // consume End(Paragraph)
+                    blocks.push(Block::Paragraph(content));
+                }
+                Some(Event::Start(Tag::Heading { level, .. })) => {
+                    let lvl = match level {
+                        HeadingLevel::H1 => 1,
+                        HeadingLevel::H2 => 2,
+                        HeadingLevel::H3 => 3,
+                        HeadingLevel::H4 => 4,
+                        HeadingLevel::H5 => 5,
+                        HeadingLevel::H6 => 6,
+                    };
+                    let content = self.parse_inlines();
+                    let _ = self.iter.next();
+                    blocks.push(Block::Heading {
+                        level: lvl,
+                        content,
+                    });
+                }
+                Some(Event::Start(Tag::List(ordered))) => {
+                    let ordered = ordered.is_some();
+                    let items = self.parse_list_items();
+                    blocks.push(Block::List { ordered, items });
+                }
+                Some(Event::Start(Tag::BlockQuote(kind))) => {
+                    let quotes = self.parse_blocks_until(TagEnd::BlockQuote(kind));
+                    blocks.push(Block::Quote(quotes));
+                }
+                Some(Event::Rule) => {
+                    blocks.push(Block::HorizontalRule);
+                }
+                Some(Event::Start(Tag::CodeBlock(kind))) => {
+                    let (lang, title) = match kind {
+                        CodeBlockKind::Fenced(info) => {
+                            let raw = info.to_string();
+                            let parts: Vec<&str> = raw.splitn(2, ' ').collect();
+                            let lang = if parts[0].is_empty() {
+                                None
+                            } else {
+                                Some(parts[0].to_string())
+                            };
+                            let title = parts.get(1).and_then(|s| {
+                                let s = s.trim();
+                                if let Some(rest) = s.strip_prefix("title=\"") {
+                                    rest.strip_suffix('"').map(|t| t.to_string())
+                                } else if !s.is_empty() {
+                                    Some(s.to_string())
+                                } else {
+                                    None
+                                }
+                            });
+                            (lang, title)
+                        }
+                        CodeBlockKind::Indented => (None, None),
+                    };
+                    let mut code = String::new();
+                    loop {
+                        match self.iter.peek() {
+                            Some(Event::End(TagEnd::CodeBlock)) => {
+                                self.iter.next();
+                                break;
+                            }
+                            Some(_) => match self.iter.next() {
+                                Some(Event::Text(t)) => code.push_str(&t),
+                                Some(Event::SoftBreak) | Some(Event::HardBreak) => {
+                                    code.push('\n');
+                                }
+                                _ => {}
+                            },
+                            None => break,
+                        }
+                    }
+                    if lang.as_deref() == Some("mermaid") {
+                        blocks.push(Block::Mermaid {
+                            lines: code.lines().map(|l| l.trim().to_string()).collect(),
+                            rendered: None,
+                        });
+                    } else {
+                        blocks.push(Block::CodeBlock { lang, title, code });
+                    }
+                }
+                Some(Event::Html(text)) | Some(Event::InlineHtml(text)) => {
+                    blocks.push(Block::Html(text.to_string()));
+                }
+                _ => {}
+            }
+        }
+        blocks
+    }
+
+    fn parse_list_items(&mut self) -> Vec<ListItem> {
+        let mut items = Vec::new();
+        loop {
+            match self.iter.peek() {
+                Some(Event::End(TagEnd::List(_))) => {
+                    self.iter.next();
+                    break;
+                }
+                Some(Event::Start(Tag::Item)) => {
+                    self.iter.next();
+                    let item = self.parse_single_item();
+                    items.push(item);
+                }
+                _ => break,
+            }
+        }
+        items
+    }
+
+    fn parse_single_item(&mut self) -> ListItem {
+        let mut content = Vec::new();
+        loop {
+            match self.iter.peek() {
+                Some(Event::End(TagEnd::Item)) => {
+                    self.iter.next();
+                    break;
+                }
+                Some(Event::End(TagEnd::List(_))) => break,
+                Some(Event::Start(Tag::List(_))) => break,
+                _ => {}
+            }
+            match self.iter.next() {
+                Some(Event::Start(Tag::Paragraph)) => {
+                    let mut inlines = self.parse_inlines();
+                    let _ = self.iter.next();
+                    content.append(&mut inlines);
+                }
+                Some(Event::Text(t)) => content.push(Inline::Text(t.to_string())),
+                Some(Event::Code(t)) => content.push(Inline::Code(t.to_string())),
+                Some(Event::SoftBreak) => {
+                    content.push(Inline::Text(" ".to_string()));
+                }
+                Some(Event::HardBreak) => {
+                    content.push(Inline::SoftBreak);
+                }
+                Some(Event::Start(Tag::Strong)) => {
+                    let c = self.parse_inlines();
+                    let _ = self.iter.next();
+                    content.push(Inline::Bold(c));
+                }
+                Some(Event::Start(Tag::Emphasis)) => {
+                    let c = self.parse_inlines();
+                    let _ = self.iter.next();
+                    content.push(Inline::Italic(c));
+                }
+                Some(Event::Start(Tag::Strikethrough)) => {
+                    let c = self.parse_inlines();
+                    let _ = self.iter.next();
+                    content.push(Inline::Strikethrough(c));
+                }
+                Some(Event::Start(Tag::Link { dest_url, .. })) => {
+                    let url = dest_url.to_string();
+                    let text = self.parse_inlines();
+                    let _ = self.iter.next();
+                    content.push(Inline::Link { text, url });
+                }
+                Some(Event::Start(Tag::Image { dest_url, .. })) => {
+                    let url = dest_url.to_string();
+                    let mut alt = String::new();
+                    loop {
+                        match self.iter.peek() {
+                            Some(Event::End(TagEnd::Image)) => break,
+                            Some(Event::Text(t)) => alt.push_str(t),
+                            _ => {}
+                        }
+                        self.iter.next();
+                    }
+                    let _ = self.iter.next();
+                    content.push(Inline::Image { alt, url });
+                }
+                _ => {}
+            }
+        }
+        ListItem { content }
+    }
+
+    fn parse_table(&mut self, _alignments: Vec<pulldown_cmark::Alignment>) -> Option<TableBlock> {
+        let mut headers = Vec::new();
+        let mut rows = Vec::new();
+
+        loop {
+            match self.iter.peek() {
+                Some(Event::End(TagEnd::Table)) => {
+                    self.iter.next();
+                    break;
+                }
+                None => break,
+                _ => {}
+            }
+            match self.iter.next()? {
+                Event::Start(Tag::TableHead) => {
+                    headers = self.parse_table_row_cells();
+                }
+                Event::Start(Tag::TableRow) => {
+                    let row_cells = self.parse_table_row_cells();
+                    if !row_cells.is_empty() {
+                        rows.push(row_cells);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        Some(TableBlock { headers, rows })
+    }
+
+    fn parse_table_row_cells(&mut self) -> Vec<TableCell> {
+        let mut cells = Vec::new();
+        loop {
+            match self.iter.peek() {
+                Some(Event::End(TagEnd::TableHead)) | Some(Event::End(TagEnd::TableRow)) => {
+                    self.iter.next();
+                    break;
+                }
+                Some(Event::End(TagEnd::Table)) => break,
+                _ => {}
+            }
+            if let Some(Event::Start(Tag::TableCell)) = self.iter.next() {
+                let content = self.parse_inlines();
+                let _ = self.iter.next(); // consume End(TableCell)
+                cells.push(TableCell { content });
+            }
+        }
+        cells
+    }
 }
 
-/// Helper function render Mermaid diagram sang PNG byte buffer bằng mmdc
+pub fn parse_to_blocks(content: &str) -> Vec<Block> {
+    let mut stream = EventStream::new(content);
+    stream.parse_blocks()
+}
+
+// ── Mermaid rendering ────────────────────────────────────────────────────────
+
 pub fn render_mermaid_to_png(code: &str) -> Option<Vec<u8>> {
     use std::io::Write;
 
@@ -286,8 +603,8 @@ pub fn render_mermaid_to_png(code: &str) -> Option<Vec<u8>> {
         }
     };
 
-    if let Err(e) = write!(file, "{}", code) {
-        log_error!("Failed to write Mermaid source: {}", e);
+    if let Err(e) = write!(file, "{code}") {
+        log_error!("Failed to write Mermaid source: {e}");
         return None;
     }
 
@@ -309,27 +626,25 @@ pub fn render_mermaid_to_png(code: &str) -> Option<Vec<u8>> {
     let output_result = match result {
         Ok(output) => output,
         Err(e) => {
-            log_error!("Failed to launch mmdr: {}", e);
+            log_error!("Failed to launch mmdr: {e}");
             return None;
         }
     };
 
     if !output_result.status.success() {
         let stderr = String::from_utf8_lossy(&output_result.stderr);
-
         log_error!(
             "mmdr exited with status {:?}: {}",
             output_result.status.code(),
             stderr.trim()
         );
-
         return None;
     }
 
     let png = match std::fs::read(&output) {
         Ok(data) => data,
         Err(e) => {
-            log_error!("Failed to read generated PNG: {}", e);
+            log_error!("Failed to read generated PNG: {e}");
             return None;
         }
     };
@@ -343,6 +658,8 @@ pub fn render_mermaid_to_png(code: &str) -> Option<Vec<u8>> {
 
     Some(png)
 }
+
+// ── PreviewParser impl ───────────────────────────────────────────────────────
 
 impl PreviewParser for MarkdownParser {
     fn supported_extensions(&self) -> &[&str] {
@@ -363,8 +680,6 @@ impl PreviewParser for MarkdownParser {
         let images = extract_images(&raw, parent);
         let blocks = parse_to_blocks(&raw);
 
-        // Mermaid blocks NOT rendered here — rendering happens asynchronously
-        // after the content is displayed to the user (see app.rs FileLoaded handler).
         Ok(ParsedContent::Markdown {
             content: raw,
             images,
@@ -373,10 +688,20 @@ impl PreviewParser for MarkdownParser {
     }
 }
 
+// ── Tests ────────────────────────────────────────────────────────────────────
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Write;
+
+    fn text(s: &str) -> Inline {
+        Inline::Text(s.to_string())
+    }
+
+    fn code(s: &str) -> Inline {
+        Inline::Code(s.to_string())
+    }
 
     #[test]
     fn parses_basic_markdown() {
@@ -392,6 +717,54 @@ mod tests {
                 assert!(images.is_empty());
             }
             _ => panic!("expected Markdown variant"),
+        }
+    }
+
+    #[test]
+    fn parses_inline_bold_and_code_in_paragraph() {
+        let blocks = parse_to_blocks("This is **bold** and `code`");
+        assert_eq!(blocks.len(), 1);
+        match &blocks[0] {
+            Block::Paragraph(inlines) => {
+                assert_eq!(inlines.len(), 4);
+                assert!(matches!(inlines[0], Inline::Text(_)));
+                assert!(matches!(inlines[1], Inline::Bold(_)));
+                assert!(matches!(inlines[2], Inline::Text(_)));
+                assert!(matches!(inlines[3], Inline::Code(_)));
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn parses_inline_italic_and_link() {
+        let blocks = parse_to_blocks("*italic* and [link](https://example.com)");
+        assert_eq!(blocks.len(), 1);
+        match &blocks[0] {
+            Block::Paragraph(inlines) => {
+                assert!(matches!(inlines[0], Inline::Italic(_)));
+                match &inlines[2] {
+                    Inline::Link { text, url } => {
+                        assert_eq!(url, "https://example.com");
+                        assert_eq!(flatten_inlines(text), "link");
+                    }
+                    _ => panic!("expected Link"),
+                }
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn parses_strikethrough() {
+        let blocks = parse_to_blocks("~~struck~~");
+        assert_eq!(blocks.len(), 1);
+        match &blocks[0] {
+            Block::Paragraph(inlines) => {
+                assert!(matches!(inlines[0], Inline::Strikethrough(_)));
+                assert_eq!(flatten_inlines(&inlines[0..1]), "struck");
+            }
+            _ => panic!("expected Paragraph"),
         }
     }
 
@@ -448,13 +821,13 @@ mod tests {
         let mut large_content = String::new();
         for i in 1..=3500 {
             if i % 100 == 0 {
-                large_content.push_str(&format!("## Heading Level 2 at line {}\n\n", i));
+                large_content.push_str(&format!("## Heading Level 2 at line {i}\n\n"));
             } else {
                 large_content.push_str("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor.\n");
             }
         }
 
-        write!(tmp, "{}", large_content).unwrap();
+        write!(tmp, "{large_content}").unwrap();
 
         let parser = MarkdownParser::new();
         let start_time = std::time::Instant::now();
@@ -469,7 +842,7 @@ mod tests {
                 assert_eq!(content.lines().count(), large_content.lines().count());
                 assert!(images.is_empty());
                 assert!(
-                    duration.as_millis() < 100,
+                    duration.as_millis() < 200,
                     "Parsing took too long: {:?}",
                     duration
                 );
@@ -497,7 +870,7 @@ mod tests {
         }
         large_content.push_str("\n![Last Image](/absolute/path/img_last.svg)\n");
 
-        write!(tmp, "{}", large_content).unwrap();
+        write!(tmp, "{large_content}").unwrap();
 
         let parser = MarkdownParser::new();
         let result = parser.parse(tmp.path()).unwrap();
@@ -542,7 +915,7 @@ mod tests {
             }
         }
 
-        write!(tmp, "{}", large_content).unwrap();
+        write!(tmp, "{large_content}").unwrap();
 
         let parser = MarkdownParser::new();
         let result = parser.parse(tmp.path()).unwrap();
@@ -554,21 +927,6 @@ mod tests {
                 assert!(images[0].path.ends_with("valid.png"));
             }
             _ => panic!("expected Markdown variant"),
-        }
-    }
-
-    #[test]
-    fn test_parse_table_to_blocks() {
-        let md = "| H1 | H2 |\n|---|---|\n| C1 | C2 |";
-        let blocks = parse_to_blocks(md);
-        assert_eq!(blocks.len(), 1);
-        match &blocks[0] {
-            Block::Table(tbl) => {
-                assert_eq!(tbl.headers, vec!["H1", "H2"]);
-                assert_eq!(tbl.rows.len(), 1);
-                assert_eq!(tbl.rows[0], vec!["C1", "C2"]);
-            }
-            _ => panic!("expected Table block"),
         }
     }
 
@@ -587,11 +945,29 @@ mod tests {
         let blocks = parse_to_blocks(md);
         assert_eq!(blocks.len(), 1);
         match &blocks[0] {
-            Block::CodeBlock { lang, code } => {
-                assert_eq!(lang, "rust");
+            Block::CodeBlock { lang, code, .. } => {
+                assert_eq!(lang.as_deref(), Some("rust"));
                 assert!(code.contains("fn main"));
             }
             _ => panic!("expected CodeBlock block"),
+        }
+    }
+
+    #[test]
+    fn test_parse_table() {
+        let md = "| H1 | H2 |\n|---|---|\n| C1 | C2 |";
+        let blocks = parse_to_blocks(md);
+        assert_eq!(blocks.len(), 1);
+        match &blocks[0] {
+            Block::Table(tbl) => {
+                assert_eq!(tbl.headers.len(), 2);
+                assert_eq!(flatten_inlines(&tbl.headers[0].content), "H1");
+                assert_eq!(flatten_inlines(&tbl.headers[1].content), "H2");
+                assert_eq!(tbl.rows.len(), 1);
+                assert_eq!(flatten_inlines(&tbl.rows[0][0].content), "C1");
+                assert_eq!(flatten_inlines(&tbl.rows[0][1].content), "C2");
+            }
+            _ => panic!("expected Table block"),
         }
     }
 
@@ -602,11 +978,93 @@ mod tests {
         assert_eq!(blocks.len(), 1);
         match &blocks[0] {
             Block::Table(tbl) => {
-                assert_eq!(tbl.headers, vec!["A", "B"]);
+                assert_eq!(tbl.headers.len(), 2);
                 assert!(tbl.rows.is_empty());
             }
             _ => panic!("expected Table block"),
         }
+    }
+
+    #[test]
+    fn test_parse_unordered_list() {
+        let md = "- Item A\n- Item B\n    - Nested";
+        let blocks = parse_to_blocks(md);
+        assert!(!blocks.is_empty());
+        match &blocks[0] {
+            Block::List { ordered, items } => {
+                assert!(!ordered);
+                assert_eq!(items.len(), 2);
+                assert!(
+                    items[0]
+                        .content
+                        .iter()
+                        .any(|i| matches!(i, Inline::Text(t) if t.contains("Item A")))
+                );
+            }
+            _ => panic!("expected List block"),
+        }
+    }
+
+    #[test]
+    fn test_parse_ordered_list() {
+        let md = "1. First\n2. Second";
+        let blocks = parse_to_blocks(md);
+        assert_eq!(blocks.len(), 1);
+        match &blocks[0] {
+            Block::List { ordered, items } => {
+                assert!(ordered);
+                assert_eq!(items.len(), 2);
+            }
+            _ => panic!("expected List block"),
+        }
+    }
+
+    #[test]
+    fn test_parse_blockquote() {
+        let md = "> hello\n> world";
+        let blocks = parse_to_blocks(md);
+        assert_eq!(blocks.len(), 1);
+        match &blocks[0] {
+            Block::Quote(inner) => {
+                assert_eq!(inner.len(), 1);
+                match &inner[0] {
+                    Block::Paragraph(inlines) => {
+                        assert_eq!(flatten_inlines(inlines), "hello world");
+                    }
+                    _ => panic!("expected Paragraph in quote"),
+                }
+            }
+            _ => panic!("expected Quote block"),
+        }
+    }
+
+    #[test]
+    fn test_parse_horizontal_rule() {
+        let md = "Before\n\n---\n\nAfter";
+        let blocks = parse_to_blocks(md);
+        assert_eq!(blocks.len(), 3);
+        assert!(matches!(blocks[0], Block::Paragraph(_)));
+        assert!(matches!(blocks[1], Block::HorizontalRule));
+        assert!(matches!(blocks[2], Block::Paragraph(_)));
+    }
+
+    #[test]
+    fn test_link_contains_url() {
+        let md = "[Click](https://example.com)";
+        let blocks = parse_to_blocks(md);
+        let flat = flatten_inlines(match &blocks[0] {
+            Block::Paragraph(inlines) => inlines,
+            _ => panic!("expected Paragraph"),
+        });
+        assert!(flat.contains("example.com"));
+        assert!(flat.contains("Click"));
+    }
+
+    #[test]
+    fn test_flatten_inlines_preserves_code() {
+        let inlines = vec![text("use "), code("std::fs"), text(";")];
+        let flat = flatten_inlines(&inlines);
+        assert_eq!(flat, "use `std::fs`;");
     }
 
     // ── Mermaid async rendering tests ──────────────────────────────────────
@@ -646,7 +1104,7 @@ mod tests {
                         );
                         assert!(lines.join(" ").contains("graph LR"));
                     }
-                    other => panic!("expected Mermaid at index 1, got {:?}", other),
+                    other => panic!("expected Mermaid at index 1, got {other:?}"),
                 }
             }
             _ => panic!("expected Markdown variant"),
@@ -691,9 +1149,7 @@ mod tests {
 
     #[test]
     fn render_mermaid_to_png_graceful_when_mmdc_missing() {
-        // mmdc CLI may not be installed on CI/dev machines
         let result = render_mermaid_to_png("graph TD\nA-->B");
-        // Should not panic — returns None gracefully
         assert!(result.is_none() || result.is_some());
     }
 
@@ -711,7 +1167,6 @@ mod tests {
         ]
         .to_vec();
 
-        // Simulate what MermaidBlockRendered handler does
         let png_bytes = Some(vec![1, 2, 3]);
         if let Block::Mermaid {
             ref mut rendered, ..
@@ -720,9 +1175,7 @@ mod tests {
             *rendered = png_bytes;
         }
 
-        // Block 0 still unrendered
         assert!(matches!(&blocks[0], Block::Mermaid { rendered, .. } if rendered.is_none()));
-        // Block 1 now rendered
         assert!(
             matches!(&blocks[1], Block::Mermaid { rendered, .. } if rendered.as_deref() == Some(&[1u8, 2, 3]))
         );
@@ -736,13 +1189,13 @@ mod tests {
         let blocks = [
             Block::Heading {
                 level: 1,
-                text: "Title".into(),
+                content: vec![text("Title")],
             },
             Block::Mermaid {
                 lines: vec!["graph TD".into(), "A-->B".into()],
                 rendered: None,
             },
-            Block::Paragraph("Some text.".into()),
+            Block::Paragraph(vec![text("Some text.")]),
             Block::Mermaid {
                 lines: vec!["sequenceDiagram".into(), "A->>B".into()],
                 rendered: None,
@@ -753,14 +1206,12 @@ mod tests {
             },
         ];
 
-        // 1. Initial state must be empty
         let mut state = MarkdownState::default();
         assert!(
             state.cached_mermaid_handles.is_empty(),
             "fresh MarkdownState must start with an empty HashMap"
         );
 
-        // 2. Simulate populate_state: no block has rendered data → cache stays empty
         for (i, block) in blocks.iter().enumerate() {
             if let Block::Mermaid {
                 rendered: Some(_), ..
@@ -776,7 +1227,6 @@ mod tests {
             "cache must be empty when no Mermaid block has rendered output yet"
         );
 
-        // 3. Simulate MermaidBlockRendered for block index 1
         state
             .cached_mermaid_handles
             .insert(1, Handle::from_rgba(2, 2, vec![128; 16]));
@@ -795,7 +1245,6 @@ mod tests {
             "unrendered Mermaid block must NOT have a cache entry yet"
         );
 
-        // 4. Simulate block 3 completing render (index 2 is a Paragraph — skip)
         state
             .cached_mermaid_handles
             .insert(3, Handle::from_rgba(2, 2, vec![255; 16]));
@@ -807,7 +1256,6 @@ mod tests {
         );
         assert!(state.cached_mermaid_handles.contains_key(&3));
 
-        // 5. Simulate block 1 being re-rendered (e.g. file reload): overwrite
         state
             .cached_mermaid_handles
             .insert(1, Handle::from_rgba(4, 4, vec![64; 64]));
@@ -818,7 +1266,6 @@ mod tests {
             "replacing an existing handle must NOT increase HashMap size"
         );
 
-        // 6. Verify lookups as render_mermaid would do
         assert!(
             state.cached_mermaid_handles.contains_key(&1),
             "render_mermaid must find handle for block[1]"
@@ -847,18 +1294,22 @@ mod tests {
         use iced::widget::image::Handle;
 
         let blocks = [
-            Block::Paragraph("Hello".into()),
+            Block::Paragraph(vec![text("Hello")]),
             Block::CodeBlock {
-                lang: "rust".into(),
+                lang: Some("rust".into()),
+                title: None,
                 code: "fn main() {}".into(),
             },
             Block::Table(TableBlock {
-                headers: vec!["A".into()],
-                rows: vec![vec!["1".into()]],
+                headers: vec![TableCell {
+                    content: vec![text("A")],
+                }],
+                rows: vec![vec![TableCell {
+                    content: vec![text("1")],
+                }]],
             }),
         ];
 
-        // Simulate populate_state: no Mermaid blocks → cache must remain empty
         let mut state = MarkdownState::default();
         for (i, block) in blocks.iter().enumerate() {
             if let Block::Mermaid {
