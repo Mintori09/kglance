@@ -30,8 +30,25 @@ impl super::KglanceApp {
         self.close_current()
     }
 
-    pub fn handle_copy_path(&self) -> Task<Message> {
-        iced::clipboard::write(self.state.file_name.clone())
+    pub fn handle_copy_path(&mut self) -> Task<Message> {
+        let toast = self.show_toast("Copied!");
+        Task::batch(vec![
+            iced::clipboard::write(self.state.file_name.clone()),
+            toast,
+        ])
+    }
+
+    pub fn show_toast(&mut self, message: impl Into<String>) -> Task<Message> {
+        let id = self.state.next_toast_id;
+        self.state.next_toast_id += 1;
+        self.state.toasts.push(crate::core::ToastInfo {
+            id,
+            message: message.into(),
+        });
+        Task::perform(
+            tokio::time::sleep(std::time::Duration::from_secs(2)),
+            move |_| Message::ToastDismissed(id),
+        )
     }
 
     pub fn handle_daemon_open_window(&mut self, path: String) -> Task<Message> {
