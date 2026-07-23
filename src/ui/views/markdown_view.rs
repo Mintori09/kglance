@@ -6,7 +6,7 @@ use crate::parsers::markdown::{Block, Inline, ListItem, TableBlock, flatten_inli
 use crate::ui::theme::glass;
 use iced::font::Weight;
 use iced::widget::text::{Rich, Span};
-use iced::widget::{button, column, container, image, row, scrollable, text};
+use iced::widget::{button, column, container, image, row, scrollable, text, tooltip};
 use iced::{Border, Color, Element, Font, Length, Padding, Pixels, Shadow};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::ThemeSet;
@@ -130,11 +130,12 @@ fn inlines_to_spans<'a>(inlines: &'a [Inline]) -> Vec<Span<'a, (), Font>> {
                         .color(Color::from_rgb(0.8, 0.35, 0.35)),
                 );
             }
-            Inline::Link { text, url } => {
-                for s in inlines_to_spans(text) {
+            Inline::Link {
+                text: link_text, ..
+            } => {
+                for s in inlines_to_spans(link_text) {
                     spans.push(s.color(Color::from_rgb(0.3, 0.5, 0.9)).underline(true));
                 }
-                spans.push(Span::new(format!(" ({url})")).color(Color::from_rgb(0.5, 0.5, 0.5)));
             }
             Inline::SoftBreak => {
                 spans.push(Span::new(" "));
@@ -145,6 +146,96 @@ fn inlines_to_spans<'a>(inlines: &'a [Inline]) -> Vec<Span<'a, (), Font>> {
         }
     }
     spans
+}
+
+fn link_button_style(theme: &iced::Theme, status: button::Status) -> button::Style {
+    let is_dark = matches!(theme, iced::Theme::Dark);
+    let base = if is_dark {
+        Color::from_rgb(0.4, 0.6, 1.0)
+    } else {
+        Color::from_rgb(0.3, 0.5, 0.9)
+    };
+    button::Style {
+        background: None,
+        text_color: match status {
+            button::Status::Hovered | button::Status::Pressed => base,
+            _ => base,
+        },
+        border: Border {
+            width: 0.0,
+            color: Color::TRANSPARENT,
+            radius: 0.0.into(),
+        },
+        shadow: Shadow::default(),
+        snap: false,
+    }
+}
+
+fn render_inlines<'a>(inlines: &'a [Inline], font_size: f32) -> Element<'a, Message> {
+    let has_link = inlines.iter().any(|i| matches!(i, Inline::Link { .. }));
+
+    if !has_link {
+        return Rich::with_spans(inlines_to_spans(inlines))
+            .size(Pixels(font_size))
+            .width(Length::Fill)
+            .into();
+    }
+
+    let mut elements: Vec<Element<'a, Message>> = Vec::new();
+    let mut start = 0;
+
+    for (i, inline) in inlines.iter().enumerate() {
+        if let Inline::Link {
+            text: link_text,
+            url,
+        } = inline
+        {
+            if start < i {
+                elements.push(
+                    Rich::with_spans(inlines_to_spans(&inlines[start..i]))
+                        .size(Pixels(font_size))
+                        .width(Length::Shrink)
+                        .into(),
+                );
+            }
+
+            let display = flatten_inlines(link_text);
+            let url_clone = url.clone();
+            let btn = button(
+                iced::widget::text(display)
+                    .size(font_size)
+                    .color(Color::from_rgb(0.3, 0.5, 0.9)),
+            )
+            .on_press(Message::OpenLink(url_clone))
+            .style(link_button_style)
+            .padding(0);
+
+            let tooltip_label = iced::widget::text(url.as_str())
+                .size(12)
+                .color(Color::WHITE);
+            let tooltip_wrapped = iced::widget::container(tooltip_label)
+                .padding([4, 8])
+                .style(crate::ui::theme::glass::glass_tooltip);
+            elements.push(
+                tooltip(btn, tooltip_wrapped, tooltip::Position::Top)
+                    .gap(6)
+                    .into(),
+            );
+
+            start = i + 1;
+        }
+    }
+
+    if start < inlines.len() {
+        elements.push(
+            Rich::with_spans(inlines_to_spans(&inlines[start..]))
+                .size(Pixels(font_size))
+                .width(Length::Shrink)
+                .into(),
+        );
+    }
+
+    row(elements).into()
 }
 
 fn code_block_style(theme: &iced::Theme) -> container::Style {
@@ -200,9 +291,7 @@ fn render_heading<'a>(level: u8, content: &'a [Inline], font_size: f32) -> Eleme
         _ => (8.0, 4.0),
     };
 
-    let label: Element<'a, Message> = Rich::with_spans(inlines_to_spans(content))
-        .size(Pixels(size))
-        .into();
+    let label = render_inlines(content, size);
     let heading = container(label)
         .padding(Padding {
             top: pt,
@@ -235,10 +324,7 @@ fn render_heading<'a>(level: u8, content: &'a [Inline], font_size: f32) -> Eleme
 }
 
 fn render_paragraph<'a>(content: &'a [Inline], font_size: f32) -> Element<'a, Message> {
-    let rich: Element<'a, Message> = Rich::with_spans(inlines_to_spans(content))
-        .width(Length::Fill)
-        .size(Pixels(font_size))
-        .into();
+    let rich = render_inlines(content, font_size);
     container(rich).padding([2, 0]).width(Length::Fill).into()
 }
 
@@ -385,10 +471,7 @@ fn render_table<'a>(table: &'a TableBlock, font_size: f32, _is_dark: bool) -> El
             } else {
                 Length::FillPortion(1)
             };
-            let cell: Element<'a, Message> = Rich::with_spans(inlines_to_spans(&h.content))
-                .width(Length::Fill)
-                .size(Pixels(hdr_size))
-                .into();
+            let cell = render_inlines(&h.content, hdr_size);
             container(cell).padding([8, 12]).width(w).into()
         })
         .collect();
@@ -445,10 +528,7 @@ fn render_table<'a>(table: &'a TableBlock, font_size: f32, _is_dark: bool) -> El
                 } else {
                     Length::FillPortion(1)
                 };
-                let cell: Element<'a, Message> = Rich::with_spans(inlines_to_spans(&c.content))
-                    .width(Length::Fill)
-                    .size(Pixels(cel_size))
-                    .into();
+                let cell = render_inlines(&c.content, cel_size);
                 container(cell).padding([8, 12]).width(w).into()
             })
             .collect();
@@ -558,11 +638,34 @@ fn render_mermaid<'a>(
     font_size: f32,
 ) -> Element<'a, Message> {
     let badge = container(text("Mermaid Diagram").size(scale(11.0, font_size)))
-        .padding([2, 8])
-        .style(|_theme: &iced::Theme| container::Style {
-            background: Some(glass::ACCENT.into()),
-            text_color: Some(Color::WHITE),
-            ..Default::default()
+        .padding([4, 10])
+        .style(|theme: &iced::Theme| {
+            let is_dark = matches!(theme, iced::Theme::Dark);
+            container::Style {
+                background: Some(
+                    (if is_dark {
+                        glass::DARK_SURFACE
+                    } else {
+                        glass::LIGHT_SURFACE
+                    })
+                    .into(),
+                ),
+                text_color: Some(if is_dark {
+                    glass::DARK_TEXT_DIM
+                } else {
+                    glass::LIGHT_TEXT_DIM
+                }),
+                border: Border {
+                    color: if is_dark {
+                        glass::DARK_BORDER
+                    } else {
+                        glass::LIGHT_BORDER
+                    },
+                    width: 1.0,
+                    radius: 4.0.into(),
+                },
+                ..Default::default()
+            }
         });
 
     if let Some(handle) = state.cached_mermaid_handles.get(&index) {
@@ -606,16 +709,38 @@ fn render_mermaid<'a>(
     }
 }
 
-fn render_list<'a>(ordered: bool, items: &'a [ListItem], font_size: f32) -> Element<'a, Message> {
-    let item_elements = items.iter().map(|item| {
+fn render_list<'a>(
+    ordered: bool,
+    items: &'a [ListItem],
+    state: &'a crate::core::MarkdownState,
+    font_size: f32,
+    is_dark: bool,
+) -> Element<'a, Message> {
+    let item_elements = items.iter().enumerate().map(|(idx, item)| {
         let prefix = if ordered { " 1." } else { "  •" };
-        let mut spans = vec![Span::new(format!("{prefix} ")).color(Color::from_rgb(0.5, 0.5, 0.5))];
-        spans.extend(inlines_to_spans(&item.content));
-        let rich: Element<'a, Message> = Rich::with_spans(spans)
-            .width(Length::Fill)
-            .size(Pixels(font_size))
+        let prefix_el: Element<'a, Message> = text(prefix)
+            .size(font_size)
+            .color(Color::from_rgb(0.5, 0.5, 0.5))
             .into();
-        container(rich)
+        let content_el = render_inlines(&item.content, font_size);
+
+        let mut children: Vec<Element<'a, Message>> = vec![row![prefix_el, content_el].into()];
+        for (bi, sub) in item.sub_blocks.iter().enumerate() {
+            let sub_el = render_block(idx * 1000 + bi, sub, state, font_size, is_dark);
+            children.push(
+                container(sub_el)
+                    .padding(Padding {
+                        top: 4.0,
+                        right: 0.0,
+                        bottom: 2.0,
+                        left: 0.0,
+                    })
+                    .width(Length::Fill)
+                    .into(),
+            );
+        }
+
+        container(column(children).spacing(0))
             .padding(Padding {
                 top: 1.0,
                 right: 8.0,
@@ -724,7 +849,7 @@ fn render_block<'a>(
             render_mermaid(index, lines, rendered, state, font_size)
         }
         Block::Image { alt, .. } => render_inline_image(index, alt, state),
-        Block::List { ordered, items } => render_list(*ordered, items, font_size),
+        Block::List { ordered, items } => render_list(*ordered, items, state, font_size, is_dark),
         Block::Quote(blocks) => render_quote(blocks, state, font_size, is_dark),
         Block::HorizontalRule => render_horizontal_rule(font_size),
         Block::Html(html) => render_html(html, font_size),

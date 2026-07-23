@@ -403,6 +403,33 @@ pub fn glass_checkbox(theme: &Theme, status: checkbox::Status) -> checkbox::Styl
 
 // ── Rule ──────────────────────────────────────────────────────────────────────
 
+/// Tooltip popup — dark surface with rounded corners and subtle shadow.
+pub fn glass_tooltip(theme: &Theme) -> container::Style {
+    let is_dark = matches!(theme, Theme::Dark);
+    container::Style {
+        background: Some(
+            (if is_dark {
+                Color::from_rgba(0.12, 0.14, 0.18, 0.95)
+            } else {
+                Color::from_rgba(0.22, 0.24, 0.28, 0.95)
+            })
+            .into(),
+        ),
+        text_color: Some(if is_dark { DARK_TEXT } else { Color::WHITE }),
+        border: Border {
+            color: if is_dark {
+                DARK_BORDER
+            } else {
+                Color::from_rgba(1.0, 1.0, 1.0, 0.12)
+            },
+            width: 1.0,
+            radius: 6.0.into(),
+        },
+        shadow: subtle_shadow(is_dark),
+        snap: false,
+    }
+}
+
 /// Translucent hairline separator.
 pub fn glass_rule(theme: &Theme) -> rule::Style {
     let is_dark = matches!(theme, Theme::Dark);
