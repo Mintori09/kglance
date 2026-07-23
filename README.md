@@ -3,6 +3,7 @@
 A high-performance file preview application for **KDE Plasma 6** built in Rust and Iced. Inspired by macOS QuickLook, Kglance provides near-instantaneous file previews via a single keypress.
 
 It operates in two modes:
+
 - **Daemon Mode**: Long-running background service listening on DBus for instant window toggle (<10ms UI latency).
 - **Standalone Mode**: Opens directly for previewing a file without requiring the daemon process, automatically exiting upon close.
 
@@ -26,19 +27,19 @@ It operates in two modes:
 
 To build Kglance from source on Linux (Debian/Ubuntu/Arch/Fedora), the following system development libraries are required:
 
-| Component | Library Dependency | Description / Usage |
-| --- | --- | --- |
-| **Fonts & Layout** | `libfontconfig1-dev` / `fontconfig` | Font matching and fallback configuration |
-| **FreeType** | `libfreetype6-dev` / `freetype2` | Font rendering engine for text/font previews |
-| **XKB Common** | `libxkbcommon-dev` / `libxkbcommon` | Keyboard keycode handling for Wayland & X11 |
-| **GStreamer** | `libgstreamer1.0-dev`, `libgstreamer-plugins-base1.0-dev` | Audio and video decoding/playback pipeline |
-| **MuPDF** | `libmupdf-dev` *(optional system bind)* | PDF rendering engine |
+| Component          | Library Dependency                                        | Description / Usage                          |
+| ------------------ | --------------------------------------------------------- | -------------------------------------------- |
+| **Fonts & Layout** | `libfontconfig1-dev` / `fontconfig`                       | Font matching and fallback configuration     |
+| **FreeType**       | `libfreetype6-dev` / `freetype2`                          | Font rendering engine for text/font previews |
+| **XKB Common**     | `libxkbcommon-dev` / `libxkbcommon`                       | Keyboard keycode handling for Wayland & X11  |
+| **GStreamer**      | `libgstreamer1.0-dev`, `libgstreamer-plugins-base1.0-dev` | Audio and video decoding/playback pipeline   |
+| **MuPDF**          | `libmupdf-dev` _(optional system bind)_                   | PDF rendering engine                         |
 
 #### Installing Dependencies
 
 - **Arch Linux:**
   ```bash
-  sudo pacman -S fontconfig freetype2 libxkbcommon gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad
+  sudo pacman -Syu fontconfig freetype2 libxkbcommon gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-libav gst-plugin-va gst-plugins-ugly
   ```
 - **Ubuntu / Debian:**
   ```bash
@@ -55,21 +56,31 @@ To build Kglance from source on Linux (Debian/Ubuntu/Arch/Fedora), the following
 
 Kglance offers rich keyboard navigation for navigating files, zooming images, scrolling PDFs, and searching text.
 
-| Shortcut | Action | Scope / Context |
-| --- | --- | --- |
-| `Space` | Toggle / Open file preview | Dolphin File Manager (KIO Menu) |
-| `Escape` | Close / Hide preview window | Global |
-| `Ctrl` + `F` | Open text search bar | Text / Code preview |
-| `Ctrl` + `W` | Toggle line word wrap | Text / Code preview |
-| `Ctrl` + `+` / `Ctrl` + `=` | Zoom in | Image / PDF preview |
-| `Ctrl` + `-` | Zoom out | Image / PDF preview |
-| `Ctrl` + `0` | Reset zoom to 100% | Image / PDF preview |
-| `Left Arrow` / `PageUp` | Previous file in directory / Previous PDF page | Directory / Multi-file / PDF |
-| `Right Arrow` / `PageDown` | Next file in directory / Next PDF page | Directory / Multi-file / PDF |
-| `Backspace` | Navigate back to previous preview in history | Global / Navigation history |
-| `Tab` | Switch active sheet tab | Spreadsheet (XLSX/CSV) |
-| `R` | Rotate image clockwise (90°) | Image preview |
-| `Mouse Wheel` | Zoom in / out (with Ctrl) or scroll | Image / PDF / Text preview |
+| Shortcut                         | Action                                           | Scope / Context                      |
+| -------------------------------- | ------------------------------------------------ | ------------------------------------ |
+| `Space` / `Escape`               | Close preview window                             | Global                              |
+| `Ctrl` + `C`                     | Copy file path / Copy selected text              | Global / Text preview               |
+| `Ctrl` + `A`                     | Select all text                                  | Text / Code preview                  |
+| `Ctrl` + `F`                     | Open text search bar                             | Text / Code preview                  |
+| `Ctrl` + `W`                     | Toggle line word wrap                            | Text / Code preview                  |
+| `Ctrl` + `+` / `Ctrl` + `=`     | Zoom in / Increase font size                     | Image / PDF / Text preview           |
+| `Ctrl` + `-`                     | Zoom out / Decrease font size                    | Image / PDF / Text preview           |
+| `Ctrl` + `0`                     | Reset zoom to 100%                               | Image preview                        |
+| `Shift` + `+` / `Shift` + `=`   | Reset font size to 14px                          | Text / Code preview                  |
+| `Ctrl` + `T`                     | Toggle dark / light theme                        | Global                               |
+| `←` / `→`                        | Go to parent dir / Preview selected file         | Folder view                          |
+| `Left Arrow` / `PageUp`         | Previous file in directory / Previous PDF page   | Directory / Multi-file / PDF         |
+| `Right Arrow` / `PageDown`      | Next file in directory / Next PDF page           | Directory / Multi-file / PDF         |
+| `Enter`                          | Preview selected file / Open externally          | Folder view / Global                |
+| `Arrow Up` / `k`                | Scroll up                                        | Scrollable content                   |
+| `Arrow Down` / `j`              | Scroll down                                      | Scrollable content                   |
+| `PageUp` / `u`                  | Scroll half page up                              | Scrollable content                   |
+| `PageDown` / `d`                | Scroll half page down                            | Scrollable content                   |
+| `gg` (double-tap `g`)            | Scroll to top                                    | Scrollable content                   |
+| `G` / `Shift` + `g`             | Scroll to bottom                                 | Scrollable content                   |
+| `Home` (double-tap)              | Scroll to top                                    | Scrollable content                   |
+| `End`                            | Scroll to bottom                                 | Scrollable content                   |
+| `Mouse Wheel`                    | Scroll / Zoom (with `Ctrl`)                      | All previews                         |
 
 ---
 
@@ -93,7 +104,8 @@ To start the Kglance daemon automatically on KDE login:
 mkdir -p ~/.config/autostart
 cp data/kglance-daemon.desktop ~/.config/autostart/
 ```
-*(Ensure the `Exec` path in the desktop file points to your `kglance` binary location)*
+
+_(Ensure the `Exec` path in the desktop file points to your `kglance` binary location)_
 
 ### 3. Install Dolphin Integration (KIO Service Menu)
 

@@ -96,7 +96,7 @@ pub fn human_time(datetime: std::time::SystemTime) -> String {
         return format!("{}d ago", duration.num_days());
     }
 
-    dt.format("%b %d").to_string()
+    dt.format("%b %d, %Y").to_string()
 }
 
 pub trait PreviewParser: Send + Sync {
