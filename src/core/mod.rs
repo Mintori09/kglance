@@ -1,3 +1,4 @@
+pub mod config;
 pub mod handlers;
 pub mod preview;
 pub mod types;
