@@ -203,9 +203,12 @@ where
         };
 
         let zoom = self.camera.zoom;
-        let (img_w, img_h) = if (zoom - 1.0).abs() < 0.001 {
-            let fit_zoom = (bounds.width / self.image.width as f32)
-                .min(bounds.height / self.image.height as f32);
+        let (img_w, img_h) = if self.image.width == 0 || self.image.height == 0 {
+            (bounds.width, bounds.height)
+        } else if (zoom - 1.0).abs() < 0.001 {
+            let scale_w = bounds.width / self.image.width as f32;
+            let scale_h = bounds.height / self.image.height as f32;
+            let fit_zoom = scale_w.min(scale_h);
             (
                 self.image.width as f32 * fit_zoom,
                 self.image.height as f32 * fit_zoom,
@@ -216,6 +219,8 @@ where
                 self.image.height as f32 * zoom,
             )
         };
+
+
 
         let vp_cx = bounds.x + bounds.width / 2.0;
         let vp_cy = bounds.y + bounds.height / 2.0;

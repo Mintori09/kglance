@@ -50,11 +50,30 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         (left, state.file_size_text.clone())
     };
 
+    let counter_el: Option<Element<'a, Message>> = if state.playlist.len() > 1 {
+        let label = format!("[ {} / {} ]", state.current_index + 1, state.playlist.len());
+        Some(
+            iced::widget::button(text(label).size(11).style(metadata_style))
+                .on_press(Message::ToggleViewMode)
+                .style(iced::widget::button::secondary)
+                .padding([2, 6])
+                .into()
+        )
+    } else {
+        None
+    };
+
     let left_el: Element<'a, Message> = text(left_display).size(11).style(metadata_style).into();
     let right_el: Element<'a, Message> = text(right_display).size(11).style(metadata_style).into();
 
+    let left_row = if let Some(cnt) = counter_el {
+        row![cnt, Space::new().width(8), left_el].align_y(Alignment::Center)
+    } else {
+        row![left_el].align_y(Alignment::Center)
+    };
+
     container(
-        row![left_el, Space::new().width(Length::Fill), right_el]
+        row![left_row, Space::new().width(Length::Fill), right_el]
             .align_y(Alignment::Center)
             .padding([4, 12]),
     )
@@ -62,6 +81,7 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     .style(crate::ui::theme::breeze_header_container)
     .into()
 }
+
 
 fn content<'a>(preview_body: Element<'a, Message>, edge_to_edge: bool) -> Element<'a, Message> {
     let padding = if edge_to_edge { 0 } else { 10 };
@@ -128,9 +148,21 @@ pub fn view_window<'a>(
     preview_body: Element<'a, Message>,
     edge_to_edge: bool,
 ) -> Element<'a, Message> {
-    let layout = column![content(preview_body, edge_to_edge), footer(state),]
-        .width(Length::Fill)
-        .height(Length::Fill);
+    let main_body: Element<'a, Message> = match &state.view_mode {
+        crate::core::ViewMode::Grid(thumbnails) => {
+            crate::ui::views::view_grid(thumbnails, state.current_index)
+        }
+        crate::core::ViewMode::Detail => content(preview_body, edge_to_edge),
+    };
+
+    let layout = column![
+        container(main_body).width(Length::Fill).height(Length::Fill),
+        footer(state)
+    ]
+    .width(Length::Fill)
+    .height(Length::Fill);
+
+
 
     let base = container(layout)
         .width(Length::Fill)

@@ -31,6 +31,20 @@ pub enum Message {
     NextFileClicked,
     HistoryBack,
     HistoryForward,
+    SiblingFilesLoaded(Vec<String>),
+    ToggleViewMode,
+    FileClickedInGrid(usize),
+    GridThumbnailLoaded {
+        index: usize,
+        handle: Option<iced::widget::image::Handle>,
+    },
+    PreloadCompleted {
+
+        path: String,
+        content: std::sync::Arc<PreviewData>,
+    },
+
+
 
     // Image viewer
     ImageZoom(f32),
@@ -234,7 +248,51 @@ impl KglanceApp {
         (app, task)
     }
 
+    pub fn trigger_preload(&mut self) -> Task<Message> {
+        let indices = crate::core::preloader::calculate_preload_window(
+            self.state.current_index,
+            self.state.playlist.len(),
+        );
+
+        let mut tasks = Vec::new();
+        for idx in indices {
+            if idx < self.state.playlist.len() {
+                let path = self.state.playlist[idx].clone();
+                if self.state.cache.peek(&path).is_none()
+                    && !self.state.pending_preloads.contains(&path)
+                    && crate::core::preloader::should_preload_file(&path)
+                {
+                    self.state.pending_preloads.insert(path.clone());
+                    let reg = self.registry.clone();
+                    let target_path = path.clone();
+
+                    let target_path_clone = path.clone();
+
+                    tasks.push(Task::perform(
+                        async move {
+                            let content = tokio::task::spawn_blocking(move || {
+                                FilePreviewer::parse(&*reg, Path::new(&target_path)).ok()
+                            })
+                            .await
+                            .ok()
+                            .flatten()?;
+
+                            Some(Message::PreloadCompleted {
+                                path: target_path_clone,
+                                content: std::sync::Arc::new(content),
+                            })
+                        },
+                        |msg| msg.unwrap_or(Message::ToastDismissed(0)),
+                    ));
+
+                }
+            }
+        }
+        Task::batch(tasks)
+    }
+
     pub fn title(&self) -> String {
+
         if self.state.file_name.is_empty() {
             "Kglance Preview".to_string()
         } else {
@@ -248,8 +306,12 @@ impl KglanceApp {
 
     pub fn handle_file_loaded(&mut self, path: String, content: PreviewData) -> Task<Message> {
         let t0 = Instant::now();
+        let scan_path = path.clone();
         self.state.file_name = path.clone();
         self.state.content_ready = true;
+        self.state.image.camera = crate::preview::image::Camera::new();
+
+
 
         let mut mermaid_tasks: Vec<Task<Message>> = {
             let mut tasks = Vec::new();
@@ -433,12 +495,8 @@ impl KglanceApp {
             vec![]
         };
 
-        if let PreviewData::Image { width, height, .. } = &content
-            && let Some(id) = self.window_id
-        {
-            let size = crate::ui::handlers::image::calculate_window_size(*width, *height);
-            window_tasks.push(iced::window::resize(id, size));
-        }
+
+
 
         self.probe.mark_state_ready(); // P1
         log_info!(
@@ -446,17 +504,194 @@ impl KglanceApp {
             t0.elapsed()
         );
 
+        let scan_task = Task::perform(
+            async move {
+                let files = tokio::task::spawn_blocking(move || {
+                    crate::core::navigation::scan_sibling_files(&scan_path)
+                })
+                .await
+                .unwrap_or_default();
+                Message::SiblingFilesLoaded(files)
+            },
+            |msg| msg,
+        );
+
+
         Task::batch(
             mermaid_tasks
                 .into_iter()
                 .chain(pdf_task)
-                .chain(window_tasks),
+                .chain(window_tasks)
+                .chain(std::iter::once(scan_task)),
         )
     }
 
+
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::PreloadCompleted { path, content } => {
+                self.state.pending_preloads.remove(&path);
+                self.state.cache.put(path, content);
+                Task::none()
+            }
+            Message::SiblingFilesLoaded(files) => {
+                if !files.is_empty() {
+                    let current = self.state.file_name.clone();
+                    self.state.playlist = files;
+                    if let Some(pos) = self.state.playlist.iter().position(|p| p == &current) {
+                        self.state.current_index = pos;
+                    } else {
+                        self.state.current_index = 0;
+                    }
+                    return self.trigger_preload();
+                }
+                Task::none()
+            }
+
+            Message::NextFileClicked => {
+                if !self.state.playlist.is_empty() {
+                    let next_idx = (self.state.current_index + 1) % self.state.playlist.len();
+                    self.state.current_index = next_idx;
+                    let next_path = self.state.playlist[next_idx].clone();
+
+                    if let Some(cached_data) = self.state.cache.get(&next_path).cloned() {
+                        return self.update(Message::FileLoaded {
+                            path: next_path,
+                            content: (*cached_data).clone(),
+                        });
+                    }
+
+                    let reg = self.registry.clone();
+                    let path_for_err = next_path.clone();
+                    return Task::perform(
+                        async move {
+                            let content = FilePreviewer::parse(&*reg, Path::new(&next_path)).ok()?;
+                            Some(Message::FileLoaded {
+                                path: next_path,
+                                content,
+                            })
+                        },
+                        move |msg| msg.unwrap_or(Message::FilePreviewError(path_for_err.clone())),
+                    );
+                }
+                Task::none()
+            }
+            Message::PrevFileClicked => {
+                if !self.state.playlist.is_empty() {
+                    let prev_idx = if self.state.current_index == 0 {
+                        self.state.playlist.len() - 1
+                    } else {
+                        self.state.current_index - 1
+                    };
+                    self.state.current_index = prev_idx;
+                    let prev_path = self.state.playlist[prev_idx].clone();
+
+                    if let Some(cached_data) = self.state.cache.get(&prev_path).cloned() {
+                        return self.update(Message::FileLoaded {
+                            path: prev_path,
+                            content: (*cached_data).clone(),
+                        });
+                    }
+
+                    let reg = self.registry.clone();
+                    let path_for_err = prev_path.clone();
+                    return Task::perform(
+                        async move {
+                            let content = FilePreviewer::parse(&*reg, Path::new(&prev_path)).ok()?;
+                            Some(Message::FileLoaded {
+                                path: prev_path,
+                                content,
+                            })
+                        },
+                        move |msg| msg.unwrap_or(Message::FilePreviewError(path_for_err.clone())),
+                    );
+                }
+                Task::none()
+            }
+
+            Message::GridThumbnailLoaded { index, handle } => {
+                if let crate::core::ViewMode::Grid(ref mut thumbnails) = self.state.view_mode {
+                    if let Some(item) = thumbnails.get_mut(index) {
+                        item.thumbnail_handle = handle;
+                        item.is_loading = false;
+                    }
+                }
+                Task::none()
+            }
+            Message::ToggleViewMode => {
+                match self.state.view_mode {
+                    crate::core::ViewMode::Detail => {
+                        let mut tasks = Vec::new();
+                        let thumbnails: Vec<crate::core::GridThumbnail> = self
+                            .state
+                            .playlist
+                            .iter()
+                            .enumerate()
+                            .map(|(idx, p)| {
+                                let name = Path::new(p)
+                                    .file_name()
+                                    .map(|n| n.to_string_lossy().to_string())
+                                    .unwrap_or_else(|| p.clone());
+
+                                let path_for_task = p.clone();
+                                tasks.push(Task::perform(
+                                    async move {
+                                        let handle = tokio::task::spawn_blocking(move || {
+                                            let thumb_path = crate::ui::views::grid::get_freedesktop_thumbnail_path(&path_for_task)?;
+                                            Some(iced::widget::image::Handle::from_path(thumb_path))
+                                        })
+                                        .await
+                                        .ok()
+                                        .flatten();
+
+                                        Message::GridThumbnailLoaded {
+                                            index: idx,
+                                            handle,
+                                        }
+                                    },
+                                    |msg| msg,
+                                ));
+
+                                crate::core::GridThumbnail {
+                                    path: p.clone(),
+                                    name,
+                                    thumbnail_handle: None,
+                                    is_loading: true,
+                                }
+                            })
+                            .collect();
+                        self.state.view_mode = crate::core::ViewMode::Grid(thumbnails);
+                        return Task::batch(tasks);
+                    }
+                    crate::core::ViewMode::Grid(_) => {
+                        self.state.view_mode = crate::core::ViewMode::Detail;
+                    }
+                }
+                Task::none()
+            }
+
+            Message::FileClickedInGrid(idx) => {
+                if idx < self.state.playlist.len() {
+                    self.state.current_index = idx;
+                    self.state.view_mode = crate::core::ViewMode::Detail;
+                    let target_path = self.state.playlist[idx].clone();
+                    let reg = self.registry.clone();
+                    let path_for_err = target_path.clone();
+                    return Task::perform(
+                        async move {
+                            let content = FilePreviewer::parse(&*reg, Path::new(&target_path)).ok()?;
+                            Some(Message::FileLoaded {
+                                path: target_path,
+                                content,
+                            })
+                        },
+                        move |msg| msg.unwrap_or(Message::FilePreviewError(path_for_err.clone())),
+                    );
+                }
+                Task::none()
+            }
             Message::FileClicked(idx) => {
+
                 if idx < self.state.table.rows.len() {
                     self.state.table.selected_index = Some(idx);
                 }
