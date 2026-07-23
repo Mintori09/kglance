@@ -1,4 +1,3 @@
-# SỬA DÒNG NÀY: Ép hệ thống dùng mold làm linker bọc qua trình biên dịch thay vì gọi trực tiếp nhị phân mold
 export RUSTFLAGS := "-C link-arg=-fuse-ld=mold " + env_var_or_default("RUSTFLAGS", "")
 
 all: build test clippy fmt-check kglance
@@ -33,7 +32,7 @@ watch +COMMAND='test':
 
 run +arg=".":
     cargo check --no-default-features
-    cargo run --no-default-features -- "{{arg}}"
+    cargo run --no-default-features --bin kglance --release -- "{{arg}}"
 
 release:
     cargo build --release
