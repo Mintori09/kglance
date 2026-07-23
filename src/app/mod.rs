@@ -462,6 +462,34 @@ impl KglanceApp {
                 }
                 Task::none()
             }
+            Message::SortByFieldClicked(field) => {
+                let sort = &mut self.state.table.sort_state;
+                if sort.active && sort.field == field {
+                    match sort.ascending {
+                        true => sort.ascending = false,
+                        false => {
+                            sort.active = false;
+                            sort.ascending = true;
+                            crate::core::sort_table_rows(
+                                &mut self.state.table.rows,
+                                &crate::core::SortState {
+                                    field: crate::core::SortField::Name,
+                                    ascending: true,
+                                    active: true,
+                                },
+                            );
+                        }
+                    }
+                } else {
+                    sort.field = field;
+                    sort.ascending = true;
+                    sort.active = true;
+                }
+                if sort.active {
+                    crate::core::sort_table_rows(&mut self.state.table.rows, sort);
+                }
+                Task::none()
+            }
             Message::CloseRequested => self.handle_close(),
             Message::OpenClicked => self.handle_open_clicked(),
             Message::CopyPathClicked => self.handle_copy_path(),

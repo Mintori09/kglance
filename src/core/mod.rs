@@ -9,5 +9,5 @@ pub use preview::{FilePreviewer, PreviewData};
 pub use types::{
     DirState, HistoryState, ImageState, KglanceState, MarkdownState, MediaState, PageCacheEntry,
     PdfState, SheetInfo, SortField, SortState, SpreadsheetState, TableRowState, TableState,
-    TextState, ToastInfo, TocEntry,
+    TextState, ToastInfo, TocEntry, sort_table_rows,
 };

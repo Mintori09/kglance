@@ -104,6 +104,7 @@ impl PreviewData {
                 state.table.folder_path = state.file_name.clone();
                 state.table.selected_index = None;
                 state.file_type_text = "Folder / Archive".to_string();
+                state.file_size_text.clear();
             }
             PreviewData::Markdown { blocks } => {
                 let fs = state.font_size;

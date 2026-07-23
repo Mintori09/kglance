@@ -1,4 +1,5 @@
 pub mod glass;
+pub mod icon_theme;
 
 pub use glass::{
     glass_button, glass_button_primary, glass_card, glass_checkbox, glass_inset, glass_pick_list,
