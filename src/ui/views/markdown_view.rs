@@ -816,13 +816,6 @@ fn render_quote<'a>(
         glass::LIGHT_SURFACE
     };
 
-    let accent_bar = container(text(""))
-        .width(4)
-        .style(move |_| container::Style {
-            background: Some(accent_color.into()),
-            ..Default::default()
-        });
-
     let content = container(inner)
         .padding([8, 12])
         .style(move |_| container::Style {
@@ -831,7 +824,15 @@ fn render_quote<'a>(
         })
         .width(Length::Fill);
 
-    row![accent_bar, content].spacing(0).into()
+    let bar = container(text(""))
+        .width(4)
+        .height(Length::Fill)
+        .style(move |_| container::Style {
+            background: Some(accent_color.into()),
+            ..Default::default()
+        });
+
+    row![bar, content].spacing(0).into()
 }
 
 fn render_horizontal_rule<'a>(_font_size: f32) -> Element<'a, Message> {
