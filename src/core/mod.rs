@@ -1,6 +1,7 @@
 pub mod config;
 pub mod config_watcher;
 pub mod handlers;
+pub mod plugin;
 pub mod preview;
 pub mod types;
 
