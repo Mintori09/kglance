@@ -1,151 +1,156 @@
 # Kglance (Oxiview)
 
-Cua so xem truoc file sieu toc cho KDE Plasma 6. Ho tro 2 che do: **Daemon** (chay ngam, DBus) va **Standalone** (xem truc tiep, khong can DBus).
+A high-performance file preview application for **KDE Plasma 6** built in Rust and Iced. Inspired by macOS QuickLook, Kglance provides near-instantaneous file previews via a single keypress.
 
-## Tinh nang
+It operates in two modes:
+- **Daemon Mode**: Long-running background service listening on DBus for instant window toggle (<10ms UI latency).
+- **Standalone Mode**: Opens directly for previewing a file without requiring the daemon process, automatically exiting upon close.
 
-- Xem truoc ma nguon voi highlight cu phap (syntect)
-- Xem truoc hinh anh (PNG, JPEG, WebP, GIF, BMP) va SVG
-- Xem thong tin PDF (so trang)
-- Xem cau truc file luu tru (ZIP, Tar, 7z) dang cay thu muc
-- Xem truoc file trong file luu tru (ZIP/Tar/7z) bang cach nhan vao entry
-- Xem noi dung thu muc, sap xep theo ten/loai/ngay/dung luong
-- Hien thi thong tin EXIF: camera, ISO, f/, ngay chup
-- Hien thi tu dong che do Dark/Light theo KDE Plasma
-- Giao dien Liquid Glass cao cap: Cac panel va nut bam co do bo goc mem mai (corner radius 8px - 12px), kieu dang translucent phan chieu hien dai va hieu ung highlight khi hover.
-- Che do Daemon: Hien/An cua so tuc thoi, chay ngam khong tat
-- Che do Standalone: Mo file truc tiep, thoat khi dong cua so
-- Tich hop phim Space trong Dolphin (KIO Service Menu)
-- Tu dong khoi dong cung he thong (Autostart)
-- Tu dong fallback: neu Daemon chua chay, tu chuyen sang Standalone
+---
 
-## Yeu cau
+## Key Features
 
-- KDE Plasma 6 (Wayland hoac X11)
-- Rust 1.85+ (edition 2024)
-- Thu vien he thong: `libfontconfig`, `libfreetype`, `libxkbcommon`
+- **Source Code & Text**: Syntax highlighting via `syntect` with line numbers, text search (`Ctrl+F`), and word wrap toggle.
+- **Images**: Fast rendering of PNG, JPEG, WebP, GIF, BMP, and SVG (`resvg`). Full support for zoom, pan, rotation, and detailed EXIF metadata sidebar.
+- **Documents & Office**: PDF continuous scrolling, page navigation, and thumbnail sidebar; text extraction for DOCX & XLSX with LibreOffice fallback.
+- **Archives**: Interactive folder tree view for ZIP, Tar, GZ, and 7z archives with inner file preview.
+- **Audio & Video**: Metadata extraction, waveform visualization, and inline media playback using GStreamer pipelines.
+- **Fonts**: Font sample rendering (TTF, OTF, WOFF) and metadata display (`fontdue`).
+- **KDE Plasma 6 Integration**: Automatic Dark/Light mode theme sync, Dolphin file manager integration (Space key preview via KIO Service Menu), and autostart daemon.
 
-## Cai dat
+---
 
-### Build tu ma nguon
+## Dependencies
+
+### System Build Dependencies
+
+To build Kglance from source on Linux (Debian/Ubuntu/Arch/Fedora), the following system development libraries are required:
+
+| Component | Library Dependency | Description / Usage |
+| --- | --- | --- |
+| **Fonts & Layout** | `libfontconfig1-dev` / `fontconfig` | Font matching and fallback configuration |
+| **FreeType** | `libfreetype6-dev` / `freetype2` | Font rendering engine for text/font previews |
+| **XKB Common** | `libxkbcommon-dev` / `libxkbcommon` | Keyboard keycode handling for Wayland & X11 |
+| **GStreamer** | `libgstreamer1.0-dev`, `libgstreamer-plugins-base1.0-dev` | Audio and video decoding/playback pipeline |
+| **MuPDF** | `libmupdf-dev` *(optional system bind)* | PDF rendering engine |
+
+#### Installing Dependencies
+
+- **Arch Linux:**
+  ```bash
+  sudo pacman -S fontconfig freetype2 libxkbcommon gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad
+  ```
+- **Ubuntu / Debian:**
+  ```bash
+  sudo apt install libfontconfig1-dev libfreetype6-dev libxkbcommon-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
+  ```
+- **Fedora:**
+  ```bash
+  sudo dnf install fontconfig-devel freetype-devel libxkbcommon-devel gstreamer1-devel gstreamer1-plugins-base-devel gstreamer1-plugins-good
+  ```
+
+---
+
+## Keyboard Shortcuts
+
+Kglance offers rich keyboard navigation for navigating files, zooming images, scrolling PDFs, and searching text.
+
+| Shortcut | Action | Scope / Context |
+| --- | --- | --- |
+| `Space` | Toggle / Open file preview | Dolphin File Manager (KIO Menu) |
+| `Escape` | Close / Hide preview window | Global |
+| `Ctrl` + `F` | Open text search bar | Text / Code preview |
+| `Ctrl` + `W` | Toggle line word wrap | Text / Code preview |
+| `Ctrl` + `+` / `Ctrl` + `=` | Zoom in | Image / PDF preview |
+| `Ctrl` + `-` | Zoom out | Image / PDF preview |
+| `Ctrl` + `0` | Reset zoom to 100% | Image / PDF preview |
+| `Left Arrow` / `PageUp` | Previous file in directory / Previous PDF page | Directory / Multi-file / PDF |
+| `Right Arrow` / `PageDown` | Next file in directory / Next PDF page | Directory / Multi-file / PDF |
+| `Backspace` | Navigate back to previous preview in history | Global / Navigation history |
+| `Tab` | Switch active sheet tab | Spreadsheet (XLSX/CSV) |
+| `R` | Rotate image clockwise (90°) | Image preview |
+| `Mouse Wheel` | Zoom in / out (with Ctrl) or scroll | Image / PDF / Text preview |
+
+---
+
+## Installation & Setup
+
+### 1. Build from Source
+
+Ensure Rust 1.85+ (Edition 2024) is installed.
 
 ```bash
 cargo build --release
 ```
 
-Mac dinh bao gom ho tro 7z. De build khong co 7z:
+The resulting binary will be at `target/release/kglance`.
+
+### 2. Configure Autostart (Daemon Mode)
+
+To start the Kglance daemon automatically on KDE login:
 
 ```bash
-cargo build --release --no-default-features
-```
-
-Binary duy nhat: `target/release/kglance`
-
-### Cai dat Autostart (che do Daemon)
-
-```bash
+mkdir -p ~/.config/autostart
 cp data/kglance-daemon.desktop ~/.config/autostart/
-# Dam bao duong dan Exec tro dung binary kglance
 ```
+*(Ensure the `Exec` path in the desktop file points to your `kglance` binary location)*
 
-### Cai dat KIO Service Menu (tich hop Dolphin)
+### 3. Install Dolphin Integration (KIO Service Menu)
+
+To enable pressing **Space** in Dolphin to preview files:
 
 ```bash
 mkdir -p ~/.local/share/kio/servicemenus
 cp data/kglance-rust.desktop ~/.local/share/kio/servicemenus/
 ```
 
-Sau do dang xuat va dang nhap lai (hoac chay `kquitapp6 dolphin && dolphin`).
+Restart Dolphin or log out and back in to apply the changes.
 
-## Su dung
+---
+
+## Usage
 
 ```bash
-# Khoi dong Daemon (chay ngam, lang nghe DBus)
+# Start background Daemon (Listens on DBus: org.mintori.Kglance)
 kglance daemon
 
-# Xem file (tu dong chon che do)
+# Preview a file (Auto-detects Daemon or falls back to Standalone)
 kglance /path/to/file
 
-# Ep che do Standalone (khong can DBus)
+# Force Standalone mode
 kglance --standalone /path/to/file
 ```
 
-**Trong Dolphin (sau khi cai dat KIO Service Menu):** Chon file, nhan **Space**.
+---
 
-### An cua so
+## Project Architecture
 
-- **Daemon mode:** Nhan Esc hoac click nut **X** -- cua so an, tien trinh van chay.
-- **Standalone mode:** Nhan Esc hoac click nut **X** -- thoat ung dung.
-
-## Kien truc
-
-```
-Kglance/
-├── src/
-│   ├── main.rs            # Entrypoint (dispatch Daemon / Standalone)
-│   ├── logger.rs          # Macro ghi log co thoi gian cho debug
-│   ├── parser/            # Module phan tich dinh dang file
-│   │   ├── text.rs        # Text + ma nguon (syntect)
-│   │   ├── image.rs       # Hinh anh (image crate)
-│   │   ├── svg.rs         # SVG -> PNG (resvg)
-│   │   ├── pdf.rs         # PDF render + page nav (mupdf)
-│   │   ├── archive.rs     # Zip/Tar/7z tree list
-│   │   └── folder.rs      # Thu muc (std::fs)
-│   ├── ui/
-│   │   ├── mod.rs         # Entrypoint module (stubbed / transition to Iced)
-│   │   ├── helpers.rs     # UI helpers (file scans, clipboard, conversion)
-│   │   ├── image_handler.rs # Image transformation, EXIF formatting
-│   │   ├── table.rs       # Table model row builder, sorting helper
-│   │   ├── window.rs      # Main PreviewWindow interface & flow
-│   │   └── theme.rs       # KDE palette detection + color mapping
-│   └── dbus/
-│       └── service.rs     # DBus interface (zbus)
-└── data/
-    ├── kglance-daemon.desktop  # Autostart
-    └── kglance-rust.desktop    # KIO Service Menu
+```text
+src/
+├── app.rs            # Application state, Message handling & Iced event routing
+├── lib.rs            # Core library entrypoint
+├── main.rs           # Entrypoint CLI & Daemon/Standalone dispatcher
+├── logger.rs         # Logging macros
+├── core/             # Business logic (Clean Architecture)
+│   ├── config.rs     # Application configuration
+│   ├── handlers.rs   # Async handlers
+│   ├── preview.rs    # FilePreviewer trait & PreviewData definitions
+│   └── types.rs      # App state definitions (ImageState, TextState, etc.)
+├── dbus/             # DBus service implementation (zbus)
+├── parsers/          # Independent file format parsers
+│   ├── archive.rs    # Zip, Tar, 7z tree parser
+│   ├── audio.rs      # Audio metadata & waveform decoder
+│   ├── image.rs      # Image & EXIF metadata parser
+│   ├── markdown.rs   # Markdown block & syntax parser
+│   ├── office.rs     # Office document extractor
+│   ├── pdf.rs        # MuPDF continuous page renderer
+│   ├── text.rs       # Syntax highlighting code parser
+│   └── video.rs      # Video decoder & frame grabber
+└── ui/               # Iced GUI views, themes, and custom widgets
 ```
 
-- **Che do Daemon:** 2 luong (zbus + Iced), giao tiep qua `mpsc::channel`. Cua so an/hien, khong tat.
-- **Che do Standalone:** Parse va show truc tiep trong Iced. Thoat khi dong cua so.
-- DBus: `org.mintori.Kglance` tren Session Bus.
+---
 
-## Dinh dang ho tro
+## License
 
-| Loai | Dinh dang |
-| --- | --- |
-| Ma nguon | rs, py, js, ts, jsx, tsx, html, css, json, md, toml, yaml, sh, c, cpp, go, java, ... |
-| Hinh anh | PNG, JPEG, WebP, GIF, BMP, SVG (+ EXIF) |
-| Tai lieu | PDF (render + page navigation) |
-| Luu tru | ZIP, Tar, GZ, TGZ, XZ, TXZ, 7z (+ inner preview) |
-| Khac | Folder (sortable by name/kind/date/size), Plain text (fallback) |
-
-Gioi han dung luong: 100MB.
-
-## Phat trien
-
-```bash
-# Kiem tra code
-cargo clippy --all-targets --all-features -- -D warnings
-
-# Chay test
-cargo test
-
-# Build release
-cargo build --release
-
-# Chay Daemon (debug)
-cargo run -- daemon
-
-# Xem file (debug)
-cargo run -- /path/to/file
-
-# Xem file standalone (debug)
-cargo run -- --standalone /path/to/file
-```
-
-## Ghi chu
-
-- Project dang o giai doan phat trien ban dau
-- PDF rendering chua duoc ho tro (chi hien thi so trang)
-- Media file (audio/video) được hỗ trợ xem/nghe trực tiếp trong preview qua GStreamer pipeline (khi nhấn nút Play)
-
+Distributed under the AGPL-3.0-only. See `LICENSE` for more information.
