@@ -1,0 +1,66 @@
+{
+  "ui": {
+    "theme": "Dark",
+    "font_size": 14.0,
+    "default_width": 900,
+    "default_height": 600
+  },
+  "preview": {
+    "max_file_size_mb": 50,
+    "render_timeout_ms": 5000
+  },
+  "parsers": {
+    "enable_syntax_highlighting": true,
+    "enable_video_preview": true,
+    "enable_office_parser": true
+  },
+  "plugins": {
+    "enable_plugins": true,
+    "plugin_dir": "~/.config/kglance/plugins",
+    "cli_plugins": [
+      {
+        "name": "PostScript via Ghostscript",
+        "file_extensions": [
+          "ps",
+          "eps"
+        ],
+        "command": "gs",
+        "args": [
+          "-q",
+          "-dQUIET",
+          "-dSAFER",
+          "-dBATCH",
+          "-dNOPAUSE",
+          "-sDEVICE=png16m",
+          "-r150",
+          "-sOutputFile=%stdout",
+          "{file}"
+        ],
+        "output_type": "Image"
+      },
+      {
+        "name": "JSON prettifier via jq",
+        "file_extensions": [
+          "json"
+        ],
+        "command": "jq",
+        "args": [
+          ".",
+          "{file}"
+        ],
+        "output_type": "Text"
+      }
+    ],
+    "native_plugins": [
+      {
+        "name": "Native 3D Mesh Viewer Plugin",
+        "file_extensions": [
+          "gltf",
+          "glb",
+          "stl"
+        ],
+        "library_path": "~/.config/kglance/plugins/libkglance_3d.so"
+      }
+    ]
+  }
+}
