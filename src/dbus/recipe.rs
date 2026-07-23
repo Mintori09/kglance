@@ -41,6 +41,20 @@ impl Recipe for DaemonRecipe {
                             DaemonCommand::OpenWindowWithContent { path, content } => {
                                 let _ = output.send(Message::FileLoaded { path, content }).await;
                             }
+                            // Open window with content + pre-populated playlist.
+                            DaemonCommand::OpenWindowWithPlaylist {
+                                path,
+                                content,
+                                playlist,
+                            } => {
+                                let _ = output
+                                    .send(Message::DaemonOpenWithPlaylist {
+                                        path,
+                                        content,
+                                        playlist,
+                                    })
+                                    .await;
+                            }
                             // Kept for future use (e.g. reloading without window re-open).
                             DaemonCommand::ShowPreviewExisting { path, content } => {
                                 let _ = output.send(Message::FileLoaded { path, content }).await;
