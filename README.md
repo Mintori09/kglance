@@ -147,5 +147,5 @@ cargo run -- --standalone /path/to/file
 
 - Project dang o giai doan phat trien ban dau
 - PDF rendering chua duoc ho tro (chi hien thi so trang)
-- Media file (audio/video) duoc ho tro xem/nghe thong qua trinh phat ngoai (mpv hoac fallback xdg-open) khi an vao nut Play
+- Media file (audio/video) được hỗ trợ xem/nghe trực tiếp trong preview qua GStreamer pipeline (khi nhấn nút Play)
 

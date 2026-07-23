@@ -1,38 +1,34 @@
+use std::sync::{Arc, Mutex};
+
 use crate::app::Message;
 use crate::core::MediaState;
+use crate::ui::handlers::video::VideoController;
 use crate::ui::theme::{glass_button, glass_card, glass_slider};
-use crate::ui::video_canvas::VideoCanvas;
 use iced::widget::{Space, button, column, container, image, mouse_area, row, slider, stack, text};
 use iced::{Alignment, Element, Length};
+use iced_video_player::VideoPlayer;
 
 pub fn view_media<'a>(
     state: &'a MediaState,
     data: &'a [u8],
+    controller: &'a Arc<Mutex<VideoController>>,
     _wf_width: u32,
     _wf_height: u32,
 ) -> Element<'a, Message> {
     let display: Element<'a, Message> = if state.has_video {
-        if state.video_handle.is_some() {
-            VideoCanvas::new(state)
-                .content_fit(iced::ContentFit::Contain)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .into()
-        } else if !data.is_empty() {
-            let handle = image::Handle::from_bytes(data.to_vec());
-            image(handle)
+        let lock = controller.lock().unwrap();
+        if let Some(video) = &lock.video {
+            let video_ref = unsafe {
+                let ptr = video as *const iced_video_player::Video;
+                &*ptr
+            };
+            VideoPlayer::new(video_ref)
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .content_fit(iced::ContentFit::Contain)
                 .into()
         } else {
-            text(if state.metadata.is_empty() {
-                "No preview"
-            } else {
-                ""
-            })
-            .size(14)
-            .into()
+            text("No video").size(14).into()
         }
     } else if !data.is_empty() {
         let handle = image::Handle::from_bytes(data.to_vec());

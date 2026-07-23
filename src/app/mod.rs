@@ -150,6 +150,7 @@ pub struct KglanceApp {
     pub video_tx: Option<tokio::sync::mpsc::Sender<crate::ui::handlers::video::PlayerCommand>>,
     pub video_rx:
         Arc<Mutex<Option<tokio::sync::mpsc::Receiver<crate::ui::handlers::video::VideoEvent>>>>,
+    pub video_controller: Option<Arc<Mutex<crate::ui::handlers::video::VideoController>>>,
     pub ctrl_held: bool,
     pub shift_held: bool,
     pub pending_g: bool,
@@ -166,7 +167,7 @@ impl KglanceApp {
     ) -> (Self, Task<Message>) {
         let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel(100);
         let (event_tx, event_rx) = tokio::sync::mpsc::channel(100);
-        crate::ui::handlers::video::spawn_video_player(cmd_rx, event_tx);
+        let vc = crate::ui::handlers::video::spawn_video_player(cmd_rx, event_tx);
 
         let app = Self {
             state: KglanceState::default(),
@@ -177,6 +178,7 @@ impl KglanceApp {
             current_content: None,
             video_tx: Some(cmd_tx),
             video_rx: Arc::new(Mutex::new(Some(event_rx))),
+            video_controller: Some(vc),
             ctrl_held: false,
             shift_held: false,
             pending_g: false,
@@ -375,7 +377,7 @@ impl KglanceApp {
                     size: iced::Size::new(1024.0, 768.0),
                     min_size: Some(iced::Size::new(800.0, 600.0)),
                     exit_on_close_request: false,
-                    decorations: false,
+                    decorations: true,
                     ..Default::default()
                 };
                 let (id, open_task) = iced::window::open(settings);
@@ -601,8 +603,9 @@ impl KglanceApp {
         let probe_ptr = &self.probe as *const probe::StartupProbe as *mut probe::StartupProbe;
         unsafe { (*probe_ptr).mark_view_start() }; // P3
 
-        let preview_body: Element<'_, Message> = if let Some(content) = &self.current_content {
-            match content {
+        let (preview_body, is_media) = if let Some(content) = &self.current_content {
+            let is_media = matches!(content, PreviewData::Media { .. });
+            let body: Element<'_, Message> = match content {
                 PreviewData::Text { .. } => crate::ui::views::view_text(
                     &self.state.text,
                     self.state.theme_dark,
@@ -630,16 +633,17 @@ impl KglanceApp {
                 } => crate::ui::views::view_media(
                     &self.state.media,
                     thumbnail_or_waveform,
+                    self.video_controller.as_ref().unwrap(),
                     *width,
                     *height,
                 ),
                 PreviewData::Error(err) => iced::widget::text(err).size(18).into(),
-            }
+            };
+            (body, is_media)
         } else {
-            iced::widget::text("No file loaded.").size(18).into()
+            (iced::widget::text("No file loaded.").size(18).into(), false)
         };
 
-        let is_media = matches!(self.current_content, Some(PreviewData::Media { .. }));
         let res = crate::ui::window::view_window(&self.state, preview_body, is_media);
         unsafe { (*probe_ptr).mark_view_done() }; // P4
         res

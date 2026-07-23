@@ -149,10 +149,6 @@ pub struct MediaState {
     pub show_controls: bool,
     pub position_secs: f64,
     pub duration_secs: f64,
-    pub frame_data: Vec<u8>,
-    pub frame_width: u32,
-    pub frame_height: u32,
-    pub video_handle: Option<image::Handle>,
 }
 
 #[derive(Debug, Clone, Default)]

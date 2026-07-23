@@ -66,7 +66,7 @@ impl super::KglanceApp {
                 size: iced::Size::new(1024.0, 768.0),
                 min_size: Some(iced::Size::new(800.0, 600.0)),
                 exit_on_close_request: false,
-                decorations: false,
+                decorations: true,
                 ..Default::default()
             };
             let (id, open_task) = iced::window::open(settings);
@@ -92,11 +92,16 @@ impl super::KglanceApp {
             iced::window::Event::Opened { .. } => {
                 self.probe.mark_window_opened(); // P2
                 self.window_id = Some(id);
-                if let Some(crate::core::PreviewData::Image { width, height, .. }) =
-                    &self.current_content
-                {
-                    let size = crate::ui::handlers::image::calculate_window_size(*width, *height);
-                    return iced::window::resize(id, size);
+                match &self.current_content {
+                    Some(crate::core::PreviewData::Image { width, height, .. }) => {
+                        let size =
+                            crate::ui::handlers::image::calculate_window_size(*width, *height);
+                        return iced::window::resize(id, size);
+                    }
+                    Some(crate::core::PreviewData::Media { .. }) => {
+                        return iced::window::resize(id, iced::Size::new(850.0, 550.0));
+                    }
+                    _ => {}
                 }
             }
             iced::window::Event::CloseRequested => {
