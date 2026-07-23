@@ -22,15 +22,20 @@ impl PreviewParser for FolderParser {
                 .metadata()
                 .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
+            let modified_time = metadata
+                .modified()
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+            let raw_modified = modified_time
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
+
             entries.push(DirEntry {
                 name: entry.file_name().to_string_lossy().to_string(),
                 is_dir: metadata.is_dir(),
                 size: metadata.len(),
-                modified: crate::parsers::human_time(
-                    metadata
-                        .modified()
-                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH),
-                ),
+                modified: crate::parsers::human_time(modified_time),
+                raw_modified,
             });
         }
 

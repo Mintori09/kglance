@@ -1,7 +1,8 @@
 use crate::app::Message;
 use crate::core::{SortField, TableState};
 use crate::ui::theme::glass_scrollable;
-use iced::widget::{button, column, container, row, scrollable, text};
+use crate::ui::theme::icon_theme;
+use iced::widget::{button, column, container, row, scrollable, svg, text};
 use iced::{Border, Color, Element, Length, Shadow};
 
 pub fn view_table<'a>(state: &'a TableState, theme_dark: bool) -> Element<'a, Message> {
@@ -43,15 +44,23 @@ pub fn view_table<'a>(state: &'a TableState, theme_dark: bool) -> Element<'a, Me
         format!("{} files • {}", total_files, human_total_size)
     };
 
+    let folder_icon: Element<'a, Message> =
+        if let Some(handle) = icon_theme::get_icon_handle("inode-directory") {
+            svg(handle).width(18).height(18).into()
+        } else {
+            text("📁").size(16).into()
+        };
+
     let summary_block = column![
         row![
-            text("📁").size(16),
+            folder_icon,
             text(folder_name).size(14).font(iced::Font {
                 weight: iced::font::Weight::Bold,
                 ..Default::default()
             }),
         ]
-        .spacing(8),
+        .spacing(8)
+        .align_y(iced::Alignment::Center),
         text(&state.folder_path).size(11).color(sub_dim_color),
         text(stats_text).size(12).color(dim_color),
     ]
@@ -87,34 +96,63 @@ pub fn view_table<'a>(state: &'a TableState, theme_dark: bool) -> Element<'a, Me
         }
     };
 
-    // 2. Simplified Table Header
+    // 2. Simplified Table Header with sort indicators
+    let sort = &state.sort_state;
+    let sort_label = |field: SortField, label: &str| -> String {
+        if sort.active && sort.field == field {
+            if sort.ascending {
+                format!("{label} ▲")
+            } else {
+                format!("{label} ▼")
+            }
+        } else {
+            label.to_string()
+        }
+    };
+
     let header = container(
         row![
-            button(text("Name").size(12).font(iced::Font {
-                weight: iced::font::Weight::Medium,
-                ..Default::default()
-            }))
+            button(
+                text(sort_label(SortField::Name, "Name"))
+                    .size(12)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Medium,
+                        ..Default::default()
+                    })
+            )
             .on_press(Message::SortByFieldClicked(SortField::Name))
             .style(header_button_style)
             .width(Length::FillPortion(65)),
-            button(text("Kind").size(12).font(iced::Font {
-                weight: iced::font::Weight::Medium,
-                ..Default::default()
-            }))
+            button(
+                text(sort_label(SortField::Kind, "Kind"))
+                    .size(12)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Medium,
+                        ..Default::default()
+                    })
+            )
             .on_press(Message::SortByFieldClicked(SortField::Kind))
             .style(header_button_style)
             .width(Length::FillPortion(10)),
-            button(text("Size").size(12).font(iced::Font {
-                weight: iced::font::Weight::Medium,
-                ..Default::default()
-            }))
+            button(
+                text(sort_label(SortField::Size, "Size"))
+                    .size(12)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Medium,
+                        ..Default::default()
+                    })
+            )
             .on_press(Message::SortByFieldClicked(SortField::Size))
             .style(header_button_style)
             .width(Length::FillPortion(10)),
-            button(text("Modified").size(12).font(iced::Font {
-                weight: iced::font::Weight::Medium,
-                ..Default::default()
-            }))
+            button(
+                text(sort_label(SortField::Modified, "Modified"))
+                    .size(12)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Medium,
+                        ..Default::default()
+                    })
+            )
             .on_press(Message::SortByFieldClicked(SortField::Modified))
             .style(header_button_style)
             .width(Length::FillPortion(15)),
@@ -129,13 +167,18 @@ pub fn view_table<'a>(state: &'a TableState, theme_dark: bool) -> Element<'a, Me
     for (idx, row_data) in state.rows.iter().enumerate() {
         let is_selected = state.selected_index == Some(idx);
 
+        let icon_el: Element<'a, Message> =
+            if let Some(handle) = icon_theme::get_icon_handle(row_data.icon) {
+                svg(handle).width(16).height(16).into()
+            } else {
+                text("  ").size(16).into()
+            };
+
         let row_content = row![
-            row![
-                text(row_data.icon).size(13),
-                text(&row_data.name).size(13).color(text_color),
-            ]
-            .spacing(8)
-            .width(Length::FillPortion(65)),
+            row![icon_el, text(&row_data.name).size(13).color(text_color),]
+                .spacing(8)
+                .align_y(iced::Alignment::Center)
+                .width(Length::FillPortion(65)),
             text(&row_data.kind)
                 .size(12)
                 .color(dim_color)
@@ -143,7 +186,8 @@ pub fn view_table<'a>(state: &'a TableState, theme_dark: bool) -> Element<'a, Me
             text(&row_data.size)
                 .size(12)
                 .color(dim_color)
-                .width(Length::FillPortion(10)),
+                .width(Length::FillPortion(10))
+                .align_x(iced::alignment::Horizontal::Right),
             text(&row_data.modified)
                 .size(12)
                 .color(dim_color)
