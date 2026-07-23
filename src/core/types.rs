@@ -227,6 +227,31 @@ pub struct ToastInfo {
     pub message: String,
 }
 
+use lru::LruCache;
+use std::num::NonZeroUsize;
+use std::sync::Arc;
+use crate::core::preview::PreviewData;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ViewMode {
+    Detail,
+    Grid(Vec<GridThumbnail>),
+}
+
+impl Default for ViewMode {
+    fn default() -> Self {
+        ViewMode::Detail
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GridThumbnail {
+    pub path: String,
+    pub name: String,
+    pub thumbnail_handle: Option<iced::widget::image::Handle>,
+    pub is_loading: bool,
+}
+
 #[derive(Debug)]
 pub struct KglanceState {
     pub file_name: String,
@@ -239,6 +264,12 @@ pub struct KglanceState {
     pub content_ready: bool,
     pub show_back_button: bool,
     pub back_target: Option<String>,
+
+    pub playlist: Vec<String>,
+    pub current_index: usize,
+    pub view_mode: ViewMode,
+    pub cache: LruCache<String, Arc<PreviewData>>,
+    pub pending_preloads: std::collections::HashSet<String>,
 
     pub image: ImageState,
     pub text: TextState,
@@ -258,6 +289,11 @@ pub struct KglanceState {
     pub next_toast_id: u64,
 }
 
+const CACHE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(7) {
+    Some(cap) => cap,
+    None => unreachable!(),
+};
+
 impl Default for KglanceState {
     fn default() -> Self {
         Self {
@@ -271,6 +307,12 @@ impl Default for KglanceState {
             content_ready: true,
             show_back_button: false,
             back_target: None,
+            playlist: Vec::new(),
+            current_index: 0,
+            view_mode: ViewMode::Detail,
+            cache: LruCache::new(CACHE_CAPACITY),
+            pending_preloads: std::collections::HashSet::new(),
+
             image: ImageState::default(),
             text: TextState::default(),
             pdf: PdfState::default(),
@@ -287,3 +329,4 @@ impl Default for KglanceState {
         }
     }
 }
+

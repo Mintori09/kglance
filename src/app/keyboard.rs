@@ -30,6 +30,22 @@ impl super::KglanceApp {
             return task;
         }
 
+        if matches!(key, iced::keyboard::Key::Named(Named::Tab)) {
+            return self.update(Message::ToggleViewMode);
+        }
+
+        if matches!(self.state.view_mode, crate::core::ViewMode::Detail) {
+            match &key {
+                iced::keyboard::Key::Named(Named::ArrowRight) => {
+                    return self.update(Message::NextFileClicked);
+                }
+                iced::keyboard::Key::Named(Named::ArrowLeft) => {
+                    return self.update(Message::PrevFileClicked);
+                }
+                _ => {}
+            }
+        }
+
         if matches!(key, iced::keyboard::Key::Named(Named::Enter)) {
             return self.handle_open_clicked();
         }
@@ -40,6 +56,7 @@ impl super::KglanceApp {
 
         Task::none()
     }
+
 
     fn handle_folder_navigation(&mut self, key: &iced::keyboard::Key) -> Option<Task<Message>> {
         let rows_len = self.state.table.rows.len();
