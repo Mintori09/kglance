@@ -804,25 +804,34 @@ fn render_quote<'a>(
     .spacing(4)
     .into();
 
-    container(inner)
-        .padding([4, 12])
-        .style(move |theme: &iced::Theme| {
-            let d = matches!(theme, iced::Theme::Dark);
-            container::Style {
-                border: Border {
-                    color: if d {
-                        Color::from_rgb(0.45, 0.5, 0.65)
-                    } else {
-                        Color::from_rgb(0.6, 0.5, 0.8)
-                    },
-                    width: 3.0,
-                    radius: 0.0.into(),
-                },
-                ..Default::default()
-            }
+    let accent_color = if is_dark {
+        Color::from_rgb(0.45, 0.5, 0.65)
+    } else {
+        Color::from_rgb(0.6, 0.5, 0.8)
+    };
+
+    let bg = if is_dark {
+        glass::DARK_SURFACE
+    } else {
+        glass::LIGHT_SURFACE
+    };
+
+    let accent_bar = container(text(""))
+        .width(4)
+        .style(move |_| container::Style {
+            background: Some(accent_color.into()),
+            ..Default::default()
+        });
+
+    let content = container(inner)
+        .padding([8, 12])
+        .style(move |_| container::Style {
+            background: Some(bg.into()),
+            ..Default::default()
         })
-        .width(Length::Fill)
-        .into()
+        .width(Length::Fill);
+
+    row![accent_bar, content].spacing(0).into()
 }
 
 fn render_horizontal_rule<'a>(_font_size: f32) -> Element<'a, Message> {
