@@ -266,7 +266,11 @@ fn render_inlines<'a>(inlines: &'a [Inline], font_size: f32) -> Element<'a, Mess
         );
     }
 
-    row(elements).into()
+    let mut wrap = iced_aw::Wrap::new().spacing(4).line_spacing(4);
+    for el in elements {
+        wrap = wrap.push(el);
+    }
+    wrap.into()
 }
 
 fn code_block_style(theme: &iced::Theme) -> container::Style {
