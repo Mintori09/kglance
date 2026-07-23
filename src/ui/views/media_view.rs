@@ -16,19 +16,22 @@ pub fn view_media<'a>(
     _wf_height: u32,
 ) -> Element<'a, Message> {
     let display: Element<'a, Message> = if state.has_video {
-        let lock = controller.lock().unwrap();
-        if let Some(video) = &lock.video {
-            let video_ref = unsafe {
-                let ptr = video as *const iced_video_player::Video;
-                &*ptr
-            };
-            VideoPlayer::new(video_ref)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .content_fit(iced::ContentFit::Contain)
-                .into()
+        if let Ok(lock) = controller.lock() {
+            if let Some(video) = &lock.video {
+                let video_ref = unsafe {
+                    let ptr = video as *const iced_video_player::Video;
+                    &*ptr
+                };
+                VideoPlayer::new(video_ref)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .content_fit(iced::ContentFit::Contain)
+                    .into()
+            } else {
+                text("Loading video...").size(14).into()
+            }
         } else {
-            text("No video").size(14).into()
+            text("Video unavailable").size(14).into()
         }
     } else if !data.is_empty() {
         let handle = image::Handle::from_bytes(data.to_vec());
