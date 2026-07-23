@@ -26,6 +26,7 @@ mupdf = { version = "0.8", default-features = false, features = [
   "brotli",
 ] }
 pulldown-cmark = "0.13.4"
+iced_math = "0.5"
 zip = "8.6.0"
 tar = "0.4.46"
 sevenz-rust = { version = "0.6.1", optional = true }

@@ -143,6 +143,12 @@ fn inlines_to_spans<'a>(inlines: &'a [Inline]) -> Vec<Span<'a, (), Font>> {
             Inline::Image { alt, .. } => {
                 spans.push(Span::new(format!("[{alt}]")).color(Color::from_rgb(0.5, 0.5, 0.5)));
             }
+            Inline::InlineMath(latex) => {
+                spans.push(Span::new(latex.as_str()).color(Color::from_rgb(0.5, 0.2, 0.7)));
+            }
+            Inline::DisplayMath(latex) => {
+                spans.push(Span::new(latex.as_str()).color(Color::from_rgb(0.5, 0.2, 0.7)));
+            }
         }
     }
     spans
@@ -173,8 +179,11 @@ fn link_button_style(theme: &iced::Theme, status: button::Status) -> button::Sty
 
 fn render_inlines<'a>(inlines: &'a [Inline], font_size: f32) -> Element<'a, Message> {
     let has_link = inlines.iter().any(|i| matches!(i, Inline::Link { .. }));
+    let has_math = inlines
+        .iter()
+        .any(|i| matches!(i, Inline::InlineMath(_) | Inline::DisplayMath(_)));
 
-    if !has_link {
+    if !has_link && !has_math {
         return Rich::with_spans(inlines_to_spans(inlines))
             .size(Pixels(font_size))
             .width(Length::Fill)
@@ -222,6 +231,28 @@ fn render_inlines<'a>(inlines: &'a [Inline], font_size: f32) -> Element<'a, Mess
                     .into(),
             );
 
+            start = i + 1;
+        } else if let Inline::InlineMath(latex) = inline {
+            if start < i {
+                elements.push(
+                    Rich::with_spans(inlines_to_spans(&inlines[start..i]))
+                        .size(Pixels(font_size))
+                        .width(Length::Shrink)
+                        .into(),
+                );
+            }
+            elements.push(iced_math::inline(latex.as_str()));
+            start = i + 1;
+        } else if let Inline::DisplayMath(latex) = inline {
+            if start < i {
+                elements.push(
+                    Rich::with_spans(inlines_to_spans(&inlines[start..i]))
+                        .size(Pixels(font_size))
+                        .width(Length::Shrink)
+                        .into(),
+                );
+            }
+            elements.push(iced_math::block(latex.as_str()));
             start = i + 1;
         }
     }

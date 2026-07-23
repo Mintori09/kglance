@@ -42,6 +42,8 @@ pub enum Inline {
     Code(String),
     Link { text: Vec<Inline>, url: String },
     Image { alt: String, url: String },
+    InlineMath(String),
+    DisplayMath(String),
     SoftBreak,
 }
 
@@ -114,6 +116,8 @@ pub fn flatten_inlines(inlines: &[Inline]) -> String {
             Inline::Image { alt, url } => {
                 s.push_str(&format!("[image: {alt}]({url})"));
             }
+            Inline::InlineMath(latex) => s.push_str(latex),
+            Inline::DisplayMath(latex) => s.push_str(latex),
             Inline::SoftBreak => s.push(' '),
         }
     }
@@ -221,6 +225,8 @@ impl<'a> EventStream<'a> {
                     let _ = self.iter.next(); // consume End(Image)
                     result.push(Inline::Image { alt, url });
                 }
+                Event::InlineMath(t) => result.push(Inline::InlineMath(t.to_string())),
+                Event::DisplayMath(t) => result.push(Inline::DisplayMath(t.to_string())),
                 _ => {
                     self.iter.next();
                 }
@@ -504,6 +510,12 @@ impl<'a> EventStream<'a> {
                 Some(Event::Start(Tag::CodeBlock(kind))) => {
                     let block = self.parse_code_block(kind);
                     sub_blocks.push(block);
+                }
+                Some(Event::InlineMath(t)) => {
+                    content.push(Inline::InlineMath(t.to_string()));
+                }
+                Some(Event::DisplayMath(t)) => {
+                    content.push(Inline::DisplayMath(t.to_string()));
                 }
                 _ => {}
             }
@@ -1336,5 +1348,91 @@ mod tests {
             state.cached_mermaid_handles.is_empty(),
             "cache must be empty when markdown has zero Mermaid blocks"
         );
+    }
+
+    #[test]
+    fn parses_inline_math() {
+        let blocks = parse_to_blocks("Khoảng cách $D$ từ vị trí ban đầu");
+        assert_eq!(blocks.len(), 1);
+        if let Block::Paragraph(inlines) = &blocks[0] {
+            let math = inlines.iter().find(|i| matches!(i, Inline::InlineMath(_)));
+            assert!(math.is_some(), "should find InlineMath");
+            if let Some(Inline::InlineMath(latex)) = math {
+                assert_eq!(latex, "D");
+            }
+        } else {
+            panic!("expected Paragraph");
+        }
+    }
+
+    #[test]
+    fn parses_display_math() {
+        let src = r"Before
+
+$$
+d = 2R \cdot \arcsin\left(\sqrt{\sin^2\left(\frac{\Delta \phi}{2}\right)}\right)
+$$
+
+After";
+        let blocks = parse_to_blocks(src);
+        assert_eq!(blocks.len(), 3, "three paragraphs");
+        if let Block::Paragraph(inlines) = &blocks[1] {
+            let math = inlines.iter().find(|i| matches!(i, Inline::DisplayMath(_)));
+            assert!(
+                math.is_some(),
+                "should find DisplayMath in second paragraph"
+            );
+        } else {
+            panic!("expected Paragraph");
+        }
+    }
+
+    #[test]
+    fn parses_inline_math_with_text_and_le() {
+        let src = "$10\\text{m} \\le D \\le 50\\text{m}$";
+        let blocks = parse_to_blocks(src);
+        assert_eq!(blocks.len(), 1);
+        if let Block::Paragraph(inlines) = &blocks[0] {
+            let math = inlines.iter().find(|i| matches!(i, Inline::InlineMath(_)));
+            assert!(math.is_some(), "should find InlineMath");
+        } else {
+            panic!("expected Paragraph");
+        }
+    }
+
+    #[test]
+    fn parses_greek_latex_in_list_items() {
+        let src = "\
+- $\\phi_1, \\phi_2$ là vĩ độ (latitude) của 2 điểm (tính bằng radian).
+- $\\Delta \\phi = \\phi_2 - \\phi_1$.
+- $\\Delta \\lambda = longitude_2 - longitude_1$ (chênh lệch kinh độ tính bằng radian).
+- $R$ là bán kính Trái Đất (lấy xấp xỉ $6.371\\text{ km}$).";
+        let blocks = parse_to_blocks(src);
+        assert_eq!(blocks.len(), 1, "one list block");
+        if let Block::List { items, .. } = &blocks[0] {
+            assert_eq!(items.len(), 4, "four list items");
+            for (i, item) in items.iter().enumerate() {
+                let math_count = item
+                    .content
+                    .iter()
+                    .filter(|inline| matches!(inline, Inline::InlineMath(_)))
+                    .count();
+                assert!(
+                    math_count >= 1,
+                    "item {i} should have at least one InlineMath, found {math_count}"
+                );
+            }
+            let last_math_count = items[3]
+                .content
+                .iter()
+                .filter(|inline| matches!(inline, Inline::InlineMath(_)))
+                .count();
+            assert_eq!(
+                last_math_count, 2,
+                "last item should have two InlineMath ($R$ and $6.371\\text{{ km}}$)"
+            );
+        } else {
+            panic!("expected List block, got {:?}", blocks[0]);
+        }
     }
 }

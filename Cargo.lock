@@ -2670,6 +2670,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "iced_math"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9bf506f66b1a892ea1d2778a3983b67f2a60cab4377099cd8545332615587f90"
+dependencies = [
+ "iced",
+ "pulldown-latex",
+ "ttf-parser 0.25.1",
+]
+
+[[package]]
 name = "iced_program"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3157,6 +3168,7 @@ dependencies = [
  "gstreamer-app 0.25.2",
  "iced",
  "iced_futures",
+ "iced_math",
  "iced_video_player",
  "image",
  "imageproc",
@@ -4714,6 +4726,15 @@ name = "pulldown-cmark-escape"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
+
+[[package]]
+name = "pulldown-latex"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b8bc0583825170e3f560701d966dc2f0e3a16946da371e37d30d3ad7207fb7e"
+dependencies = [
+ "bumpalo",
+]
 
 [[package]]
 name = "pulp"
