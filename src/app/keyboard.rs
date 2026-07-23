@@ -6,6 +6,7 @@ use iced::widget::operation::{self, AbsoluteOffset, RelativeOffset};
 
 use super::Message;
 use crate::core::{FilePreviewer, PreviewData};
+use crate::parsers::markdown::extract_toc;
 
 impl super::KglanceApp {
     pub fn handle_key_pressed(
@@ -206,6 +207,13 @@ impl super::KglanceApp {
                     Some(PreviewData::Markdown { .. }) | Some(PreviewData::Text { .. })
                 ) {
                     self.state.font_size = (self.state.font_size + 1.0).clamp(8.0, 48.0);
+                    if let Some(PreviewData::Markdown { ref blocks }) = self.current_content {
+                        self.state.markdown.toc = extract_toc(
+                            blocks,
+                            self.state.font_size,
+                            &self.state.markdown.cached_image_sizes,
+                        );
+                    }
                     Some(Task::none())
                 } else {
                     None
@@ -221,6 +229,13 @@ impl super::KglanceApp {
                     Some(PreviewData::Markdown { .. }) | Some(PreviewData::Text { .. })
                 ) {
                     self.state.font_size = (self.state.font_size - 1.0).clamp(8.0, 48.0);
+                    if let Some(PreviewData::Markdown { ref blocks }) = self.current_content {
+                        self.state.markdown.toc = extract_toc(
+                            blocks,
+                            self.state.font_size,
+                            &self.state.markdown.cached_image_sizes,
+                        );
+                    }
                     Some(Task::none())
                 } else {
                     None
@@ -244,6 +259,13 @@ impl super::KglanceApp {
         match key {
             iced::keyboard::Key::Character(c) if (c == "+" || c == "=") && modifiers.shift() => {
                 self.state.font_size = 14.0;
+                if let Some(PreviewData::Markdown { ref blocks }) = self.current_content {
+                    self.state.markdown.toc = extract_toc(
+                        blocks,
+                        self.state.font_size,
+                        &self.state.markdown.cached_image_sizes,
+                    );
+                }
                 Some(Task::none())
             }
             _ => None,
@@ -415,6 +437,17 @@ impl super::KglanceApp {
                     "content_scroll",
                     RelativeOffset { x: 0.0, y: 1.0 },
                 ))
+            }
+
+            // g t → toggle TOC (markdown only)
+            Key::Character(c) if c == "t" && self.pending_g => {
+                self.pending_g = false;
+                self.pending_home = false;
+                if matches!(self.current_content, Some(PreviewData::Markdown { .. })) {
+                    Some(Task::done(Message::TocToggled))
+                } else {
+                    None
+                }
             }
 
             _ => {

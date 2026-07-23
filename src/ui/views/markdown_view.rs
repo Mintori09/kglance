@@ -1,6 +1,7 @@
 use std::sync::OnceLock;
 
 use crate::app::Message;
+use crate::core::TocEntry;
 use crate::log_debug;
 use crate::parsers::markdown::{Block, Inline, ListItem, TableBlock, flatten_inlines};
 use crate::ui::theme::glass;
@@ -306,7 +307,6 @@ fn code_block_style(theme: &iced::Theme) -> container::Style {
 // ==========================================
 // 2. BLOCK RENDERERS
 // ==========================================
-
 fn scale(s: f32, font_size: f32) -> f32 {
     (s * font_size / 14.0).round().max(8.0)
 }
@@ -746,47 +746,74 @@ fn render_mermaid<'a>(
 
 fn render_list<'a>(
     ordered: bool,
+    start_number: u64,
     items: &'a [ListItem],
     state: &'a crate::core::MarkdownState,
     font_size: f32,
     is_dark: bool,
 ) -> Element<'a, Message> {
     let item_elements = items.iter().enumerate().map(|(idx, item)| {
-        let prefix = if ordered { " 1." } else { "  •" };
-        let prefix_el: Element<'a, Message> = text(prefix)
-            .size(font_size)
-            .color(Color::from_rgb(0.5, 0.5, 0.5))
-            .into();
+        let prefix_el: Element<'a, Message> = if let Some(checked) = item.is_task {
+            let symbol = if checked { "[x] " } else { "[ ] " };
+            let color = if checked {
+                if is_dark {
+                    Color::from_rgb(0.4, 0.8, 0.4)
+                } else {
+                    Color::from_rgb(0.1, 0.6, 0.2)
+                }
+            } else if is_dark {
+                glass::DARK_TEXT_DIM
+            } else {
+                glass::LIGHT_TEXT_DIM
+            };
+            text(symbol)
+                .font(CODE_FONT)
+                .size(font_size)
+                .color(color)
+                .into()
+        } else if ordered {
+            text(format!("{}. ", start_number + idx as u64))
+                .size(font_size)
+                .color(Color::from_rgb(0.5, 0.5, 0.5))
+                .into()
+        } else {
+            text("• ")
+                .size(font_size)
+                .color(Color::from_rgb(0.5, 0.5, 0.5))
+                .into()
+        };
+
         let content_el = render_inlines(&item.content, font_size);
 
-        let mut children: Vec<Element<'a, Message>> = vec![row![prefix_el, content_el].into()];
+        let mut children: Vec<Element<'a, Message>> =
+            vec![row![prefix_el, content_el].spacing(6).into()];
         for (bi, sub) in item.sub_blocks.iter().enumerate() {
             let sub_el = render_block(idx * 1000 + bi, sub, state, font_size, is_dark);
             children.push(
                 container(sub_el)
                     .padding(Padding {
-                        top: 4.0,
+                        top: 2.0,
                         right: 0.0,
                         bottom: 2.0,
-                        left: 0.0,
+                        left: 24.0,
                     })
                     .width(Length::Fill)
                     .into(),
             );
         }
 
-        container(column(children).spacing(0))
+        container(column(children).spacing(2))
             .padding(Padding {
-                top: 1.0,
-                right: 8.0,
-                bottom: 1.0,
+                top: 2.0,
+                right: 0.0,
+                bottom: 2.0,
                 left: 0.0,
             })
             .width(Length::Fill)
             .into()
     });
 
-    column(item_elements).spacing(2).into()
+    column(item_elements).spacing(4).into()
 }
 
 fn render_quote<'a>(
@@ -894,7 +921,11 @@ fn render_block<'a>(
             render_mermaid(index, lines, rendered, state, font_size)
         }
         Block::Image { alt, .. } => render_inline_image(index, alt, state),
-        Block::List { ordered, items } => render_list(*ordered, items, state, font_size, is_dark),
+        Block::List {
+            ordered,
+            start_number,
+            items,
+        } => render_list(*ordered, *start_number, items, state, font_size, is_dark),
         Block::Quote(blocks) => render_quote(blocks, state, font_size, is_dark),
         Block::HorizontalRule => render_horizontal_rule(font_size),
         Block::Html(html) => render_html(html, font_size),
@@ -915,6 +946,289 @@ fn block_margin(block: &Block) -> f32 {
         Block::Mermaid { .. } => 16.0,
         Block::Paragraph(_) | Block::Html(_) => 8.0,
     }
+}
+
+fn render_toc_tooltip_style(theme: &iced::Theme) -> container::Style {
+    let d = matches!(theme, iced::Theme::Dark);
+    container::Style {
+        background: Some(
+            (if d {
+                glass::DARK_SURFACE
+            } else {
+                glass::LIGHT_SURFACE
+            })
+            .into(),
+        ),
+        text_color: Some(if d {
+            glass::DARK_TEXT
+        } else {
+            glass::LIGHT_TEXT
+        }),
+        border: Border {
+            radius: 6.0.into(),
+            width: 1.0,
+            color: if d {
+                glass::DARK_BORDER
+            } else {
+                glass::LIGHT_BORDER
+            },
+        },
+        shadow: Shadow {
+            offset: iced::Vector::new(0.0, 3.0),
+            blur_radius: 10.0,
+            color: iced::Color::from_rgba(0.0, 0.0, 0.0, 0.3),
+        },
+        ..Default::default()
+    }
+}
+
+fn render_toc_sidebar<'a>(
+    toc: &'a [TocEntry],
+    state: &'a crate::core::MarkdownState,
+    scroll_y: f32,
+    is_dark: bool,
+) -> Element<'a, Message> {
+    let active_idx = toc.iter().rposition(|e| e.y_offset <= scroll_y + 50.0);
+
+    let mut visible_entries: Vec<&TocEntry> = Vec::new();
+    let mut collapsed_depth: Option<u8> = None;
+
+    for entry in toc {
+        if matches!(collapsed_depth, Some(depth) if entry.level <= depth) {
+            collapsed_depth = None;
+        }
+        if collapsed_depth.is_none() {
+            visible_entries.push(entry);
+            if state.collapsed_headings.contains(&entry.block_index) {
+                collapsed_depth = Some(entry.level);
+            }
+        }
+    }
+
+    let entries: Vec<Element<'a, Message>> = visible_entries
+        .iter()
+        .map(|entry| {
+            let indent = (entry.level as f32 - 1.0) * 12.0;
+            let is_active = active_idx
+                .map(|i| toc[i].block_index == entry.block_index)
+                .unwrap_or(false);
+
+            // Only show collapse button if this heading has child sub-headings
+            let has_children = toc
+                .iter()
+                .skip_while(|e| e.block_index != entry.block_index)
+                .nth(1)
+                .map(|next| next.level > entry.level)
+                .unwrap_or(false);
+
+            let is_collapsed = state.collapsed_headings.contains(&entry.block_index);
+
+            let item_row: Element<'a, Message> = if has_children {
+                let arrow_icon = if is_collapsed { "▶ " } else { "▼ " };
+                let collapse_btn = button(text(arrow_icon).size(9).style(move |_| text::Style {
+                    color: Some(if is_dark {
+                        glass::DARK_TEXT_DIM
+                    } else {
+                        glass::LIGHT_TEXT_DIM
+                    }),
+                }))
+                .on_press(Message::TocToggleCollapse(entry.block_index))
+                .style(|_, _| button::Style {
+                    background: None,
+                    border: Border::default(),
+                    shadow: Shadow::default(),
+                    ..Default::default()
+                })
+                .padding([2, 4]);
+
+                let label = text(&entry.text).size(12);
+                let btn = button(label)
+                    .on_press(Message::TocHeadingClicked(entry.block_index))
+                    .width(Length::Fill)
+                    .style(move |theme: &iced::Theme, status: button::Status| {
+                        let d = matches!(theme, iced::Theme::Dark);
+                        let bg = match status {
+                            button::Status::Hovered | button::Status::Pressed => Some(
+                                (if d {
+                                    Color::from_rgba(1.0, 1.0, 1.0, 0.08)
+                                } else {
+                                    Color::from_rgba(0.0, 0.0, 0.0, 0.06)
+                                })
+                                .into(),
+                            ),
+                            _ => {
+                                if is_active {
+                                    Some(
+                                        (if d {
+                                            Color::from_rgba(0.4, 0.7, 1.0, 0.15)
+                                        } else {
+                                            Color::from_rgba(0.1, 0.4, 0.8, 0.1)
+                                        })
+                                        .into(),
+                                    )
+                                } else {
+                                    None
+                                }
+                            }
+                        };
+                        let text_color = if is_active {
+                            if d {
+                                Color::from_rgb(0.5, 0.8, 1.0)
+                            } else {
+                                Color::from_rgb(0.1, 0.45, 0.85)
+                            }
+                        } else if d {
+                            Color::from_rgb(0.8, 0.82, 0.85)
+                        } else {
+                            Color::from_rgb(0.3, 0.32, 0.35)
+                        };
+                        button::Style {
+                            background: bg,
+                            text_color,
+                            border: Border {
+                                width: 0.0,
+                                color: Color::TRANSPARENT,
+                                radius: 4.0.into(),
+                            },
+                            shadow: Shadow::default(),
+                            snap: false,
+                        }
+                    })
+                    .padding([4, 4]);
+
+                row![collapse_btn, btn]
+                    .align_y(iced::Alignment::Center)
+                    .spacing(2)
+                    .into()
+            } else {
+                let label = text(&entry.text).size(12);
+                let btn = button(label)
+                    .on_press(Message::TocHeadingClicked(entry.block_index))
+                    .width(Length::Fill)
+                    .style(move |theme: &iced::Theme, status: button::Status| {
+                        let d = matches!(theme, iced::Theme::Dark);
+                        let bg = match status {
+                            button::Status::Hovered | button::Status::Pressed => Some(
+                                (if d {
+                                    Color::from_rgba(1.0, 1.0, 1.0, 0.08)
+                                } else {
+                                    Color::from_rgba(0.0, 0.0, 0.0, 0.06)
+                                })
+                                .into(),
+                            ),
+                            _ => {
+                                if is_active {
+                                    Some(
+                                        (if d {
+                                            Color::from_rgba(0.4, 0.7, 1.0, 0.15)
+                                        } else {
+                                            Color::from_rgba(0.1, 0.4, 0.8, 0.1)
+                                        })
+                                        .into(),
+                                    )
+                                } else {
+                                    None
+                                }
+                            }
+                        };
+                        let text_color = if is_active {
+                            if d {
+                                Color::from_rgb(0.5, 0.8, 1.0)
+                            } else {
+                                Color::from_rgb(0.1, 0.45, 0.85)
+                            }
+                        } else if d {
+                            Color::from_rgb(0.8, 0.82, 0.85)
+                        } else {
+                            Color::from_rgb(0.3, 0.32, 0.35)
+                        };
+                        button::Style {
+                            background: bg,
+                            text_color,
+                            border: Border {
+                                width: 0.0,
+                                color: Color::TRANSPARENT,
+                                radius: 4.0.into(),
+                            },
+                            shadow: Shadow::default(),
+                            snap: false,
+                        }
+                    })
+                    .padding([4, 4]);
+
+                // Space placeholder to align with headings that have collapse buttons
+                let placeholder = iced::widget::Space::new().width(15);
+                row![placeholder, btn]
+                    .align_y(iced::Alignment::Center)
+                    .spacing(2)
+                    .into()
+            };
+
+            let wrapped = container(item_row)
+                .padding(Padding {
+                    top: 0.0,
+                    right: 0.0,
+                    bottom: 0.0,
+                    left: indent,
+                })
+                .width(Length::Fill);
+
+            wrapped.into()
+        })
+        .collect();
+
+    let (bg, border_color) = if is_dark {
+        (glass::DARK_BG, glass::DARK_BORDER)
+    } else {
+        (glass::LIGHT_BG, glass::LIGHT_BORDER)
+    };
+
+    let title_text = text("Table of Contents")
+        .size(12)
+        .style(move |_| text::Style {
+            color: Some(if is_dark {
+                glass::DARK_TEXT
+            } else {
+                glass::LIGHT_TEXT
+            }),
+        });
+
+    let tip_badge = container(text("g t").size(10).style(move |_| text::Style {
+        color: Some(if is_dark {
+            glass::DARK_TEXT_DIM
+        } else {
+            glass::LIGHT_TEXT_DIM
+        }),
+    }))
+    .padding([2, 6])
+    .style(render_toc_tooltip_style);
+
+    let header = row![
+        title_text,
+        iced::widget::Space::new().width(Length::Fill),
+        tip_badge
+    ]
+    .align_y(iced::Alignment::Center)
+    .padding([8, 12]);
+
+    let toc_list = scrollable(column(entries).spacing(2).padding(8))
+        .id("toc_scroll")
+        .style(crate::ui::theme::glass_scrollable)
+        .height(Length::Fill);
+
+    container(column![header, toc_list].width(220).height(Length::Fill))
+        .width(220)
+        .height(Length::Fill)
+        .style(move |_| container::Style {
+            background: Some(bg.into()),
+            border: Border {
+                width: 1.0,
+                color: border_color,
+                radius: 0.0.into(),
+            },
+            ..Default::default()
+        })
+        .into()
 }
 
 pub fn view_markdown<'a>(
@@ -939,9 +1253,16 @@ pub fn view_markdown<'a>(
 
     let inner = column(content).spacing(0).padding(15);
 
-    scrollable(inner)
+    let scroll = scrollable(inner)
         .id("content_scroll")
         .style(crate::ui::theme::glass_scrollable)
         .height(Length::Fill)
-        .into()
+        .on_scroll(|v| Message::MarkdownScrolled(v.absolute_offset().y));
+
+    if state.toc_visible && !state.toc.is_empty() {
+        let sidebar = render_toc_sidebar(&state.toc, state, state.scroll_y, is_dark);
+        row![sidebar, scroll].spacing(0).height(Length::Fill).into()
+    } else {
+        scroll.into()
+    }
 }

@@ -19,6 +19,13 @@ impl super::KglanceApp {
             ) {
                 let delta = if y > 0.0 { 1.0 } else { -1.0 };
                 self.state.font_size = (self.state.font_size + delta).clamp(8.0, 48.0);
+                if let Some(PreviewData::Markdown { ref blocks }) = self.current_content {
+                    self.state.markdown.toc = crate::parsers::markdown::extract_toc(
+                        blocks,
+                        self.state.font_size,
+                        &self.state.markdown.cached_image_sizes,
+                    );
+                }
                 Task::none()
             } else {
                 operation::scroll_by("content_scroll", AbsoluteOffset { x: -y, y: 0.0 })

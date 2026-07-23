@@ -157,11 +157,23 @@ pub struct HistoryState {
     pub current_index: isize,
 }
 
+#[derive(Debug, Clone)]
+pub struct TocEntry {
+    pub level: u8,
+    pub text: String,
+    pub block_index: usize,
+    pub y_offset: f32,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct MarkdownState {
     pub cached_mermaid_handles: std::collections::HashMap<usize, iced::widget::image::Handle>,
     pub cached_image_handles: std::collections::HashMap<usize, iced::widget::image::Handle>,
     pub cached_image_sizes: std::collections::HashMap<usize, (u32, u32)>,
+    pub toc: Vec<TocEntry>,
+    pub toc_visible: bool,
+    pub collapsed_headings: std::collections::HashSet<usize>,
+    pub scroll_y: f32,
 }
 
 #[derive(Debug, Clone, Default)]
