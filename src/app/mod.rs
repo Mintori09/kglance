@@ -110,6 +110,15 @@ pub enum Message {
 
     // Preview error
     FilePreviewError(String),
+
+    // Hot reload: file changed on disk
+    FileChanged(String),
+
+    // Markdown TOC
+    TocToggled,
+    TocHeadingClicked(usize),
+    TocToggleCollapse(usize),
+    MarkdownScrolled(f32),
 }
 
 fn png_to_rgba_handle(png: Vec<u8>) -> Option<iced::widget::image::Handle> {
@@ -551,6 +560,13 @@ impl KglanceApp {
                             .cached_image_handles
                             .insert(index, handle);
                         self.state.markdown.cached_image_sizes.insert(index, (w, h));
+                        if let Some(PreviewData::Markdown { ref blocks }) = self.current_content {
+                            self.state.markdown.toc = crate::parsers::markdown::extract_toc(
+                                blocks,
+                                self.state.font_size,
+                                &self.state.markdown.cached_image_sizes,
+                            );
+                        }
                         log_debug!(
                             "Inserted image handle at index {}, size={}x{}, cache size={}",
                             index,
@@ -633,6 +649,48 @@ impl KglanceApp {
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or(path);
                 self.show_toast(format!("\"{}\" cannot be previewed", name))
+            }
+            Message::TocToggled => {
+                self.state.markdown.toc_visible = !self.state.markdown.toc_visible;
+                Task::none()
+            }
+            Message::TocToggleCollapse(idx) => {
+                if self.state.markdown.collapsed_headings.contains(&idx) {
+                    self.state.markdown.collapsed_headings.remove(&idx);
+                } else {
+                    self.state.markdown.collapsed_headings.insert(idx);
+                }
+                Task::none()
+            }
+            Message::TocHeadingClicked(idx) => {
+                let y = self
+                    .state
+                    .markdown
+                    .toc
+                    .iter()
+                    .find(|e| e.block_index == idx)
+                    .map(|e| e.y_offset)
+                    .unwrap_or(0.0);
+                iced::widget::operation::scroll_to(
+                    "content_scroll",
+                    iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                )
+            }
+            Message::MarkdownScrolled(y) => {
+                self.state.markdown.scroll_y = y;
+                let toc = &self.state.markdown.toc;
+                if let Some(active_pos) = toc.iter().rposition(|e| e.y_offset <= y + 50.0) {
+                    let target_y = (active_pos as f32 * 28.0 - 100.0).max(0.0);
+                    iced::widget::operation::scroll_to(
+                        "toc_scroll",
+                        iced::widget::operation::AbsoluteOffset {
+                            x: 0.0,
+                            y: target_y,
+                        },
+                    )
+                } else {
+                    Task::none()
+                }
             }
             _ => Task::none(),
         }

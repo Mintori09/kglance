@@ -81,6 +81,7 @@ pub enum Block {
     },
     List {
         ordered: bool,
+        start_number: u64,
         items: Vec<ListItem>,
     },
     Quote(Vec<Block>),
@@ -90,11 +91,112 @@ pub enum Block {
 
 #[derive(Debug, Clone)]
 pub struct ListItem {
+    pub is_task: Option<bool>,
     pub content: Vec<Inline>,
     pub sub_blocks: Vec<Block>,
 }
 
 // ── Flatten (inline AST → plain string for basic rendering) ──────────────────
+
+fn estimated_block_height(
+    block: &Block,
+    font_size: f32,
+    block_index: usize,
+    image_sizes: &std::collections::HashMap<usize, (u32, u32)>,
+) -> f32 {
+    let scale = |s: f32| (s * font_size / 14.0).round().max(8.0);
+    let line = font_size * 1.5;
+    let margin = block_margin(block);
+    match block {
+        Block::Heading { level, .. } => {
+            let h = match level {
+                1 => scale(32.0),
+                2 => scale(24.0),
+                3 => scale(20.0),
+                _ => scale(16.0),
+            };
+            let (pt, pb, div) = match level {
+                1 => (scale(24.0), scale(12.0), 5.0),
+                2 => (scale(20.0), scale(8.0), 5.0),
+                3 => (scale(12.0), scale(4.0), 0.0),
+                _ => (scale(8.0), scale(4.0), 0.0),
+            };
+            pt + h + pb + div + margin
+        }
+        Block::Paragraph(_) => line * 1.8 + margin,
+        Block::CodeBlock { code, .. } => {
+            let n = code.lines().count().max(1) as f32;
+            scale(16.0) + n * scale(13.0) * 1.3 + margin
+        }
+        Block::Table(t) => {
+            let rows = t.rows.len().max(1) as f32;
+            scale(24.0) * (rows + 1.0) + margin
+        }
+        Block::List { items, .. } => items.len().max(1) as f32 * line + margin,
+        Block::Quote(b) => {
+            let h: f32 = b
+                .iter()
+                .map(|b| estimated_block_height(b, font_size, block_index, image_sizes) * 0.6)
+                .sum();
+            h + margin
+        }
+        Block::HorizontalRule => 12.0 + margin,
+        Block::Image { .. } => {
+            if let Some(&(w, h)) = image_sizes.get(&block_index) {
+                // If w > 600, image is scaled down to max width 600
+                let display_w = if w > 600 { 600.0 } else { w as f32 };
+                let display_h = if w > 0 {
+                    (h as f32 * display_w) / (w as f32)
+                } else {
+                    200.0
+                };
+                display_h + 8.0 + margin // 8.0 container padding [4, 0]
+            } else {
+                200.0 + margin
+            }
+        }
+        Block::Mermaid { .. } => 250.0 + margin,
+        Block::Html(_) => 50.0 + margin,
+    }
+}
+
+fn block_margin(block: &Block) -> f32 {
+    match block {
+        Block::Heading { level, .. } if *level == 1 => 24.0,
+        Block::Heading { level, .. } if *level == 2 => 20.0,
+        Block::Heading { .. } => 16.0,
+        Block::HorizontalRule => 24.0,
+        Block::CodeBlock { .. } => 16.0,
+        Block::Table(_) => 16.0,
+        Block::List { .. } => 12.0,
+        Block::Quote(_) => 16.0,
+        Block::Image { .. } => 16.0,
+        Block::Mermaid { .. } => 16.0,
+        Block::Paragraph(_) | Block::Html(_) => 8.0,
+    }
+}
+
+pub fn extract_toc(
+    blocks: &[Block],
+    font_size: f32,
+    image_sizes: &std::collections::HashMap<usize, (u32, u32)>,
+) -> Vec<crate::core::TocEntry> {
+    let mut toc = Vec::new();
+    let mut y: f32 = 15.0; // Initial container padding
+    for (i, block) in blocks.iter().enumerate() {
+        if let Block::Heading { level, content } = block {
+            let text = flatten_inlines(content);
+            toc.push(crate::core::TocEntry {
+                level: *level,
+                text,
+                block_index: i,
+                y_offset: y,
+            });
+        }
+        y += estimated_block_height(block, font_size, i, image_sizes);
+    }
+    toc
+}
 
 pub fn flatten_inlines(inlines: &[Inline]) -> String {
     let mut s = String::new();
@@ -265,10 +367,15 @@ impl<'a> EventStream<'a> {
                     let block = self.parse_code_block(kind);
                     blocks.push(block);
                 }
-                Some(Event::Start(Tag::List(ordered))) => {
-                    let ordered = ordered.is_some();
+                Some(Event::Start(Tag::List(first_num))) => {
+                    let ordered = first_num.is_some();
+                    let start_number = first_num.unwrap_or(1);
                     let items = self.parse_list_items();
-                    blocks.push(Block::List { ordered, items });
+                    blocks.push(Block::List {
+                        ordered,
+                        start_number,
+                        items,
+                    });
                 }
                 Some(Event::Start(Tag::BlockQuote(kind))) => {
                     let quotes = self.parse_blocks_until(TagEnd::BlockQuote(kind));
@@ -325,10 +432,15 @@ impl<'a> EventStream<'a> {
                         content,
                     });
                 }
-                Some(Event::Start(Tag::List(ordered))) => {
-                    let ordered = ordered.is_some();
+                Some(Event::Start(Tag::List(first_num))) => {
+                    let ordered = first_num.is_some();
+                    let start_number = first_num.unwrap_or(1);
                     let items = self.parse_list_items();
-                    blocks.push(Block::List { ordered, items });
+                    blocks.push(Block::List {
+                        ordered,
+                        start_number,
+                        items,
+                    });
                 }
                 Some(Event::Start(Tag::BlockQuote(kind))) => {
                     let quotes = self.parse_blocks_until(TagEnd::BlockQuote(kind));
@@ -446,6 +558,7 @@ impl<'a> EventStream<'a> {
     }
 
     fn parse_single_item(&mut self) -> ListItem {
+        let mut is_task = None;
         let mut content = Vec::new();
         let mut sub_blocks = Vec::new();
         loop {
@@ -455,14 +568,26 @@ impl<'a> EventStream<'a> {
                     break;
                 }
                 Some(Event::End(TagEnd::List(_))) => break,
-                Some(Event::Start(Tag::List(_))) => break,
                 _ => {}
             }
             match self.iter.next() {
+                Some(Event::TaskListMarker(checked)) => {
+                    is_task = Some(checked);
+                }
                 Some(Event::Start(Tag::Paragraph)) => {
                     let mut inlines = self.parse_inlines();
                     let _ = self.iter.next();
                     content.append(&mut inlines);
+                }
+                Some(Event::Start(Tag::List(first_num))) => {
+                    let ordered = first_num.is_some();
+                    let start_number = first_num.unwrap_or(1);
+                    let items = self.parse_list_items();
+                    sub_blocks.push(Block::List {
+                        ordered,
+                        start_number,
+                        items,
+                    });
                 }
                 Some(Event::Text(t)) => content.push(Inline::Text(t.to_string())),
                 Some(Event::Code(t)) => content.push(Inline::Code(t.to_string())),
@@ -521,6 +646,7 @@ impl<'a> EventStream<'a> {
             }
         }
         ListItem {
+            is_task,
             content,
             sub_blocks,
         }
@@ -1014,7 +1140,7 @@ mod tests {
         let blocks = parse_to_blocks(md);
         assert!(!blocks.is_empty());
         match &blocks[0] {
-            Block::List { ordered, items } => {
+            Block::List { ordered, items, .. } => {
                 assert!(!ordered);
                 assert_eq!(items.len(), 2);
                 assert!(
@@ -1034,7 +1160,7 @@ mod tests {
         let blocks = parse_to_blocks(md);
         assert_eq!(blocks.len(), 1);
         match &blocks[0] {
-            Block::List { ordered, items } => {
+            Block::List { ordered, items, .. } => {
                 assert!(ordered);
                 assert_eq!(items.len(), 2);
             }

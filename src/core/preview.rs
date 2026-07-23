@@ -1,6 +1,6 @@
 use crate::core::types::KglanceState;
 use crate::parsers::ParseError;
-use crate::parsers::markdown::Block;
+use crate::parsers::markdown::{Block, extract_toc};
 use std::path::Path;
 
 #[derive(Debug, Clone)]
@@ -106,7 +106,11 @@ impl PreviewData {
                 state.file_type_text = "Folder / Archive".to_string();
             }
             PreviewData::Markdown { blocks } => {
-                state.markdown = crate::core::types::MarkdownState::default();
+                let fs = state.font_size;
+                state.markdown = crate::core::types::MarkdownState {
+                    toc: extract_toc(blocks, fs, &std::collections::HashMap::new()),
+                    ..Default::default()
+                };
                 for (i, block) in blocks.iter().enumerate() {
                     if let Block::Mermaid {
                         rendered: Some(png),
