@@ -15,4 +15,3 @@ pub use pdf_view::view_pdf;
 pub use spreadsheet_view::view_spreadsheet;
 pub use table_view::view_table;
 pub use text_view::view_text;
-

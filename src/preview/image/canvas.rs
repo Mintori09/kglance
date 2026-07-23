@@ -220,8 +220,6 @@ where
             )
         };
 
-
-
         let vp_cx = bounds.x + bounds.width / 2.0;
         let vp_cy = bounds.y + bounds.height / 2.0;
 
