@@ -10,10 +10,25 @@ pub struct UiConfig {
     pub default_height: u32,
 }
 
+pub fn detect_system_theme() -> String {
+    if let Ok(output) = std::process::Command::new("gsettings")
+        .args(["get", "org.gnome.desktop.interface", "color-scheme"])
+        .output()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        if stdout.contains("prefer-light") {
+            return "Light".to_string();
+        } else if stdout.contains("prefer-dark") {
+            return "Dark".to_string();
+        }
+    }
+    "Dark".to_string()
+}
+
 impl Default for UiConfig {
     fn default() -> Self {
         Self {
-            theme: "Dark".to_string(),
+            theme: detect_system_theme(),
             font_size: 14.0,
             default_width: 900,
             default_height: 600,
@@ -32,57 +47,6 @@ impl Default for PreviewConfig {
         Self {
             max_file_size_mb: 50,
             render_timeout_ms: 5000,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct CliPluginConfig {
-    pub name: String,
-    pub file_extensions: Vec<String>,
-    pub command: String,
-    pub args: Vec<String>,
-    pub output_type: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct NativePluginConfig {
-    pub name: String,
-    pub file_extensions: Vec<String>,
-    pub library_path: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct PluginsConfig {
-    pub enable_plugins: bool,
-    pub plugin_dir: String,
-    pub cli_plugins: Vec<CliPluginConfig>,
-    pub native_plugins: Vec<NativePluginConfig>,
-}
-
-impl Default for PluginsConfig {
-    fn default() -> Self {
-        Self {
-            enable_plugins: true,
-            plugin_dir: "~/.config/kglance/plugins".to_string(),
-            cli_plugins: vec![CliPluginConfig {
-                name: "PostScript via Ghostscript".to_string(),
-                file_extensions: vec!["ps".to_string(), "eps".to_string()],
-                command: "gs".to_string(),
-                args: vec![
-                    "-q".to_string(),
-                    "-dQUIET".to_string(),
-                    "-dSAFER".to_string(),
-                    "-dBATCH".to_string(),
-                    "-dNOPAUSE".to_string(),
-                    "-sDEVICE=png16m".to_string(),
-                    "-r150".to_string(),
-                    "-sOutputFile=%stdout".to_string(),
-                    "{file}".to_string(),
-                ],
-                output_type: "Image".to_string(),
-            }],
-            native_plugins: Vec::new(),
         }
     }
 }
@@ -109,7 +73,6 @@ pub struct AppConfig {
     pub ui: UiConfig,
     pub preview: PreviewConfig,
     pub parsers: ParsersConfig,
-    pub plugins: PluginsConfig,
 }
 
 pub struct ConfigManager;
@@ -127,12 +90,12 @@ impl ConfigManager {
 
     pub fn load_or_create() -> AppConfig {
         let path = Self::get_config_path();
-        if path.exists() {
-            if let Ok(content) = fs::read_to_string(&path) {
-                if let Ok(config) = serde_json::from_str::<AppConfig>(&content) {
-                    return config;
-                }
-            }
+        let loaded = fs::read_to_string(&path)
+            .ok()
+            .and_then(|content| serde_json::from_str::<AppConfig>(&content).ok());
+
+        if let Some(config) = loaded {
+            return config;
         }
 
         let config = AppConfig::default();

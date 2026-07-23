@@ -169,8 +169,17 @@ impl KglanceApp {
         let (event_tx, event_rx) = tokio::sync::mpsc::channel(100);
         let vc = crate::ui::handlers::video::spawn_video_player(cmd_rx, event_tx);
 
+        let config = crate::core::config::ConfigManager::load_or_create();
+        let theme_dark = config.ui.theme != "Light";
+
+        let state = KglanceState {
+            theme_dark,
+            font_size: config.ui.font_size,
+            ..Default::default()
+        };
+
         let app = Self {
-            state: KglanceState::default(),
+            state,
             registry,
             daemon_rx: Arc::new(Mutex::new(daemon_rx)),
             is_daemon,
@@ -585,6 +594,10 @@ impl KglanceApp {
                     sort.sort_col = Some(col);
                     sort.sort_ascending = Some(true);
                 }
+                Task::none()
+            }
+            Message::ThemeToggled => {
+                self.state.theme_dark = !self.state.theme_dark;
                 Task::none()
             }
             Message::ToastDismissed(id) => {
