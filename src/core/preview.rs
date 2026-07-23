@@ -95,7 +95,7 @@ impl PreviewData {
                 state.pdf = crate::core::PdfState::default();
                 state.pdf.page_count = *page_count;
                 state.pdf.pages = vec![None; *page_count];
-                state.pdf.cached_handles = vec![None; *page_count];
+                state.pdf.thumbnails = vec![None; *page_count];
                 state.file_type_text = "PDF Document".to_string();
             }
             PreviewData::Folder { rows, total_size } => {

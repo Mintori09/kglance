@@ -327,8 +327,12 @@ impl KglanceApp {
             && !self.state.pdf.pages.is_empty()
         {
             let handle = iced::widget::image::Handle::from_rgba(width, height, data.clone());
-            self.state.pdf.pages[0] = Some((data.clone(), width, height));
-            self.state.pdf.cached_handles[0] = Some(handle);
+            self.state.pdf.pages[0] = Some(crate::core::PageCacheEntry {
+                data: data.clone(),
+                width,
+                height,
+                handle,
+            });
         }
 
         let pdf_task: Option<Task<Message>> = if is_pdf && self.state.pdf.page_count > 1 {
@@ -510,8 +514,12 @@ impl KglanceApp {
                 if index < self.state.pdf.pages.len() {
                     let handle =
                         iced::widget::image::Handle::from_rgba(width, height, data.clone());
-                    self.state.pdf.pages[index] = Some((data, width, height));
-                    self.state.pdf.cached_handles[index] = Some(handle);
+                    self.state.pdf.pages[index] = Some(crate::core::PageCacheEntry {
+                        data,
+                        width,
+                        height,
+                        handle,
+                    });
                 }
                 let all_loaded = self.state.pdf.pages.iter().all(|p| p.is_some());
                 if all_loaded {

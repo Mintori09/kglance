@@ -91,26 +91,38 @@ impl Default for TextState {
 }
 
 #[derive(Debug, Clone)]
+pub struct PageCacheEntry {
+    pub data: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+    pub handle: iced::widget::image::Handle,
+}
+
+#[derive(Debug, Clone)]
 pub struct PdfState {
-    pub pages: Vec<Option<(Vec<u8>, u32, u32)>>,
-    pub cached_handles: Vec<Option<iced::widget::image::Handle>>,
+    pub pages: Vec<Option<PageCacheEntry>>,
+    pub thumbnails: Vec<Option<PageCacheEntry>>,
     pub page_count: usize,
-    pub zoom: f32,
     pub loading: bool,
     pub current_page: usize,
     pub visible_page: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    pub window_start: usize,
+    pub window_end: usize,
+    pub preload_end: usize,
 }
 
 impl Default for PdfState {
     fn default() -> Self {
         Self {
             pages: Vec::new(),
-            cached_handles: Vec::new(),
+            thumbnails: Vec::new(),
             page_count: 0,
-            zoom: 1.0,
             loading: false,
             current_page: 0,
             visible_page: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            window_start: 0,
+            window_end: 0,
+            preload_end: 0,
         }
     }
 }
