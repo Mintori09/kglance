@@ -47,6 +47,7 @@ tokio = { version = "1.53.0", features = [
   "macros",
   "time",
   "sync",
+  "process",
 ] }
 tempfile = "3.27.0"
 gst = { package = "gstreamer", version = "0.25" }
