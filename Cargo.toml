@@ -39,6 +39,7 @@ iced = { version = "0.14.0", features = [
   "advanced",
 ] }
 iced_futures = "0.14.0"
+iced_aw = { version = "0.14.1", default-features = false, features = ["wrap"] }
 iced_video_player = "0.6"
 zbus = "5.18.0"
 csv = "1.3"
