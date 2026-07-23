@@ -4,13 +4,21 @@ use crate::ui::theme::glass_scrollable;
 use iced::widget::{column, container, image, scrollable, text};
 use iced::{Element, Length};
 
-pub fn view_pdf<'a>(state: &'a PdfState) -> Element<'a, Message> {
-    let mut col = column![].spacing(8).padding(10);
+const PAGE_GAP: f32 = 8.0;
+const PLACEHOLDER_HEIGHT: f32 = 200.0;
 
-    for (i, handle_opt) in state.cached_handles.iter().enumerate() {
-        if let Some(handle) = handle_opt {
-            // Use pre-built handle — no clone of raw bytes, no rebuild
-            let page_img = image(handle.clone())
+pub fn view_pdf<'a>(state: &'a PdfState) -> Element<'a, Message> {
+    let mut col = column![].spacing(PAGE_GAP).padding(10);
+
+    if state.page_count == 0 {
+        return scrollable(container(text("No pages").size(14)))
+            .height(Length::Fill)
+            .into();
+    }
+
+    for i in 0..state.page_count {
+        if let Some(entry) = state.pages[i].as_ref() {
+            let page_img = image(entry.handle.clone())
                 .width(Length::Shrink)
                 .height(Length::Shrink);
             col = col.push(
@@ -19,12 +27,21 @@ pub fn view_pdf<'a>(state: &'a PdfState) -> Element<'a, Message> {
                     .center_x(Length::Fill)
                     .padding(4),
             );
-        } else {
-            // Placeholder for pages still loading
-            let label = format!("Page {} loading…", i + 1);
+        } else if let Some(thumb) = state.thumbnails[i].as_ref() {
+            let thumb_img = image(thumb.handle.clone())
+                .width(Length::Shrink)
+                .height(Length::Shrink);
             col = col.push(
-                container(text(label).size(13).width(Length::Fill).center())
+                container(thumb_img)
                     .width(Length::Fill)
+                    .center_x(Length::Fill)
+                    .padding(4),
+            );
+        } else {
+            col = col.push(
+                container(text(format!("Page {}…", i + 1)).size(13).center())
+                    .width(Length::Fill)
+                    .height(Length::Fixed(PLACEHOLDER_HEIGHT))
                     .padding(8),
             );
         }

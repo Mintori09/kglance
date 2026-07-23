@@ -6,8 +6,8 @@ use crate::parsers::{PageData, ParseError, ParsedContent, PreviewParser};
 
 const RENDER_DPI: f32 = 150.0;
 
-fn render_page(doc: &Document, page_index: i32) -> Result<PageData, Error> {
-    let scale = RENDER_DPI / 72.0;
+fn render_page_at_dpi(doc: &Document, page_index: i32, dpi: f32) -> Result<PageData, Error> {
+    let scale = dpi / 72.0;
     let page = doc.load_page(page_index)?;
     let pixmap = page.to_pixmap(
         &Matrix::new_scale(scale, scale),
@@ -32,9 +32,23 @@ fn render_page(doc: &Document, page_index: i32) -> Result<PageData, Error> {
     })
 }
 
+fn render_page(doc: &Document, page_index: i32) -> Result<PageData, Error> {
+    render_page_at_dpi(doc, page_index, RENDER_DPI)
+}
+
 pub fn render_pdf_page(path: &Path, page_index: u32) -> Result<PageData, ParseError> {
     let doc = Document::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     render_page(&doc, page_index as i32).map_err(|e| ParseError::ParseFailed(e.to_string()))
+}
+
+pub fn render_pdf_page_at_dpi(
+    path: &Path,
+    page_index: u32,
+    dpi: f32,
+) -> Result<PageData, ParseError> {
+    let doc = Document::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    render_page_at_dpi(&doc, page_index as i32, dpi)
+        .map_err(|e| ParseError::ParseFailed(e.to_string()))
 }
 
 pub struct PdfParser;
