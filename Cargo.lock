@@ -3161,7 +3161,6 @@ dependencies = [
  "image",
  "imageproc",
  "kamadak-exif",
- "libloading",
  "mupdf",
  "notify",
  "pulldown-cmark",
