@@ -50,6 +50,8 @@ impl VideoController {
 
     pub fn load(&mut self, path: &str, _event_tx: mpsc::Sender<VideoEvent>) -> Result<(), String> {
         self.stop();
+        // Give GStreamer & WGPU pipeline a moment to flush frames before initializing new video instance
+        std::thread::sleep(Duration::from_millis(20));
 
         let url = Url::from_file_path(path).map_err(|_| format!("invalid file path: {path}"))?;
 
@@ -62,6 +64,7 @@ impl VideoController {
             Err(e) => Err(format!("iced_video_player failed to load video: {e:?}")),
         }
     }
+
 
     pub fn play(&mut self) {
         if let Some(ref mut video) = self.video {
