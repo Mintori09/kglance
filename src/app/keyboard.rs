@@ -98,12 +98,17 @@ impl super::KglanceApp {
             iced::keyboard::Key::Named(Named::Enter) => {
                 let idx = self.state.table.selected_index?;
                 let row = self.state.table.rows.get(idx)?;
-                let path = row.path.clone();
+                let full_path = Path::new(&self.state.file_name).join(&row.path);
+                let path_str = full_path.to_string_lossy().to_string();
                 let registry = self.registry.clone();
                 Some(Task::perform(
                     async move {
-                        let content = FilePreviewer::parse(&*registry, Path::new(&path)).ok()?;
-                        Some(Message::FileLoaded { path, content })
+                        let content =
+                            FilePreviewer::parse(&*registry, Path::new(&path_str)).ok()?;
+                        Some(Message::FileLoaded {
+                            path: path_str,
+                            content,
+                        })
                     },
                     |msg| msg.unwrap_or(Message::CloseRequested),
                 ))

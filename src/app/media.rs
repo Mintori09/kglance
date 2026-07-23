@@ -3,7 +3,7 @@ use iced::widget::operation::{self, AbsoluteOffset};
 
 use super::Message;
 use crate::core::PreviewData;
-use crate::log_debug;
+
 use crate::ui::handlers::video::VideoEvent;
 
 impl super::KglanceApp {
@@ -68,50 +68,6 @@ impl super::KglanceApp {
 
     pub fn handle_video_event(&mut self, event: VideoEvent) -> Task<Message> {
         match event {
-            VideoEvent::Frame {
-                data,
-                width,
-                height,
-            } => {
-                let first_frame = self.state.media.video_handle.is_none();
-                if first_frame {
-                    log_debug!("handle_video_event: first frame ({}x{})", width, height);
-                }
-                let handle = iced::widget::image::Handle::from_rgba(width, height, data);
-                self.state.media.video_handle = Some(handle);
-                self.state.media.frame_width = width;
-                self.state.media.frame_height = height;
-                if first_frame && let Some(id) = self.window_id {
-                    let max_w = 900.0f32;
-                    let max_h = 700.0f32;
-                    let min_w = 400.0f32;
-                    let min_h = 300.0f32;
-
-                    // Calculate scale to fit within max bounds
-                    let scale_w = max_w / width as f32;
-                    let scale_h = max_h / height as f32;
-                    let scale = scale_w.min(scale_h).min(1.1);
-
-                    let mut cw = width as f32 * scale;
-                    let mut ch = height as f32 * scale;
-
-                    if cw < min_w {
-                        cw = min_w;
-                    }
-                    if ch < min_h {
-                        ch = min_h;
-                    }
-                    if cw > max_w {
-                        cw = max_w;
-                    }
-                    if ch > max_h {
-                        ch = max_h;
-                    }
-
-                    let header_height = 50.0f32;
-                    return iced::window::resize(id, iced::Size::new(cw, ch + header_height));
-                }
-            }
             VideoEvent::Progress {
                 position,
                 duration,

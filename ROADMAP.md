@@ -58,7 +58,7 @@ macOS sở hữu hai công cụ xem trước file cực kỳ mạnh mẽ:
 
 ### Hạn chế
 
-- Video: chỉ hiển thị info + placeholder, chưa có `libmpv` embed
+- Video: chỉ hiển thị info + placeholder, chưa có GStreamer embed
 - Audio: chưa có waveform rendering (chỉ metadata), chưa có output device
 - Office: DOCX chỉ extract text đơn giản (không format), PPTX chưa có parser trực tiếp
 - Chưa có hệ thống plugin
@@ -108,9 +108,9 @@ macOS sở hữu hai công cụ xem trước file cực kỳ mạnh mẽ:
 
 - [x] Hiển thị thông tin video (định dạng, thời lượng)
 - [x] Placeholder đen + nút play/pause + thanh seek trong Slint UI
-- [x] Phát video trực tiếp trong cửa sổ preview (sử dụng `mpv` background controller)
+- [x] Phát video trực tiếp trong cửa sổ preview (sử dụng GStreamer pipeline)
 - [x] Tự động phát khi mở, dừng khi ẩn cửa sổ
-- **Đã triển khai:** `ffprobe` parse info; Tích hợp `mpv` client API để điều khiển phát video (audio qua null video output) và đồng bộ thanh tiến trình (seek, time) trực tiếp từ giao diện Slint.
+- **Đã triển khai:** `ffprobe` parse info; Tích hợp GStreamer pipeline để decode video và trích xuất frame RGBA render lên Iced canvas.
 
 #### 2.2 Audio Preview
 
