@@ -227,21 +227,16 @@ pub struct ToastInfo {
     pub message: String,
 }
 
+use crate::core::preview::PreviewData;
 use lru::LruCache;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use crate::core::preview::PreviewData;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum ViewMode {
+    #[default]
     Detail,
     Grid(Vec<GridThumbnail>),
-}
-
-impl Default for ViewMode {
-    fn default() -> Self {
-        ViewMode::Detail
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -329,4 +324,3 @@ impl Default for KglanceState {
         }
     }
 }
-

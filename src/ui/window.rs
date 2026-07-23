@@ -57,7 +57,7 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
                 .on_press(Message::ToggleViewMode)
                 .style(iced::widget::button::secondary)
                 .padding([2, 6])
-                .into()
+                .into(),
         )
     } else {
         None
@@ -81,7 +81,6 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     .style(crate::ui::theme::breeze_header_container)
     .into()
 }
-
 
 fn content<'a>(preview_body: Element<'a, Message>, edge_to_edge: bool) -> Element<'a, Message> {
     let padding = if edge_to_edge { 0 } else { 10 };
@@ -156,13 +155,13 @@ pub fn view_window<'a>(
     };
 
     let layout = column![
-        container(main_body).width(Length::Fill).height(Length::Fill),
+        container(main_body)
+            .width(Length::Fill)
+            .height(Length::Fill),
         footer(state)
     ]
     .width(Length::Fill)
     .height(Length::Fill);
-
-
 
     let base = container(layout)
         .width(Length::Fill)
