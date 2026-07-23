@@ -55,6 +55,9 @@ impl PreviewData {
             let path = Path::new(&state.file_name);
             if let Ok(meta) = std::fs::metadata(path) {
                 state.file_size_text = crate::parsers::human_size(meta.len());
+                if let Ok(modified) = meta.modified() {
+                    state.file_modified_text = crate::parsers::human_time(modified);
+                }
             }
         }
 
