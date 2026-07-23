@@ -1,12 +1,12 @@
 use iced::{
     Alignment, Element, Length, Padding,
-    widget::{Stack, column, container, row, text},
+    widget::{Space, Stack, column, container, row, text},
 };
 
 use crate::app::Message;
 use crate::core::KglanceState;
 
-fn metadata_text(state: &KglanceState) -> String {
+fn left_metadata_text(state: &KglanceState) -> String {
     let mut parts = Vec::new();
 
     if let Some(folder_name) = std::path::Path::new(&state.file_name)
@@ -23,10 +23,6 @@ fn metadata_text(state: &KglanceState) -> String {
         parts.push(state.file_type_text.clone());
     }
 
-    if !state.file_size_text.is_empty() {
-        parts.push(state.file_size_text.clone());
-    }
-
     if !state.file_modified_text.is_empty() {
         parts.push(state.file_modified_text.clone());
     }
@@ -34,21 +30,33 @@ fn metadata_text(state: &KglanceState) -> String {
     parts.join(" • ")
 }
 
-fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
-    let meta = metadata_text(state);
-    if meta.is_empty() {
-        return Element::from(container(text("")).padding(0));
+fn metadata_style(theme: &iced::Theme) -> iced::widget::text::Style {
+    let palette = theme.extended_palette();
+    iced::widget::text::Style {
+        color: Some(palette.background.weak.text),
     }
+}
+
+fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
+    let left = left_metadata_text(state);
+
+    let (left_display, right_display) = if left.is_empty() && state.file_size_text.is_empty() {
+        return Element::from(container(text("")).padding(0));
+    } else if left.is_empty() {
+        (String::from(" "), state.file_size_text.clone())
+    } else if state.file_size_text.is_empty() {
+        (left, String::new())
+    } else {
+        (left, state.file_size_text.clone())
+    };
+
+    let left_el: Element<'a, Message> = text(left_display).size(11).style(metadata_style).into();
+    let right_el: Element<'a, Message> = text(right_display).size(11).style(metadata_style).into();
 
     container(
-        row![text(meta).size(11).style(|theme: &iced::Theme| {
-            let palette = theme.extended_palette();
-            iced::widget::text::Style {
-                color: Some(palette.background.weak.text),
-            }
-        })]
-        .align_y(Alignment::Center)
-        .padding([4, 12]),
+        row![left_el, Space::new().width(Length::Fill), right_el]
+            .align_y(Alignment::Center)
+            .padding([4, 12]),
     )
     .width(Length::Fill)
     .style(crate::ui::theme::breeze_header_container)
@@ -152,11 +160,9 @@ mod tests {
             ..Default::default()
         };
 
-        let meta = metadata_text(&state);
-        assert_eq!(
-            meta,
-            "subfolder/ • Markdown Document • 12.4 KB • 2026-07-22"
-        );
+        let left = left_metadata_text(&state);
+        assert_eq!(left, "subfolder/ • Markdown Document • 2026-07-22");
+        assert_eq!(state.file_size_text, "12.4 KB");
     }
 
     #[test]
@@ -167,7 +173,7 @@ mod tests {
             ..Default::default()
         };
 
-        let meta = metadata_text(&state);
-        assert_eq!(meta, "Text Document");
+        let left = left_metadata_text(&state);
+        assert_eq!(left, "Text Document");
     }
 }

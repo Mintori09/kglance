@@ -89,6 +89,7 @@ pub enum Block {
 #[derive(Debug, Clone)]
 pub struct ListItem {
     pub content: Vec<Inline>,
+    pub sub_blocks: Vec<Block>,
 }
 
 // ── Flatten (inline AST → plain string for basic rendering) ──────────────────
@@ -440,6 +441,7 @@ impl<'a> EventStream<'a> {
 
     fn parse_single_item(&mut self) -> ListItem {
         let mut content = Vec::new();
+        let mut sub_blocks = Vec::new();
         loop {
             match self.iter.peek() {
                 Some(Event::End(TagEnd::Item)) => {
@@ -499,10 +501,17 @@ impl<'a> EventStream<'a> {
                     let _ = self.iter.next();
                     content.push(Inline::Image { alt, url });
                 }
+                Some(Event::Start(Tag::CodeBlock(kind))) => {
+                    let block = self.parse_code_block(kind);
+                    sub_blocks.push(block);
+                }
                 _ => {}
             }
         }
-        ListItem { content }
+        ListItem {
+            content,
+            sub_blocks,
+        }
     }
 
     fn parse_table(&mut self, _alignments: Vec<pulldown_cmark::Alignment>) -> Option<TableBlock> {
