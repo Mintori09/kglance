@@ -26,25 +26,90 @@ impl super::KglanceApp {
             return task;
         }
 
-        if let Some(task) = self.handle_scroll_shortcuts(&key, modifiers) {
-            return task;
-        }
-
         if matches!(key, iced::keyboard::Key::Named(Named::Tab)) {
             return self.update(Message::ToggleViewMode);
         }
 
-        if matches!(self.state.view_mode, crate::core::ViewMode::Detail) {
-            match &key {
-                iced::keyboard::Key::Named(Named::ArrowRight) => {
-                    return self.update(Message::NextFileClicked);
+        match &self.state.view_mode {
+            crate::core::ViewMode::Detail => {
+                match &key {
+                    iced::keyboard::Key::Named(Named::ArrowRight) => {
+                        return self.update(Message::NextFileClicked);
+                    }
+                    iced::keyboard::Key::Named(Named::ArrowLeft) => {
+                        return self.update(Message::PrevFileClicked);
+                    }
+                    _ => {}
                 }
-                iced::keyboard::Key::Named(Named::ArrowLeft) => {
-                    return self.update(Message::PrevFileClicked);
+            }
+            crate::core::ViewMode::Grid(_) => {
+                let total = self.state.playlist.len();
+                if total > 0 {
+                    let cols = 5; // Default estimation per row
+                    let cur = self.state.current_index;
+                    match &key {
+                        iced::keyboard::Key::Named(Named::ArrowRight) => {
+                            if cur + 1 < total {
+                                self.state.current_index = cur + 1;
+                            }
+                            let row_idx = (self.state.current_index / cols) as f32;
+                            let y = if row_idx == 0.0 { 0.0 } else { row_idx * 160.0 };
+                            return iced::widget::operation::scroll_to(
+                                "grid_scroll",
+                                iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                            );
+                        }
+                        iced::keyboard::Key::Named(Named::ArrowLeft) => {
+                            if cur > 0 {
+                                self.state.current_index = cur - 1;
+                            }
+                            let row_idx = (self.state.current_index / cols) as f32;
+                            let y = if row_idx == 0.0 { 0.0 } else { row_idx * 160.0 };
+                            return iced::widget::operation::scroll_to(
+                                "grid_scroll",
+                                iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                            );
+                        }
+                        iced::keyboard::Key::Named(Named::ArrowDown) => {
+                            if cur + cols < total {
+                                self.state.current_index = cur + cols;
+                            } else if cur < total - 1 {
+                                self.state.current_index = total - 1;
+                            }
+                            let row_idx = (self.state.current_index / cols) as f32;
+                            let y = if row_idx == 0.0 { 0.0 } else { row_idx * 160.0 };
+                            return iced::widget::operation::scroll_to(
+                                "grid_scroll",
+                                iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                            );
+                        }
+                        iced::keyboard::Key::Named(Named::ArrowUp) => {
+                            if cur >= cols {
+                                self.state.current_index = cur - cols;
+                            } else {
+                                self.state.current_index = 0;
+                            }
+                            let row_idx = (self.state.current_index / cols) as f32;
+                            let y = if row_idx == 0.0 { 0.0 } else { row_idx * 160.0 };
+                            return iced::widget::operation::scroll_to(
+                                "grid_scroll",
+                                iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                            );
+                        }
+
+                        iced::keyboard::Key::Named(Named::Enter) => {
+                            return self.update(Message::FileClickedInGrid(cur));
+                        }
+                        _ => {}
+                    }
                 }
-                _ => {}
             }
         }
+
+        if let Some(task) = self.handle_scroll_shortcuts(&key, modifiers) {
+            return task;
+        }
+
 
         if matches!(key, iced::keyboard::Key::Named(Named::Enter)) {
             return self.handle_open_clicked();

@@ -1,21 +1,20 @@
 use std::path::Path;
 
 pub const SUPPORTED_EXTS: &[&str] = &[
-    "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp",
-    "txt", "md", "rs", "py", "js", "ts", "json", "toml", "yaml",
-    "pdf", "mp4", "mkv", "avi", "webm", "mp3", "wav", "flac",
-    "csv", "tsv", "xlsx",
+    "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "txt", "md", "rs", "py", "js", "ts", "json",
+    "toml", "yaml", "pdf", "mp4", "mkv", "avi", "webm", "mp3", "wav", "flac", "csv", "tsv", "xlsx",
 ];
 
 pub fn is_supported_extension(path_str: &str) -> bool {
     let path = Path::new(path_str);
     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-        SUPPORTED_EXTS.iter().any(|&supported| ext.eq_ignore_ascii_case(supported))
+        SUPPORTED_EXTS
+            .iter()
+            .any(|&supported| ext.eq_ignore_ascii_case(supported))
     } else {
         false
     }
 }
-
 
 pub fn scan_sibling_files(file_path: &str) -> Vec<String> {
     let path = Path::new(file_path);
@@ -37,7 +36,7 @@ pub fn scan_sibling_files(file_path: &str) -> Vec<String> {
         }
     }
 
-    files.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    files.sort_by_key(|a| a.to_lowercase());
     if files.is_empty() {
         vec![file_path.to_string()]
     } else {

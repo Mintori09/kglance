@@ -39,12 +39,9 @@ pub enum Message {
         handle: Option<iced::widget::image::Handle>,
     },
     PreloadCompleted {
-
         path: String,
         content: std::sync::Arc<PreviewData>,
     },
-
-
 
     // Image viewer
     ImageZoom(f32),
@@ -87,6 +84,12 @@ pub enum Message {
     DaemonOpenWindow {
         path: String,
     },
+    DaemonOpenWithPlaylist {
+        path: String,
+        content: PreviewData,
+        playlist: Vec<String>,
+    },
+
     FileLoaded {
         path: String,
         content: PreviewData,
@@ -194,7 +197,7 @@ impl KglanceApp {
     pub fn new(
         registry: Arc<ParserRegistry>,
         daemon_rx: Option<mpsc::Receiver<DaemonCommand>>,
-        initial_path: Option<&str>,
+        initial_paths: &[String],
         is_daemon: bool,
     ) -> (Self, Task<Message>) {
         let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel(100);
@@ -204,11 +207,16 @@ impl KglanceApp {
         let config = crate::core::config::ConfigManager::load_or_create();
         let theme_dark = config.ui.theme != "Light";
 
-        let state = KglanceState {
+        let mut state = KglanceState {
             theme_dark,
             font_size: config.ui.font_size,
             ..Default::default()
         };
+
+        if !initial_paths.is_empty() {
+            state.playlist = initial_paths.to_vec();
+            state.current_index = 0;
+        }
 
         let app = Self {
             state,
@@ -228,8 +236,8 @@ impl KglanceApp {
         };
 
         // Daemon starts with no window — window is opened on demand when a preview request arrives.
-        let task = if let Some(path) = initial_path {
-            let path_str = path.to_string();
+        let task = if !initial_paths.is_empty() {
+            let path_str = initial_paths[0].clone();
             let reg = app.registry.clone();
             Task::perform(
                 async move {
@@ -284,7 +292,6 @@ impl KglanceApp {
                         },
                         |msg| msg.unwrap_or(Message::ToastDismissed(0)),
                     ));
-
                 }
             }
         }
@@ -292,7 +299,6 @@ impl KglanceApp {
     }
 
     pub fn title(&self) -> String {
-
         if self.state.file_name.is_empty() {
             "Kglance Preview".to_string()
         } else {
@@ -306,12 +312,10 @@ impl KglanceApp {
 
     pub fn handle_file_loaded(&mut self, path: String, content: PreviewData) -> Task<Message> {
         let t0 = Instant::now();
-        let scan_path = path.clone();
+        let _scan_path = path.clone();
         self.state.file_name = path.clone();
         self.state.content_ready = true;
         self.state.image.camera = crate::preview::image::Camera::new();
-
-
 
         let mut mermaid_tasks: Vec<Task<Message>> = {
             let mut tasks = Vec::new();
@@ -433,7 +437,10 @@ impl KglanceApp {
 
         if let Some(tx) = &self.video_tx {
             if is_video || is_audio {
-                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Load(path));
+                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Stop);
+                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Load(
+                    path.clone(),
+                ));
                 let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Play);
             } else {
                 let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Stop);
@@ -460,7 +467,7 @@ impl KglanceApp {
 
         // Build window management tasks.
         // In daemon mode with no existing window, open one now alongside content.
-        let mut window_tasks: Vec<Task<Message>> = if self.is_daemon {
+        let window_tasks: Vec<Task<Message>> = if self.is_daemon {
             if let Some(id) = self.window_id {
                 // Window already exists — un-hide and focus it.
                 vec![
@@ -495,37 +502,37 @@ impl KglanceApp {
             vec![]
         };
 
-
-
-
         self.probe.mark_state_ready(); // P1
         log_info!(
             "[PERF] handle_file_loaded state+tasks prepared in {:?}",
             t0.elapsed()
         );
 
-        let scan_task = Task::perform(
-            async move {
-                let files = tokio::task::spawn_blocking(move || {
-                    crate::core::navigation::scan_sibling_files(&scan_path)
-                })
-                .await
-                .unwrap_or_default();
-                Message::SiblingFilesLoaded(files)
-            },
-            |msg| msg,
-        );
-
+        let scan_task: Option<Task<Message>> = if self.state.playlist.len() <= 1 {
+            let scan_path = path.clone();
+            Some(Task::perform(
+                async move {
+                    let files = tokio::task::spawn_blocking(move || {
+                        crate::core::navigation::scan_sibling_files(&scan_path)
+                    })
+                    .await
+                    .unwrap_or_default();
+                    Message::SiblingFilesLoaded(files)
+                },
+                |msg| msg,
+            ))
+        } else {
+            None
+        };
 
         Task::batch(
             mermaid_tasks
                 .into_iter()
                 .chain(pdf_task)
                 .chain(window_tasks)
-                .chain(std::iter::once(scan_task)),
+                .chain(scan_task),
         )
     }
-
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
@@ -534,8 +541,9 @@ impl KglanceApp {
                 self.state.cache.put(path, content);
                 Task::none()
             }
+
             Message::SiblingFilesLoaded(files) => {
-                if !files.is_empty() {
+                if !files.is_empty() && self.state.playlist.len() <= 1 {
                     let current = self.state.file_name.clone();
                     self.state.playlist = files;
                     if let Some(pos) = self.state.playlist.iter().position(|p| p == &current) {
@@ -565,7 +573,8 @@ impl KglanceApp {
                     let path_for_err = next_path.clone();
                     return Task::perform(
                         async move {
-                            let content = FilePreviewer::parse(&*reg, Path::new(&next_path)).ok()?;
+                            let content =
+                                FilePreviewer::parse(&*reg, Path::new(&next_path)).ok()?;
                             Some(Message::FileLoaded {
                                 path: next_path,
                                 content,
@@ -597,7 +606,8 @@ impl KglanceApp {
                     let path_for_err = prev_path.clone();
                     return Task::perform(
                         async move {
-                            let content = FilePreviewer::parse(&*reg, Path::new(&prev_path)).ok()?;
+                            let content =
+                                FilePreviewer::parse(&*reg, Path::new(&prev_path)).ok()?;
                             Some(Message::FileLoaded {
                                 path: prev_path,
                                 content,
@@ -610,11 +620,11 @@ impl KglanceApp {
             }
 
             Message::GridThumbnailLoaded { index, handle } => {
-                if let crate::core::ViewMode::Grid(ref mut thumbnails) = self.state.view_mode {
-                    if let Some(item) = thumbnails.get_mut(index) {
-                        item.thumbnail_handle = handle;
-                        item.is_loading = false;
-                    }
+                if let crate::core::ViewMode::Grid(ref mut thumbnails) = self.state.view_mode
+                    && let Some(item) = thumbnails.get_mut(index)
+                {
+                    item.thumbnail_handle = handle;
+                    item.is_loading = false;
                 }
                 Task::none()
             }
@@ -679,7 +689,8 @@ impl KglanceApp {
                     let path_for_err = target_path.clone();
                     return Task::perform(
                         async move {
-                            let content = FilePreviewer::parse(&*reg, Path::new(&target_path)).ok()?;
+                            let content =
+                                FilePreviewer::parse(&*reg, Path::new(&target_path)).ok()?;
                             Some(Message::FileLoaded {
                                 path: target_path,
                                 content,
@@ -691,7 +702,6 @@ impl KglanceApp {
                 Task::none()
             }
             Message::FileClicked(idx) => {
-
                 if idx < self.state.table.rows.len() {
                     self.state.table.selected_index = Some(idx);
                 }
@@ -733,6 +743,23 @@ impl KglanceApp {
                 Task::batch(vec![iced::clipboard::write(code), toast])
             }
             Message::DaemonOpenWindow { path } => self.handle_daemon_open_window(path),
+            Message::DaemonOpenWithPlaylist {
+                path,
+                content,
+                playlist,
+            } => {
+                if !playlist.is_empty() {
+                    self.state.playlist = playlist;
+                    if let Some(pos) = self.state.playlist.iter().position(|p| p == &path) {
+                        self.state.current_index = pos;
+                    } else {
+                        self.state.current_index = 0;
+                    }
+                }
+                self.probe.mark_file_loaded();
+                self.handle_file_loaded(path, content)
+            }
+
             Message::FileLoaded { path, content } => {
                 self.probe.mark_file_loaded(); // P0
                 self.handle_file_loaded(path, content)
