@@ -25,28 +25,43 @@ fn build_registry() -> parsers::ParserRegistry {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     log_info!("Starting kglance with arguments: {:?}", args);
+
+    let file_paths: Vec<String> = args
+        .iter()
+        .skip(1)
+        .filter(|s| !s.starts_with('-') && s.as_str() != "daemon")
+        .filter_map(|s| std::fs::canonicalize(s).ok())
+        .map(|p| p.to_string_lossy().to_string())
+        .collect();
+
     match args.get(1).map(|s| s.as_str()) {
         Some("daemon") => {
             log_info!("Running in daemon mode");
             run_daemon()
         }
         Some(path) if !path.starts_with('-') => {
-            let resolved = std::fs::canonicalize(path)?;
-            let resolved_str = resolved.to_string_lossy();
-            log_info!("Attempting to preview file via DBus: {}", resolved_str);
-            if dbus::send_via_dbus(&resolved_str).is_ok() {
+            if file_paths.is_empty() {
+                log_error!("No valid file paths provided: {:?}", path);
+                eprintln!("Usage:");
+                eprintln!("  kglance daemon                  Start preview daemon (autostart)");
+                eprintln!("  kglance <file-path> [...]       Preview file(s)");
+                std::process::exit(1);
+            }
+
+            log_info!("Attempting to preview files via DBus: {:?}", file_paths);
+            if dbus::send_multiple_via_dbus(&file_paths).is_ok() {
                 log_info!("Successfully requested preview via DBus");
                 return Ok(());
             }
             log_info!(
                 "DBus connection failed or daemon not running. Falling back to standalone mode."
             );
-            run_standalone(&resolved_str)
+            run_standalone(&file_paths)
         }
         _ => {
             eprintln!("Usage:");
-            eprintln!("  kglance daemon                Start preview daemon (autostart)");
-            eprintln!("  kglance <file-path>           Preview file (DBus or standalone)");
+            eprintln!("  kglance daemon                  Start preview daemon (autostart)");
+            eprintln!("  kglance <file-path> [...]       Preview file(s)");
             std::process::exit(1);
         }
     }
@@ -77,7 +92,7 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     let reg = registry.clone();
     let rx = std::cell::Cell::new(Some(rx));
     iced::daemon(
-        move || KglanceApp::new(reg.clone(), rx.take(), None, true),
+        move || KglanceApp::new(reg.clone(), rx.take(), &[], true),
         KglanceApp::update,
         KglanceApp::view_daemon,
     )
@@ -90,13 +105,13 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn run_standalone(path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    log_info!("Running standalone preview for: {}", path);
+fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    log_info!("Running standalone preview for: {:?}", paths);
     let start_time = std::time::Instant::now();
     let registry = std::sync::Arc::new(build_registry());
-    let path_str = path.to_string();
 
-    let resolved = std::path::Path::new(path);
+    let primary = &paths[0];
+    let resolved = std::path::Path::new(primary);
     let mut initial_size = Size::new(1024.0, 768.0);
     if let Ok(kglance::parsers::ParsedContent::Image { width, height, .. }) =
         registry.parse(resolved)
@@ -104,11 +119,12 @@ fn run_standalone(path: &str) -> Result<(), Box<dyn std::error::Error>> {
         initial_size = kglance::ui::handlers::image::calculate_window_size(width, height);
     }
 
+    let owned_paths: Vec<String> = paths.to_vec();
     log_info!("Running Iced GUI in standalone mode...");
     let reg = registry.clone();
     iced::application(
         move || {
-            let (app, task) = KglanceApp::new(reg.clone(), None, Some(&path_str), false);
+            let (app, task) = KglanceApp::new(reg.clone(), None, &owned_paths, false);
             let duration = start_time.elapsed();
             log_info!("[PERF] PreviewWindow GUI initialized in: {:?}", duration);
             (app, task)

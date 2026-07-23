@@ -16,6 +16,12 @@ pub enum DaemonCommand {
         path: String,
         content: crate::core::preview::PreviewData,
     },
+    /// Open window with content and a pre-populated playlist for navigation.
+    OpenWindowWithPlaylist {
+        path: String,
+        content: crate::core::preview::PreviewData,
+        playlist: Vec<String>,
+    },
     /// Re-show an already-open window for the same content path without re-parsing.
     ShowPreviewExisting {
         path: String,
@@ -86,6 +92,64 @@ impl DaemonService {
 
         log_info!(
             "[PERF] show_preview total daemon-side latency: {:?}",
+            t0.elapsed()
+        );
+        Ok(())
+    }
+
+    async fn show_multiple_previews(
+        &mut self,
+        file_paths: Vec<String>,
+    ) -> zbus::fdo::Result<()> {
+        if file_paths.is_empty() {
+            return Err(zbus::fdo::Error::Failed("No files provided".into()));
+        }
+
+        let primary = &file_paths[0];
+        let t0 = Instant::now();
+        log_info!(
+            "DaemonService: show_multiple_previews for {} files, primary: {}",
+            file_paths.len(),
+            primary
+        );
+
+        let p = std::path::Path::new(primary);
+        let content = FilePreviewer::parse(&*self.parser_registry, p).map_err(|e| {
+            log_error!("DaemonService: Failed to parse path {}: {:?}", primary, e);
+            match e {
+                ParseError::FileNotFound => zbus::fdo::Error::Failed("File not found".into()),
+                ParseError::PermissionDenied => {
+                    zbus::fdo::Error::Failed("Permission denied".into())
+                }
+                ParseError::UnsupportedFormat => {
+                    zbus::fdo::Error::Failed("Unsupported file format".into())
+                }
+                ParseError::TooLarge => zbus::fdo::Error::Failed("File too large".into()),
+                ParseError::ParseFailed(msg) => zbus::fdo::Error::Failed(msg),
+            }
+        })?;
+
+        let path = primary.clone();
+        let playlist: Vec<String> = file_paths;
+
+        self.tx
+            .send(DaemonCommand::OpenWindowWithPlaylist {
+                path,
+                content,
+                playlist,
+            })
+
+            .await
+            .map_err(|err| {
+                log_error!(
+                    "DaemonService: Failed to send OpenWindowWithPlaylist: {:?}",
+                    err
+                );
+                zbus::fdo::Error::Failed("Internal error".into())
+            })?;
+
+        log_info!(
+            "[PERF] show_multiple_previews total daemon-side latency: {:?}",
             t0.elapsed()
         );
         Ok(())
