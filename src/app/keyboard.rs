@@ -125,14 +125,17 @@ impl super::KglanceApp {
         if !modifiers.control() {
             return None;
         }
-
         let c = match key {
             iced::keyboard::Key::Character(c) => c.as_str(),
             _ => return None,
         };
 
         match c {
-            "c" => Some(iced::clipboard::write(self.state.file_name.clone())),
+            "c" | "C" => Some(self.handle_copy_path()),
+            "t" => {
+                self.state.theme_dark = !self.state.theme_dark;
+                Some(Task::none())
+            }
             "+" | "=" => {
                 if matches!(self.current_content, Some(PreviewData::Image { .. })) {
                     self.state.image.camera.zoom =
