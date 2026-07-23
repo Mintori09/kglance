@@ -1,7 +1,7 @@
 use crate::app::Message;
 use crate::core::TextState;
-use crate::ui::theme::{breeze_button, breeze_text_input, glass_inset, glass_scrollable};
-use iced::widget::{button, column, container, row, scrollable, text, text_input};
+use crate::ui::theme::{breeze_button, breeze_text_input, glass_scrollable};
+use iced::widget::{button, column, row, scrollable, text, text_input};
 use iced::{Element, Length};
 
 pub fn view_text<'a>(state: &'a TextState, is_dark: bool, font_size: f32) -> Element<'a, Message> {
@@ -37,11 +37,15 @@ pub fn view_text<'a>(state: &'a TextState, is_dark: bool, font_size: f32) -> Ele
         iced::highlighter::Theme::InspiredGitHub
     };
 
+    let font = iced::Font::with_name("JetBrainsMonoNL Nerd Font");
+
     let text_widget = iced::widget::text_editor(&state.content)
         .highlight(extension, theme)
-        .size(font_size);
+        .font(font)
+        .size(font_size)
+        .on_action(Message::TextEdit);
 
-    let content_scroll = scrollable(container(text_widget).padding(15).style(glass_inset))
+    let content_scroll = scrollable(text_widget)
         .id("content_scroll")
         .style(glass_scrollable)
         .height(Length::Fill)

@@ -29,7 +29,6 @@ impl super::KglanceApp {
             return task;
         }
 
-        // Enter -> open file externally (folder navigation handled above)
         if matches!(key, iced::keyboard::Key::Named(Named::Enter)) {
             return self.handle_open_clicked();
         }
@@ -69,6 +68,45 @@ impl super::KglanceApp {
                 self.state.table.selected_index = Some(new_idx);
                 Some(Task::none())
             }
+            iced::keyboard::Key::Named(Named::ArrowLeft) => {
+                let parent = Path::new(&self.state.table.folder_path).parent()?;
+                let parent_str = parent.to_string_lossy().to_string();
+                let registry = self.registry.clone();
+                Some(Task::perform(
+                    async move {
+                        let parent_path = Path::new(&parent_str);
+                        if !parent_path.exists() {
+                            return None;
+                        }
+                        FilePreviewer::parse(&*registry, parent_path)
+                            .ok()
+                            .map(|content| Message::FileLoaded {
+                                path: parent_str,
+                                content,
+                            })
+                    },
+                    |msg| msg.unwrap_or(Message::CloseRequested),
+                ))
+            }
+            iced::keyboard::Key::Named(Named::ArrowRight) => {
+                let idx = self.state.table.selected_index?;
+                let row = self.state.table.rows.get(idx)?;
+                let full_path = Path::new(&self.state.file_name).join(&row.path);
+                let path_str = full_path.to_string_lossy().to_string();
+                let registry = self.registry.clone();
+                let path_for_err = path_str.clone();
+                Some(Task::perform(
+                    async move {
+                        let content =
+                            FilePreviewer::parse(&*registry, Path::new(&path_str)).ok()?;
+                        Some(Message::FileLoaded {
+                            path: path_str,
+                            content,
+                        })
+                    },
+                    move |msg| msg.unwrap_or(Message::FilePreviewError(path_for_err.clone())),
+                ))
+            }
             iced::keyboard::Key::Named(Named::Home) => {
                 self.pending_home = false;
                 self.state.table.selected_index = Some(0);
@@ -101,6 +139,7 @@ impl super::KglanceApp {
                 let full_path = Path::new(&self.state.file_name).join(&row.path);
                 let path_str = full_path.to_string_lossy().to_string();
                 let registry = self.registry.clone();
+                let path_for_err = path_str.clone();
                 Some(Task::perform(
                     async move {
                         let content =
@@ -110,7 +149,7 @@ impl super::KglanceApp {
                             content,
                         })
                     },
-                    |msg| msg.unwrap_or(Message::CloseRequested),
+                    move |msg| msg.unwrap_or(Message::FilePreviewError(path_for_err.clone())),
                 ))
             }
             _ => None,
@@ -131,7 +170,28 @@ impl super::KglanceApp {
         };
 
         match c {
-            "c" | "C" => Some(self.handle_copy_path()),
+            "c" | "C" => {
+                if matches!(self.current_content, Some(PreviewData::Text { .. })) {
+                    let selection = self.state.text.content.selection().unwrap_or_default();
+                    if selection.is_empty() {
+                        None
+                    } else {
+                        let toast = self.show_toast("Copied!");
+                        Some(Task::batch(vec![iced::clipboard::write(selection), toast]))
+                    }
+                } else {
+                    Some(self.handle_copy_path())
+                }
+            }
+            "a" | "A" => {
+                if matches!(self.current_content, Some(PreviewData::Text { .. })) {
+                    use iced::widget::text_editor::Action;
+                    self.state.text.content.perform(Action::SelectAll);
+                    Some(Task::none())
+                } else {
+                    None
+                }
+            }
             "t" => {
                 self.state.theme_dark = !self.state.theme_dark;
                 Some(Task::none())
@@ -367,8 +427,8 @@ impl super::KglanceApp {
 
     fn handle_close_shortcuts(&mut self, key: &iced::keyboard::Key) -> Option<Task<Message>> {
         let should_close = match key {
-            iced::keyboard::Key::Named(Named::Escape | Named::Backspace | Named::Space) => true,
-            iced::keyboard::Key::Character(c) if c == " " || c == "\u{8}" || c == "\u{7f}" => true,
+            iced::keyboard::Key::Named(Named::Escape | Named::Space) => true,
+            iced::keyboard::Key::Character(c) if c == " " => true,
             _ => false,
         };
 

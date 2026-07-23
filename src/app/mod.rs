@@ -44,6 +44,9 @@ pub enum Message {
     ShiftHeldChanged(bool),
     ModifiersUpdated(iced::keyboard::Modifiers),
 
+    // Text editor actions (selection, cursor movement)
+    TextEdit(iced::widget::text_editor::Action),
+
     // Text search & wrap
     SearchQueryChanged(String),
     TextSearchNext,
@@ -101,6 +104,12 @@ pub enum Message {
 
     // Toast
     ToastDismissed(u64),
+
+    // Link
+    OpenLink(String),
+
+    // Preview error
+    FilePreviewError(String),
 }
 
 fn png_to_rgba_handle(png: Vec<u8>) -> Option<iced::widget::image::Handle> {
@@ -220,7 +229,11 @@ impl KglanceApp {
         if self.state.file_name.is_empty() {
             "Kglance Preview".to_string()
         } else {
-            format!("Kglance - {}", self.state.file_name)
+            let name = std::path::Path::new(&self.state.file_name)
+                .file_name()
+                .map(|n| n.to_string_lossy())
+                .unwrap_or(std::borrow::Cow::Borrowed(&self.state.file_name));
+            format!("Kglance - {name}")
         }
     }
 
@@ -596,6 +609,10 @@ impl KglanceApp {
                 }
                 Task::none()
             }
+            Message::OpenLink(url) => {
+                let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+                Task::none()
+            }
             Message::ThemeToggled => {
                 self.state.theme_dark = !self.state.theme_dark;
                 Task::none()
@@ -603,6 +620,19 @@ impl KglanceApp {
             Message::ToastDismissed(id) => {
                 self.state.toasts.retain(|t| t.id != id);
                 Task::none()
+            }
+            Message::TextEdit(action) => {
+                if !matches!(action, iced::widget::text_editor::Action::Edit(_)) {
+                    self.state.text.content.perform(action);
+                }
+                Task::none()
+            }
+            Message::FilePreviewError(path) => {
+                let name = Path::new(&path)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or(path);
+                self.show_toast(format!("\"{}\" cannot be previewed", name))
             }
             _ => Task::none(),
         }
