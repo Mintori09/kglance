@@ -53,6 +53,9 @@ pub fn view_pdf<'a>(state: &'a PdfState) -> Element<'a, Message> {
 
     scrollable(container(col).width(Length::Fill).height(Length::Fill))
         .id("content_scroll")
+        .direction(scrollable::Direction::Vertical(
+            scrollable::Scrollbar::new().width(4).margin(2),
+        ))
         .style(glass_scrollable)
         .on_scroll(Message::PdfScrolled)
         .height(Length::Fill)

@@ -31,17 +31,15 @@ impl super::KglanceApp {
         }
 
         match &self.state.view_mode {
-            crate::core::ViewMode::Detail => {
-                match &key {
-                    iced::keyboard::Key::Named(Named::ArrowRight) => {
-                        return self.update(Message::NextFileClicked);
-                    }
-                    iced::keyboard::Key::Named(Named::ArrowLeft) => {
-                        return self.update(Message::PrevFileClicked);
-                    }
-                    _ => {}
+            crate::core::ViewMode::Detail => match &key {
+                iced::keyboard::Key::Named(Named::ArrowRight) => {
+                    return self.update(Message::NextFileClicked);
                 }
-            }
+                iced::keyboard::Key::Named(Named::ArrowLeft) => {
+                    return self.update(Message::PrevFileClicked);
+                }
+                _ => {}
+            },
             crate::core::ViewMode::Grid(_) => {
                 let total = self.state.playlist.len();
                 if total > 0 {
@@ -110,7 +108,6 @@ impl super::KglanceApp {
             return task;
         }
 
-
         if matches!(key, iced::keyboard::Key::Named(Named::Enter)) {
             return self.handle_open_clicked();
         }
@@ -121,7 +118,6 @@ impl super::KglanceApp {
 
         Task::none()
     }
-
 
     fn handle_folder_navigation(&mut self, key: &iced::keyboard::Key) -> Option<Task<Message>> {
         let rows_len = self.state.table.rows.len();

@@ -1213,6 +1213,9 @@ fn render_toc_sidebar<'a>(
 
     let toc_list = scrollable(column(entries).spacing(2).padding(8))
         .id("toc_scroll")
+        .direction(scrollable::Direction::Vertical(
+            scrollable::Scrollbar::new().width(4).margin(2),
+        ))
         .style(crate::ui::theme::glass_scrollable)
         .height(Length::Fill);
 
@@ -1255,6 +1258,9 @@ pub fn view_markdown<'a>(
 
     let scroll = scrollable(inner)
         .id("content_scroll")
+        .direction(scrollable::Direction::Vertical(
+            scrollable::Scrollbar::new().width(4).margin(2),
+        ))
         .style(crate::ui::theme::glass_scrollable)
         .height(Length::Fill)
         .on_scroll(|v| Message::MarkdownScrolled(v.absolute_offset().y));

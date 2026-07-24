@@ -47,6 +47,9 @@ pub fn view_text<'a>(state: &'a TextState, is_dark: bool, font_size: f32) -> Ele
 
     let content_scroll = scrollable(text_widget)
         .id("content_scroll")
+        .direction(scrollable::Direction::Vertical(
+            scrollable::Scrollbar::new().width(4).margin(2),
+        ))
         .style(glass_scrollable)
         .height(Length::Fill)
         .width(Length::Fill);

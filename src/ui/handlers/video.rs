@@ -65,7 +65,6 @@ impl VideoController {
         }
     }
 
-
     pub fn play(&mut self) {
         if let Some(ref mut video) = self.video {
             video.set_paused(false);

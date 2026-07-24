@@ -97,10 +97,7 @@ impl DaemonService {
         Ok(())
     }
 
-    async fn show_multiple_previews(
-        &mut self,
-        file_paths: Vec<String>,
-    ) -> zbus::fdo::Result<()> {
+    async fn show_multiple_previews(&mut self, file_paths: Vec<String>) -> zbus::fdo::Result<()> {
         if file_paths.is_empty() {
             return Err(zbus::fdo::Error::Failed("No files provided".into()));
         }
@@ -138,7 +135,6 @@ impl DaemonService {
                 content,
                 playlist,
             })
-
             .await
             .map_err(|err| {
                 log_error!(
