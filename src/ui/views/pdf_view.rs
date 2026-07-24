@@ -27,16 +27,6 @@ pub fn view_pdf<'a>(state: &'a PdfState) -> Element<'a, Message> {
                     .center_x(Length::Fill)
                     .padding(4),
             );
-        } else if let Some(thumb) = state.thumbnails[i].as_ref() {
-            let thumb_img = image(thumb.handle.clone())
-                .width(Length::Shrink)
-                .height(Length::Shrink);
-            col = col.push(
-                container(thumb_img)
-                    .width(Length::Fill)
-                    .center_x(Length::Fill)
-                    .padding(4),
-            );
         } else {
             col = col.push(
                 container(text(format!("Page {}…", i + 1)).size(13).center())
