@@ -52,7 +52,8 @@ pub fn view_text<'a>(state: &'a TextState, is_dark: bool, font_size: f32) -> Ele
         ))
         .style(glass_scrollable)
         .height(Length::Fill)
-        .width(Length::Fill);
+        .width(Length::Fill)
+        .on_scroll(|v| Message::TextScrolled(v.absolute_offset().y));
 
     main_content.push(content_scroll).into()
 }

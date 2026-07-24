@@ -76,6 +76,10 @@ pub struct TextState {
     pub search_matches: Vec<(usize, usize)>,
     pub search_match_index: usize,
     pub search_info: String,
+    pub scroll_y: f32,
+    pub word_count: usize,
+    pub char_count: usize,
+    pub reading_time_mins: usize,
 }
 
 impl Default for TextState {
@@ -90,6 +94,10 @@ impl Default for TextState {
             search_matches: Vec::new(),
             search_match_index: 0,
             search_info: String::new(),
+            scroll_y: 0.0,
+            word_count: 0,
+            char_count: 0,
+            reading_time_mins: 0,
         }
     }
 }
@@ -213,6 +221,9 @@ pub struct MarkdownState {
     pub toc_visible: bool,
     pub collapsed_headings: std::collections::HashSet<usize>,
     pub scroll_y: f32,
+    pub word_count: usize,
+    pub char_count: usize,
+    pub reading_time_mins: usize,
 }
 
 #[derive(Debug, Clone, Default)]
