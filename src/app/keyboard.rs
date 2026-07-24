@@ -43,18 +43,24 @@ impl super::KglanceApp {
             crate::core::ViewMode::Grid(_) => {
                 let total = self.state.playlist.len();
                 if total > 0 {
-                    let cols = 5; // Default estimation per row
+                    let cols = self.state.grid_cols.max(1);
                     let cur = self.state.current_index;
+                    let row_h = crate::core::types::GRID_ROW_HEIGHT * self.state.grid_scale;
+                    let scroll_y = |row_idx: f32| -> f32 {
+                        if row_idx == 0.0 { 0.0 } else { row_idx * row_h }
+                    };
                     match &key {
                         iced::keyboard::Key::Named(Named::ArrowRight) => {
                             if cur + 1 < total {
                                 self.state.current_index = cur + 1;
                             }
                             let row_idx = (self.state.current_index / cols) as f32;
-                            let y = if row_idx == 0.0 { 0.0 } else { row_idx * 160.0 };
                             return iced::widget::operation::scroll_to(
                                 "grid_scroll",
-                                iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                                iced::widget::operation::AbsoluteOffset {
+                                    x: 0.0,
+                                    y: scroll_y(row_idx),
+                                },
                             );
                         }
                         iced::keyboard::Key::Named(Named::ArrowLeft) => {
@@ -62,10 +68,12 @@ impl super::KglanceApp {
                                 self.state.current_index = cur - 1;
                             }
                             let row_idx = (self.state.current_index / cols) as f32;
-                            let y = if row_idx == 0.0 { 0.0 } else { row_idx * 160.0 };
                             return iced::widget::operation::scroll_to(
                                 "grid_scroll",
-                                iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                                iced::widget::operation::AbsoluteOffset {
+                                    x: 0.0,
+                                    y: scroll_y(row_idx),
+                                },
                             );
                         }
                         iced::keyboard::Key::Named(Named::ArrowDown) => {
@@ -75,10 +83,12 @@ impl super::KglanceApp {
                                 self.state.current_index = total - 1;
                             }
                             let row_idx = (self.state.current_index / cols) as f32;
-                            let y = if row_idx == 0.0 { 0.0 } else { row_idx * 160.0 };
                             return iced::widget::operation::scroll_to(
                                 "grid_scroll",
-                                iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                                iced::widget::operation::AbsoluteOffset {
+                                    x: 0.0,
+                                    y: scroll_y(row_idx),
+                                },
                             );
                         }
                         iced::keyboard::Key::Named(Named::ArrowUp) => {
@@ -88,10 +98,12 @@ impl super::KglanceApp {
                                 self.state.current_index = 0;
                             }
                             let row_idx = (self.state.current_index / cols) as f32;
-                            let y = if row_idx == 0.0 { 0.0 } else { row_idx * 160.0 };
                             return iced::widget::operation::scroll_to(
                                 "grid_scroll",
-                                iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                                iced::widget::operation::AbsoluteOffset {
+                                    x: 0.0,
+                                    y: scroll_y(row_idx),
+                                },
                             );
                         }
 

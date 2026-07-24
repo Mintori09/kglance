@@ -149,7 +149,7 @@ pub fn view_window<'a>(
 ) -> Element<'a, Message> {
     let main_body: Element<'a, Message> = match &state.view_mode {
         crate::core::ViewMode::Grid(thumbnails) => {
-            crate::ui::views::view_grid(thumbnails, state.current_index)
+            crate::ui::views::view_grid(thumbnails, state.current_index, state.grid_scale)
         }
         crate::core::ViewMode::Detail => content(preview_body, edge_to_edge),
     };

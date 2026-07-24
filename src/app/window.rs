@@ -1,8 +1,28 @@
 use iced::Task;
 
 use super::Message;
+use crate::core::types::{GRID_GAP, GRID_ITEM_WIDTH};
 
 impl super::KglanceApp {
+    fn update_grid_cols(&mut self, width: f32) {
+        self.state.window_width = width;
+        let scale = self.state.grid_scale;
+        self.state.grid_cols = Self::calc_grid_cols(width, scale);
+    }
+
+    pub(crate) fn recalc_grid_cols(&mut self) {
+        let w = self.state.window_width;
+        let scale = self.state.grid_scale;
+        if w > 0.0 {
+            self.state.grid_cols = Self::calc_grid_cols(w, scale);
+        }
+    }
+
+    fn calc_grid_cols(width: f32, scale: f32) -> usize {
+        let item_w = GRID_ITEM_WIDTH * scale;
+        let gap = GRID_GAP * scale;
+        ((width - gap) / (item_w + gap)).floor().max(1.0) as usize
+    }
     fn close_current(&mut self) -> Task<Message> {
         if let Some(tx) = &self.video_tx {
             let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Stop);
@@ -89,9 +109,10 @@ impl super::KglanceApp {
         event: iced::window::Event,
     ) -> Task<Message> {
         match event {
-            iced::window::Event::Opened { .. } => {
+            iced::window::Event::Opened { size, .. } => {
                 self.probe.mark_window_opened(); // P2
                 self.window_id = Some(id);
+                self.update_grid_cols(size.width);
                 match &self.current_content {
                     Some(crate::core::PreviewData::Image { width, height, .. }) => {
                         let size =
@@ -112,6 +133,9 @@ impl super::KglanceApp {
                 } else {
                     return iced::exit();
                 }
+            }
+            iced::window::Event::Resized(size) => {
+                self.update_grid_cols(size.width);
             }
             _ => {}
         }

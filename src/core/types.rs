@@ -239,6 +239,10 @@ pub enum ViewMode {
     Grid(Vec<GridThumbnail>),
 }
 
+pub const GRID_ITEM_WIDTH: f32 = 150.0;
+pub const GRID_GAP: f32 = 12.0;
+pub const GRID_ROW_HEIGHT: f32 = 140.0;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct GridThumbnail {
     pub path: String,
@@ -275,6 +279,10 @@ pub struct KglanceState {
     pub history: HistoryState,
     pub dir: DirState,
     pub markdown: MarkdownState,
+
+    pub grid_cols: usize,
+    pub window_width: f32,
+    pub grid_scale: f32,
 
     pub font_size: f32,
 
@@ -317,6 +325,9 @@ impl Default for KglanceState {
             history: HistoryState::default(),
             dir: DirState::default(),
             markdown: MarkdownState::default(),
+            grid_cols: 5,
+            window_width: 0.0,
+            grid_scale: 1.0,
             font_size: 14.0,
             theme_dark: true,
             toasts: Vec::new(),
