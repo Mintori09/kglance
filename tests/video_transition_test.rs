@@ -1,4 +1,4 @@
-use kglance::ui::handlers::video::{spawn_video_player, PlayerCommand, VideoEvent};
+use kglance::ui::handlers::video::{PlayerCommand, spawn_video_player};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -18,14 +18,22 @@ fn test_video_controller_consecutive_loads() {
 
     // 1. Send Stop -> Load -> Play
     assert!(cmd_tx.try_send(PlayerCommand::Stop).is_ok());
-    assert!(cmd_tx.try_send(PlayerCommand::Load(dummy_path.clone())).is_ok());
+    assert!(
+        cmd_tx
+            .try_send(PlayerCommand::Load(dummy_path.clone()))
+            .is_ok()
+    );
     assert!(cmd_tx.try_send(PlayerCommand::Play).is_ok());
 
     std::thread::sleep(Duration::from_millis(50));
 
     // 2. Immediately send consecutive Load again (Video 1 -> Video 2 transition)
     assert!(cmd_tx.try_send(PlayerCommand::Stop).is_ok());
-    assert!(cmd_tx.try_send(PlayerCommand::Load(dummy_path.clone())).is_ok());
+    assert!(
+        cmd_tx
+            .try_send(PlayerCommand::Load(dummy_path.clone()))
+            .is_ok()
+    );
     assert!(cmd_tx.try_send(PlayerCommand::Play).is_ok());
 
     std::thread::sleep(Duration::from_millis(50));

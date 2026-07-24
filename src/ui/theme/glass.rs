@@ -265,48 +265,59 @@ pub fn glass_text_input(theme: &Theme, status: text_input::Status) -> text_input
 
 // ── Scrollable ────────────────────────────────────────────────────────────────
 
-/// Minimal glass scrollbar — thin rail with accent handle on hover.
+/// Minimal glass scrollbar — subtle rail/scroller, expanding and highlighting on hover/drag.
 pub fn glass_scrollable(theme: &Theme, status: scrollable::Status) -> scrollable::Style {
     let is_dark = matches!(theme, Theme::Dark);
-    let border = Border {
-        radius: 4.0.into(),
-        ..Border::default()
-    };
 
-    let (rail_bg, scroller_bg) = match status {
-        scrollable::Status::Dragged { .. } | scrollable::Status::Hovered { .. } => (
+    let (scroller_bg, scroller_radius, rail_bg) = match status {
+        scrollable::Status::Dragged { .. } => (
+            ACCENT_PRESSED,
+            3.0,
             if is_dark {
-                Color::from_rgba(1.0, 1.0, 1.0, 0.06)
+                Color::from_rgba(1.0, 1.0, 1.0, 0.08)
             } else {
-                Color::from_rgba(0.0, 0.0, 0.0, 0.06)
+                Color::from_rgba(0.0, 0.0, 0.0, 0.08)
             },
-            ACCENT,
+        ),
+        scrollable::Status::Hovered { .. } => (
+            ACCENT_HOVER,
+            3.0,
+            if is_dark {
+                Color::from_rgba(1.0, 1.0, 1.0, 0.05)
+            } else {
+                Color::from_rgba(0.0, 0.0, 0.0, 0.05)
+            },
         ),
         _ => (
-            Color::TRANSPARENT,
             if is_dark {
-                Color::from_rgba(1.0, 1.0, 1.0, 0.18)
+                Color::from_rgba(1.0, 1.0, 1.0, 0.20)
             } else {
-                Color::from_rgba(0.0, 0.0, 0.0, 0.18)
+                Color::from_rgba(0.0, 0.0, 0.0, 0.20)
             },
+            1.5,
+            Color::TRANSPARENT,
         ),
     };
 
     let scroller = scrollable::Scroller {
         background: scroller_bg.into(),
-        border,
+        border: Border {
+            radius: scroller_radius.into(),
+            width: 0.0,
+            color: Color::TRANSPARENT,
+        },
     };
 
     scrollable::Style {
         container: container::Style::default(),
         vertical_rail: scrollable::Rail {
             background: Some(rail_bg.into()),
-            border,
+            border: Border::default(),
             scroller,
         },
         horizontal_rail: scrollable::Rail {
             background: Some(rail_bg.into()),
-            border,
+            border: Border::default(),
             scroller,
         },
         gap: None,

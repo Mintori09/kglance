@@ -11,12 +11,18 @@ fn truncate_middle(s: &str, max_chars: usize) -> String {
     }
     let half = (max_chars.saturating_sub(1)) / 2;
     let start: String = s.chars().take(half).collect();
-    let end: String = s.chars().rev().take(half).collect::<String>().chars().rev().collect();
+    let end: String = s
+        .chars()
+        .rev()
+        .take(half)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
     format!("{}…{}", start, end)
 }
 
 pub fn get_freedesktop_thumbnail_path(file_path: &str) -> Option<PathBuf> {
-
     let canonical = Path::new(file_path).canonicalize().ok()?;
     let uri = format!("file://{}", canonical.display());
     let digest = md5::compute(uri.as_bytes());
@@ -90,7 +96,6 @@ pub fn view_grid<'a>(thumbnails: &'a [GridThumbnail], active_index: usize) -> El
                             .shaping(text::Shaping::Advanced)
                             .width(Length::Fill)
                             .align_x(Alignment::Center)
-
                     ]
                     .align_x(Alignment::Center)
                     .spacing(4)
@@ -169,7 +174,6 @@ pub fn view_grid<'a>(thumbnails: &'a [GridThumbnail], active_index: usize) -> El
             .height(Length::Fill)
             .width(Length::Fill)
             .into()
-
     })
     .into()
 }
