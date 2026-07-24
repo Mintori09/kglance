@@ -33,10 +33,26 @@ impl super::KglanceApp {
         match &self.state.view_mode {
             crate::core::ViewMode::Detail => match &key {
                 iced::keyboard::Key::Named(Named::ArrowRight) => {
-                    return self.update(Message::NextFileClicked);
+                    let is_epub = self.state.file_name.to_lowercase().ends_with(".epub")
+                        || self.state.file_type_text.contains("EPUB");
+                    if self.state.media.has_video {
+                        return self.handle_seek_relative(5.0);
+                    } else if is_epub {
+                        return Task::none();
+                    } else {
+                        return self.update(Message::NextFileClicked);
+                    }
                 }
                 iced::keyboard::Key::Named(Named::ArrowLeft) => {
-                    return self.update(Message::PrevFileClicked);
+                    let is_epub = self.state.file_name.to_lowercase().ends_with(".epub")
+                        || self.state.file_type_text.contains("EPUB");
+                    if self.state.media.has_video {
+                        return self.handle_seek_relative(-5.0);
+                    } else if is_epub {
+                        return Task::none();
+                    } else {
+                        return self.update(Message::PrevFileClicked);
+                    }
                 }
                 _ => {}
             },

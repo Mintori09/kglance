@@ -296,6 +296,8 @@ pub struct KglanceState {
     pub grid_scale: f32,
 
     pub font_size: f32,
+    pub font_family: Option<String>,
+    pub font_family_mono: Option<String>,
 
     pub theme_dark: bool,
 
@@ -340,6 +342,8 @@ impl Default for KglanceState {
             window_width: 0.0,
             grid_scale: 1.0,
             font_size: 14.0,
+            font_family: None,
+            font_family_mono: None,
             theme_dark: true,
             toasts: Vec::new(),
             next_toast_id: 0,

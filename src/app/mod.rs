@@ -215,6 +215,8 @@ impl KglanceApp {
         let mut state = KglanceState {
             theme_dark,
             font_size: config.ui.font_size,
+            font_family: config.ui.font_family,
+            font_family_mono: config.ui.font_family_mono,
             ..Default::default()
         };
 
@@ -522,22 +524,37 @@ impl KglanceApp {
             t0.elapsed()
         );
 
-        let scan_task: Option<Task<Message>> = if self.state.playlist.len() <= 1 {
-            let scan_path = path.clone();
-            Some(Task::perform(
-                async move {
-                    let files = tokio::task::spawn_blocking(move || {
-                        crate::core::navigation::scan_sibling_files(&scan_path)
-                    })
-                    .await
-                    .unwrap_or_default();
-                    Message::SiblingFilesLoaded(files)
-                },
-                |msg| msg,
-            ))
-        } else {
-            None
+        let is_video_or_epub = {
+            let lower = path.to_lowercase();
+            lower.ends_with(".epub")
+                || lower.ends_with(".mp4")
+                || lower.ends_with(".mkv")
+                || lower.ends_with(".avi")
+                || lower.ends_with(".mov")
+                || lower.ends_with(".webm")
         };
+
+        if is_video_or_epub {
+            self.state.playlist.clear();
+        }
+
+        let scan_task: Option<Task<Message>> =
+            if !is_video_or_epub && self.state.playlist.len() <= 1 {
+                let scan_path = path.clone();
+                Some(Task::perform(
+                    async move {
+                        let files = tokio::task::spawn_blocking(move || {
+                            crate::core::navigation::scan_sibling_files(&scan_path)
+                        })
+                        .await
+                        .unwrap_or_default();
+                        Message::SiblingFilesLoaded(files)
+                    },
+                    |msg| msg,
+                ))
+            } else {
+                None
+            };
 
         Task::batch(
             mermaid_tasks
@@ -674,15 +691,14 @@ impl KglanceApp {
                                                     {
                                                         return Some(iced::widget::image::Handle::from_path(&path_for_task));
                                                     }
-                                                    if lower.ends_with(".mp4")
+                                                    if (lower.ends_with(".mp4")
                                                         || lower.ends_with(".mkv")
                                                         || lower.ends_with(".avi")
                                                         || lower.ends_with(".mov")
-                                                        || lower.ends_with(".webm")
+                                                        || lower.ends_with(".webm"))
+                                                        && let Some(bytes) = crate::parsers::video::extract_video_thumbnail(std::path::Path::new(&path_for_task))
                                                     {
-                                                        if let Some(bytes) = crate::parsers::video::extract_video_thumbnail(std::path::Path::new(&path_for_task)) {
-                                                            return Some(iced::widget::image::Handle::from_bytes(bytes));
-                                                        }
+                                                        return Some(iced::widget::image::Handle::from_bytes(bytes));
                                                     }
                                                     None
                                                 })
@@ -1111,12 +1127,14 @@ impl KglanceApp {
                     &self.state.text,
                     self.state.theme_dark,
                     self.state.font_size,
+                    self.state.font_family_mono.as_deref(),
                 ),
                 PreviewData::Markdown { blocks } => crate::ui::views::view_markdown(
                     blocks,
                     &self.state.markdown,
                     self.state.font_size,
                     self.state.theme_dark,
+                    self.state.font_family_mono.as_deref(),
                 ),
                 PreviewData::Image { .. } => crate::ui::views::view_image(&self.state.image),
                 PreviewData::Pdf { .. } => crate::ui::views::view_pdf(&self.state.pdf),

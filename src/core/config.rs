@@ -6,6 +6,8 @@ use std::path::PathBuf;
 pub struct UiConfig {
     pub theme: String,
     pub font_size: f32,
+    pub font_family: Option<String>,
+    pub font_family_mono: Option<String>,
     pub default_width: u32,
     pub default_height: u32,
 }
@@ -30,6 +32,8 @@ impl Default for UiConfig {
         Self {
             theme: detect_system_theme(),
             font_size: 14.0,
+            font_family: None,
+            font_family_mono: None,
             default_width: 900,
             default_height: 600,
         }

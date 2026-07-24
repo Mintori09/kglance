@@ -122,10 +122,10 @@ pub fn spawn_video_player(
                             c.stop();
                             drop(c);
                             thread::sleep(Duration::from_millis(20));
-                            if let Ok(mut c) = ctrl.lock() {
-                                if let Err(e) = c.load(&path, event_tx.clone()) {
-                                    log_error!("VideoController::load failed: {e}");
-                                }
+                            if let Ok(mut c) = ctrl.lock()
+                                && let Err(e) = c.load(&path, event_tx.clone())
+                            {
+                                log_error!("VideoController::load failed: {e}");
                             }
                         }
                         PlayerCommand::Play => c.play(),
