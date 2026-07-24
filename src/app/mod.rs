@@ -131,11 +131,12 @@ pub enum Message {
     // Hot reload: file changed on disk
     FileChanged(String),
 
-    // Markdown TOC
+    // Markdown TOC & Scroll
     TocToggled,
     TocHeadingClicked(usize),
     TocToggleCollapse(usize),
     MarkdownScrolled(f32),
+    TextScrolled(f32),
 }
 
 fn png_to_rgba_handle(png: Vec<u8>) -> Option<iced::widget::image::Handle> {
@@ -989,6 +990,60 @@ impl KglanceApp {
                 } else {
                     Task::none()
                 }
+            }
+            Message::TextScrolled(y) => {
+                self.state.text.scroll_y = y;
+                Task::none()
+            }
+            Message::FileChanged(path) => {
+                if path == self.state.file_name {
+                    let path_obj = Path::new(&path);
+                    if !path_obj.exists() {
+                        let name = path_obj
+                            .file_name()
+                            .map(|n| n.to_string_lossy().to_string())
+                            .unwrap_or(path);
+                        self.current_content = None;
+                        self.state.content_ready = false;
+                        return self.show_toast(format!("File deleted: \"{}\"", name));
+                    }
+
+                    // Restore scroll position after reload
+                    let prev_md_y = self.state.markdown.scroll_y;
+                    let prev_txt_y = self.state.text.scroll_y;
+
+                    if let Ok(content) = FilePreviewer::parse(&*self.registry, path_obj) {
+                        let is_md = matches!(content, PreviewData::Markdown { .. });
+                        let is_txt = matches!(content, PreviewData::Text { .. });
+
+                        let load_task = self.handle_file_loaded(path, content);
+
+                        let scroll_task = if is_md && prev_md_y > 0.0 {
+                            self.state.markdown.scroll_y = prev_md_y;
+                            iced::widget::operation::scroll_to(
+                                "content_scroll",
+                                iced::widget::operation::AbsoluteOffset {
+                                    x: 0.0,
+                                    y: prev_md_y,
+                                },
+                            )
+                        } else if is_txt && prev_txt_y > 0.0 {
+                            self.state.text.scroll_y = prev_txt_y;
+                            iced::widget::operation::scroll_to(
+                                "content_scroll",
+                                iced::widget::operation::AbsoluteOffset {
+                                    x: 0.0,
+                                    y: prev_txt_y,
+                                },
+                            )
+                        } else {
+                            Task::none()
+                        };
+
+                        return Task::batch(vec![load_task, scroll_task]);
+                    }
+                }
+                Task::none()
             }
             _ => Task::none(),
         }

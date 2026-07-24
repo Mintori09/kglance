@@ -67,9 +67,16 @@ impl PreviewData {
                 line_numbers,
                 language,
             } => {
+                let words = content.split_whitespace().count();
+                let chars = content.chars().count();
+                let mins = (words as f32 / 200.0).ceil() as usize;
+
                 state.text.content = iced::widget::text_editor::Content::with_text(content);
                 state.text.extension = language.clone();
                 state.text.line_numbers.clone_from(line_numbers);
+                state.text.word_count = words;
+                state.text.char_count = chars;
+                state.text.reading_time_mins = mins;
                 state.file_type_text = language.clone();
             }
             PreviewData::Image {
@@ -108,8 +115,27 @@ impl PreviewData {
             }
             PreviewData::Markdown { blocks } => {
                 let fs = state.font_size;
+                let full_text: String = blocks
+                    .iter()
+                    .map(|b| match b {
+                        Block::Heading { content, .. } | Block::Paragraph(content) => {
+                            crate::parsers::markdown::flatten_inlines(content)
+                        }
+                        Block::CodeBlock { code, .. } => code.clone(),
+                        _ => String::new(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ");
+
+                let words = full_text.split_whitespace().count();
+                let chars = full_text.chars().count();
+                let mins = (words as f32 / 200.0).ceil() as usize;
+
                 state.markdown = crate::core::types::MarkdownState {
                     toc: extract_toc(blocks, fs, &std::collections::HashMap::new()),
+                    word_count: words,
+                    char_count: chars,
+                    reading_time_mins: mins,
                     ..Default::default()
                 };
                 for (i, block) in blocks.iter().enumerate() {

@@ -27,6 +27,24 @@ fn left_metadata_text(state: &KglanceState) -> String {
         parts.push(state.file_modified_text.clone());
     }
 
+    if state.file_type_text.contains("Markdown") {
+        if state.markdown.word_count > 0 {
+            parts.push(format!(
+                "{} words ({} chars)",
+                state.markdown.word_count, state.markdown.char_count
+            ));
+            let mins = state.markdown.reading_time_mins;
+            parts.push(format!("{} min read", if mins == 0 { 1 } else { mins }));
+        }
+    } else if state.text.word_count > 0 {
+        parts.push(format!(
+            "{} words ({} chars)",
+            state.text.word_count, state.text.char_count
+        ));
+        let mins = state.text.reading_time_mins;
+        parts.push(format!("{} min read", if mins == 0 { 1 } else { mins }));
+    }
+
     parts.join(" • ")
 }
 
