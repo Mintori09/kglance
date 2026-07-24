@@ -4,7 +4,7 @@ use iced::widget::operation::{self, AbsoluteOffset};
 use super::Message;
 use crate::core::PreviewData;
 
-use crate::ui::handlers::video::VideoEvent;
+use crate::features::video::VideoEvent;
 
 impl super::KglanceApp {
     pub fn handle_scroll_delta(&mut self, _x: f32, y: f32) -> Task<Message> {
@@ -20,7 +20,7 @@ impl super::KglanceApp {
                 let delta = if y > 0.0 { 1.0 } else { -1.0 };
                 self.state.font_size = (self.state.font_size + delta).clamp(8.0, 48.0);
                 if let Some(PreviewData::Markdown { ref blocks }) = self.current_content {
-                    self.state.markdown.toc = crate::parsers::markdown::extract_toc(
+                    self.state.markdown.toc = crate::features::markdown::extract_toc(
                         blocks,
                         self.state.font_size,
                         &self.state.markdown.cached_image_sizes,
@@ -47,9 +47,9 @@ impl super::KglanceApp {
     pub fn handle_play_pause(&mut self) -> Task<Message> {
         if let Some(tx) = &self.video_tx {
             if self.state.media.playing {
-                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Pause);
+                let _ = tx.try_send(crate::features::video::PlayerCommand::Pause);
             } else {
-                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Play);
+                let _ = tx.try_send(crate::features::video::PlayerCommand::Play);
             }
         }
         Task::none()
@@ -57,16 +57,14 @@ impl super::KglanceApp {
 
     pub fn handle_seek(&self, percent: f32) -> Task<Message> {
         if let Some(tx) = &self.video_tx {
-            let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Seek(
-                percent as f64,
-            ));
+            let _ = tx.try_send(crate::features::video::PlayerCommand::Seek(percent as f64));
         }
         Task::none()
     }
 
     pub fn handle_seek_relative(&self, secs: f32) -> Task<Message> {
         if let Some(tx) = &self.video_tx {
-            let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::SeekRelative(
+            let _ = tx.try_send(crate::features::video::PlayerCommand::SeekRelative(
                 secs as f64,
             ));
         }

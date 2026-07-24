@@ -1,13 +1,14 @@
 pub mod config;
-pub mod config_watcher;
+pub mod error;
 pub mod file_watcher;
-pub mod handlers;
-pub mod navigation;
 pub mod preloader;
 pub mod preview;
 pub mod types;
+pub mod utils;
 
-pub use preview::{FilePreviewer, PreviewData};
+pub use preview::{
+    ContentType, PreviewContent, PreviewData, content_to_preview_data, preview_data_to_content,
+};
 pub use types::{
     DirState, GridThumbnail, HistoryState, ImageState, KglanceState, MarkdownState, MediaState,
     PageCacheEntry, PdfState, SheetInfo, SortField, SortState, SpreadsheetState, TableRowState,

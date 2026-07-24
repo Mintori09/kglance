@@ -49,13 +49,13 @@ fn gst_init_once() {
 #[test]
 fn test_alpha_channel_non_zero_integrity() {
     gst_init_once();
-    use kglance::ui::handlers::video::PlayerCommand;
+    use kglance::features::video::PlayerCommand;
 
     let video = get_test_video();
     let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel(100);
     let (event_tx, _event_rx) = tokio::sync::mpsc::channel(100);
 
-    let controller = kglance::ui::handlers::video::spawn_video_player(cmd_rx, event_tx);
+    let controller = kglance::features::video::spawn_video_player(cmd_rx, event_tx);
 
     cmd_tx
         .try_send(PlayerCommand::Load(video.to_str().unwrap().to_string()))
@@ -95,7 +95,7 @@ fn test_iced_image_handle_from_video_buffer() {
 #[test]
 fn test_app_media_state_routing_and_video_flag() {
     use kglance::core::KglanceState;
-    use kglance::core::preview::PreviewData;
+    use kglance::core::preview::{PreviewData, preview_data_to_content};
 
     let mut state = KglanceState::default();
 
@@ -108,7 +108,8 @@ fn test_app_media_state_routing_and_video_flag() {
     };
 
     // 1. Check populate_state
-    media_data.populate_state(&mut state);
+    let media_content = preview_data_to_content(media_data);
+    media_content.populate_state(&mut state);
     assert_eq!(state.media.metadata, "Video Duration: 12.34s");
     assert_eq!(state.file_type_text, "Video File");
 
@@ -156,13 +157,13 @@ fn test_handle_invalidation_flicker_diagnosis() {
 #[test]
 fn test_subsequent_frame_handle_uniqueness_causes_flicker() {
     gst_init_once();
-    use kglance::ui::handlers::video::PlayerCommand;
+    use kglance::features::video::PlayerCommand;
 
     let video = get_test_video();
     let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel(100);
     let (event_tx, _event_rx) = tokio::sync::mpsc::channel(100);
 
-    let controller = kglance::ui::handlers::video::spawn_video_player(cmd_rx, event_tx);
+    let controller = kglance::features::video::spawn_video_player(cmd_rx, event_tx);
 
     cmd_tx
         .try_send(PlayerCommand::Load(video.to_str().unwrap().to_string()))

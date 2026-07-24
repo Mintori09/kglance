@@ -111,13 +111,8 @@ fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let registry = std::sync::Arc::new(build_registry());
 
     let primary = &paths[0];
-    let resolved = std::path::Path::new(primary);
-    let mut initial_size = Size::new(1024.0, 768.0);
-    if let Ok(kglance::parsers::ParsedContent::Image { width, height, .. }) =
-        registry.parse(resolved)
-    {
-        initial_size = kglance::ui::handlers::image::calculate_window_size(width, height);
-    }
+    let _resolved = std::path::Path::new(primary);
+    let initial_size = Size::new(1024.0, 768.0);
 
     let owned_paths: Vec<String> = paths.to_vec();
     log_info!("Running Iced GUI in standalone mode...");

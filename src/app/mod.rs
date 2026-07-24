@@ -11,10 +11,10 @@ use std::sync::Mutex;
 use std::time::Instant;
 use tokio::sync::mpsc;
 
-use crate::core::{FilePreviewer, KglanceState, PreviewData};
+use crate::core::{KglanceState, PreviewData};
 use crate::dbus::DaemonCommand;
+use crate::features::markdown::Block;
 use crate::parsers::ParserRegistry;
-use crate::parsers::markdown::Block;
 use crate::{log_debug, log_info};
 
 #[derive(Debug, Clone)]
@@ -74,7 +74,7 @@ pub enum Message {
     PlayPauseClicked,
     SeekClicked(f32),
     SeekRelativeClicked(f32),
-    VideoEventReceived(crate::ui::handlers::video::VideoEvent),
+    VideoEventReceived(crate::features::video::VideoEvent),
     MediaMouseEnter,
     MediaMouseLeave,
 
@@ -109,9 +109,14 @@ pub enum Message {
         index: usize,
         png_bytes: Option<Vec<u8>>,
     },
-    // Async inline image loading
+    // Async image loading
     MarkdownImageLoaded {
         index: usize,
+        png_bytes: Option<Vec<u8>>,
+    },
+    InlineImageLoaded {
+        block_index: usize,
+        inline_index: usize,
         png_bytes: Option<Vec<u8>>,
     },
     // Async video thumbnail
@@ -182,10 +187,10 @@ pub struct KglanceApp {
     pub is_daemon: bool,
     pub window_id: Option<iced::window::Id>,
     pub current_content: Option<PreviewData>,
-    pub video_tx: Option<tokio::sync::mpsc::Sender<crate::ui::handlers::video::PlayerCommand>>,
+    pub video_tx: Option<tokio::sync::mpsc::Sender<crate::features::video::PlayerCommand>>,
     pub video_rx:
-        Arc<Mutex<Option<tokio::sync::mpsc::Receiver<crate::ui::handlers::video::VideoEvent>>>>,
-    pub video_controller: Option<Arc<Mutex<crate::ui::handlers::video::VideoController>>>,
+        Arc<Mutex<Option<tokio::sync::mpsc::Receiver<crate::features::video::VideoEvent>>>>,
+    pub video_controller: Option<Arc<Mutex<crate::features::video::VideoController>>>,
     pub ctrl_held: bool,
     pub shift_held: bool,
     pub pending_g: bool,
@@ -202,7 +207,7 @@ impl KglanceApp {
     ) -> (Self, Task<Message>) {
         let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel(100);
         let (event_tx, event_rx) = tokio::sync::mpsc::channel(100);
-        let vc = crate::ui::handlers::video::spawn_video_player(cmd_rx, event_tx);
+        let vc = crate::features::video::spawn_video_player(cmd_rx, event_tx);
 
         let config = crate::core::config::ConfigManager::load_or_create();
         let theme_dark = config.ui.theme != "Light";
@@ -241,7 +246,7 @@ impl KglanceApp {
             let reg = app.registry.clone();
             Task::perform(
                 async move {
-                    let content = FilePreviewer::parse(&*reg, Path::new(&path_str)).ok()?;
+                    let content = reg.parse_to_preview_data(Path::new(&path_str)).ok()?;
                     Some(Message::FileLoaded {
                         path: path_str,
                         content,
@@ -279,7 +284,7 @@ impl KglanceApp {
                     tasks.push(Task::perform(
                         async move {
                             let content = tokio::task::spawn_blocking(move || {
-                                FilePreviewer::parse(&*reg, Path::new(&target_path)).ok()
+                                reg.parse_to_preview_data(Path::new(&target_path)).ok()
                             })
                             .await
                             .ok()
@@ -315,7 +320,7 @@ impl KglanceApp {
         let _scan_path = path.clone();
         self.state.file_name = path.clone();
         self.state.content_ready = true;
-        self.state.image.camera = crate::preview::image::Camera::new();
+        self.state.image.camera = crate::features::image::Camera::new();
 
         let mut mermaid_tasks: Vec<Task<Message>> = {
             let mut tasks = Vec::new();
@@ -331,7 +336,7 @@ impl KglanceApp {
                             tasks.push(Task::perform(
                                 async move {
                                     let png = tokio::task::spawn_blocking(move || {
-                                        crate::parsers::markdown::render_mermaid_to_png(&code)
+                                        crate::features::markdown::render_mermaid_to_png(&code)
                                     })
                                     .await
                                     .ok()
@@ -374,11 +379,50 @@ impl KglanceApp {
                         _ => {}
                     }
                 }
+                // Second pass: load inline images inside Paragraph/Heading
+                for (bi, block) in blocks.iter().enumerate() {
+                    let inlines = match block {
+                        Block::Paragraph(inlines)
+                        | Block::Heading {
+                            content: inlines, ..
+                        } => inlines,
+                        _ => continue,
+                    };
+                    for (ii, inline) in inlines.iter().enumerate() {
+                        if let crate::features::markdown::Inline::Image { url, .. } = inline {
+                            let resolved = if Path::new(url).is_absolute() {
+                                std::path::PathBuf::from(url)
+                            } else {
+                                Path::new(&self.state.file_name)
+                                    .parent()
+                                    .unwrap_or(Path::new("."))
+                                    .join(url)
+                            };
+                            tasks.push(Task::perform(
+                                async move {
+                                    let bytes = tokio::task::spawn_blocking(move || {
+                                        std::fs::read(&resolved).ok()
+                                    })
+                                    .await
+                                    .ok()
+                                    .flatten();
+                                    Message::InlineImageLoaded {
+                                        block_index: bi,
+                                        inline_index: ii,
+                                        png_bytes: bytes,
+                                    }
+                                },
+                                |msg| msg,
+                            ));
+                        }
+                    }
+                }
             }
             tasks
         };
 
-        content.populate_state(&mut self.state);
+        let preview_content = crate::core::preview::preview_data_to_content(content.clone());
+        preview_content.populate_state(&mut self.state);
         self.current_content = Some(content.clone());
 
         let is_pdf = matches!(content, PreviewData::Pdf { .. });
@@ -406,7 +450,7 @@ impl KglanceApp {
             let page_count = self.state.pdf.page_count;
             let pdf_path = path.clone();
             let visible_page = self.state.pdf.visible_page.clone();
-            Some(crate::core::handlers::pdf::lazy_load_pages(
+            Some(crate::features::pdf::lazy_load_pages(
                 pdf_path,
                 page_count,
                 visible_page,
@@ -437,13 +481,11 @@ impl KglanceApp {
 
         if let Some(tx) = &self.video_tx {
             if is_video || is_audio {
-                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Stop);
-                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Load(
-                    path.clone(),
-                ));
-                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Play);
+                let _ = tx.try_send(crate::features::video::PlayerCommand::Stop);
+                let _ = tx.try_send(crate::features::video::PlayerCommand::Load(path.clone()));
+                let _ = tx.try_send(crate::features::video::PlayerCommand::Play);
             } else {
-                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Stop);
+                let _ = tx.try_send(crate::features::video::PlayerCommand::Stop);
             }
         }
 
@@ -451,7 +493,7 @@ impl KglanceApp {
             mermaid_tasks.push(Task::perform(
                 async move {
                     let data = tokio::task::spawn_blocking(move || {
-                        crate::parsers::video::extract_video_thumbnail(std::path::Path::new(
+                        crate::features::video::extract_video_thumbnail(std::path::Path::new(
                             &thumb_path,
                         ))
                     })
@@ -509,11 +551,12 @@ impl KglanceApp {
         );
 
         let scan_task: Option<Task<Message>> = if self.state.playlist.len() <= 1 {
+            let reg = self.registry.clone();
             let scan_path = path.clone();
             Some(Task::perform(
                 async move {
                     let files = tokio::task::spawn_blocking(move || {
-                        crate::core::navigation::scan_sibling_files(&scan_path)
+                        reg.scan_sibling_files(&scan_path, true)
                     })
                     .await
                     .unwrap_or_default();
@@ -573,8 +616,7 @@ impl KglanceApp {
                     let path_for_err = next_path.clone();
                     return Task::perform(
                         async move {
-                            let content =
-                                FilePreviewer::parse(&*reg, Path::new(&next_path)).ok()?;
+                            let content = reg.parse_to_preview_data(Path::new(&next_path)).ok()?;
                             Some(Message::FileLoaded {
                                 path: next_path,
                                 content,
@@ -606,8 +648,7 @@ impl KglanceApp {
                     let path_for_err = prev_path.clone();
                     return Task::perform(
                         async move {
-                            let content =
-                                FilePreviewer::parse(&*reg, Path::new(&prev_path)).ok()?;
+                            let content = reg.parse_to_preview_data(Path::new(&prev_path)).ok()?;
                             Some(Message::FileLoaded {
                                 path: prev_path,
                                 content,
@@ -690,7 +731,7 @@ impl KglanceApp {
                     return Task::perform(
                         async move {
                             let content =
-                                FilePreviewer::parse(&*reg, Path::new(&target_path)).ok()?;
+                                reg.parse_to_preview_data(Path::new(&target_path)).ok()?;
                             Some(Message::FileLoaded {
                                 path: target_path,
                                 content,
@@ -767,12 +808,12 @@ impl KglanceApp {
             Message::WindowEvent(id, event) => self.handle_window_event(id, event),
             Message::ImageZoom(delta) => self.handle_image_zoom(delta),
             Message::ImagePanDelta(dx, dy) => {
-                use crate::preview::image::ViewerController;
+                use crate::features::image::ViewerController;
                 ViewerController::pan(&mut self.state.image.camera, dx, dy);
                 Task::none()
             }
             Message::ImageDoubleClick => {
-                use crate::preview::image::ViewerController;
+                use crate::features::image::ViewerController;
                 ViewerController::reset(&mut self.state.image.camera);
                 Task::none()
             }
@@ -859,7 +900,7 @@ impl KglanceApp {
                             .insert(index, handle);
                         self.state.markdown.cached_image_sizes.insert(index, (w, h));
                         if let Some(PreviewData::Markdown { ref blocks }) = self.current_content {
-                            self.state.markdown.toc = crate::parsers::markdown::extract_toc(
+                            self.state.markdown.toc = crate::features::markdown::extract_toc(
                                 blocks,
                                 self.state.font_size,
                                 &self.state.markdown.cached_image_sizes,
@@ -878,6 +919,25 @@ impl KglanceApp {
                             index
                         );
                     }
+                }
+                Task::none()
+            }
+            Message::InlineImageLoaded {
+                block_index,
+                inline_index,
+                png_bytes,
+            } => {
+                if let Some(bytes) = png_bytes
+                    && let Some((handle, w, h)) = png_to_rgba_handle_with_size(bytes)
+                {
+                    self.state
+                        .markdown
+                        .cached_inline_image_handles
+                        .insert((block_index, inline_index), handle);
+                    self.state
+                        .markdown
+                        .cached_inline_image_sizes
+                        .insert((block_index, inline_index), (w, h));
                 }
                 Task::none()
             }
@@ -1010,26 +1070,26 @@ impl KglanceApp {
                     self.state.theme_dark,
                     self.state.font_size,
                 ),
-                PreviewData::Markdown { blocks } => crate::ui::views::view_markdown(
+                PreviewData::Markdown { blocks } => crate::features::markdown::view_markdown(
                     blocks,
                     &self.state.markdown,
                     self.state.font_size,
                     self.state.theme_dark,
                 ),
-                PreviewData::Image { .. } => crate::ui::views::view_image(&self.state.image),
-                PreviewData::Pdf { .. } => crate::ui::views::view_pdf(&self.state.pdf),
+                PreviewData::Image { .. } => crate::features::image::view_image(&self.state.image),
+                PreviewData::Pdf { .. } => crate::features::pdf::view_pdf(&self.state.pdf),
                 PreviewData::Folder { .. } => {
-                    crate::ui::views::view_table(&self.state.table, self.state.theme_dark)
+                    crate::features::document::view_table(&self.state.table, self.state.theme_dark)
                 }
                 PreviewData::Spreadsheet { .. } => {
-                    crate::ui::views::view_spreadsheet(&self.state.spreadsheet)
+                    crate::features::document::view_spreadsheet(&self.state.spreadsheet)
                 }
                 PreviewData::Media {
                     thumbnail_or_waveform,
                     width,
                     height,
                     ..
-                } => crate::ui::views::view_media(
+                } => crate::features::video::view_media(
                     &self.state.media,
                     thumbnail_or_waveform,
                     self.video_controller.as_ref().unwrap(),
@@ -1058,7 +1118,7 @@ impl KglanceApp {
             self.daemon_rx.clone(),
         ));
 
-        let video_sub = subscription::from_recipe(crate::ui::handlers::video::VideoRecipe::new(
+        let video_sub = subscription::from_recipe(crate::features::video::VideoRecipe::new(
             self.video_rx.clone(),
         ));
 

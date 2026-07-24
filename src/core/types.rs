@@ -35,7 +35,7 @@ pub struct TableRowState {
     pub is_dir: bool,
     pub icon: &'static str,
 }
-use crate::preview::image::{Camera, ImageLoadState};
+use crate::features::image::{Camera, ImageLoadState};
 use iced::widget::image;
 
 #[derive(Debug, Clone)]
@@ -209,6 +209,9 @@ pub struct MarkdownState {
     pub cached_mermaid_handles: std::collections::HashMap<usize, iced::widget::image::Handle>,
     pub cached_image_handles: std::collections::HashMap<usize, iced::widget::image::Handle>,
     pub cached_image_sizes: std::collections::HashMap<usize, (u32, u32)>,
+    pub cached_inline_image_handles:
+        std::collections::HashMap<(usize, usize), iced::widget::image::Handle>,
+    pub cached_inline_image_sizes: std::collections::HashMap<(usize, usize), (u32, u32)>,
     pub toc: Vec<TocEntry>,
     pub toc_visible: bool,
     pub collapsed_headings: std::collections::HashSet<usize>,

@@ -12,7 +12,6 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use kglance::core::FilePreviewer;
 use kglance::parsers::ParserRegistry;
 use kglance::parsers::markdown::MarkdownParser;
 use kglance::parsers::text::TextParser;
@@ -101,7 +100,7 @@ fn parse_to_blocks_medium_md_within_budget() {
     );
 }
 
-// ─── FilePreviewer::parse latency tests (the per-request critical path) ───────
+// ─── ParserRegistry::parse latency tests (the per-request critical path) ──────
 
 /// parse() is the entire per-request work in the daemon (after our optimization).
 /// KglanceState::default() is paid once at daemon startup and is NOT included here.
@@ -111,10 +110,10 @@ fn parse_small_md_within_budget() {
     let registry = build_registry();
 
     // Warm up registry once (first call may include extension map setup)
-    let _ = FilePreviewer::parse(&*registry, &path);
+    let _ = registry.parse(&path);
 
     let start = Instant::now();
-    let _content = FilePreviewer::parse(&*registry, &path).expect("should parse successfully");
+    let _content = registry.parse(&path).expect("should parse successfully");
     let elapsed = start.elapsed();
 
     assert!(
@@ -130,10 +129,10 @@ fn parse_small_md_within_budget() {
 fn parse_medium_md_within_budget() {
     let (_dir, path) = make_md_file(500, 0);
     let registry = build_registry();
-    let _ = FilePreviewer::parse(&*registry, &path); // warm up
+    let _ = registry.parse(&path); // warm up
 
     let start = Instant::now();
-    let _content = FilePreviewer::parse(&*registry, &path).expect("should parse successfully");
+    let _content = registry.parse(&path).expect("should parse successfully");
     let elapsed = start.elapsed();
 
     assert!(
@@ -150,10 +149,10 @@ fn parse_md_with_mermaid_blocks_no_render_within_budget() {
     // Mermaid blocks must NOT be rendered synchronously.
     let (_dir, path) = make_md_file(200, 3);
     let registry = build_registry();
-    let _ = FilePreviewer::parse(&*registry, &path); // warm up
+    let _ = registry.parse(&path); // warm up
 
     let start = Instant::now();
-    let _content = FilePreviewer::parse(&*registry, &path).expect("should parse successfully");
+    let _content = registry.parse(&path).expect("should parse successfully");
     let elapsed = start.elapsed();
 
     assert!(
@@ -170,43 +169,39 @@ fn parse_md_with_mermaid_blocks_no_render_within_budget() {
 
 #[test]
 fn mermaid_blocks_are_not_rendered_synchronously() {
-    use kglance::core::preview::PreviewData;
-    use kglance::parsers::markdown::Block;
+    use kglance::features::markdown::types::Block;
 
     let (_dir, path) = make_md_file(100, 2);
-    let registry = build_registry();
+    let content = std::fs::read_to_string(&path).unwrap();
+    let blocks = kglance::parsers::markdown::parse_to_blocks(&content);
 
-    let content = FilePreviewer::parse(&*registry, &path).unwrap();
+    let mermaid_count = blocks
+        .iter()
+        .filter(|b| matches!(b, Block::Mermaid { .. }))
+        .count();
+    let rendered_count = blocks
+        .iter()
+        .filter(|b| {
+            matches!(
+                b,
+                Block::Mermaid {
+                    rendered: Some(_),
+                    ..
+                }
+            )
+        })
+        .count();
 
-    if let PreviewData::Markdown { blocks } = content {
-        let mermaid_count = blocks
-            .iter()
-            .filter(|b| matches!(b, Block::Mermaid { .. }))
-            .count();
-        let rendered_count = blocks
-            .iter()
-            .filter(|b| {
-                matches!(
-                    b,
-                    Block::Mermaid {
-                        rendered: Some(_),
-                        ..
-                    }
-                )
-            })
-            .count();
-
-        assert!(mermaid_count > 0, "should have parsed mermaid blocks");
-        assert_eq!(
-            rendered_count, 0,
-            "mermaid blocks must NOT be rendered synchronously during parse \
-             (would block the UI thread)"
-        );
-        println!(
-            "[CHECK] {} mermaid blocks parsed, {} rendered sync (should be 0)",
-            mermaid_count, rendered_count
-        );
-    }
+    assert!(mermaid_count > 0, "should have parsed mermaid blocks");
+    assert_eq!(
+        rendered_count, 0,
+        "mermaid blocks must NOT be rendered synchronously during parse \
+         (would block the UI thread)"
+    );
+    println!(
+        "[CHECK] {} mermaid blocks parsed, {} rendered sync (should be 0)",
+        mermaid_count, rendered_count
+    );
 }
 
 #[test]
@@ -215,10 +210,10 @@ fn parse_large_md_within_extended_budget() {
     let extended_budget = Duration::from_millis(100);
     let (_dir, path) = make_md_file(3000, 0);
     let registry = build_registry();
-    let _ = FilePreviewer::parse(&*registry, &path); // warm up
+    let _ = registry.parse(&path); // warm up
 
     let start = Instant::now();
-    let _content = FilePreviewer::parse(&*registry, &path).unwrap();
+    let _content = registry.parse(&path).unwrap();
     let elapsed = start.elapsed();
 
     assert!(
@@ -279,7 +274,7 @@ fn consecutive_parse_requests_within_budget() {
 
     for (i, (_dir, path)) in files.iter().enumerate() {
         let start = Instant::now();
-        let _content = FilePreviewer::parse(&*registry, path).unwrap();
+        let _content = registry.parse(path).unwrap();
         let elapsed = start.elapsed();
         assert!(
             elapsed < PARSE_BUDGET,

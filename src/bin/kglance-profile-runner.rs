@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::thread::sleep(Duration::from_secs(3));
 
     // Step 3: Trigger preview via CLI (DBus request)
-    let test_file = "/home/mintori/Desktop/agentic_engineering_beyond_loop_engineering.md";
+    let test_file = "../../testing-file/markdown.md";
     println!("[TEST] Triggering preview via DBus for: {test_file}");
     let t_start = Instant::now();
 

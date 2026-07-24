@@ -5,7 +5,7 @@ use super::Message;
 impl super::KglanceApp {
     fn close_current(&mut self) -> Task<Message> {
         if let Some(tx) = &self.video_tx {
-            let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Stop);
+            let _ = tx.try_send(crate::features::video::PlayerCommand::Stop);
         }
         if self.is_daemon {
             self.current_content = None;
@@ -94,8 +94,7 @@ impl super::KglanceApp {
                 self.window_id = Some(id);
                 match &self.current_content {
                     Some(crate::core::PreviewData::Image { width, height, .. }) => {
-                        let size =
-                            crate::ui::handlers::image::calculate_window_size(*width, *height);
+                        let size = crate::features::image::calculate_window_size(*width, *height);
                         return iced::window::resize(id, size);
                     }
                     Some(crate::core::PreviewData::Media { .. }) => {

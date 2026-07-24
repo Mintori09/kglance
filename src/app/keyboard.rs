@@ -5,8 +5,8 @@ use iced::keyboard::key::Named;
 use iced::widget::operation::{self, AbsoluteOffset, RelativeOffset};
 
 use super::Message;
-use crate::core::{FilePreviewer, PreviewData};
-use crate::parsers::markdown::extract_toc;
+use crate::core::PreviewData;
+use crate::features::markdown::extract_toc;
 
 impl super::KglanceApp {
     pub fn handle_key_pressed(
@@ -157,7 +157,8 @@ impl super::KglanceApp {
                         if !parent_path.exists() {
                             return None;
                         }
-                        FilePreviewer::parse(&*registry, parent_path)
+                        registry
+                            .parse_to_preview_data(parent_path)
                             .ok()
                             .map(|content| Message::FileLoaded {
                                 path: parent_str,
@@ -176,8 +177,7 @@ impl super::KglanceApp {
                 let path_for_err = path_str.clone();
                 Some(Task::perform(
                     async move {
-                        let content =
-                            FilePreviewer::parse(&*registry, Path::new(&path_str)).ok()?;
+                        let content = registry.parse_to_preview_data(Path::new(&path_str)).ok()?;
                         Some(Message::FileLoaded {
                             path: path_str,
                             content,
@@ -221,8 +221,7 @@ impl super::KglanceApp {
                 let path_for_err = path_str.clone();
                 Some(Task::perform(
                     async move {
-                        let content =
-                            FilePreviewer::parse(&*registry, Path::new(&path_str)).ok()?;
+                        let content = registry.parse_to_preview_data(Path::new(&path_str)).ok()?;
                         Some(Message::FileLoaded {
                             path: path_str,
                             content,

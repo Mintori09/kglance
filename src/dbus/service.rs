@@ -4,7 +4,6 @@ use tokio::sync::mpsc;
 
 use zbus::interface;
 
-use crate::core::preview::FilePreviewer;
 use crate::parsers::{ParseError, ParserRegistry};
 use crate::{log_debug, log_error, log_info};
 
@@ -59,7 +58,7 @@ impl DaemonService {
         // Parse first (826µs for markdown — negligible).
         // Then send a single merged event so Iced only needs ONE subscription poll cycle
         // instead of two (OpenWindow + ShowPreview).
-        let content = FilePreviewer::parse(&*self.parser_registry, p).map_err(|e| {
+        let content = self.parser_registry.parse_to_preview_data(p).map_err(|e| {
             log_error!("DaemonService: Failed to parse path {}: {:?}", path, e);
             match e {
                 ParseError::FileNotFound => zbus::fdo::Error::Failed("File not found".into()),
@@ -111,7 +110,7 @@ impl DaemonService {
         );
 
         let p = std::path::Path::new(primary);
-        let content = FilePreviewer::parse(&*self.parser_registry, p).map_err(|e| {
+        let content = self.parser_registry.parse_to_preview_data(p).map_err(|e| {
             log_error!("DaemonService: Failed to parse path {}: {:?}", primary, e);
             match e {
                 ParseError::FileNotFound => zbus::fdo::Error::Failed("File not found".into()),

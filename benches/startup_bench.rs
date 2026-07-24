@@ -7,7 +7,6 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use std::io::Write;
 use std::sync::Arc;
 
-use kglance::core::FilePreviewer;
 use kglance::parsers::ParserRegistry;
 use kglance::parsers::markdown::{MarkdownParser, parse_to_blocks};
 use kglance::parsers::text::TextParser;

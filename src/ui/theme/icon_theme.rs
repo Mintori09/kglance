@@ -5,7 +5,7 @@ use std::sync::Mutex;
 
 static ICON_CACHE: Mutex<Option<HashMap<String, svg::Handle>>> = Mutex::new(None);
 
-pub use crate::parsers::icon_for_entry;
+pub use crate::core::utils::icon_for_entry;
 
 const CATEGORIES: &[&str] = &[
     "mimetypes",
