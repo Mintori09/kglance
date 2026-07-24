@@ -131,12 +131,24 @@ impl PreviewData {
                 let chars = full_text.chars().count();
                 let mins = (words as f32 / 200.0).ceil() as usize;
 
+                let old_scroll_y = state.markdown.scroll_y;
+                let old_toc_visible = state.markdown.toc_visible;
+                let old_collapsed = std::mem::take(&mut state.markdown.collapsed_headings);
+                let old_mermaid = std::mem::take(&mut state.markdown.cached_mermaid_handles);
+                let old_image_h = std::mem::take(&mut state.markdown.cached_image_handles);
+                let old_image_s = std::mem::take(&mut state.markdown.cached_image_sizes);
+
                 state.markdown = crate::core::types::MarkdownState {
-                    toc: extract_toc(blocks, fs, &std::collections::HashMap::new()),
+                    toc: extract_toc(blocks, fs, &old_image_s),
+                    toc_visible: old_toc_visible,
+                    collapsed_headings: old_collapsed,
+                    scroll_y: old_scroll_y,
+                    cached_mermaid_handles: old_mermaid,
+                    cached_image_handles: old_image_h,
+                    cached_image_sizes: old_image_s,
                     word_count: words,
                     char_count: chars,
                     reading_time_mins: mins,
-                    ..Default::default()
                 };
                 for (i, block) in blocks.iter().enumerate() {
                     if let Block::Mermaid {

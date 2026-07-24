@@ -98,6 +98,7 @@ pub enum Message {
     KeyPressed(iced::keyboard::Key, iced::keyboard::Modifiers),
     PdfPagesLoaded(Vec<Option<(Vec<u8>, u32, u32)>>),
     PdfPageReady(usize, Vec<u8>, u32, u32),
+    PdfThumbReady(usize, Vec<u8>, u32, u32),
     PdfScrolled(iced::widget::scrollable::Viewport),
 
     // Spreadsheet
@@ -656,24 +657,46 @@ impl KglanceApp {
                                     .map(|n| n.to_string_lossy().to_string())
                                     .unwrap_or_else(|| p.clone());
 
-                                let path_for_task = p.clone();
-                                tasks.push(Task::perform(
-                                    async move {
-                                        let handle = tokio::task::spawn_blocking(move || {
-                                            let thumb_path = crate::ui::views::grid::get_freedesktop_thumbnail_path(&path_for_task)?;
-                                            Some(iced::widget::image::Handle::from_path(thumb_path))
-                                        })
-                                        .await
-                                        .ok()
-                                        .flatten();
+                                        let path_for_task = p.clone();
+                                        tasks.push(Task::perform(
+                                            async move {
+                                                let handle = tokio::task::spawn_blocking(move || {
+                                                    if let Some(thumb_path) = crate::ui::views::grid::get_freedesktop_thumbnail_path(&path_for_task) {
+                                                        return Some(iced::widget::image::Handle::from_path(thumb_path));
+                                                    }
+                                                    let lower = path_for_task.to_lowercase();
+                                                    if lower.ends_with(".png")
+                                                        || lower.ends_with(".jpg")
+                                                        || lower.ends_with(".jpeg")
+                                                        || lower.ends_with(".webp")
+                                                        || lower.ends_with(".bmp")
+                                                        || lower.ends_with(".gif")
+                                                    {
+                                                        return Some(iced::widget::image::Handle::from_path(&path_for_task));
+                                                    }
+                                                    if lower.ends_with(".mp4")
+                                                        || lower.ends_with(".mkv")
+                                                        || lower.ends_with(".avi")
+                                                        || lower.ends_with(".mov")
+                                                        || lower.ends_with(".webm")
+                                                    {
+                                                        if let Some(bytes) = crate::parsers::video::extract_video_thumbnail(std::path::Path::new(&path_for_task)) {
+                                                            return Some(iced::widget::image::Handle::from_bytes(bytes));
+                                                        }
+                                                    }
+                                                    None
+                                                })
+                                                .await
+                                                .ok()
+                                                .flatten();
 
-                                        Message::GridThumbnailLoaded {
-                                            index: idx,
-                                            handle,
-                                        }
-                                    },
-                                    |msg| msg,
-                                ));
+                                                Message::GridThumbnailLoaded {
+                                                    index: idx,
+                                                    handle,
+                                                }
+                                            },
+                                            |msg| msg,
+                                        ));
 
                                 crate::core::GridThumbnail {
                                     path: p.clone(),
@@ -774,6 +797,9 @@ impl KglanceApp {
             }
 
             Message::FileLoaded { path, content } => {
+                if !self.state.playlist.contains(&path) {
+                    self.state.playlist.clear();
+                }
                 self.probe.mark_file_loaded(); // P0
                 self.handle_file_loaded(path, content)
             }
@@ -827,6 +853,19 @@ impl KglanceApp {
                 let all_loaded = self.state.pdf.pages.iter().all(|p| p.is_some());
                 if all_loaded {
                     self.state.pdf.loading = false;
+                }
+                Task::none()
+            }
+            Message::PdfThumbReady(index, data, width, height) => {
+                if index < self.state.pdf.thumbnails.len() {
+                    let handle =
+                        iced::widget::image::Handle::from_rgba(width, height, data.clone());
+                    self.state.pdf.thumbnails[index] = Some(crate::core::PageCacheEntry {
+                        data,
+                        width,
+                        height,
+                        handle,
+                    });
                 }
                 Task::none()
             }
@@ -1020,7 +1059,6 @@ impl KglanceApp {
                         return self.show_toast(format!("File deleted: \"{}\"", name));
                     }
 
-                    // Restore scroll position after reload
                     let prev_md_y = self.state.markdown.scroll_y;
                     let prev_txt_y = self.state.text.scroll_y;
 
@@ -1030,29 +1068,26 @@ impl KglanceApp {
 
                         let load_task = self.handle_file_loaded(path, content);
 
-                        let scroll_task = if is_md && prev_md_y > 0.0 {
-                            self.state.markdown.scroll_y = prev_md_y;
-                            iced::widget::operation::scroll_to(
-                                "content_scroll",
-                                iced::widget::operation::AbsoluteOffset {
-                                    x: 0.0,
-                                    y: prev_md_y,
-                                },
-                            )
-                        } else if is_txt && prev_txt_y > 0.0 {
-                            self.state.text.scroll_y = prev_txt_y;
-                            iced::widget::operation::scroll_to(
-                                "content_scroll",
-                                iced::widget::operation::AbsoluteOffset {
-                                    x: 0.0,
-                                    y: prev_txt_y,
-                                },
-                            )
+                        let target_y = if is_md {
+                            prev_md_y
+                        } else if is_txt {
+                            prev_txt_y
                         } else {
-                            Task::none()
+                            0.0
                         };
 
-                        return Task::batch(vec![load_task, scroll_task]);
+                        if target_y > 0.0 {
+                            let scroll_task = iced::widget::operation::scroll_to(
+                                "content_scroll",
+                                iced::widget::operation::AbsoluteOffset {
+                                    x: 0.0,
+                                    y: target_y,
+                                },
+                            );
+                            return Task::batch(vec![load_task, scroll_task]);
+                        } else {
+                            return load_task;
+                        }
                     }
                 }
                 Task::none()
