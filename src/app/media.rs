@@ -2,13 +2,19 @@ use iced::Task;
 use iced::widget::operation::{self, AbsoluteOffset};
 
 use super::Message;
-use crate::core::PreviewData;
+use crate::core::{PreviewData, ViewMode};
 
 use crate::ui::handlers::video::VideoEvent;
 
 impl super::KglanceApp {
     pub fn handle_scroll_delta(&mut self, _x: f32, y: f32) -> Task<Message> {
-        if self.shift_held && matches!(self.current_content, Some(PreviewData::Image { .. })) {
+        if self.shift_held && matches!(self.state.view_mode, ViewMode::Grid(_)) {
+            let factor = if y > 0.0 { 0.1 } else { -0.1 };
+            self.state.grid_scale = (self.state.grid_scale + factor).clamp(0.3, 3.0);
+            self.recalc_grid_cols();
+            Task::none()
+        } else if self.shift_held && matches!(self.current_content, Some(PreviewData::Image { .. }))
+        {
             let factor = if y > 0.0 { 0.1 } else { -0.1 };
             self.state.image.camera.zoom = (self.state.image.camera.zoom + factor).clamp(0.1, 10.0);
             Task::none()

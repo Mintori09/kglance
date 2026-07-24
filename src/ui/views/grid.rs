@@ -1,5 +1,5 @@
 use crate::app::Message;
-use crate::core::types::GridThumbnail;
+use crate::core::types::{GRID_GAP, GRID_ITEM_WIDTH, GridThumbnail};
 use crate::ui::theme::icon_theme;
 use iced::widget::{button, column, container, image, responsive, row, scrollable, svg, text};
 use iced::{Alignment, Border, Color, Element, Length, Shadow, Theme};
@@ -44,13 +44,27 @@ pub fn get_freedesktop_thumbnail_path(file_path: &str) -> Option<PathBuf> {
     None
 }
 
-pub fn view_grid<'a>(thumbnails: &'a [GridThumbnail], active_index: usize) -> Element<'a, Message> {
+pub fn view_grid<'a>(
+    thumbnails: &'a [GridThumbnail],
+    active_index: usize,
+    scale: f32,
+) -> Element<'a, Message> {
     responsive(move |bounds| {
-        let item_width = 150.0;
-        let gap = 12.0;
-        let cols = ((bounds.width - gap) / (item_width + gap)).floor().max(1.0) as usize;
+        let item_w = GRID_ITEM_WIDTH * scale;
+        let gap = GRID_GAP * scale;
+        let thumb_w = (136.0 * scale).round();
+        let thumb_h = (96.0 * scale).round();
+        let img_w = (130.0 * scale).round();
+        let img_h = (90.0 * scale).round();
+        let icon_size = (48.0 * scale).round().clamp(16.0, 96.0);
+        let txt_size = (11.0 * scale).round().clamp(8.0, 24.0);
 
-        let mut col_widget = column![].spacing(gap).padding(gap);
+        let cols = ((bounds.width - gap) / (item_w + gap)).floor().max(1.0) as usize;
+
+        let used_w = cols as f32 * item_w + (cols as f32 - 1.0) * gap;
+        let h_pad = ((bounds.width - used_w) / 2.0).max(0.0);
+
+        let mut col_widget = column![].spacing(gap).padding([gap, h_pad]);
 
         for (chunk_idx, chunk) in thumbnails.chunks(cols).enumerate() {
             let mut row_widget = row![].spacing(gap);
@@ -62,29 +76,29 @@ pub fn view_grid<'a>(thumbnails: &'a [GridThumbnail], active_index: usize) -> El
                     if let Some(ref handle) = item.thumbnail_handle {
                         container(
                             image(handle.clone())
-                                .width(130.0)
-                                .height(90.0)
+                                .width(img_w)
+                                .height(img_h)
                                 .content_fit(iced::ContentFit::Contain),
                         )
-                        .width(136.0)
-                        .height(96.0)
-                        .center_x(136.0)
-                        .center_y(96.0)
+                        .width(thumb_w)
+                        .height(thumb_h)
+                        .center_x(thumb_w)
+                        .center_y(thumb_h)
                         .into()
                     } else {
                         let icon_name = icon_theme::icon_for_entry(&item.name, false);
                         let icon_el: Element<'_, Message> =
                             if let Some(svg_handle) = icon_theme::get_icon_handle(icon_name) {
-                                svg(svg_handle).width(48.0).height(48.0).into()
+                                svg(svg_handle).width(icon_size).height(icon_size).into()
                             } else {
-                                text("📄").size(36).into()
+                                text("📄").size(icon_size * 0.75).into()
                             };
 
                         container(icon_el)
-                            .width(136.0)
-                            .height(96.0)
-                            .center_x(136.0)
-                            .center_y(96.0)
+                            .width(thumb_w)
+                            .height(thumb_h)
+                            .center_x(thumb_w)
+                            .center_y(thumb_h)
                             .into()
                     };
 
@@ -92,7 +106,7 @@ pub fn view_grid<'a>(thumbnails: &'a [GridThumbnail], active_index: usize) -> El
                     column![
                         card_content,
                         text(truncate_middle(&item.name, 20))
-                            .size(11)
+                            .size(txt_size)
                             .shaping(text::Shaping::Advanced)
                             .width(Length::Fill)
                             .align_x(Alignment::Center)
@@ -162,7 +176,7 @@ pub fn view_grid<'a>(thumbnails: &'a [GridThumbnail], active_index: usize) -> El
                         snap: false,
                     }
                 })
-                .width(item_width);
+                .width(item_w);
 
                 row_widget = row_widget.push(card_btn);
             }
