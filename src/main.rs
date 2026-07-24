@@ -88,6 +88,14 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let config = kglance::core::config::ConfigManager::load_or_create();
+    let default_font = config
+        .ui
+        .font_family
+        .as_deref()
+        .map(|name| Font::with_name(Box::leak(name.to_string().into_boxed_str())))
+        .unwrap_or(Font::DEFAULT);
+
     log_info!("Running Iced daemon (no initial window)...");
     let reg = registry.clone();
     let rx = std::cell::Cell::new(Some(rx));
@@ -96,7 +104,7 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
         KglanceApp::update,
         KglanceApp::view_daemon,
     )
-    .default_font(iced::Font::with_name("Inter"))
+    .default_font(default_font)
     .subscription(KglanceApp::subscription)
     .theme(KglanceApp::theme_daemon)
     .run()?;
@@ -120,6 +128,14 @@ fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let owned_paths: Vec<String> = paths.to_vec();
+    let config = kglance::core::config::ConfigManager::load_or_create();
+    let default_font = config
+        .ui
+        .font_family
+        .as_deref()
+        .map(|name| Font::with_name(Box::leak(name.to_string().into_boxed_str())))
+        .unwrap_or(Font::DEFAULT);
+
     log_info!("Running Iced GUI in standalone mode...");
     let reg = registry.clone();
     iced::application(
@@ -140,7 +156,7 @@ fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         decorations: true,
         ..Default::default()
     })
-    .default_font(Font::with_name("Inter"))
+    .default_font(default_font)
     .title(KglanceApp::title)
     .subscription(KglanceApp::subscription)
     .theme(KglanceApp::theme)

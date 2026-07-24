@@ -3,7 +3,9 @@
     "theme": "Dark",
     "font_size": 14.0,
     "default_width": 900,
-    "default_height": 600
+    "default_height": 600,
+    "font_family": "Noto Sans",
+    "font_family_mono": "Fira Code"
   },
   "preview": {
     "max_file_size_mb": 50,

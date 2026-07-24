@@ -4,7 +4,12 @@ use crate::ui::theme::{breeze_button, breeze_text_input, glass_scrollable};
 use iced::widget::{button, column, row, scrollable, text, text_input};
 use iced::{Element, Length};
 
-pub fn view_text<'a>(state: &'a TextState, is_dark: bool, font_size: f32) -> Element<'a, Message> {
+pub fn view_text<'a>(
+    state: &'a TextState,
+    is_dark: bool,
+    font_size: f32,
+    font_family_mono: Option<&str>,
+) -> Element<'a, Message> {
     let mut main_content = column![].spacing(5);
 
     if state.search_visible {
@@ -37,7 +42,10 @@ pub fn view_text<'a>(state: &'a TextState, is_dark: bool, font_size: f32) -> Ele
         iced::highlighter::Theme::InspiredGitHub
     };
 
-    let font = iced::Font::with_name("JetBrainsMonoNL Nerd Font");
+    let font = match font_family_mono {
+        Some(name) => iced::Font::with_name(Box::leak(name.to_string().into_boxed_str())),
+        None => iced::Font::MONOSPACE,
+    };
 
     let text_widget = iced::widget::text_editor(&state.content)
         .highlight(extension, theme)

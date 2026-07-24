@@ -14,7 +14,12 @@ use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
 
-const CODE_FONT: Font = Font::with_name("JetBrainsMonoNL Nerd Font");
+fn get_code_font(font_family_mono: Option<&str>) -> Font {
+    match font_family_mono {
+        Some(name) => Font::with_name(Box::leak(name.to_string().into_boxed_str())),
+        None => Font::MONOSPACE,
+    }
+}
 
 fn syntax_set() -> &'static SyntaxSet {
     static SS: OnceLock<SyntaxSet> = OnceLock::new();
@@ -96,7 +101,10 @@ fn highlight_code<'a>(
     result
 }
 
-fn inlines_to_spans<'a>(inlines: &'a [Inline]) -> Vec<Span<'a, (), Font>> {
+fn inlines_to_spans<'a>(
+    inlines: &'a [Inline],
+    font_family_mono: Option<&str>,
+) -> Vec<Span<'a, (), Font>> {
     let mut spans = Vec::new();
     for inline in inlines {
         match inline {
@@ -104,7 +112,7 @@ fn inlines_to_spans<'a>(inlines: &'a [Inline]) -> Vec<Span<'a, (), Font>> {
                 spans.push(Span::new(t.as_str()));
             }
             Inline::Bold(children) => {
-                for s in inlines_to_spans(children) {
+                for s in inlines_to_spans(children, font_family_mono) {
                     spans.push(s.font(Font {
                         weight: Weight::Bold,
                         ..Default::default()
@@ -112,7 +120,7 @@ fn inlines_to_spans<'a>(inlines: &'a [Inline]) -> Vec<Span<'a, (), Font>> {
                 }
             }
             Inline::Italic(children) => {
-                for s in inlines_to_spans(children) {
+                for s in inlines_to_spans(children, font_family_mono) {
                     spans.push(s.font(Font {
                         style: iced::font::Style::Italic,
                         ..Default::default()
@@ -120,21 +128,21 @@ fn inlines_to_spans<'a>(inlines: &'a [Inline]) -> Vec<Span<'a, (), Font>> {
                 }
             }
             Inline::Strikethrough(children) => {
-                for s in inlines_to_spans(children) {
+                for s in inlines_to_spans(children, font_family_mono) {
                     spans.push(s.strikethrough(true));
                 }
             }
             Inline::Code(code) => {
                 spans.push(
                     Span::new(code.as_str())
-                        .font(CODE_FONT)
+                        .font(get_code_font(font_family_mono))
                         .color(Color::from_rgb(0.8, 0.35, 0.35)),
                 );
             }
             Inline::Link {
                 text: link_text, ..
             } => {
-                for s in inlines_to_spans(link_text) {
+                for s in inlines_to_spans(link_text, font_family_mono) {
                     spans.push(s.color(Color::from_rgb(0.3, 0.5, 0.9)).underline(true));
                 }
             }
@@ -178,14 +186,18 @@ fn link_button_style(theme: &iced::Theme, status: button::Status) -> button::Sty
     }
 }
 
-fn render_inlines<'a>(inlines: &'a [Inline], font_size: f32) -> Element<'a, Message> {
+fn render_inlines<'a>(
+    inlines: &'a [Inline],
+    font_size: f32,
+    font_family_mono: Option<&str>,
+) -> Element<'a, Message> {
     let has_link = inlines.iter().any(|i| matches!(i, Inline::Link { .. }));
     let has_math = inlines
         .iter()
         .any(|i| matches!(i, Inline::InlineMath(_) | Inline::DisplayMath(_)));
 
     if !has_link && !has_math {
-        return Rich::with_spans(inlines_to_spans(inlines))
+        return Rich::with_spans(inlines_to_spans(inlines, font_family_mono))
             .size(Pixels(font_size))
             .width(Length::Fill)
             .into();
@@ -202,7 +214,7 @@ fn render_inlines<'a>(inlines: &'a [Inline], font_size: f32) -> Element<'a, Mess
         {
             if start < i {
                 elements.push(
-                    Rich::with_spans(inlines_to_spans(&inlines[start..i]))
+                    Rich::with_spans(inlines_to_spans(&inlines[start..i], font_family_mono))
                         .size(Pixels(font_size))
                         .width(Length::Shrink)
                         .into(),
@@ -236,7 +248,7 @@ fn render_inlines<'a>(inlines: &'a [Inline], font_size: f32) -> Element<'a, Mess
         } else if let Inline::InlineMath(latex) = inline {
             if start < i {
                 elements.push(
-                    Rich::with_spans(inlines_to_spans(&inlines[start..i]))
+                    Rich::with_spans(inlines_to_spans(&inlines[start..i], font_family_mono))
                         .size(Pixels(font_size))
                         .width(Length::Shrink)
                         .into(),
@@ -247,7 +259,7 @@ fn render_inlines<'a>(inlines: &'a [Inline], font_size: f32) -> Element<'a, Mess
         } else if let Inline::DisplayMath(latex) = inline {
             if start < i {
                 elements.push(
-                    Rich::with_spans(inlines_to_spans(&inlines[start..i]))
+                    Rich::with_spans(inlines_to_spans(&inlines[start..i], font_family_mono))
                         .size(Pixels(font_size))
                         .width(Length::Shrink)
                         .into(),
@@ -260,7 +272,7 @@ fn render_inlines<'a>(inlines: &'a [Inline], font_size: f32) -> Element<'a, Mess
 
     if start < inlines.len() {
         elements.push(
-            Rich::with_spans(inlines_to_spans(&inlines[start..]))
+            Rich::with_spans(inlines_to_spans(&inlines[start..], font_family_mono))
                 .size(Pixels(font_size))
                 .width(Length::Shrink)
                 .into(),
@@ -311,7 +323,12 @@ fn scale(s: f32, font_size: f32) -> f32 {
     (s * font_size / 14.0).round().max(8.0)
 }
 
-fn render_heading<'a>(level: u8, content: &'a [Inline], font_size: f32) -> Element<'a, Message> {
+fn render_heading<'a>(
+    level: u8,
+    content: &'a [Inline],
+    font_size: f32,
+    font_family_mono: Option<&str>,
+) -> Element<'a, Message> {
     let raw: f32 = match level {
         1 => 32.0,
         2 => 24.0,
@@ -326,7 +343,7 @@ fn render_heading<'a>(level: u8, content: &'a [Inline], font_size: f32) -> Eleme
         _ => (8.0, 4.0),
     };
 
-    let label = render_inlines(content, size);
+    let label = render_inlines(content, size, font_family_mono);
     let heading = container(label)
         .padding(Padding {
             top: pt,
@@ -358,8 +375,12 @@ fn render_heading<'a>(level: u8, content: &'a [Inline], font_size: f32) -> Eleme
     }
 }
 
-fn render_paragraph<'a>(content: &'a [Inline], font_size: f32) -> Element<'a, Message> {
-    let rich = render_inlines(content, font_size);
+fn render_paragraph<'a>(
+    content: &'a [Inline],
+    font_size: f32,
+    font_family_mono: Option<&str>,
+) -> Element<'a, Message> {
+    let rich = render_inlines(content, font_size, font_family_mono);
     container(rich).padding([2, 0]).width(Length::Fill).into()
 }
 
@@ -368,10 +389,12 @@ fn render_code_block<'a>(
     code: &'a str,
     font_size: f32,
     is_dark: bool,
+    font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
+    let code_font = get_code_font(font_family_mono);
     let lang_str = lang.as_deref().unwrap_or("");
     let copy_code = code.to_string();
-    let copy_btn = button(text("Copy").font(CODE_FONT).size(scale(11.0, font_size)))
+    let copy_btn = button(text("Copy").font(code_font).size(scale(11.0, font_size)))
         .on_press(Message::CopyCode(copy_code))
         .style(|theme: &iced::Theme, status: button::Status| {
             let d = matches!(theme, iced::Theme::Dark);
@@ -412,7 +435,7 @@ fn render_code_block<'a>(
 
     let top_bar = if !lang_str.is_empty() {
         row![
-            container(text(lang_str).font(CODE_FONT).size(scale(11.0, font_size)))
+            container(text(lang_str).font(code_font).size(scale(11.0, font_size)))
                 .padding([2, 8])
                 .style(|theme: &iced::Theme| {
                     let d = matches!(theme, iced::Theme::Dark);
@@ -450,7 +473,7 @@ fn render_code_block<'a>(
                 .iter()
                 .map(|(color, span_text)| {
                     text(*span_text)
-                        .font(CODE_FONT)
+                        .font(code_font)
                         .size(scale(13.0, font_size))
                         .color(*color)
                         .into()
@@ -471,7 +494,12 @@ fn render_code_block<'a>(
     .into()
 }
 
-fn render_table<'a>(table: &'a TableBlock, font_size: f32, _is_dark: bool) -> Element<'a, Message> {
+fn render_table<'a>(
+    table: &'a TableBlock,
+    font_size: f32,
+    _is_dark: bool,
+    font_family_mono: Option<&str>,
+) -> Element<'a, Message> {
     let hdr_size = scale(14.0, font_size);
     let cel_size = scale(13.0, font_size);
 
@@ -489,10 +517,15 @@ fn render_table<'a>(table: &'a TableBlock, font_size: f32, _is_dark: bool) -> El
                     max_lens[i] = max_lens[i].max(flatten_inlines(&c.content).len());
                 }
             }
-            max_lens
-                .iter()
-                .map(|&l| (l.max(3) as u16).min(20))
-                .collect()
+            let sum: usize = max_lens.iter().sum();
+            if sum == 0 {
+                vec![1; n]
+            } else {
+                max_lens
+                    .iter()
+                    .map(|&l| ((l as f32 / sum as f32) * 100.0).max(10.0) as u16)
+                    .collect()
+            }
         }
     };
 
@@ -506,7 +539,7 @@ fn render_table<'a>(table: &'a TableBlock, font_size: f32, _is_dark: bool) -> El
             } else {
                 Length::FillPortion(1)
             };
-            let cell = render_inlines(&h.content, hdr_size);
+            let cell = render_inlines(&h.content, hdr_size, font_family_mono);
             container(cell).padding([8, 12]).width(w).into()
         })
         .collect();
@@ -563,7 +596,7 @@ fn render_table<'a>(table: &'a TableBlock, font_size: f32, _is_dark: bool) -> El
                 } else {
                     Length::FillPortion(1)
                 };
-                let cell = render_inlines(&c.content, cel_size);
+                let cell = render_inlines(&c.content, cel_size, font_family_mono);
                 container(cell).padding([8, 12]).width(w).into()
             })
             .collect();
@@ -671,6 +704,7 @@ fn render_mermaid<'a>(
     _rendered: &Option<Vec<u8>>,
     state: &'a crate::core::MarkdownState,
     font_size: f32,
+    font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     let badge = container(text("Mermaid Diagram").size(scale(11.0, font_size)))
         .padding([4, 10])
@@ -719,6 +753,7 @@ fn render_mermaid<'a>(
             "render_mermaid[{}]: no handle, showing text fallback",
             index
         );
+        let code_font = get_code_font(font_family_mono);
         let line_widgets = lines.iter().map(|line| {
             let display = if line.contains("-->") {
                 line.replace("-->", " → ")
@@ -730,7 +765,7 @@ fn render_mermaid<'a>(
                 line.clone()
             };
             text(display)
-                .font(CODE_FONT)
+                .font(code_font)
                 .size(scale(13.0, font_size))
                 .into()
         });
@@ -751,6 +786,7 @@ fn render_list<'a>(
     state: &'a crate::core::MarkdownState,
     font_size: f32,
     is_dark: bool,
+    font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     let item_elements = items.iter().enumerate().map(|(idx, item)| {
         let prefix_el: Element<'a, Message> = if let Some(checked) = item.is_task {
@@ -767,7 +803,7 @@ fn render_list<'a>(
                 glass::LIGHT_TEXT_DIM
             };
             text(symbol)
-                .font(CODE_FONT)
+                .font(get_code_font(font_family_mono))
                 .size(font_size)
                 .color(color)
                 .into()
@@ -783,12 +819,19 @@ fn render_list<'a>(
                 .into()
         };
 
-        let content_el = render_inlines(&item.content, font_size);
+        let content_el = render_inlines(&item.content, font_size, font_family_mono);
 
         let mut children: Vec<Element<'a, Message>> =
             vec![row![prefix_el, content_el].spacing(6).into()];
         for (bi, sub) in item.sub_blocks.iter().enumerate() {
-            let sub_el = render_block(idx * 1000 + bi, sub, state, font_size, is_dark);
+            let sub_el = render_block(
+                idx * 1000 + bi,
+                sub,
+                state,
+                font_size,
+                is_dark,
+                font_family_mono,
+            );
             children.push(
                 container(sub_el)
                     .padding(Padding {
@@ -821,12 +864,13 @@ fn render_quote<'a>(
     state: &'a crate::core::MarkdownState,
     font_size: f32,
     is_dark: bool,
+    font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     let inner: Element<'a, Message> = column(
         blocks
             .iter()
             .enumerate()
-            .map(|(i, b)| render_block(i, b, state, font_size, is_dark)),
+            .map(|(i, b)| render_block(i, b, state, font_size, is_dark, font_family_mono)),
     )
     .spacing(4)
     .into();
@@ -911,22 +955,35 @@ fn render_block<'a>(
     state: &'a crate::core::MarkdownState,
     font_size: f32,
     is_dark: bool,
+    font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     match block {
-        Block::Heading { level, content } => render_heading(*level, content, font_size),
-        Block::Paragraph(content) => render_paragraph(content, font_size),
-        Block::CodeBlock { lang, code, .. } => render_code_block(lang, code, font_size, is_dark),
-        Block::Table(tbl) => render_table(tbl, font_size, is_dark),
+        Block::Heading { level, content } => {
+            render_heading(*level, content, font_size, font_family_mono)
+        }
+        Block::Paragraph(content) => render_paragraph(content, font_size, font_family_mono),
+        Block::CodeBlock { lang, code, .. } => {
+            render_code_block(lang, code, font_size, is_dark, font_family_mono)
+        }
+        Block::Table(tbl) => render_table(tbl, font_size, is_dark, font_family_mono),
         Block::Mermaid { lines, rendered } => {
-            render_mermaid(index, lines, rendered, state, font_size)
+            render_mermaid(index, lines, rendered, state, font_size, font_family_mono)
         }
         Block::Image { alt, .. } => render_inline_image(index, alt, state),
         Block::List {
             ordered,
             start_number,
             items,
-        } => render_list(*ordered, *start_number, items, state, font_size, is_dark),
-        Block::Quote(blocks) => render_quote(blocks, state, font_size, is_dark),
+        } => render_list(
+            *ordered,
+            *start_number,
+            items,
+            state,
+            font_size,
+            is_dark,
+            font_family_mono,
+        ),
+        Block::Quote(blocks) => render_quote(blocks, state, font_size, is_dark, font_family_mono),
         Block::HorizontalRule => render_horizontal_rule(font_size),
         Block::Html(html) => render_html(html, font_size),
     }
@@ -1239,9 +1296,10 @@ pub fn view_markdown<'a>(
     state: &'a crate::core::MarkdownState,
     font_size: f32,
     is_dark: bool,
+    font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     let content = blocks.iter().enumerate().map(|(i, block)| {
-        let inner = render_block(i, block, state, font_size, is_dark);
+        let inner = render_block(i, block, state, font_size, is_dark, font_family_mono);
         let mb = block_margin(block);
         container(inner)
             .padding(Padding {
