@@ -76,21 +76,27 @@ impl FileWatcher {
                     }
                 }
 
-                match rx_notify.recv_timeout(Duration::from_millis(200)) {
+                match rx_notify.recv_timeout(Duration::from_millis(100)) {
                     Ok(event) => {
                         if let Some(ref watched) = current_path {
-                            let is_relevant =
+                            let is_change =
                                 matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_))
                                     && event.paths.iter().any(|p| p == watched);
 
-                            if is_relevant {
+                            let is_remove = matches!(event.kind, EventKind::Remove(_))
+                                && event.paths.iter().any(|p| p == watched);
+
+                            if is_remove {
+                                let _ = tx_result.send(watched.clone());
+                                last_change = None;
+                            } else if is_change {
                                 last_change = Some(Instant::now());
                             }
                         }
                     }
                     Err(mpsc::RecvTimeoutError::Timeout) => {
                         if let Some(ref t) = last_change
-                            && t.elapsed() >= Duration::from_millis(300)
+                            && t.elapsed() >= Duration::from_millis(200)
                             && let Some(ref path) = current_path
                         {
                             let _ = tx_result.send(path.clone());

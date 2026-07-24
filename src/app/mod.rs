@@ -192,6 +192,7 @@ pub struct KglanceApp {
     pub pending_g: bool,
     pub pending_home: bool,
     pub probe: probe::StartupProbe,
+    pub file_watcher: Option<crate::core::file_watcher::FileWatcher>,
 }
 
 impl KglanceApp {
@@ -204,6 +205,8 @@ impl KglanceApp {
         let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel(100);
         let (event_tx, event_rx) = tokio::sync::mpsc::channel(100);
         let vc = crate::ui::handlers::video::spawn_video_player(cmd_rx, event_tx);
+
+        let file_watcher = crate::core::file_watcher::FileWatcher::new().ok();
 
         let config = crate::core::config::ConfigManager::load_or_create();
         let theme_dark = config.ui.theme != "Light";
@@ -234,6 +237,7 @@ impl KglanceApp {
             pending_g: false,
             pending_home: false,
             probe: probe::StartupProbe::default(),
+            file_watcher,
         };
 
         // Daemon starts with no window — window is opened on demand when a preview request arrives.
@@ -317,6 +321,14 @@ impl KglanceApp {
         self.state.file_name = path.clone();
         self.state.content_ready = true;
         self.state.image.camera = crate::preview::image::Camera::new();
+
+        if let Some(ref watcher) = self.file_watcher {
+            let _ = watcher
+                .cmd_tx
+                .send(crate::core::file_watcher::WatchCommand::Watch(
+                    std::path::PathBuf::from(&path),
+                ));
+        }
 
         let mut mermaid_tasks: Vec<Task<Message>> = {
             let mut tasks = Vec::new();
@@ -1135,7 +1147,22 @@ impl KglanceApp {
             }
             _ => None,
         });
-        Subscription::batch(vec![dbus_sub, event_sub, video_sub, global_event_sub])
+
+        let file_watcher_sub = if let Some(ref watcher) = self.file_watcher {
+            subscription::from_recipe(crate::core::file_watcher::FileWatcherRecipe::new(
+                watcher.events.clone(),
+            ))
+        } else {
+            Subscription::none()
+        };
+
+        Subscription::batch(vec![
+            dbus_sub,
+            event_sub,
+            video_sub,
+            global_event_sub,
+            file_watcher_sub,
+        ])
     }
 
     pub fn theme(&self) -> Theme {
