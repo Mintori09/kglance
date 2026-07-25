@@ -98,7 +98,7 @@ pub struct ListItem {
 
 // ── Flatten (inline AST → plain string for basic rendering) ──────────────────
 
-fn estimated_block_height(
+pub fn estimated_block_height(
     block: &Block,
     font_size: f32,
     block_index: usize,

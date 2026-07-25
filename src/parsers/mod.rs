@@ -264,6 +264,12 @@ pub enum ParsedContent {
         format: String,
         page_count: usize,
     },
+    Epub {
+        title: String,
+        author: String,
+        chapters: Vec<(String, u8, Option<String>, Vec<markdown::Block>)>,
+        images: std::collections::HashMap<String, Vec<u8>>,
+    },
     Spreadsheet {
         sheets: Vec<SheetData>,
     },
@@ -454,6 +460,29 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 line_numbers: String::new(),
                 language: format!("Office ({}, {} pages)", format, page_count),
             },
+            ParsedContent::Epub {
+                title,
+                author,
+                chapters,
+                images,
+            } => {
+                let epub_chapters = chapters
+                    .into_iter()
+                    .map(|(t, lvl, anc, b)| crate::core::types::EpubChapterInfo {
+                        title: t,
+                        level: lvl,
+                        anchor: anc,
+                        blocks: b,
+                    })
+                    .collect();
+                crate::core::preview::PreviewData::Epub {
+                    title,
+                    author,
+                    chapters: epub_chapters,
+                    active_chapter: 0,
+                    images,
+                }
+            }
             ParsedContent::Font { name, metadata, .. } => crate::core::preview::PreviewData::Text {
                 content: format!("Font: {}\n\n{}", name, metadata),
                 line_numbers: String::new(),
