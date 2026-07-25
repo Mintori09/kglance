@@ -138,6 +138,18 @@ pub enum Message {
     TocToggleCollapse(usize),
     MarkdownScrolled(f32),
     TextScrolled(f32),
+
+    // EPUB Chapter & Sidebar
+    EpubSidebarToggled,
+    EpubChapterClicked(usize),
+    EpubChapterToggleCollapse(usize),
+
+    // Resize TOC / Sidebar Drag Events
+    MarkdownSidebarResized(f32),
+    EpubSidebarResized(f32),
+    SidebarDragStarted(f32),
+    SidebarDragEnded,
+    MouseMoved(f32, f32),
 }
 
 fn png_to_rgba_handle(png: Vec<u8>) -> Option<iced::widget::image::Handle> {
@@ -217,6 +229,7 @@ impl KglanceApp {
             font_size: config.ui.font_size,
             font_family: config.ui.font_family,
             font_family_mono: config.ui.font_family_mono,
+            max_text_width: config.ui.max_text_width,
             ..Default::default()
         };
 
@@ -1058,6 +1071,126 @@ impl KglanceApp {
                     Task::none()
                 }
             }
+            Message::EpubSidebarToggled => {
+                self.state.epub.sidebar_visible = !self.state.epub.sidebar_visible;
+                Task::none()
+            }
+            Message::EpubChapterClicked(idx) => {
+                if idx < self.state.epub.chapters.len() {
+                    self.state.epub.active_chapter = idx;
+                    let chapter = &self.state.epub.chapters[idx];
+                    let font_size = self.state.font_size;
+                    let mut target_y: f32 = 0.0;
+
+                    // If chapter has an anchor or title, try to find matching block offset
+                    if let Some(ref anc) = chapter.anchor {
+                        let mut y_accum: f32 = 0.0;
+                        for (b_idx, block) in chapter.blocks.iter().enumerate() {
+                            let text_flat = match block {
+                                crate::parsers::markdown::Block::Heading { content, .. }
+                                | crate::parsers::markdown::Block::Paragraph(content) => {
+                                    crate::parsers::markdown::flatten_inlines(content)
+                                }
+                                _ => String::new(),
+                            };
+                            if text_flat.contains(anc) || text_flat.contains(&chapter.title) {
+                                target_y = y_accum;
+                                break;
+                            }
+                            y_accum += crate::parsers::markdown::estimated_block_height(
+                                block,
+                                font_size,
+                                b_idx,
+                                &self.state.markdown.cached_image_sizes,
+                            );
+                        }
+                    } else {
+                        // Search by chapter title in blocks
+                        let mut y_accum: f32 = 0.0;
+                        for (b_idx, block) in chapter.blocks.iter().enumerate() {
+                            let text_flat = match block {
+                                crate::parsers::markdown::Block::Heading { content, .. }
+                                | crate::parsers::markdown::Block::Paragraph(content) => {
+                                    crate::parsers::markdown::flatten_inlines(content)
+                                }
+                                _ => String::new(),
+                            };
+                            if !chapter.title.is_empty() && text_flat.contains(&chapter.title) {
+                                target_y = y_accum;
+                                break;
+                            }
+                            y_accum += crate::parsers::markdown::estimated_block_height(
+                                block,
+                                font_size,
+                                b_idx,
+                                &self.state.markdown.cached_image_sizes,
+                            );
+                        }
+                    }
+
+                    if target_y > 0.0 {
+                        return iced::widget::operation::scroll_to(
+                            "content_scroll",
+                            iced::widget::operation::AbsoluteOffset {
+                                x: 0.0,
+                                y: target_y,
+                            },
+                        );
+                    } else {
+                        return iced::widget::operation::snap_to(
+                            "content_scroll",
+                            iced::widget::operation::RelativeOffset { x: 0.0, y: 0.0 },
+                        );
+                    }
+                }
+                Task::none()
+            }
+            Message::EpubChapterToggleCollapse(idx) => {
+                if self.state.epub.collapsed_chapters.contains(&idx) {
+                    self.state.epub.collapsed_chapters.remove(&idx);
+                } else {
+                    self.state.epub.collapsed_chapters.insert(idx);
+                }
+                Task::none()
+            }
+            Message::MarkdownSidebarResized(width) => {
+                self.state.markdown.sidebar_width = width.clamp(140.0, 550.0);
+                Task::none()
+            }
+            Message::EpubSidebarResized(width) => {
+                self.state.epub.sidebar_width = width.clamp(140.0, 550.0);
+                Task::none()
+            }
+            Message::SidebarDragStarted(start_x) => {
+                self.state.markdown.sidebar_resizing = true;
+                self.state.markdown.sidebar_drag_start_x = start_x;
+                self.state.markdown.sidebar_drag_start_width = self.state.markdown.sidebar_width;
+
+                self.state.epub.sidebar_resizing = true;
+                self.state.epub.sidebar_drag_start_x = start_x;
+                self.state.epub.sidebar_drag_start_width = self.state.epub.sidebar_width;
+                Task::none()
+            }
+            Message::SidebarDragEnded => {
+                self.state.markdown.sidebar_resizing = false;
+                self.state.epub.sidebar_resizing = false;
+                Task::none()
+            }
+            Message::MouseMoved(x, _y) => {
+                if self.state.markdown.sidebar_resizing {
+                    let delta = x - self.state.markdown.sidebar_drag_start_x;
+                    let new_w =
+                        (self.state.markdown.sidebar_drag_start_width + delta).clamp(140.0, 550.0);
+                    self.state.markdown.sidebar_width = new_w;
+                }
+                if self.state.epub.sidebar_resizing {
+                    let delta = x - self.state.epub.sidebar_drag_start_x;
+                    let new_w =
+                        (self.state.epub.sidebar_drag_start_width + delta).clamp(140.0, 550.0);
+                    self.state.epub.sidebar_width = new_w;
+                }
+                Task::none()
+            }
             Message::TextScrolled(y) => {
                 self.state.text.scroll_y = y;
                 Task::none()
@@ -1135,6 +1268,7 @@ impl KglanceApp {
                     self.state.font_size,
                     self.state.theme_dark,
                     self.state.font_family_mono.as_deref(),
+                    self.state.max_text_width,
                 ),
                 PreviewData::Image { .. } => crate::ui::views::view_image(&self.state.image),
                 PreviewData::Pdf { .. } => crate::ui::views::view_pdf(&self.state.pdf),
@@ -1144,6 +1278,14 @@ impl KglanceApp {
                 PreviewData::Spreadsheet { .. } => {
                     crate::ui::views::view_spreadsheet(&self.state.spreadsheet)
                 }
+                PreviewData::Epub { .. } => crate::ui::views::view_epub(
+                    &self.state.epub,
+                    self.state.font_size,
+                    self.state.theme_dark,
+                    self.state.font_family.as_deref(),
+                    self.state.font_family_mono.as_deref(),
+                    self.state.max_text_width,
+                ),
                 PreviewData::Media {
                     thumbnail_or_waveform,
                     width,
@@ -1190,6 +1332,12 @@ impl KglanceApp {
             }
             iced::Event::Keyboard(iced::keyboard::Event::ModifiersChanged(modifiers)) => {
                 Some(Message::ModifiersUpdated(modifiers))
+            }
+            iced::Event::Mouse(iced::mouse::Event::CursorMoved { position }) => {
+                Some(Message::MouseMoved(position.x, position.y))
+            }
+            iced::Event::Mouse(iced::mouse::Event::ButtonReleased(iced::mouse::Button::Left)) => {
+                Some(Message::SidebarDragEnded)
             }
             iced::Event::Mouse(iced::mouse::Event::WheelScrolled { delta }) => {
                 let (dx, dy) = match delta {

@@ -8,6 +8,7 @@ pub struct UiConfig {
     pub font_size: f32,
     pub font_family: Option<String>,
     pub font_family_mono: Option<String>,
+    pub max_text_width: Option<f32>,
     pub default_width: u32,
     pub default_height: u32,
 }
@@ -34,6 +35,7 @@ impl Default for UiConfig {
             font_size: 14.0,
             font_family: None,
             font_family_mono: None,
+            max_text_width: Some(820.0),
             default_width: 900,
             default_height: 600,
         }

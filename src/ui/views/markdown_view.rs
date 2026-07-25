@@ -649,7 +649,7 @@ fn render_table<'a>(
 
 fn render_inline_image<'a>(
     index: usize,
-    alt: &'a str,
+    _alt: &'a str,
     state: &'a crate::core::MarkdownState,
 ) -> Element<'a, Message> {
     if let Some(handle) = state.cached_image_handles.get(&index) {
@@ -669,32 +669,7 @@ fn render_inline_image<'a>(
             .width(Length::Fill)
             .into()
     } else {
-        container(text(if alt.is_empty() { "[image]" } else { alt }).size(13))
-            .padding([2, 8])
-            .style(|theme: &iced::Theme| {
-                let is_dark = matches!(theme, iced::Theme::Dark);
-                container::Style {
-                    background: Some(
-                        (if is_dark {
-                            glass::DARK_SURFACE
-                        } else {
-                            glass::LIGHT_SURFACE
-                        })
-                        .into(),
-                    ),
-                    border: iced::Border {
-                        color: if is_dark {
-                            glass::DARK_BORDER
-                        } else {
-                            glass::LIGHT_BORDER
-                        },
-                        width: 1.0,
-                        radius: 4.0.into(),
-                    },
-                    ..Default::default()
-                }
-            })
-            .into()
+        container(column![]).into()
     }
 }
 
@@ -882,9 +857,9 @@ fn render_quote<'a>(
     };
 
     let bg = if is_dark {
-        glass::DARK_SURFACE
+        Color::from_rgba(1.0, 1.0, 1.0, 0.03)
     } else {
-        glass::LIGHT_SURFACE
+        Color::from_rgba(0.0, 0.0, 0.0, 0.02)
     };
 
     let content = container(inner)
@@ -949,7 +924,7 @@ fn render_html<'a>(html: &'a str, _font_size: f32) -> Element<'a, Message> {
 // 3. MAIN ROUTER & VIEW
 // ==========================================
 
-fn render_block<'a>(
+pub(crate) fn render_block<'a>(
     index: usize,
     block: &'a Block,
     state: &'a crate::core::MarkdownState,
@@ -989,7 +964,7 @@ fn render_block<'a>(
     }
 }
 
-fn block_margin(block: &Block) -> f32 {
+pub(crate) fn block_margin(block: &Block) -> f32 {
     match block {
         Block::Heading { level, .. } if *level == 1 => 24.0,
         Block::Heading { level, .. } if *level == 2 => 20.0,
@@ -1260,11 +1235,37 @@ fn render_toc_sidebar<'a>(
     .padding([2, 6])
     .style(render_toc_tooltip_style);
 
+    let current_w = state.sidebar_width;
+    let shrink_btn = button(text("−").size(11))
+        .on_press(Message::MarkdownSidebarResized(current_w - 30.0))
+        .padding([1, 4])
+        .style(|_, _| button::Style {
+            background: None,
+            text_color: Color::from_rgb(0.6, 0.65, 0.7),
+            border: Border::default(),
+            shadow: Shadow::default(),
+            snap: false,
+        });
+
+    let expand_btn = button(text("+").size(11))
+        .on_press(Message::MarkdownSidebarResized(current_w + 30.0))
+        .padding([1, 4])
+        .style(|_, _| button::Style {
+            background: None,
+            text_color: Color::from_rgb(0.6, 0.65, 0.7),
+            border: Border::default(),
+            shadow: Shadow::default(),
+            snap: false,
+        });
+
     let header = row![
         title_text,
         iced::widget::Space::new().width(Length::Fill),
+        shrink_btn,
+        expand_btn,
         tip_badge
     ]
+    .spacing(4)
     .align_y(iced::Alignment::Center)
     .padding([8, 12]);
 
@@ -1276,19 +1277,25 @@ fn render_toc_sidebar<'a>(
         .style(crate::ui::theme::glass_scrollable)
         .height(Length::Fill);
 
-    container(column![header, toc_list].width(220).height(Length::Fill))
-        .width(220)
-        .height(Length::Fill)
-        .style(move |_| container::Style {
-            background: Some(bg.into()),
-            border: Border {
-                width: 1.0,
-                color: border_color,
-                radius: 0.0.into(),
-            },
-            ..Default::default()
-        })
-        .into()
+    let sidebar_w = state.sidebar_width;
+
+    container(
+        column![header, toc_list]
+            .width(sidebar_w)
+            .height(Length::Fill),
+    )
+    .width(sidebar_w)
+    .height(Length::Fill)
+    .style(move |_| container::Style {
+        background: Some(bg.into()),
+        border: Border {
+            width: 1.0,
+            color: border_color,
+            radius: 0.0.into(),
+        },
+        ..Default::default()
+    })
+    .into()
 }
 
 pub fn view_markdown<'a>(
@@ -1297,6 +1304,7 @@ pub fn view_markdown<'a>(
     font_size: f32,
     is_dark: bool,
     font_family_mono: Option<&str>,
+    max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
     let content = blocks.iter().enumerate().map(|(i, block)| {
         let inner = render_block(i, block, state, font_size, is_dark, font_family_mono);
@@ -1312,20 +1320,69 @@ pub fn view_markdown<'a>(
             .into()
     });
 
-    let inner = column(content).spacing(0).padding(15);
+    let inner_column = column(content).spacing(0).padding(15);
 
-    let scroll = scrollable(inner)
+    let text_container = match max_text_width {
+        Some(w) if w > 0.0 => container(inner_column).max_width(w),
+        _ => container(inner_column).width(Length::Fill),
+    };
+
+    let centered_text_wrapper = container(text_container)
+        .center_x(Length::Fill)
+        .width(Length::Fill);
+
+    let scroll = scrollable(centered_text_wrapper)
         .id("content_scroll")
         .direction(scrollable::Direction::Vertical(
             scrollable::Scrollbar::new().width(4).margin(2),
         ))
         .style(crate::ui::theme::glass_scrollable)
+        .width(Length::Fill)
         .height(Length::Fill)
         .on_scroll(|v| Message::MarkdownScrolled(v.absolute_offset().y));
 
     if state.toc_visible && !state.toc.is_empty() {
         let sidebar = render_toc_sidebar(&state.toc, state, state.scroll_y, is_dark);
-        row![sidebar, scroll].spacing(0).height(Length::Fill).into()
+        let drag_handle = button(container(text("")).width(4).height(Length::Fill).style(
+            move |theme: &iced::Theme| {
+                let d = matches!(theme, iced::Theme::Dark);
+                container::Style {
+                    background: Some(
+                        (if state.sidebar_resizing {
+                            if d {
+                                Color::from_rgb(0.4, 0.7, 1.0)
+                            } else {
+                                Color::from_rgb(0.1, 0.45, 0.85)
+                            }
+                        } else {
+                            if d {
+                                Color::from_rgba(1.0, 1.0, 1.0, 0.05)
+                            } else {
+                                Color::from_rgba(0.0, 0.0, 0.0, 0.05)
+                            }
+                        })
+                        .into(),
+                    ),
+                    ..Default::default()
+                }
+            },
+        ))
+        .padding(0)
+        .width(6)
+        .height(Length::Fill)
+        .on_press(Message::SidebarDragStarted(0.0))
+        .style(|_, _| button::Style {
+            background: None,
+            border: Border::default(),
+            shadow: Shadow::default(),
+            text_color: Color::TRANSPARENT,
+            snap: false,
+        });
+
+        row![sidebar, drag_handle, scroll]
+            .spacing(0)
+            .height(Length::Fill)
+            .into()
     } else {
         scroll.into()
     }

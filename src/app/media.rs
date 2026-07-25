@@ -21,7 +21,9 @@ impl super::KglanceApp {
         } else if self.shift_held {
             if matches!(
                 self.current_content,
-                Some(PreviewData::Markdown { .. }) | Some(PreviewData::Text { .. })
+                Some(PreviewData::Markdown { .. })
+                    | Some(PreviewData::Text { .. })
+                    | Some(PreviewData::Epub { .. })
             ) {
                 let delta = if y > 0.0 { 1.0 } else { -1.0 };
                 self.state.font_size = (self.state.font_size + delta).clamp(8.0, 48.0);

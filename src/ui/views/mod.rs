@@ -1,3 +1,4 @@
+pub mod epub_view;
 pub mod grid;
 pub mod image_view;
 pub mod markdown_view;
@@ -7,6 +8,7 @@ pub mod spreadsheet_view;
 pub mod table_view;
 pub mod text_view;
 
+pub use epub_view::view_epub;
 pub use grid::view_grid;
 pub use image_view::view_image;
 pub use markdown_view::view_markdown;
