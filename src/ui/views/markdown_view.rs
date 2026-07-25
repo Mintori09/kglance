@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::sync::OnceLock;
 
 use crate::app::Message;
@@ -104,15 +105,59 @@ fn highlight_code<'a>(
 fn inlines_to_spans<'a>(
     inlines: &'a [Inline],
     font_family_mono: Option<&str>,
+    search_query: &str,
+    active_match: usize,
+    counter: &Cell<usize>,
+    is_dark: bool,
 ) -> Vec<Span<'a, (), Font>> {
     let mut spans = Vec::new();
     for inline in inlines {
         match inline {
             Inline::Text(t) => {
-                spans.push(Span::new(t.as_str()));
+                if search_query.is_empty() {
+                    spans.push(Span::new(t.as_str()));
+                } else {
+                    let lower = t.to_lowercase();
+                    let q = search_query.to_lowercase();
+                    let mut pos = 0;
+                    while let Some(match_pos) = lower[pos..].find(&q) {
+                        let abs_pos = pos + match_pos;
+                        let end_pos = abs_pos + q.len();
+                        if abs_pos > pos {
+                            spans.push(Span::new(&t[pos..abs_pos]));
+                        }
+                        let is_active = counter.get() == active_match;
+                        let bg = if is_active {
+                            if is_dark {
+                                Color::from_rgb(0.7, 0.6, 0.15)
+                            } else {
+                                Color::from_rgb(1.0, 0.85, 0.3)
+                            }
+                        } else {
+                            if is_dark {
+                                Color::from_rgb(0.5, 0.4, 0.1)
+                            } else {
+                                Color::from_rgb(0.95, 0.8, 0.2)
+                            }
+                        };
+                        spans.push(Span::new(&t[abs_pos..end_pos]).background(bg));
+                        counter.set(counter.get() + 1);
+                        pos = end_pos;
+                    }
+                    if pos < t.len() {
+                        spans.push(Span::new(&t[pos..]));
+                    }
+                }
             }
             Inline::Bold(children) => {
-                for s in inlines_to_spans(children, font_family_mono) {
+                for s in inlines_to_spans(
+                    children,
+                    font_family_mono,
+                    search_query,
+                    active_match,
+                    counter,
+                    is_dark,
+                ) {
                     spans.push(s.font(Font {
                         weight: Weight::Bold,
                         ..Default::default()
@@ -120,7 +165,14 @@ fn inlines_to_spans<'a>(
                 }
             }
             Inline::Italic(children) => {
-                for s in inlines_to_spans(children, font_family_mono) {
+                for s in inlines_to_spans(
+                    children,
+                    font_family_mono,
+                    search_query,
+                    active_match,
+                    counter,
+                    is_dark,
+                ) {
                     spans.push(s.font(Font {
                         style: iced::font::Style::Italic,
                         ..Default::default()
@@ -128,21 +180,80 @@ fn inlines_to_spans<'a>(
                 }
             }
             Inline::Strikethrough(children) => {
-                for s in inlines_to_spans(children, font_family_mono) {
+                for s in inlines_to_spans(
+                    children,
+                    font_family_mono,
+                    search_query,
+                    active_match,
+                    counter,
+                    is_dark,
+                ) {
                     spans.push(s.strikethrough(true));
                 }
             }
             Inline::Code(code) => {
-                spans.push(
-                    Span::new(code.as_str())
-                        .font(get_code_font(font_family_mono))
-                        .color(Color::from_rgb(0.8, 0.35, 0.35)),
-                );
+                if search_query.is_empty() {
+                    spans.push(
+                        Span::new(code.as_str())
+                            .font(get_code_font(font_family_mono))
+                            .color(Color::from_rgb(0.8, 0.35, 0.35)),
+                    );
+                } else {
+                    let lower = code.to_lowercase();
+                    let q = search_query.to_lowercase();
+                    let mut pos = 0;
+                    while let Some(match_pos) = lower[pos..].find(&q) {
+                        let abs_pos = pos + match_pos;
+                        let end_pos = abs_pos + q.len();
+                        if abs_pos > pos {
+                            spans.push(
+                                Span::new(&code[pos..abs_pos])
+                                    .font(get_code_font(font_family_mono))
+                                    .color(Color::from_rgb(0.8, 0.35, 0.35)),
+                            );
+                        }
+                        let is_active = counter.get() == active_match;
+                        let bg = if is_active {
+                            if is_dark {
+                                Color::from_rgb(0.7, 0.6, 0.15)
+                            } else {
+                                Color::from_rgb(1.0, 0.85, 0.3)
+                            }
+                        } else {
+                            if is_dark {
+                                Color::from_rgb(0.5, 0.4, 0.1)
+                            } else {
+                                Color::from_rgb(0.95, 0.8, 0.2)
+                            }
+                        };
+                        spans.push(
+                            Span::new(&code[abs_pos..end_pos])
+                                .font(get_code_font(font_family_mono))
+                                .background(bg),
+                        );
+                        counter.set(counter.get() + 1);
+                        pos = end_pos;
+                    }
+                    if pos < code.len() {
+                        spans.push(
+                            Span::new(&code[pos..])
+                                .font(get_code_font(font_family_mono))
+                                .color(Color::from_rgb(0.8, 0.35, 0.35)),
+                        );
+                    }
+                }
             }
             Inline::Link {
                 text: link_text, ..
             } => {
-                for s in inlines_to_spans(link_text, font_family_mono) {
+                for s in inlines_to_spans(
+                    link_text,
+                    font_family_mono,
+                    search_query,
+                    active_match,
+                    counter,
+                    is_dark,
+                ) {
                     spans.push(s.color(Color::from_rgb(0.3, 0.5, 0.9)).underline(true));
                 }
             }
@@ -190,6 +301,10 @@ fn render_inlines<'a>(
     inlines: &'a [Inline],
     font_size: f32,
     font_family_mono: Option<&str>,
+    search_query: &str,
+    active_match: usize,
+    counter: &Cell<usize>,
+    is_dark: bool,
 ) -> Element<'a, Message> {
     let has_link = inlines.iter().any(|i| matches!(i, Inline::Link { .. }));
     let has_math = inlines
@@ -197,10 +312,17 @@ fn render_inlines<'a>(
         .any(|i| matches!(i, Inline::InlineMath(_) | Inline::DisplayMath(_)));
 
     if !has_link && !has_math {
-        return Rich::with_spans(inlines_to_spans(inlines, font_family_mono))
-            .size(Pixels(font_size))
-            .width(Length::Fill)
-            .into();
+        return Rich::with_spans(inlines_to_spans(
+            inlines,
+            font_family_mono,
+            search_query,
+            active_match,
+            counter,
+            is_dark,
+        ))
+        .size(Pixels(font_size))
+        .width(Length::Fill)
+        .into();
     }
 
     let mut elements: Vec<Element<'a, Message>> = Vec::new();
@@ -214,10 +336,17 @@ fn render_inlines<'a>(
         {
             if start < i {
                 elements.push(
-                    Rich::with_spans(inlines_to_spans(&inlines[start..i], font_family_mono))
-                        .size(Pixels(font_size))
-                        .width(Length::Shrink)
-                        .into(),
+                    Rich::with_spans(inlines_to_spans(
+                        &inlines[start..i],
+                        font_family_mono,
+                        search_query,
+                        active_match,
+                        counter,
+                        is_dark,
+                    ))
+                    .size(Pixels(font_size))
+                    .width(Length::Shrink)
+                    .into(),
                 );
             }
 
@@ -248,10 +377,17 @@ fn render_inlines<'a>(
         } else if let Inline::InlineMath(latex) = inline {
             if start < i {
                 elements.push(
-                    Rich::with_spans(inlines_to_spans(&inlines[start..i], font_family_mono))
-                        .size(Pixels(font_size))
-                        .width(Length::Shrink)
-                        .into(),
+                    Rich::with_spans(inlines_to_spans(
+                        &inlines[start..i],
+                        font_family_mono,
+                        search_query,
+                        active_match,
+                        counter,
+                        is_dark,
+                    ))
+                    .size(Pixels(font_size))
+                    .width(Length::Shrink)
+                    .into(),
                 );
             }
             elements.push(iced_math::inline(latex.as_str()));
@@ -259,10 +395,17 @@ fn render_inlines<'a>(
         } else if let Inline::DisplayMath(latex) = inline {
             if start < i {
                 elements.push(
-                    Rich::with_spans(inlines_to_spans(&inlines[start..i], font_family_mono))
-                        .size(Pixels(font_size))
-                        .width(Length::Shrink)
-                        .into(),
+                    Rich::with_spans(inlines_to_spans(
+                        &inlines[start..i],
+                        font_family_mono,
+                        search_query,
+                        active_match,
+                        counter,
+                        is_dark,
+                    ))
+                    .size(Pixels(font_size))
+                    .width(Length::Shrink)
+                    .into(),
                 );
             }
             elements.push(iced_math::block(latex.as_str()));
@@ -272,10 +415,17 @@ fn render_inlines<'a>(
 
     if start < inlines.len() {
         elements.push(
-            Rich::with_spans(inlines_to_spans(&inlines[start..], font_family_mono))
-                .size(Pixels(font_size))
-                .width(Length::Shrink)
-                .into(),
+            Rich::with_spans(inlines_to_spans(
+                &inlines[start..],
+                font_family_mono,
+                search_query,
+                active_match,
+                counter,
+                is_dark,
+            ))
+            .size(Pixels(font_size))
+            .width(Length::Shrink)
+            .into(),
         );
     }
 
@@ -323,9 +473,14 @@ fn scale(s: f32, font_size: f32) -> f32 {
     (s * font_size / 14.0).round().max(8.0)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_heading<'a>(
     level: u8,
     content: &'a [Inline],
+    search_query: &str,
+    active_match: usize,
+    counter: &Cell<usize>,
+    is_dark: bool,
     font_size: f32,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
@@ -343,7 +498,15 @@ fn render_heading<'a>(
         _ => (8.0, 4.0),
     };
 
-    let label = render_inlines(content, size, font_family_mono);
+    let label = render_inlines(
+        content,
+        size,
+        font_family_mono,
+        search_query,
+        active_match,
+        counter,
+        is_dark,
+    );
     let heading = container(label)
         .padding(Padding {
             top: pt,
@@ -377,10 +540,22 @@ fn render_heading<'a>(
 
 fn render_paragraph<'a>(
     content: &'a [Inline],
+    search_query: &str,
+    active_match: usize,
+    counter: &Cell<usize>,
+    is_dark: bool,
     font_size: f32,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
-    let rich = render_inlines(content, font_size, font_family_mono);
+    let rich = render_inlines(
+        content,
+        font_size,
+        font_family_mono,
+        search_query,
+        active_match,
+        counter,
+        is_dark,
+    );
     container(rich).padding([2, 0]).width(Length::Fill).into()
 }
 
@@ -494,10 +669,14 @@ fn render_code_block<'a>(
     .into()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_table<'a>(
     table: &'a TableBlock,
+    search_query: &str,
+    active_match: usize,
+    counter: &Cell<usize>,
+    is_dark: bool,
     font_size: f32,
-    _is_dark: bool,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     let hdr_size = scale(14.0, font_size);
@@ -539,7 +718,15 @@ fn render_table<'a>(
             } else {
                 Length::FillPortion(1)
             };
-            let cell = render_inlines(&h.content, hdr_size, font_family_mono);
+            let cell = render_inlines(
+                &h.content,
+                hdr_size,
+                font_family_mono,
+                search_query,
+                active_match,
+                counter,
+                is_dark,
+            );
             container(cell).padding([8, 12]).width(w).into()
         })
         .collect();
@@ -596,7 +783,15 @@ fn render_table<'a>(
                 } else {
                     Length::FillPortion(1)
                 };
-                let cell = render_inlines(&c.content, cel_size, font_family_mono);
+                let cell = render_inlines(
+                    &c.content,
+                    cel_size,
+                    font_family_mono,
+                    search_query,
+                    active_match,
+                    counter,
+                    is_dark,
+                );
                 container(cell).padding([8, 12]).width(w).into()
             })
             .collect();
@@ -754,13 +949,17 @@ fn render_mermaid<'a>(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_list<'a>(
     ordered: bool,
     start_number: u64,
     items: &'a [ListItem],
     state: &'a crate::core::MarkdownState,
-    font_size: f32,
+    search_query: &str,
+    active_match: usize,
+    counter: &Cell<usize>,
     is_dark: bool,
+    font_size: f32,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     let item_elements = items.iter().enumerate().map(|(idx, item)| {
@@ -794,7 +993,15 @@ fn render_list<'a>(
                 .into()
         };
 
-        let content_el = render_inlines(&item.content, font_size, font_family_mono);
+        let content_el = render_inlines(
+            &item.content,
+            font_size,
+            font_family_mono,
+            search_query,
+            active_match,
+            counter,
+            is_dark,
+        );
 
         let mut children: Vec<Element<'a, Message>> =
             vec![row![prefix_el, content_el].spacing(6).into()];
@@ -803,8 +1010,11 @@ fn render_list<'a>(
                 idx * 1000 + bi,
                 sub,
                 state,
-                font_size,
+                search_query,
+                active_match,
+                counter,
                 is_dark,
+                font_size,
                 font_family_mono,
             );
             children.push(
@@ -834,19 +1044,30 @@ fn render_list<'a>(
     column(item_elements).spacing(4).into()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_quote<'a>(
     blocks: &'a [Block],
     state: &'a crate::core::MarkdownState,
-    font_size: f32,
+    search_query: &str,
+    active_match: usize,
+    counter: &Cell<usize>,
     is_dark: bool,
+    font_size: f32,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
-    let inner: Element<'a, Message> = column(
-        blocks
-            .iter()
-            .enumerate()
-            .map(|(i, b)| render_block(i, b, state, font_size, is_dark, font_family_mono)),
-    )
+    let inner: Element<'a, Message> = column(blocks.iter().enumerate().map(|(i, b)| {
+        render_block(
+            i,
+            b,
+            state,
+            search_query,
+            active_match,
+            counter,
+            is_dark,
+            font_size,
+            font_family_mono,
+        )
+    }))
     .spacing(4)
     .into();
 
@@ -924,23 +1145,50 @@ fn render_html<'a>(html: &'a str, _font_size: f32) -> Element<'a, Message> {
 // 3. MAIN ROUTER & VIEW
 // ==========================================
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn render_block<'a>(
     index: usize,
     block: &'a Block,
     state: &'a crate::core::MarkdownState,
-    font_size: f32,
+    search_query: &str,
+    active_match: usize,
+    counter: &Cell<usize>,
     is_dark: bool,
+    font_size: f32,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     match block {
-        Block::Heading { level, content } => {
-            render_heading(*level, content, font_size, font_family_mono)
-        }
-        Block::Paragraph(content) => render_paragraph(content, font_size, font_family_mono),
+        Block::Heading { level, content } => render_heading(
+            *level,
+            content,
+            search_query,
+            active_match,
+            counter,
+            is_dark,
+            font_size,
+            font_family_mono,
+        ),
+        Block::Paragraph(content) => render_paragraph(
+            content,
+            search_query,
+            active_match,
+            counter,
+            is_dark,
+            font_size,
+            font_family_mono,
+        ),
         Block::CodeBlock { lang, code, .. } => {
             render_code_block(lang, code, font_size, is_dark, font_family_mono)
         }
-        Block::Table(tbl) => render_table(tbl, font_size, is_dark, font_family_mono),
+        Block::Table(tbl) => render_table(
+            tbl,
+            search_query,
+            active_match,
+            counter,
+            is_dark,
+            font_size,
+            font_family_mono,
+        ),
         Block::Mermaid { lines, rendered } => {
             render_mermaid(index, lines, rendered, state, font_size, font_family_mono)
         }
@@ -954,11 +1202,23 @@ pub(crate) fn render_block<'a>(
             *start_number,
             items,
             state,
-            font_size,
+            search_query,
+            active_match,
+            counter,
             is_dark,
+            font_size,
             font_family_mono,
         ),
-        Block::Quote(blocks) => render_quote(blocks, state, font_size, is_dark, font_family_mono),
+        Block::Quote(blocks) => render_quote(
+            blocks,
+            state,
+            search_query,
+            active_match,
+            counter,
+            is_dark,
+            font_size,
+            font_family_mono,
+        ),
         Block::HorizontalRule => render_horizontal_rule(font_size),
         Block::Html(html) => render_html(html, font_size),
     }
@@ -1306,8 +1566,19 @@ pub fn view_markdown<'a>(
     font_family_mono: Option<&str>,
     max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
+    let search_counter = Cell::new(0);
     let content = blocks.iter().enumerate().map(|(i, block)| {
-        let inner = render_block(i, block, state, font_size, is_dark, font_family_mono);
+        let inner = render_block(
+            i,
+            block,
+            state,
+            &state.search_query,
+            state.search_match_index,
+            &search_counter,
+            is_dark,
+            font_size,
+            font_family_mono,
+        );
         let mb = block_margin(block);
         container(inner)
             .padding(Padding {

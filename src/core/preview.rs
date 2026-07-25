@@ -171,6 +171,10 @@ impl PreviewData {
                     word_count: words,
                     char_count: chars,
                     reading_time_mins: mins,
+                    search_visible: false,
+                    search_query: String::new(),
+                    search_match_count: 0,
+                    search_match_index: 0,
                 };
                 for (i, block) in blocks.iter().enumerate() {
                     if let Block::Mermaid {
@@ -273,6 +277,11 @@ impl PreviewData {
                     }
                 }
 
+                let minified = serde_json::from_str::<serde_json::Value>(pretty)
+                    .ok()
+                    .and_then(|v| serde_json::to_string(&v).ok())
+                    .unwrap_or_else(|| pretty.clone());
+
                 state.json = crate::core::types::JsonState {
                     nodes: nodes.clone(),
                     expanded,
@@ -282,6 +291,15 @@ impl PreviewData {
                     scroll_y: old_scroll,
                     has_parse_error: *has_parse_error,
                     raw_editor: iced::widget::text_editor::Content::with_text(pretty),
+                    search_visible: false,
+                    search_query: String::new(),
+                    minified_content: minified,
+                    raw_pretty: true,
+                    active_node: None,
+                    editing_node: None,
+                    edit_value: String::new(),
+                    schema_visible: false,
+                    schema_info: String::new(),
                 };
                 state.file_type_text = "JSON Document".to_string();
             }

@@ -204,6 +204,15 @@ pub struct JsonState {
     pub scroll_y: f32,
     pub has_parse_error: bool,
     pub raw_editor: iced::widget::text_editor::Content,
+    pub search_visible: bool,
+    pub search_query: String,
+    pub minified_content: String,
+    pub raw_pretty: bool,
+    pub active_node: Option<usize>,
+    pub editing_node: Option<usize>,
+    pub edit_value: String,
+    pub schema_visible: bool,
+    pub schema_info: String,
 }
 
 impl Default for JsonState {
@@ -217,6 +226,15 @@ impl Default for JsonState {
             scroll_y: 0.0,
             has_parse_error: false,
             raw_editor: iced::widget::text_editor::Content::new(),
+            search_visible: false,
+            search_query: String::new(),
+            minified_content: String::new(),
+            raw_pretty: true,
+            active_node: None,
+            editing_node: None,
+            edit_value: String::new(),
+            schema_visible: false,
+            schema_info: String::new(),
         }
     }
 }
@@ -298,6 +316,10 @@ pub struct MarkdownState {
     pub word_count: usize,
     pub char_count: usize,
     pub reading_time_mins: usize,
+    pub search_visible: bool,
+    pub search_query: String,
+    pub search_match_count: usize,
+    pub search_match_index: usize,
 }
 
 impl Default for MarkdownState {
@@ -317,6 +339,10 @@ impl Default for MarkdownState {
             word_count: 0,
             char_count: 0,
             reading_time_mins: 0,
+            search_visible: false,
+            search_query: String::new(),
+            search_match_count: 0,
+            search_match_index: 0,
         }
     }
 }

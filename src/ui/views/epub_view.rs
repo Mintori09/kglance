@@ -3,6 +3,7 @@ use crate::core::types::EpubState;
 use crate::ui::theme::glass;
 use iced::widget::{button, column, container, row, scrollable, text};
 use iced::{Border, Color, Element, Font, Length, Shadow};
+use std::cell::Cell;
 
 pub fn view_epub<'a>(
     state: &'a EpubState,
@@ -90,14 +91,18 @@ pub fn view_epub<'a>(
         .sum();
 
     // Render Markdown blocks for the current chapter
+    let search_counter = Cell::new(0);
     let content = chapter_blocks.iter().enumerate().map(|(i, block)| {
         let global_i = chapter_offset + i;
         let inner = crate::ui::views::markdown_view::render_block(
             global_i,
             block,
             &state.markdown_state,
-            font_size,
+            &state.markdown_state.search_query,
+            state.markdown_state.search_match_index,
+            &search_counter,
             is_dark,
+            font_size,
             font_family_mono,
         );
         let mb = crate::ui::views::markdown_view::block_margin(block);
