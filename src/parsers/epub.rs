@@ -102,39 +102,44 @@ impl PreviewParser for EpubParser {
                     .and_then(|n| n.to_str())
                     .unwrap_or(file_part);
 
-                if let Some((_html, blocks)) = spine_cache.get(filename) {
-                    if !blocks.is_empty() {
-                        let clean_title = decode_html_entities(label);
+                if let Some((_html, blocks)) = spine_cache.get(filename)
+                    && !blocks.is_empty()
+                {
+                    let clean_title = decode_html_entities(label);
 
-                        // Find start index of this chapter's anchor or title in blocks
-                        let start_block_idx =
-                            if let Some(anc) = anchor {
-                                blocks.iter().position(|b| {
+                    // Find start index of this chapter's anchor or title in blocks
+                    let start_block_idx = if let Some(anc) = anchor {
+                        blocks
+                            .iter()
+                            .position(|b| {
                                 let text = match b {
-                                    crate::parsers::markdown::Block::Heading { content, .. }
+                                    crate::parsers::markdown::Block::Heading {
+                                        content, ..
+                                    }
                                     | crate::parsers::markdown::Block::Paragraph(content) => {
                                         crate::parsers::markdown::flatten_inlines(content)
                                     }
                                     _ => String::new(),
                                 };
                                 text.contains(anc) || text.contains(&clean_title)
-                            }).unwrap_or(0)
-                            } else {
-                                0
-                            };
+                            })
+                            .unwrap_or(0)
+                    } else {
+                        0
+                    };
 
-                        // Find end index if the next NCX entry points to the same HTML file
-                        let end_block_idx = if i + 1 < ncx_len {
-                            let (next_file_part, next_anchor) =
-                                (&ncx_entries[i + 1].2, &ncx_entries[i + 1].3);
-                            let next_filename = Path::new(next_file_part)
-                                .file_name()
-                                .and_then(|n| n.to_str())
-                                .unwrap_or(next_file_part);
+                    // Find end index if the next NCX entry points to the same HTML file
+                    let end_block_idx = if i + 1 < ncx_len {
+                        let (next_file_part, next_anchor) =
+                            (&ncx_entries[i + 1].2, &ncx_entries[i + 1].3);
+                        let next_filename = Path::new(next_file_part)
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or(next_file_part);
 
-                            if next_filename == filename {
-                                if let Some(next_anc) = next_anchor {
-                                    blocks[start_block_idx..]
+                        if next_filename == filename {
+                            if let Some(next_anc) = next_anchor {
+                                blocks[start_block_idx..]
                                         .iter()
                                         .position(|b| {
                                             let text = match b {
@@ -152,33 +157,32 @@ impl PreviewParser for EpubParser {
                                             text.contains(next_anc)
                                         })
                                         .map(|pos| start_block_idx + pos)
-                                } else {
-                                    None
-                                }
                             } else {
                                 None
                             }
                         } else {
                             None
-                        };
-
-                        let chapter_blocks = match end_block_idx {
-                            Some(end_idx) if end_idx > start_block_idx => {
-                                blocks[start_block_idx..end_idx].to_vec()
-                            }
-                            _ => blocks[start_block_idx..].to_vec(),
-                        };
-
-                        if !chapter_blocks.is_empty() {
-                            chapters.push((clean_title, *level, anchor.clone(), chapter_blocks));
-                        } else {
-                            chapters.push((
-                                clean_title,
-                                *level,
-                                anchor.clone(),
-                                blocks[start_block_idx..].to_vec(),
-                            ));
                         }
+                    } else {
+                        None
+                    };
+
+                    let chapter_blocks = match end_block_idx {
+                        Some(end_idx) if end_idx > start_block_idx => {
+                            blocks[start_block_idx..end_idx].to_vec()
+                        }
+                        _ => blocks[start_block_idx..].to_vec(),
+                    };
+
+                    if !chapter_blocks.is_empty() {
+                        chapters.push((clean_title, *level, anchor.clone(), chapter_blocks));
+                    } else {
+                        chapters.push((
+                            clean_title,
+                            *level,
+                            anchor.clone(),
+                            blocks[start_block_idx..].to_vec(),
+                        ));
                     }
                 }
             }
@@ -198,10 +202,10 @@ impl PreviewParser for EpubParser {
                         .or_else(|| extract_tag_content(html, "h3"))
                         .or_else(|| {
                             let tag_title = extract_tag_content(html, "title");
-                            if let Some(t) = tag_title {
-                                if t != title {
-                                    return Some(t);
-                                }
+                            if let Some(t) = tag_title
+                                && t != title
+                            {
+                                return Some(t);
                             }
                             None
                         })
@@ -303,15 +307,14 @@ fn extract_ncx_href(opf_xml: &str) -> Option<String> {
     while let Some(idx) = search_str.find("<item") {
         let tag_end = search_str[idx..].find('>')?;
         let tag = &search_str[idx..idx + tag_end];
-        if tag.contains("application/x-dtbncx+xml")
+        if (tag.contains("application/x-dtbncx+xml")
             || tag.contains("id=\"ncx\"")
-            || tag.contains("id=\"toc\"")
+            || tag.contains("id=\"toc\""))
+            && let Some(href_idx) = tag.find("href=\"")
         {
-            if let Some(href_idx) = tag.find("href=\"") {
-                let start = href_idx + 6;
-                if let Some(end) = tag[start..].find('"') {
-                    return Some(tag[start..start + end].to_string());
-                }
+            let start = href_idx + 6;
+            if let Some(end) = tag[start..].find('"') {
+                return Some(tag[start..start + end].to_string());
             }
         }
         search_str = &search_str[idx + tag_end..];

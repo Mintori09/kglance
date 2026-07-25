@@ -12,6 +12,7 @@ pub struct JsonNode {
     pub children_count: usize,
     pub skip_count: usize,
     pub depth: usize,
+    pub parent_index: Option<usize>,
 }
 
 pub struct JsonParser;
@@ -54,11 +55,26 @@ impl JsonParser {
             children_count: children.len(),
             skip_count,
             depth,
+            parent_index: None,
         };
 
         let mut result = vec![node];
         result.extend(children);
         result
+    }
+
+    fn assign_parent_indices(nodes: &mut [JsonNode]) {
+        let mut stack: Vec<usize> = Vec::new();
+        for i in 0..nodes.len() {
+            while stack
+                .last()
+                .is_some_and(|&top| nodes[top].depth >= nodes[i].depth)
+            {
+                stack.pop();
+            }
+            nodes[i].parent_index = stack.last().copied();
+            stack.push(i);
+        }
     }
 }
 
@@ -77,7 +93,7 @@ impl PreviewParser for JsonParser {
         let content =
             std::fs::read_to_string(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
-        let (nodes, pretty, has_parse_error) = match serde_json::from_str::<Value>(&content) {
+        let (mut nodes, pretty, has_parse_error) = match serde_json::from_str::<Value>(&content) {
             Ok(val) => {
                 let pretty = serde_json::to_string_pretty(&val).unwrap_or_else(|_| content.clone());
                 let nodes = Self::flatten_json(&val, None, 0);
@@ -85,6 +101,8 @@ impl PreviewParser for JsonParser {
             }
             Err(_) => (Vec::new(), content.clone(), true),
         };
+
+        Self::assign_parent_indices(&mut nodes);
 
         Ok(ParsedContent::Json {
             content,

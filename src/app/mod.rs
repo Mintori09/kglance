@@ -138,6 +138,11 @@ pub enum Message {
     TocToggleCollapse(usize),
     MarkdownScrolled(f32),
     TextScrolled(f32),
+    MarkdownSearchToggle,
+    MarkdownSearchQueryChanged(String),
+    MarkdownSearchNext,
+    MarkdownSearchPrev,
+    MarkdownSearchClosed,
 
     // EPUB Chapter & Sidebar
     EpubSidebarToggled,
@@ -156,6 +161,20 @@ pub enum Message {
     JsonToggleNode(usize),
     JsonScrolled(f32),
     JsonRawEdit(iced::widget::text_editor::Action),
+    JsonSearchToggle,
+    JsonSearchQueryChanged(String),
+    JsonSearchClosed,
+    JsonExpandAll,
+    JsonCollapseAll,
+    JsonCopyPath(usize),
+    JsonNodeClicked(usize),
+    JsonBreadcrumbClicked(usize),
+    JsonToggleFormat,
+    JsonEditStart(usize),
+    JsonEditValue(String),
+    JsonEditSave,
+    JsonEditCancel,
+    JsonSchemaToggle,
 }
 
 fn png_to_rgba_handle(png: Vec<u8>) -> Option<iced::widget::image::Handle> {
@@ -1077,6 +1096,111 @@ impl KglanceApp {
                     Task::none()
                 }
             }
+            Message::MarkdownSearchToggle => {
+                let s = &mut self.state.markdown;
+                s.search_visible = !s.search_visible;
+                if !s.search_visible {
+                    s.search_query.clear();
+                    s.search_match_count = 0;
+                    s.search_match_index = 0;
+                }
+                Task::none()
+            }
+            Message::MarkdownSearchQueryChanged(query) => {
+                let s = &mut self.state.markdown;
+                s.search_query = query.clone();
+                s.search_match_index = 0;
+                if query.is_empty() {
+                    s.search_match_count = 0;
+                } else if let Some(PreviewData::Markdown { blocks }) = &self.current_content {
+                    let q = query.to_lowercase();
+                    let count: usize = blocks
+                        .iter()
+                        .map(|b| {
+                            let text = match b {
+                                Block::Heading { content, .. } | Block::Paragraph(content) => {
+                                    crate::parsers::markdown::flatten_inlines(content)
+                                }
+                                Block::CodeBlock { code, .. } => code.clone(),
+                                Block::Quote(inner) => inner
+                                    .iter()
+                                    .map(|ib| match ib {
+                                        Block::Heading { content, .. }
+                                        | Block::Paragraph(content) => {
+                                            crate::parsers::markdown::flatten_inlines(content)
+                                        }
+                                        _ => String::new(),
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(" "),
+                                Block::List { items, .. } => items
+                                    .iter()
+                                    .flat_map(|item| {
+                                        let own = crate::parsers::markdown::flatten_inlines(
+                                            &item.content,
+                                        );
+                                        let sub: String = item
+                                            .sub_blocks
+                                            .iter()
+                                            .map(|lb| match lb {
+                                                Block::Heading { content, .. }
+                                                | Block::Paragraph(content) => {
+                                                    crate::parsers::markdown::flatten_inlines(
+                                                        content,
+                                                    )
+                                                }
+                                                _ => String::new(),
+                                            })
+                                            .collect::<Vec<_>>()
+                                            .join(" ");
+                                        vec![own, sub]
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(" "),
+                                Block::Table(tbl) => tbl
+                                    .rows
+                                    .iter()
+                                    .flat_map(|r| r.iter())
+                                    .map(|cell| {
+                                        crate::parsers::markdown::flatten_inlines(&cell.content)
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(" "),
+                                _ => String::new(),
+                            };
+                            text.to_lowercase().matches(&q).count()
+                        })
+                        .sum();
+                    s.search_match_count = count;
+                }
+                Task::none()
+            }
+            Message::MarkdownSearchNext => {
+                let s = &mut self.state.markdown;
+                if s.search_match_count > 0 {
+                    s.search_match_index = (s.search_match_index + 1) % s.search_match_count;
+                }
+                Task::none()
+            }
+            Message::MarkdownSearchPrev => {
+                let s = &mut self.state.markdown;
+                if s.search_match_count > 0 {
+                    s.search_match_index = if s.search_match_index == 0 {
+                        s.search_match_count - 1
+                    } else {
+                        s.search_match_index - 1
+                    };
+                }
+                Task::none()
+            }
+            Message::MarkdownSearchClosed => {
+                let s = &mut self.state.markdown;
+                s.search_visible = false;
+                s.search_query.clear();
+                s.search_match_count = 0;
+                s.search_match_index = 0;
+                Task::none()
+            }
             Message::EpubSidebarToggled => {
                 self.state.epub.sidebar_visible = !self.state.epub.sidebar_visible;
                 Task::none()
@@ -1217,6 +1341,104 @@ impl KglanceApp {
                 if !matches!(action, iced::widget::text_editor::Action::Edit(_)) {
                     self.state.json.raw_editor.perform(action);
                 }
+                Task::none()
+            }
+            Message::JsonSearchToggle => {
+                let s = &mut self.state.json;
+                s.search_visible = !s.search_visible;
+                if !s.search_visible {
+                    s.search_query.clear();
+                } else {
+                    // Expand all ancestors so search result is visible
+                }
+                Task::none()
+            }
+            Message::JsonSearchQueryChanged(query) => {
+                self.state.json.search_query = query;
+                Task::none()
+            }
+            Message::JsonSearchClosed => {
+                self.state.json.search_visible = false;
+                self.state.json.search_query.clear();
+                Task::none()
+            }
+            Message::JsonExpandAll => {
+                for (i, node) in self.state.json.nodes.iter().enumerate() {
+                    if node.children_count > 0 {
+                        self.state.json.expanded.insert(i);
+                    }
+                }
+                Task::none()
+            }
+            Message::JsonCollapseAll => {
+                self.state.json.expanded.clear();
+                Task::none()
+            }
+            Message::JsonCopyPath(index) => {
+                let path = Self::build_json_path(&self.state.json.nodes, index);
+                let toast = self.show_toast("Copied path!");
+                Task::batch(vec![iced::clipboard::write(path), toast])
+            }
+            Message::JsonNodeClicked(index) => {
+                self.state.json.active_node = Some(index);
+                Task::none()
+            }
+            Message::JsonBreadcrumbClicked(_index) => iced::widget::operation::scroll_to(
+                "json_scroll",
+                iced::widget::operation::AbsoluteOffset { x: 0.0, y: 0.0 },
+            ),
+            Message::JsonToggleFormat => {
+                let s = &mut self.state.json;
+                let content = if s.raw_pretty {
+                    s.minified_content.clone()
+                } else {
+                    s.pretty_content.clone()
+                };
+                s.raw_editor = iced::widget::text_editor::Content::with_text(&content);
+                s.raw_pretty = !s.raw_pretty;
+                Task::none()
+            }
+            Message::JsonEditStart(index) => {
+                if let Some(node) = self.state.json.nodes.get(index) {
+                    let val = node.value_preview.clone();
+                    self.state.json.editing_node = Some(index);
+                    self.state.json.edit_value = val;
+                }
+                Task::none()
+            }
+            Message::JsonEditValue(val) => {
+                self.state.json.edit_value = val;
+                Task::none()
+            }
+            Message::JsonEditSave => {
+                if let Some(_idx) = self.state.json.editing_node {
+                    let path_str = self.state.file_name.clone();
+                    let reg = self.registry.clone();
+                    self.state.json.editing_node = None;
+                    self.state.json.edit_value.clear();
+                    // Re-read and re-parse the file to get fresh content
+                    return Task::perform(
+                        async move {
+                            let content =
+                                FilePreviewer::parse(&*reg, std::path::Path::new(&path_str))
+                                    .ok()?;
+                            Some(Message::FileLoaded {
+                                path: path_str,
+                                content,
+                            })
+                        },
+                        |msg| msg.unwrap_or(Message::ToastDismissed(0)),
+                    );
+                }
+                Task::none()
+            }
+            Message::JsonEditCancel => {
+                self.state.json.editing_node = None;
+                self.state.json.edit_value.clear();
+                Task::none()
+            }
+            Message::JsonSchemaToggle => {
+                self.state.json.schema_visible = !self.state.json.schema_visible;
                 Task::none()
             }
             Message::TextScrolled(y) => {
@@ -1411,5 +1633,33 @@ impl KglanceApp {
     /// Variant for [`iced::daemon`] which requires a `window::Id` parameter.
     pub fn theme_daemon(&self, _window_id: iced::window::Id) -> Theme {
         self.theme()
+    }
+
+    fn build_json_path(nodes: &[crate::parsers::json::JsonNode], index: usize) -> String {
+        let node = match nodes.get(index) {
+            Some(n) => n,
+            None => return String::new(),
+        };
+        let key = match &node.key {
+            Some(k) => k.clone(),
+            None => return String::new(),
+        };
+        let mut path = key;
+        let mut current = node.parent_index;
+        while let Some(pi) = current {
+            if let Some(parent) = nodes.get(pi) {
+                if let Some(k) = &parent.key {
+                    if k.starts_with('[') {
+                        path = format!("{}{}", k, path);
+                    } else {
+                        path = format!("{}.{}", k, path);
+                    }
+                }
+                current = parent.parent_index;
+            } else {
+                break;
+            }
+        }
+        path
     }
 }

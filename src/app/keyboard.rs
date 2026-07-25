@@ -163,6 +163,52 @@ impl super::KglanceApp {
             return task;
         }
 
+        // "/" vim-style search toggle for Markdown
+        if let iced::keyboard::Key::Character(c) = &key
+            && c == "/"
+            && matches!(self.current_content, Some(PreviewData::Markdown { .. }))
+            && !self.state.markdown.search_visible
+        {
+            self.state.markdown.search_visible = true;
+            return iced::widget::operation::focus("md_search_input");
+        }
+
+        // "/" vim-style search toggle for JSON
+        if let iced::keyboard::Key::Character(c) = &key
+            && c == "/"
+            && matches!(self.current_content, Some(PreviewData::Json { .. }))
+            && !self.state.json.search_visible
+            && self.state.json.editing_node.is_none()
+        {
+            self.state.json.search_visible = true;
+            return iced::widget::operation::focus("json_search_input");
+        }
+
+        // Escape closes any search / editing overlay
+        if matches!(key, iced::keyboard::Key::Named(Named::Escape)) {
+            if matches!(self.current_content, Some(PreviewData::Json { .. })) {
+                if self.state.json.search_visible {
+                    self.state.json.search_visible = false;
+                    self.state.json.search_query.clear();
+                    return Task::none();
+                }
+                if self.state.json.editing_node.is_some() {
+                    self.state.json.editing_node = None;
+                    self.state.json.edit_value.clear();
+                    return Task::none();
+                }
+            }
+            if matches!(self.current_content, Some(PreviewData::Markdown { .. }))
+                && self.state.markdown.search_visible
+            {
+                self.state.markdown.search_visible = false;
+                self.state.markdown.search_query.clear();
+                self.state.markdown.search_match_count = 0;
+                self.state.markdown.search_match_index = 0;
+                return Task::none();
+            }
+        }
+
         Task::none()
     }
 
@@ -375,6 +421,36 @@ impl super::KglanceApp {
                 self.state.image.camera.offset_x = 0.0;
                 self.state.image.camera.offset_y = 0.0;
                 Some(Task::none())
+            }
+            "f" | "F" if matches!(self.current_content, Some(PreviewData::Json { .. })) => {
+                self.state.json.search_visible = !self.state.json.search_visible;
+                if !self.state.json.search_visible {
+                    self.state.json.search_query.clear();
+                    Some(Task::none())
+                } else {
+                    Some(iced::widget::operation::focus("json_search_input"))
+                }
+            }
+            "f" | "F" if matches!(self.current_content, Some(PreviewData::Markdown { .. })) => {
+                self.state.markdown.search_visible = !self.state.markdown.search_visible;
+                if !self.state.markdown.search_visible {
+                    self.state.markdown.search_query.clear();
+                    Some(Task::none())
+                } else {
+                    Some(iced::widget::operation::focus("md_search_input"))
+                }
+            }
+            "e" if matches!(self.current_content, Some(PreviewData::Json { .. })) => {
+                Some(Task::done(Message::JsonExpandAll))
+            }
+            "E" if matches!(self.current_content, Some(PreviewData::Json { .. })) => {
+                Some(Task::done(Message::JsonCollapseAll))
+            }
+            "i" | "I" if matches!(self.current_content, Some(PreviewData::Json { .. })) => {
+                Some(Task::done(Message::JsonSchemaToggle))
+            }
+            "P" if matches!(self.current_content, Some(PreviewData::Json { .. })) => {
+                Some(Task::done(Message::JsonToggleFormat))
             }
             _ => None,
         }
