@@ -27,28 +27,47 @@ impl super::KglanceApp {
         }
 
         if matches!(key, iced::keyboard::Key::Named(Named::Tab)) {
+            let is_epub = matches!(self.current_content, Some(PreviewData::Epub { .. }))
+                || self.state.file_name.to_lowercase().ends_with(".epub")
+                || self.state.file_type_text.contains("EPUB");
+            let is_video = self.state.media.has_video;
+
+            if is_epub || is_video {
+                return Task::none();
+            }
             return self.update(Message::ToggleViewMode);
         }
 
         match &self.state.view_mode {
             crate::core::ViewMode::Detail => match &key {
                 iced::keyboard::Key::Named(Named::ArrowRight) => {
-                    let is_epub = self.state.file_name.to_lowercase().ends_with(".epub")
+                    let is_epub = matches!(self.current_content, Some(PreviewData::Epub { .. }))
+                        || self.state.file_name.to_lowercase().ends_with(".epub")
                         || self.state.file_type_text.contains("EPUB");
                     if self.state.media.has_video {
                         return self.handle_seek_relative(5.0);
                     } else if is_epub {
+                        if !self.state.epub.chapters.is_empty() {
+                            let next_ch = (self.state.epub.active_chapter + 1)
+                                .min(self.state.epub.chapters.len() - 1);
+                            return self.update(Message::EpubChapterClicked(next_ch));
+                        }
                         return Task::none();
                     } else {
                         return self.update(Message::NextFileClicked);
                     }
                 }
                 iced::keyboard::Key::Named(Named::ArrowLeft) => {
-                    let is_epub = self.state.file_name.to_lowercase().ends_with(".epub")
+                    let is_epub = matches!(self.current_content, Some(PreviewData::Epub { .. }))
+                        || self.state.file_name.to_lowercase().ends_with(".epub")
                         || self.state.file_type_text.contains("EPUB");
                     if self.state.media.has_video {
                         return self.handle_seek_relative(-5.0);
                     } else if is_epub {
+                        if !self.state.epub.chapters.is_empty() {
+                            let prev_ch = self.state.epub.active_chapter.saturating_sub(1);
+                            return self.update(Message::EpubChapterClicked(prev_ch));
+                        }
                         return Task::none();
                     } else {
                         return self.update(Message::PrevFileClicked);
@@ -310,7 +329,9 @@ impl super::KglanceApp {
                     Some(Task::none())
                 } else if matches!(
                     self.current_content,
-                    Some(PreviewData::Markdown { .. }) | Some(PreviewData::Text { .. })
+                    Some(PreviewData::Markdown { .. })
+                        | Some(PreviewData::Text { .. })
+                        | Some(PreviewData::Epub { .. })
                 ) {
                     self.state.font_size = (self.state.font_size + 1.0).clamp(8.0, 48.0);
                     if let Some(PreviewData::Markdown { ref blocks }) = self.current_content {
@@ -332,7 +353,9 @@ impl super::KglanceApp {
                     Some(Task::none())
                 } else if matches!(
                     self.current_content,
-                    Some(PreviewData::Markdown { .. }) | Some(PreviewData::Text { .. })
+                    Some(PreviewData::Markdown { .. })
+                        | Some(PreviewData::Text { .. })
+                        | Some(PreviewData::Epub { .. })
                 ) {
                     self.state.font_size = (self.state.font_size - 1.0).clamp(8.0, 48.0);
                     if let Some(PreviewData::Markdown { ref blocks }) = self.current_content {
@@ -545,12 +568,14 @@ impl super::KglanceApp {
                 ))
             }
 
-            // g t → toggle TOC (markdown only)
+            // g t → toggle TOC / sidebar (markdown or epub)
             Key::Character(c) if c == "t" && self.pending_g => {
                 self.pending_g = false;
                 self.pending_home = false;
                 if matches!(self.current_content, Some(PreviewData::Markdown { .. })) {
                     Some(Task::done(Message::TocToggled))
+                } else if matches!(self.current_content, Some(PreviewData::Epub { .. })) {
+                    Some(Task::done(Message::EpubSidebarToggled))
                 } else {
                     None
                 }

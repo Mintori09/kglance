@@ -42,6 +42,13 @@ pub enum PreviewData {
         sheets: Vec<crate::core::types::SheetInfo>,
         active_sheet: usize,
     },
+    Epub {
+        title: String,
+        author: String,
+        chapters: Vec<crate::core::types::EpubChapterInfo>,
+        active_chapter: usize,
+        images: std::collections::HashMap<String, Vec<u8>>,
+    },
     Error(String),
 }
 
@@ -138,9 +145,18 @@ impl PreviewData {
                 let old_image_h = std::mem::take(&mut state.markdown.cached_image_handles);
                 let old_image_s = std::mem::take(&mut state.markdown.cached_image_sizes);
 
+                let old_sidebar_w = state.markdown.sidebar_width;
                 state.markdown = crate::core::types::MarkdownState {
                     toc: extract_toc(blocks, fs, &old_image_s),
                     toc_visible: old_toc_visible,
+                    sidebar_width: if old_sidebar_w > 0.0 {
+                        old_sidebar_w
+                    } else {
+                        220.0
+                    },
+                    sidebar_resizing: false,
+                    sidebar_drag_start_x: 0.0,
+                    sidebar_drag_start_width: 220.0,
                     collapsed_headings: old_collapsed,
                     scroll_y: old_scroll_y,
                     cached_mermaid_handles: old_mermaid,
@@ -176,6 +192,64 @@ impl PreviewData {
                 state.spreadsheet.sheets = sheets.clone();
                 state.spreadsheet.active_sheet = *active_sheet;
                 state.file_type_text = "Spreadsheet".to_string();
+            }
+            PreviewData::Epub {
+                title,
+                author,
+                chapters,
+                active_chapter,
+                images,
+            } => {
+                let old_sidebar = state.epub.sidebar_visible;
+                let old_scroll = state.epub.scroll_y;
+                let old_collapsed = std::mem::take(&mut state.epub.collapsed_chapters);
+                let mut markdown_state = crate::core::MarkdownState::default();
+                let mut block_global_idx = 0;
+                for ch in chapters {
+                    for block in &ch.blocks {
+                        if let crate::parsers::markdown::Block::Image { path: img_path, .. } = block
+                        {
+                            let filename = std::path::Path::new(img_path)
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or(img_path);
+                            if let Some(bytes) =
+                                images.get(img_path).or_else(|| images.get(filename))
+                            {
+                                let handle = iced::widget::image::Handle::from_bytes(bytes.clone());
+                                markdown_state
+                                    .cached_image_handles
+                                    .insert(block_global_idx, handle);
+                                if let Ok(img) = image::load_from_memory(bytes) {
+                                    markdown_state
+                                        .cached_image_sizes
+                                        .insert(block_global_idx, (img.width(), img.height()));
+                                }
+                            }
+                        }
+                        block_global_idx += 1;
+                    }
+                }
+                let old_sidebar_width = state.epub.sidebar_width;
+                state.epub = crate::core::types::EpubState {
+                    title: title.clone(),
+                    author: author.clone(),
+                    chapters: chapters.clone(),
+                    active_chapter: *active_chapter,
+                    sidebar_visible: old_sidebar,
+                    sidebar_width: if old_sidebar_width > 0.0 {
+                        old_sidebar_width
+                    } else {
+                        240.0
+                    },
+                    sidebar_resizing: false,
+                    sidebar_drag_start_x: 0.0,
+                    sidebar_drag_start_width: 240.0,
+                    scroll_y: old_scroll,
+                    collapsed_chapters: old_collapsed,
+                    markdown_state,
+                };
+                state.file_type_text = format!("EPUB E-Book ({} chapters)", chapters.len());
             }
             PreviewData::Media { metadata, .. } => {
                 state.media = crate::core::MediaState::default();

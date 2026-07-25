@@ -5,7 +5,8 @@
     "default_width": 900,
     "default_height": 600,
     "font_family": "Noto Sans",
-    "font_family_mono": "Fira Code"
+    "font_family_mono": "Fira Code",
+    "max_text_width": 820.0
   },
   "preview": {
     "max_file_size_mb": 50,
