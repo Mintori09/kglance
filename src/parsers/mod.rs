@@ -7,6 +7,7 @@ pub mod epub;
 pub mod folder;
 pub mod font;
 pub mod image;
+pub mod json;
 pub mod markdown;
 pub mod office;
 pub mod pdf;
@@ -264,6 +265,12 @@ pub enum ParsedContent {
         format: String,
         page_count: usize,
     },
+    Json {
+        content: String,
+        pretty: String,
+        nodes: Vec<json::JsonNode>,
+        has_parse_error: bool,
+    },
     Epub {
         title: String,
         author: String,
@@ -459,6 +466,17 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 content,
                 line_numbers: String::new(),
                 language: format!("Office ({}, {} pages)", format, page_count),
+            },
+            ParsedContent::Json {
+                content,
+                pretty,
+                nodes,
+                has_parse_error,
+            } => crate::core::preview::PreviewData::Json {
+                nodes,
+                content,
+                pretty,
+                has_parse_error,
             },
             ParsedContent::Epub {
                 title,

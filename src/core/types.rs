@@ -195,6 +195,33 @@ pub struct EpubChapterInfo {
 }
 
 #[derive(Debug, Clone)]
+pub struct JsonState {
+    pub nodes: Vec<crate::parsers::json::JsonNode>,
+    pub expanded: std::collections::HashSet<usize>,
+    pub raw_content: String,
+    pub pretty_content: String,
+    pub tree_mode: bool,
+    pub scroll_y: f32,
+    pub has_parse_error: bool,
+    pub raw_editor: iced::widget::text_editor::Content,
+}
+
+impl Default for JsonState {
+    fn default() -> Self {
+        Self {
+            nodes: Vec::new(),
+            expanded: std::collections::HashSet::new(),
+            raw_content: String::new(),
+            pretty_content: String::new(),
+            tree_mode: true,
+            scroll_y: 0.0,
+            has_parse_error: false,
+            raw_editor: iced::widget::text_editor::Content::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct EpubState {
     pub title: String,
     pub author: String,
@@ -359,6 +386,7 @@ pub struct KglanceState {
     pub dir: DirState,
     pub markdown: MarkdownState,
     pub epub: EpubState,
+    pub json: JsonState,
 
     pub grid_cols: usize,
     pub window_width: f32,
@@ -409,6 +437,7 @@ impl Default for KglanceState {
             dir: DirState::default(),
             markdown: MarkdownState::default(),
             epub: EpubState::default(),
+            json: JsonState::default(),
             grid_cols: 5,
             window_width: 0.0,
             grid_scale: 1.0,

@@ -7,6 +7,7 @@ use kglance::{dbus, log_error, log_info, parsers};
 fn build_registry() -> parsers::ParserRegistry {
     let mut r = parsers::ParserRegistry::new();
     r.register(Box::new(parsers::markdown::MarkdownParser::new()));
+    r.register(Box::new(parsers::json::JsonParser));
     r.register(Box::new(parsers::text::TextParser::new()));
     r.register(Box::new(parsers::image::ImageParser));
     r.register(Box::new(parsers::svg::SvgParser));
