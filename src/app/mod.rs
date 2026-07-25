@@ -150,6 +150,12 @@ pub enum Message {
     SidebarDragStarted(f32),
     SidebarDragEnded,
     MouseMoved(f32, f32),
+
+    // JSON Tree View
+    JsonToggleMode,
+    JsonToggleNode(usize),
+    JsonScrolled(f32),
+    JsonRawEdit(iced::widget::text_editor::Action),
 }
 
 fn png_to_rgba_handle(png: Vec<u8>) -> Option<iced::widget::image::Handle> {
@@ -1191,6 +1197,28 @@ impl KglanceApp {
                 }
                 Task::none()
             }
+            Message::JsonToggleMode => {
+                self.state.json.tree_mode = !self.state.json.tree_mode;
+                Task::none()
+            }
+            Message::JsonToggleNode(index) => {
+                if self.state.json.expanded.contains(&index) {
+                    self.state.json.expanded.remove(&index);
+                } else {
+                    self.state.json.expanded.insert(index);
+                }
+                Task::none()
+            }
+            Message::JsonScrolled(y) => {
+                self.state.json.scroll_y = y;
+                Task::none()
+            }
+            Message::JsonRawEdit(action) => {
+                if !matches!(action, iced::widget::text_editor::Action::Edit(_)) {
+                    self.state.json.raw_editor.perform(action);
+                }
+                Task::none()
+            }
             Message::TextScrolled(y) => {
                 self.state.text.scroll_y = y;
                 Task::none()
@@ -1278,6 +1306,12 @@ impl KglanceApp {
                 PreviewData::Spreadsheet { .. } => {
                     crate::ui::views::view_spreadsheet(&self.state.spreadsheet)
                 }
+                PreviewData::Json { .. } => crate::ui::views::view_json(
+                    &self.state.json,
+                    self.state.font_size,
+                    self.state.theme_dark,
+                    self.state.font_family_mono.as_deref(),
+                ),
                 PreviewData::Epub { .. } => crate::ui::views::view_epub(
                     &self.state.epub,
                     self.state.font_size,

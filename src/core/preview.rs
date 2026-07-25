@@ -42,6 +42,12 @@ pub enum PreviewData {
         sheets: Vec<crate::core::types::SheetInfo>,
         active_sheet: usize,
     },
+    Json {
+        nodes: Vec<crate::parsers::json::JsonNode>,
+        content: String,
+        pretty: String,
+        has_parse_error: bool,
+    },
     Epub {
         title: String,
         author: String,
@@ -250,6 +256,34 @@ impl PreviewData {
                     markdown_state,
                 };
                 state.file_type_text = format!("EPUB E-Book ({} chapters)", chapters.len());
+            }
+            PreviewData::Json {
+                nodes,
+                content: _,
+                pretty,
+                has_parse_error,
+            } => {
+                let old_scroll = state.json.scroll_y;
+                let old_tree_mode = state.json.tree_mode;
+
+                let mut expanded = std::collections::HashSet::new();
+                for (i, node) in nodes.iter().enumerate() {
+                    if node.depth == 0 {
+                        expanded.insert(i);
+                    }
+                }
+
+                state.json = crate::core::types::JsonState {
+                    nodes: nodes.clone(),
+                    expanded,
+                    raw_content: pretty.clone(),
+                    pretty_content: pretty.clone(),
+                    tree_mode: old_tree_mode,
+                    scroll_y: old_scroll,
+                    has_parse_error: *has_parse_error,
+                    raw_editor: iced::widget::text_editor::Content::with_text(pretty),
+                };
+                state.file_type_text = "JSON Document".to_string();
             }
             PreviewData::Media { metadata, .. } => {
                 state.media = crate::core::MediaState::default();
