@@ -186,6 +186,49 @@ pub struct SpreadsheetState {
     pub sort_ascending: Option<bool>,
 }
 
+#[derive(Debug, Clone)]
+pub struct EpubChapterInfo {
+    pub title: String,
+    pub level: u8,
+    pub anchor: Option<String>,
+    pub blocks: Vec<crate::parsers::markdown::Block>,
+}
+
+#[derive(Debug, Clone)]
+pub struct EpubState {
+    pub title: String,
+    pub author: String,
+    pub chapters: Vec<EpubChapterInfo>,
+    pub active_chapter: usize,
+    pub sidebar_visible: bool,
+    pub sidebar_width: f32,
+    pub sidebar_resizing: bool,
+    pub sidebar_drag_start_x: f32,
+    pub sidebar_drag_start_width: f32,
+    pub scroll_y: f32,
+    pub collapsed_chapters: std::collections::HashSet<usize>,
+    pub markdown_state: crate::core::MarkdownState,
+}
+
+impl Default for EpubState {
+    fn default() -> Self {
+        Self {
+            title: String::new(),
+            author: String::new(),
+            chapters: Vec::new(),
+            active_chapter: 0,
+            sidebar_visible: false,
+            sidebar_width: 240.0,
+            sidebar_resizing: false,
+            sidebar_drag_start_x: 0.0,
+            sidebar_drag_start_width: 240.0,
+            scroll_y: 0.0,
+            collapsed_chapters: std::collections::HashSet::new(),
+            markdown_state: crate::core::MarkdownState::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct MediaState {
     pub playing: bool,
@@ -212,18 +255,43 @@ pub struct TocEntry {
     pub y_offset: f32,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct MarkdownState {
     pub cached_mermaid_handles: std::collections::HashMap<usize, iced::widget::image::Handle>,
     pub cached_image_handles: std::collections::HashMap<usize, iced::widget::image::Handle>,
     pub cached_image_sizes: std::collections::HashMap<usize, (u32, u32)>,
     pub toc: Vec<TocEntry>,
     pub toc_visible: bool,
+    pub sidebar_width: f32,
+    pub sidebar_resizing: bool,
+    pub sidebar_drag_start_x: f32,
+    pub sidebar_drag_start_width: f32,
     pub collapsed_headings: std::collections::HashSet<usize>,
     pub scroll_y: f32,
     pub word_count: usize,
     pub char_count: usize,
     pub reading_time_mins: usize,
+}
+
+impl Default for MarkdownState {
+    fn default() -> Self {
+        Self {
+            cached_mermaid_handles: std::collections::HashMap::new(),
+            cached_image_handles: std::collections::HashMap::new(),
+            cached_image_sizes: std::collections::HashMap::new(),
+            toc: Vec::new(),
+            toc_visible: false,
+            sidebar_width: 220.0,
+            sidebar_resizing: false,
+            sidebar_drag_start_x: 0.0,
+            sidebar_drag_start_width: 220.0,
+            collapsed_headings: std::collections::HashSet::new(),
+            scroll_y: 0.0,
+            word_count: 0,
+            char_count: 0,
+            reading_time_mins: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -290,6 +358,7 @@ pub struct KglanceState {
     pub history: HistoryState,
     pub dir: DirState,
     pub markdown: MarkdownState,
+    pub epub: EpubState,
 
     pub grid_cols: usize,
     pub window_width: f32,
@@ -298,6 +367,7 @@ pub struct KglanceState {
     pub font_size: f32,
     pub font_family: Option<String>,
     pub font_family_mono: Option<String>,
+    pub max_text_width: Option<f32>,
 
     pub theme_dark: bool,
 
@@ -338,12 +408,14 @@ impl Default for KglanceState {
             history: HistoryState::default(),
             dir: DirState::default(),
             markdown: MarkdownState::default(),
+            epub: EpubState::default(),
             grid_cols: 5,
             window_width: 0.0,
             grid_scale: 1.0,
             font_size: 14.0,
             font_family: None,
             font_family_mono: None,
+            max_text_width: None,
             theme_dark: true,
             toasts: Vec::new(),
             next_toast_id: 0,
