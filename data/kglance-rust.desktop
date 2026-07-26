@@ -8,5 +8,6 @@ Exec=kglance %F
 
 [Desktop Action previewWithRust]
 Name=Quick Preview
-Icon=document-preview
+Icon=kglance
 Exec=kglance %F
+

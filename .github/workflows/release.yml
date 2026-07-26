@@ -1,0 +1,138 @@
+name: Release Kglance
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  BINARY: kglance
+  APP_ID: kglance
+
+jobs:
+  build:
+    name: Build (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+            deb_arch: amd64
+            rpm_arch: x86_64
+            appimg_arch: x86_64
+            linuxdeploy_url: https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+            appimagetool_url: https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            deb_arch: arm64
+            rpm_arch: aarch64
+            appimg_arch: aarch64
+            linuxdeploy_url: https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-aarch64.AppImage
+            appimagetool_url: https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libfontconfig1-dev \
+            libfreetype-dev \
+            libxkbcommon-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad \
+            file \
+            patchelf
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-deb
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb
+
+      - name: Install cargo-generate-rpm
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-generate-rpm
+
+      - name: Run tests
+        run: cargo test --locked
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Build .deb package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cargo deb --no-build --deb-version "${VERSION}-1" \
+            -o "${BINARY}_${VERSION}-1_${{ matrix.deb_arch }}.deb"
+
+      - name: Strip binary (for RPM)
+        run: strip target/release/${BINARY}
+
+      - name: Build .rpm package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cargo generate-rpm
+          mv target/generate-rpm/*.rpm \
+            "${BINARY}-${VERSION}-1.${{ matrix.rpm_arch }}.rpm"
+
+      - name: Download linuxdeploy
+        run: |
+          curl -fsSL -o linuxdeploy.AppImage "${{ matrix.linuxdeploy_url }}"
+          chmod +x linuxdeploy.AppImage
+
+      - name: Download appimagetool
+        run: |
+          curl -fsSL -o appimagetool.AppImage "${{ matrix.appimagetool_url }}"
+          chmod +x appimagetool.AppImage
+
+      - name: Build AppImage
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          APPDIR=AppDir
+          rm -rf "$APPDIR"
+
+          install -Dm755 target/release/${BINARY} "$APPDIR/usr/bin/${BINARY}"
+          install -Dm644 data/${APP_ID}.desktop "$APPDIR/usr/share/applications/${APP_ID}.desktop"
+          install -Dm644 data/${APP_ID}.svg "$APPDIR/usr/share/icons/hicolor/scalable/apps/${APP_ID}.svg"
+          install -Dm644 data/${APP_ID}-rust.desktop "$APPDIR/usr/share/kio/servicemenus/${APP_ID}-rust.desktop"
+
+          export VERSION="${VERSION}"
+          export APPIMAGE_EXTRACT_AND_RUN=1
+
+          ./linuxdeploy.AppImage \
+            --appdir "$APPDIR" \
+            --executable "$APPDIR/usr/bin/${BINARY}" \
+            --desktop-file "data/${APP_ID}.desktop" \
+            --icon-file "data/${APP_ID}.svg" \
+            --output appimage
+
+          mv *.AppImage "${BINARY}-${VERSION}-${{ matrix.appimg_arch }}.AppImage"
+
+      - name: Generate checksums
+        run: |
+          sha256sum *.deb > checksums-${{ matrix.arch }}.sha256
+          sha256sum *.rpm >> checksums-${{ matrix.arch }}.sha256
+          sha256sum *.AppImage >> checksums-${{ matrix.arch }}.sha256
+
+      - name: Upload artifacts to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.deb
+            *.rpm
+            *.AppImage
+            checksums-${{ matrix.arch }}.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

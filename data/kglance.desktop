@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Kglance
+Comment=Quick file preview for KDE Plasma 6
+Exec=kglance %F
+Icon=kglance
+Categories=Utility;
+Terminal=false
