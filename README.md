@@ -43,11 +43,11 @@ To build Kglance from source on Linux (Debian/Ubuntu/Arch/Fedora), the following
   ```
 - **Ubuntu / Debian:**
   ```bash
-  sudo apt install libfontconfig1-dev libfreetype6-dev libxkbcommon-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
+  sudo apt install libfontconfig1-dev libfreetype-dev libxkbcommon-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
   ```
 - **Fedora:**
   ```bash
-  sudo dnf install fontconfig-devel freetype-devel libxkbcommon-devel gstreamer1-devel gstreamer1-plugins-base-devel gstreamer1-plugins-good
+  sudo dnf install fontconfig-devel freetype-devel libxkbcommon-devel gstreamer1-devel gstreamer1-plugins-base-devel gstreamer1-plugins-good gstreamer1-plugins-bad-free gstreamer1-plugins-bad-free-devel
   ```
 
 ---
