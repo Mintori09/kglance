@@ -24,11 +24,13 @@ impl JsonParser {
             Value::Bool(b) => ("Bool", b.to_string(), vec![]),
             Value::Number(n) => ("Number", n.to_string(), vec![]),
             Value::String(s) => {
-                let preview = if s.len() > 100 {
-                    format!("\"{}\"...", &s[..97])
+                let preview = if s.chars().count() > 100 {
+                    let truncated: String = s.chars().take(97).collect();
+                    format!("\"{}\"...", truncated)
                 } else {
                     format!("\"{}\"", s)
                 };
+
                 ("String", preview, vec![])
             }
             Value::Array(arr) => {
