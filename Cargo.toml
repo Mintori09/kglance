@@ -75,6 +75,7 @@ notify = "6.1"
 dirs = "6.0"
 lru = "0.13"
 md5 = "0.7"
+mermaid-rs-renderer = { version = "0.3.1", default-features = false }
 [features]
 default = ["7z"]
 7z = ["sevenz-rust"]

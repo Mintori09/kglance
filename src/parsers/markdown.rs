@@ -185,7 +185,7 @@ pub fn extract_toc(
     let mut y: f32 = 15.0; // Initial container padding
     for (i, block) in blocks.iter().enumerate() {
         if let Block::Heading { level, content } = block {
-            let text = flatten_inlines(content);
+            let text = flatten_inlines_toc(content);
             toc.push(crate::core::TocEntry {
                 level: *level,
                 text,
@@ -218,6 +218,31 @@ pub fn flatten_inlines(inlines: &[Inline]) -> String {
             Inline::Image { alt, url } => {
                 s.push_str(&format!("[image: {alt}]({url})"));
             }
+            Inline::InlineMath(latex) => s.push_str(latex),
+            Inline::DisplayMath(latex) => s.push_str(latex),
+            Inline::SoftBreak => s.push(' '),
+        }
+    }
+    s
+}
+
+pub fn flatten_inlines_toc(inlines: &[Inline]) -> String {
+    let mut s = String::new();
+    for inline in inlines {
+        match inline {
+            Inline::Text(t) => s.push_str(t),
+            Inline::Bold(c) => s.push_str(&flatten_inlines(c)),
+            Inline::Italic(c) => s.push_str(&flatten_inlines(c)),
+            Inline::Strikethrough(c) => s.push_str(&flatten_inlines(c)),
+            Inline::Code(t) => {
+                s.push('`');
+                s.push_str(t);
+                s.push('`');
+            }
+            Inline::Link { text, .. } => {
+                s.push_str(&flatten_inlines(text));
+            }
+            Inline::Image { alt, .. } => s.push_str(alt),
             Inline::InlineMath(latex) => s.push_str(latex),
             Inline::DisplayMath(latex) => s.push_str(latex),
             Inline::SoftBreak => s.push(' '),
@@ -710,84 +735,45 @@ pub fn parse_to_blocks(content: &str) -> Vec<Block> {
 
 // ── Mermaid rendering ────────────────────────────────────────────────────────
 
-pub fn render_mermaid_to_png(code: &str) -> Option<Vec<u8>> {
-    use std::io::Write;
+static FONT_DB: std::sync::LazyLock<std::sync::Arc<resvg::usvg::fontdb::Database>> =
+    std::sync::LazyLock::new(|| {
+        let mut fontdb = resvg::usvg::fontdb::Database::new();
+        fontdb.load_system_fonts();
+        std::sync::Arc::new(fontdb)
+    });
 
+pub fn render_mermaid_to_png(code: &str) -> Option<Vec<u8>> {
     log_debug!("Rendering Mermaid diagram ({} bytes)", code.len());
 
-    let dir = match tempfile::tempdir() {
-        Ok(dir) => dir,
-        Err(e) => {
-            log_error!("Failed to create temp dir: {}", e);
-            return None;
-        }
+    let options = mermaid_rs_renderer::RenderOptions::modern();
+    let svg = mermaid_rs_renderer::render_with_options(code, options).ok()?;
+
+    let opt = resvg::usvg::Options {
+        fontdb: FONT_DB.clone(),
+        ..Default::default()
     };
 
-    let input = dir.path().join("diagram.mmd");
-    let output = dir.path().join("diagram.png");
+    let rtree = resvg::usvg::Tree::from_str(&svg, &opt).ok()?;
 
-    let mut file = match std::fs::File::create(&input) {
-        Ok(file) => file,
-        Err(e) => {
-            log_error!("Failed to create Mermaid file: {}", e);
-            return None;
-        }
-    };
+    let pixmap_size = rtree.size().to_int_size();
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height())?;
 
-    if let Err(e) = write!(file, "{code}") {
-        log_error!("Failed to write Mermaid source: {e}");
-        return None;
-    }
+    resvg::render(
+        &rtree,
+        resvg::usvg::Transform::default(),
+        &mut pixmap.as_mut(),
+    );
 
-    drop(file);
+    let png_data = pixmap.encode_png().ok()?;
 
-    let result = std::process::Command::new("mmdr")
-        .args([
-            "-i",
-            input.to_str()?,
-            "-o",
-            output.to_str()?,
-            "-e",
-            "png",
-            "-w",
-            "1200",
-        ])
-        .output();
-
-    let output_result = match result {
-        Ok(output) => output,
-        Err(e) => {
-            log_error!("Failed to launch mmdr: {e}");
-            return None;
-        }
-    };
-
-    if !output_result.status.success() {
-        let stderr = String::from_utf8_lossy(&output_result.stderr);
-        log_error!(
-            "mmdr exited with status {:?}: {}",
-            output_result.status.code(),
-            stderr.trim()
-        );
-        return None;
-    }
-
-    let png = match std::fs::read(&output) {
-        Ok(data) => data,
-        Err(e) => {
-            log_error!("Failed to read generated PNG: {e}");
-            return None;
-        }
-    };
-
-    if png.is_empty() {
+    if png_data.is_empty() {
         log_error!("Generated PNG is empty");
         return None;
     }
 
-    log_debug!("Mermaid render succeeded ({} bytes PNG)", png.len());
+    log_debug!("Mermaid render succeeded ({} bytes PNG)", png_data.len());
 
-    Some(png)
+    Some(png_data)
 }
 
 // ── PreviewParser impl ───────────────────────────────────────────────────────
@@ -1297,9 +1283,9 @@ mod tests {
     }
 
     #[test]
-    fn render_mermaid_to_png_graceful_when_mmdc_missing() {
+    fn render_mermaid_to_png_returns_valid_png() {
         let result = render_mermaid_to_png("graph TD\nA-->B");
-        assert!(result.is_none() || result.is_some());
+        assert!(result.is_some(), "should render successfully in-process");
     }
 
     #[test]
