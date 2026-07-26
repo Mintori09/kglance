@@ -150,9 +150,22 @@ pub fn human_time(datetime: std::time::SystemTime) -> String {
     dt.format("%b %d, %Y").to_string()
 }
 
+pub fn format_timestamp(secs: u64) -> String {
+    let dur = std::time::Duration::from_secs(secs);
+    let sys_time = std::time::UNIX_EPOCH + dur;
+    let dt: chrono::DateTime<chrono::Local> = sys_time.into();
+    dt.format("%Y-%m-%d %H:%M").to_string()
+}
+
 pub trait PreviewParser: Send + Sync {
     fn supported_extensions(&self) -> &[&str];
-    fn is_supported(&self, path: &Path) -> bool;
+    fn is_supported(&self, path: &Path) -> bool {
+        path.extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .map(|ext| self.supported_extensions().contains(&ext.as_str()))
+            .unwrap_or(false)
+    }
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError>;
 }
 
@@ -685,5 +698,33 @@ mod tests {
         let registry = ParserRegistry::new();
         let result = registry.parse(Path::new("/nonexistent/file.xyz"));
         assert!(matches!(result, Err(ParseError::FileNotFound)));
+    }
+
+    #[test]
+    fn test_preview_parser_default_is_supported() {
+        struct TestParser;
+        impl PreviewParser for TestParser {
+            fn supported_extensions(&self) -> &[&str] {
+                &["txt", "doc"]
+            }
+            fn parse(&self, _path: &Path) -> Result<ParsedContent, ParseError> {
+                Err(ParseError::UnsupportedFormat)
+            }
+        }
+
+        let parser = TestParser;
+        assert!(parser.is_supported(Path::new("file.txt")));
+        assert!(parser.is_supported(Path::new("FILE.TXT")));
+        assert!(parser.is_supported(Path::new("document.doc")));
+        assert!(!parser.is_supported(Path::new("file.pdf")));
+        assert!(!parser.is_supported(Path::new("no_extension")));
+    }
+
+    #[test]
+    fn test_format_timestamp_valid() {
+        let formatted = format_timestamp(1700000000);
+        assert!(!formatted.is_empty());
+        assert!(formatted.contains("-"));
+        assert!(formatted.contains(":"));
     }
 }

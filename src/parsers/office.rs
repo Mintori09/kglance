@@ -12,16 +12,6 @@ impl PreviewParser for OfficeParser {
         &["docx", "xlsx", "pptx", "odt", "ods", "odp"]
     }
 
-    fn is_supported(&self, path: &Path) -> bool {
-        path.extension()
-            .and_then(|e| e.to_str())
-            .map(|e| {
-                self.supported_extensions()
-                    .contains(&e.to_lowercase().as_str())
-            })
-            .unwrap_or(false)
-    }
-
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
         let ext = path
             .extension()

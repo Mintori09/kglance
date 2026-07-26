@@ -10,13 +10,6 @@ impl PreviewParser for ImageParser {
         &["png", "jpg", "jpeg", "webp", "gif", "bmp", "ico"]
     }
 
-    fn is_supported(&self, path: &Path) -> bool {
-        path.extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e.to_lowercase())
-            .is_some_and(|e| self.supported_extensions().contains(&e.as_str()))
-    }
-
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
         let mut file =
             std::fs::File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;

@@ -1,13 +1,6 @@
 use std::path::Path;
 
-use crate::parsers::{ArchiveEntry, ParseError, ParsedContent, PreviewParser};
-
-fn format_timestamp(secs: u64) -> String {
-    let dur = std::time::Duration::from_secs(secs);
-    let sys_time = std::time::UNIX_EPOCH + dur;
-    let dt: chrono::DateTime<chrono::Local> = sys_time.into();
-    dt.format("%Y-%m-%d %H:%M").to_string()
-}
+use crate::parsers::{ArchiveEntry, ParseError, ParsedContent, PreviewParser, format_timestamp};
 
 pub struct ArchiveParser;
 
@@ -251,16 +244,6 @@ fn extract_from_7z(
 impl PreviewParser for ArchiveParser {
     fn supported_extensions(&self) -> &[&str] {
         &["zip", "tar", "gz", "tgz", "xz", "txz", "7z"]
-    }
-
-    fn is_supported(&self, path: &Path) -> bool {
-        path.extension()
-            .and_then(|e| e.to_str())
-            .map(|e| {
-                self.supported_extensions()
-                    .contains(&e.to_lowercase().as_str())
-            })
-            .unwrap_or(false)
     }
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {

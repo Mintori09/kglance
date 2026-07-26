@@ -9,13 +9,6 @@ impl PreviewParser for SvgParser {
         &["svg"]
     }
 
-    fn is_supported(&self, path: &Path) -> bool {
-        path.extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e == "svg")
-            .unwrap_or(false)
-    }
-
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
         let svg_data =
             std::fs::read_to_string(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;

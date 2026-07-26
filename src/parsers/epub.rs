@@ -9,13 +9,6 @@ impl PreviewParser for EpubParser {
         &["epub"]
     }
 
-    fn is_supported(&self, path: &Path) -> bool {
-        path.extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e.to_lowercase() == "epub")
-            .unwrap_or(false)
-    }
-
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
         let file = std::fs::File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
         let mut archive =

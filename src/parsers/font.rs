@@ -8,16 +8,6 @@ impl PreviewParser for FontParser {
         &["ttf", "otf", "woff", "woff2"]
     }
 
-    fn is_supported(&self, path: &Path) -> bool {
-        path.extension()
-            .and_then(|e| e.to_str())
-            .map(|e| {
-                self.supported_extensions()
-                    .contains(&e.to_lowercase().as_str())
-            })
-            .unwrap_or(false)
-    }
-
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
         let data = std::fs::read(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
         let font = fontdue::Font::from_bytes(data, fontdue::FontSettings::default())
