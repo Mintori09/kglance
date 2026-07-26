@@ -1,7 +1,9 @@
 use crate::app::Message;
 use crate::core::types::EpubState;
+use crate::ui::components::scroll_pane::scroll_pane;
+use crate::ui::components::sidebar::{collapse_arrow, drag_handle, sidebar_entry_style};
 use crate::ui::theme::glass;
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::{button, column, container, row, text};
 use iced::{Border, Color, Element, Font, Length, Shadow};
 use std::cell::Cell;
 
@@ -132,57 +134,19 @@ pub fn view_epub<'a>(
         .center_x(Length::Fill)
         .width(Length::Fill);
 
-    // Full-width scrollable container so scrollbar stays at the right edge
-    let scroll = scrollable(centered_text_wrapper)
-        .id("content_scroll")
-        .direction(scrollable::Direction::Vertical(
-            scrollable::Scrollbar::new().width(4).margin(2),
-        ))
-        .style(crate::ui::theme::glass_scrollable)
-        .width(Length::Fill)
-        .height(Length::Fill);
+    let scroll = scroll_pane("content_scroll", centered_text_wrapper).build();
 
     let main_view = column![header_bar, scroll].height(Length::Fill);
 
     if state.sidebar_visible && !state.chapters.is_empty() {
         let sidebar = render_chapter_sidebar(state, is_dark);
-        let drag_handle = button(container(text("")).width(4).height(Length::Fill).style(
-            move |theme: &iced::Theme| {
-                let d = matches!(theme, iced::Theme::Dark);
-                container::Style {
-                    background: Some(
-                        (if state.sidebar_resizing {
-                            if d {
-                                Color::from_rgb(0.4, 0.7, 1.0)
-                            } else {
-                                Color::from_rgb(0.1, 0.45, 0.85)
-                            }
-                        } else {
-                            if d {
-                                Color::from_rgba(1.0, 1.0, 1.0, 0.05)
-                            } else {
-                                Color::from_rgba(0.0, 0.0, 0.0, 0.05)
-                            }
-                        })
-                        .into(),
-                    ),
-                    ..Default::default()
-                }
-            },
-        ))
-        .padding(0)
-        .width(6)
-        .height(Length::Fill)
-        .on_press(Message::SidebarDragStarted(0.0))
-        .style(|_, _| button::Style {
-            background: None,
-            border: Border::default(),
-            shadow: Shadow::default(),
-            text_color: Color::TRANSPARENT,
-            snap: false,
-        });
+        let dh = drag_handle(
+            state.sidebar_resizing,
+            is_dark,
+            Message::SidebarDragStarted(0.0),
+        );
 
-        row![sidebar, drag_handle, main_view]
+        row![sidebar, dh, main_view]
             .spacing(0)
             .height(Length::Fill)
             .into()
@@ -211,34 +175,30 @@ fn render_chapter_sidebar<'a>(state: &'a EpubState, is_dark: bool) -> Element<'a
         });
 
     let current_w = state.sidebar_width;
-    let shrink_btn = button(text("−").size(11).font(Font::DEFAULT))
-        .on_press(Message::EpubSidebarResized(current_w - 30.0))
-        .padding([1, 4])
-        .style(|_, _| button::Style {
-            background: None,
-            text_color: Color::from_rgb(0.6, 0.65, 0.7),
-            border: Border::default(),
-            shadow: Shadow::default(),
-            snap: false,
-        });
-
-    let expand_btn = button(text("+").size(11).font(Font::DEFAULT))
-        .on_press(Message::EpubSidebarResized(current_w + 30.0))
-        .padding([1, 4])
-        .style(|_, _| button::Style {
-            background: None,
-            text_color: Color::from_rgb(0.6, 0.65, 0.7),
-            border: Border::default(),
-            shadow: Shadow::default(),
-            snap: false,
-        });
-
     let header = container(
         row![
             title_text,
             iced::widget::Space::new().width(Length::Fill),
-            shrink_btn,
-            expand_btn
+            button(text("−").size(11).font(Font::DEFAULT))
+                .on_press(Message::EpubSidebarResized(current_w - 30.0))
+                .padding([1, 4])
+                .style(|_, _| button::Style {
+                    background: None,
+                    text_color: Color::from_rgb(0.6, 0.65, 0.7),
+                    border: Border::default(),
+                    shadow: Shadow::default(),
+                    snap: false,
+                }),
+            button(text("+").size(11).font(Font::DEFAULT))
+                .on_press(Message::EpubSidebarResized(current_w + 30.0))
+                .padding([1, 4])
+                .style(|_, _| button::Style {
+                    background: None,
+                    text_color: Color::from_rgb(0.6, 0.65, 0.7),
+                    border: Border::default(),
+                    shadow: Shadow::default(),
+                    snap: false,
+                }),
         ]
         .spacing(4)
         .align_y(iced::Alignment::Center)
@@ -249,7 +209,6 @@ fn render_chapter_sidebar<'a>(state: &'a EpubState, is_dark: bool) -> Element<'a
     let mut skip_until_level: Option<u8> = None;
 
     for (idx, ch) in state.chapters.iter().enumerate() {
-        // If we are collapsing sub-items of a parent chapter
         if let Some(target_lvl) = skip_until_level {
             if ch.level > target_lvl {
                 continue;
@@ -287,79 +246,39 @@ fn render_chapter_sidebar<'a>(state: &'a EpubState, is_dark: bool) -> Element<'a
         let mut row_content = row![].spacing(4).align_y(iced::Alignment::Center);
 
         if has_children {
-            let arrow_icon = if is_collapsed { "▶" } else { "▼" };
-            let collapse_btn = button(text(arrow_icon).size(9).font(Font::DEFAULT))
-                .on_press(Message::EpubChapterToggleCollapse(idx))
-                .padding([2, 4])
-                .style(|_, _| button::Style {
-                    background: None,
-                    text_color: Color::from_rgb(0.6, 0.65, 0.7),
-                    border: Border::default(),
-                    shadow: Shadow::default(),
-                    snap: false,
-                });
-            row_content = row_content.push(collapse_btn);
+            let cb = collapse_arrow(
+                is_collapsed,
+                is_dark,
+                Message::EpubChapterToggleCollapse(idx),
+            );
+            row_content = row_content.push(cb);
         }
 
         row_content = row_content.push(label);
 
+        let text_color = if is_active {
+            None
+        } else if is_dark {
+            if ch.level == 1 {
+                Some(Color::from_rgb(0.9, 0.92, 0.95))
+            } else {
+                Some(Color::from_rgb(0.75, 0.78, 0.82))
+            }
+        } else if ch.level == 1 {
+            Some(Color::from_rgb(0.2, 0.22, 0.25))
+        } else {
+            Some(Color::from_rgb(0.4, 0.42, 0.45))
+        };
+
         let btn = button(row_content)
             .on_press(Message::EpubChapterClicked(idx))
             .width(Length::Fill)
-            .style(move |theme: &iced::Theme, status: button::Status| {
-                let d = matches!(theme, iced::Theme::Dark);
-                let bg = match status {
-                    button::Status::Hovered | button::Status::Pressed => Some(
-                        (if d {
-                            Color::from_rgba(1.0, 1.0, 1.0, 0.08)
-                        } else {
-                            Color::from_rgba(0.0, 0.0, 0.0, 0.06)
-                        })
-                        .into(),
-                    ),
-                    _ => {
-                        if is_active {
-                            Some(
-                                (if d {
-                                    Color::from_rgba(0.4, 0.7, 1.0, 0.15)
-                                } else {
-                                    Color::from_rgba(0.1, 0.4, 0.8, 0.1)
-                                })
-                                .into(),
-                            )
-                        } else {
-                            None
-                        }
-                    }
-                };
-                let text_color = if is_active {
-                    if d {
-                        Color::from_rgb(0.5, 0.8, 1.0)
-                    } else {
-                        Color::from_rgb(0.1, 0.45, 0.85)
-                    }
-                } else if d {
-                    if ch.level == 1 {
-                        Color::from_rgb(0.9, 0.92, 0.95)
-                    } else {
-                        Color::from_rgb(0.75, 0.78, 0.82)
-                    }
-                } else if ch.level == 1 {
-                    Color::from_rgb(0.2, 0.22, 0.25)
-                } else {
-                    Color::from_rgb(0.4, 0.42, 0.45)
-                };
-                button::Style {
-                    background: bg,
-                    text_color,
-                    border: Border {
-                        width: 0.0,
-                        color: Color::TRANSPARENT,
-                        radius: 4.0.into(),
-                    },
-                    shadow: Shadow::default(),
-                    snap: false,
+            .style(move |theme, status| {
+                let mut s = sidebar_entry_style(theme, status, is_active, is_dark);
+                if let (Some(c), false) = (text_color, is_active) {
+                    s.text_color = c;
                 }
+                s
             })
             .padding(iced::Padding {
                 top: 4.0,
@@ -371,22 +290,14 @@ fn render_chapter_sidebar<'a>(state: &'a EpubState, is_dark: bool) -> Element<'a
         entries.push(container(btn).width(Length::Fill).into());
     }
 
-    let chapter_list = scrollable(column(entries).spacing(2).padding(6))
-        .id("chapter_scroll")
-        .direction(scrollable::Direction::Vertical(
-            scrollable::Scrollbar::new().width(4).margin(2),
-        ))
-        .style(crate::ui::theme::glass_scrollable)
-        .height(Length::Fill);
-
-    let sidebar_w = state.sidebar_width;
+    let chapter_list = scroll_pane("chapter_scroll", column(entries).spacing(2).padding(6)).build();
 
     container(
         column![header, chapter_list]
-            .width(sidebar_w)
+            .width(current_w)
             .height(Length::Fill),
     )
-    .width(sidebar_w)
+    .width(current_w)
     .height(Length::Fill)
     .style(move |_| container::Style {
         background: Some(bg.into()),

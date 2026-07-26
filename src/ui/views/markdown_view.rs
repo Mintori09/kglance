@@ -6,10 +6,12 @@ use crate::app::Message;
 use crate::core::TocEntry;
 use crate::log_debug;
 use crate::parsers::markdown::{Block, Inline, ListItem, TableBlock, flatten_inlines};
+use crate::ui::components::scroll_pane::scroll_pane;
+use crate::ui::components::sidebar::{collapse_arrow, drag_handle, sidebar_entry_style};
 use crate::ui::theme::glass;
 use iced::font::Weight;
 use iced::widget::text::{Rich, Span};
-use iced::widget::{button, column, container, image, row, scrollable, text, tooltip};
+use iced::widget::{button, column, container, image, row, text, tooltip};
 use iced::{Border, Color, Element, Font, Length, Padding, Pixels, Shadow};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::ThemeSet;
@@ -357,6 +359,7 @@ fn link_button_style(theme: &iced::Theme, status: button::Status) -> button::Sty
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_inlines<'a>(
     inlines: &'a [Inline],
     font_size: f32,
@@ -606,6 +609,7 @@ fn render_heading<'a>(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_paragraph<'a>(
     content: &'a [Inline],
     search_query: &str,
@@ -1324,40 +1328,6 @@ pub(crate) fn block_margin(block: &Block) -> f32 {
     }
 }
 
-fn render_toc_tooltip_style(theme: &iced::Theme) -> container::Style {
-    let d = matches!(theme, iced::Theme::Dark);
-    container::Style {
-        background: Some(
-            (if d {
-                glass::DARK_SURFACE
-            } else {
-                glass::LIGHT_SURFACE
-            })
-            .into(),
-        ),
-        text_color: Some(if d {
-            glass::DARK_TEXT
-        } else {
-            glass::LIGHT_TEXT
-        }),
-        border: Border {
-            radius: 6.0.into(),
-            width: 1.0,
-            color: if d {
-                glass::DARK_BORDER
-            } else {
-                glass::LIGHT_BORDER
-            },
-        },
-        shadow: Shadow {
-            offset: iced::Vector::new(0.0, 3.0),
-            blur_radius: 10.0,
-            color: iced::Color::from_rgba(0.0, 0.0, 0.0, 0.3),
-        },
-        ..Default::default()
-    }
-}
-
 fn render_toc_sidebar<'a>(
     toc: &'a [TocEntry],
     state: &'a crate::core::MarkdownState,
@@ -1389,7 +1359,6 @@ fn render_toc_sidebar<'a>(
                 .map(|i| toc[i].block_index == entry.block_index)
                 .unwrap_or(false);
 
-            // Only show collapse button if this heading has child sub-headings
             let has_children = toc
                 .iter()
                 .skip_while(|e| e.block_index != entry.block_index)
@@ -1400,75 +1369,18 @@ fn render_toc_sidebar<'a>(
             let is_collapsed = state.collapsed_headings.contains(&entry.block_index);
 
             let item_row: Element<'a, Message> = if has_children {
-                let arrow_icon = if is_collapsed { "▶ " } else { "▼ " };
-                let collapse_btn = button(text(arrow_icon).size(9).style(move |_| text::Style {
-                    color: Some(if is_dark {
-                        glass::DARK_TEXT_DIM
-                    } else {
-                        glass::LIGHT_TEXT_DIM
-                    }),
-                }))
-                .on_press(Message::TocToggleCollapse(entry.block_index))
-                .style(|_, _| button::Style {
-                    background: None,
-                    border: Border::default(),
-                    shadow: Shadow::default(),
-                    ..Default::default()
-                })
-                .padding([2, 4]);
+                let collapse_btn = collapse_arrow(
+                    is_collapsed,
+                    is_dark,
+                    Message::TocToggleCollapse(entry.block_index),
+                );
 
                 let label = text(&entry.text).size(12);
                 let btn = button(label)
                     .on_press(Message::TocHeadingClicked(entry.block_index))
                     .width(Length::Fill)
-                    .style(move |theme: &iced::Theme, status: button::Status| {
-                        let d = matches!(theme, iced::Theme::Dark);
-                        let bg = match status {
-                            button::Status::Hovered | button::Status::Pressed => Some(
-                                (if d {
-                                    Color::from_rgba(1.0, 1.0, 1.0, 0.08)
-                                } else {
-                                    Color::from_rgba(0.0, 0.0, 0.0, 0.06)
-                                })
-                                .into(),
-                            ),
-                            _ => {
-                                if is_active {
-                                    Some(
-                                        (if d {
-                                            Color::from_rgba(0.4, 0.7, 1.0, 0.15)
-                                        } else {
-                                            Color::from_rgba(0.1, 0.4, 0.8, 0.1)
-                                        })
-                                        .into(),
-                                    )
-                                } else {
-                                    None
-                                }
-                            }
-                        };
-                        let text_color = if is_active {
-                            if d {
-                                Color::from_rgb(0.5, 0.8, 1.0)
-                            } else {
-                                Color::from_rgb(0.1, 0.45, 0.85)
-                            }
-                        } else if d {
-                            Color::from_rgb(0.8, 0.82, 0.85)
-                        } else {
-                            Color::from_rgb(0.3, 0.32, 0.35)
-                        };
-                        button::Style {
-                            background: bg,
-                            text_color,
-                            border: Border {
-                                width: 0.0,
-                                color: Color::TRANSPARENT,
-                                radius: 4.0.into(),
-                            },
-                            shadow: Shadow::default(),
-                            snap: false,
-                        }
+                    .style(move |theme, status| {
+                        sidebar_entry_style(theme, status, is_active, is_dark)
                     })
                     .padding([4, 4]);
 
@@ -1481,58 +1393,11 @@ fn render_toc_sidebar<'a>(
                 let btn = button(label)
                     .on_press(Message::TocHeadingClicked(entry.block_index))
                     .width(Length::Fill)
-                    .style(move |theme: &iced::Theme, status: button::Status| {
-                        let d = matches!(theme, iced::Theme::Dark);
-                        let bg = match status {
-                            button::Status::Hovered | button::Status::Pressed => Some(
-                                (if d {
-                                    Color::from_rgba(1.0, 1.0, 1.0, 0.08)
-                                } else {
-                                    Color::from_rgba(0.0, 0.0, 0.0, 0.06)
-                                })
-                                .into(),
-                            ),
-                            _ => {
-                                if is_active {
-                                    Some(
-                                        (if d {
-                                            Color::from_rgba(0.4, 0.7, 1.0, 0.15)
-                                        } else {
-                                            Color::from_rgba(0.1, 0.4, 0.8, 0.1)
-                                        })
-                                        .into(),
-                                    )
-                                } else {
-                                    None
-                                }
-                            }
-                        };
-                        let text_color = if is_active {
-                            if d {
-                                Color::from_rgb(0.5, 0.8, 1.0)
-                            } else {
-                                Color::from_rgb(0.1, 0.45, 0.85)
-                            }
-                        } else if d {
-                            Color::from_rgb(0.8, 0.82, 0.85)
-                        } else {
-                            Color::from_rgb(0.3, 0.32, 0.35)
-                        };
-                        button::Style {
-                            background: bg,
-                            text_color,
-                            border: Border {
-                                width: 0.0,
-                                color: Color::TRANSPARENT,
-                                radius: 4.0.into(),
-                            },
-                            shadow: Shadow::default(),
-                            snap: false,
-                        }
+                    .style(move |theme, status| {
+                        sidebar_entry_style(theme, status, is_active, is_dark)
                     })
                     .padding([4, 4]);
 
-                // Space placeholder to align with headings that have collapse buttons
                 let placeholder = iced::widget::Space::new().width(15);
                 row![placeholder, btn]
                     .align_y(iced::Alignment::Center)
@@ -1540,16 +1405,15 @@ fn render_toc_sidebar<'a>(
                     .into()
             };
 
-            let wrapped = container(item_row)
+            container(item_row)
                 .padding(Padding {
                     top: 0.0,
                     right: 0.0,
                     bottom: 0.0,
                     left: indent,
                 })
-                .width(Length::Fill);
-
-            wrapped.into()
+                .width(Length::Fill)
+                .into()
         })
         .collect();
 
@@ -1559,87 +1423,26 @@ fn render_toc_sidebar<'a>(
         (glass::LIGHT_BG, glass::LIGHT_BORDER)
     };
 
-    let title_text = text("Table of Contents")
-        .size(12)
-        .style(move |_| text::Style {
-            color: Some(if is_dark {
-                glass::DARK_TEXT
-            } else {
-                glass::LIGHT_TEXT
-            }),
-        });
-
-    let tip_badge = container(text("g t").size(10).style(move |_| text::Style {
-        color: Some(if is_dark {
-            glass::DARK_TEXT_DIM
-        } else {
-            glass::LIGHT_TEXT_DIM
-        }),
-    }))
-    .padding([2, 6])
-    .style(render_toc_tooltip_style);
-
     let current_w = state.sidebar_width;
-    let shrink_btn = button(text("−").size(11))
-        .on_press(Message::MarkdownSidebarResized(current_w - 30.0))
-        .padding([1, 4])
-        .style(|_, _| button::Style {
-            background: None,
-            text_color: Color::from_rgb(0.6, 0.65, 0.7),
-            border: Border::default(),
-            shadow: Shadow::default(),
-            snap: false,
-        });
 
-    let expand_btn = button(text("+").size(11))
-        .on_press(Message::MarkdownSidebarResized(current_w + 30.0))
-        .padding([1, 4])
-        .style(|_, _| button::Style {
-            background: None,
-            text_color: Color::from_rgb(0.6, 0.65, 0.7),
-            border: Border::default(),
-            shadow: Shadow::default(),
-            snap: false,
-        });
+    let content =
+        column![scroll_pane("toc_scroll", column(entries).spacing(2).padding(8)).build(),]
+            .width(current_w)
+            .height(Length::Fill);
 
-    let header = row![
-        title_text,
-        iced::widget::Space::new().width(Length::Fill),
-        shrink_btn,
-        expand_btn,
-        tip_badge
-    ]
-    .spacing(4)
-    .align_y(iced::Alignment::Center)
-    .padding([8, 12]);
-
-    let toc_list = scrollable(column(entries).spacing(2).padding(8))
-        .id("toc_scroll")
-        .direction(scrollable::Direction::Vertical(
-            scrollable::Scrollbar::new().width(4).margin(2),
-        ))
-        .style(crate::ui::theme::glass_scrollable)
-        .height(Length::Fill);
-
-    let sidebar_w = state.sidebar_width;
-
-    container(
-        column![header, toc_list]
-            .width(sidebar_w)
-            .height(Length::Fill),
-    )
-    .width(sidebar_w)
-    .height(Length::Fill)
-    .style(move |_| container::Style {
-        background: Some(bg.into()),
-        border: Border {
-            width: 1.0,
-            color: border_color,
-            radius: 0.0.into(),
-        },
-        ..Default::default()
-    })
-    .into()
+    container(content)
+        .width(current_w)
+        .height(Length::Fill)
+        .style(move |_| container::Style {
+            background: Some(bg.into()),
+            border: Border {
+                width: 1.0,
+                color: border_color,
+                radius: 0.0.into(),
+            },
+            ..Default::default()
+        })
+        .into()
 }
 
 pub fn view_markdown<'a>(
@@ -1687,59 +1490,23 @@ pub fn view_markdown<'a>(
         .center_x(Length::Fill)
         .width(Length::Fill);
 
-    let scroll = scrollable(centered_text_wrapper)
-        .id("content_scroll")
-        .direction(scrollable::Direction::Vertical(
-            scrollable::Scrollbar::new().width(4).margin(2),
-        ))
-        .style(crate::ui::theme::glass_scrollable)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .on_scroll(|v| Message::MarkdownScrolled(v.absolute_offset().y));
+    let scroll = scroll_pane("content_scroll", centered_text_wrapper)
+        .on_scroll(|v| Message::MarkdownScrolled(v.absolute_offset().y))
+        .build();
 
     if state.toc_visible && !state.toc.is_empty() {
         let sidebar = render_toc_sidebar(&state.toc, state, state.scroll_y, is_dark);
-        let drag_handle = button(container(text("")).width(4).height(Length::Fill).style(
-            move |theme: &iced::Theme| {
-                let d = matches!(theme, iced::Theme::Dark);
-                container::Style {
-                    background: Some(
-                        (if state.sidebar_resizing {
-                            if d {
-                                Color::from_rgb(0.4, 0.7, 1.0)
-                            } else {
-                                Color::from_rgb(0.1, 0.45, 0.85)
-                            }
-                        } else {
-                            if d {
-                                Color::from_rgba(1.0, 1.0, 1.0, 0.05)
-                            } else {
-                                Color::from_rgba(0.0, 0.0, 0.0, 0.05)
-                            }
-                        })
-                        .into(),
-                    ),
-                    ..Default::default()
-                }
-            },
-        ))
-        .padding(0)
-        .width(6)
-        .height(Length::Fill)
-        .on_press(Message::SidebarDragStarted(0.0))
-        .style(|_, _| button::Style {
-            background: None,
-            border: Border::default(),
-            shadow: Shadow::default(),
-            text_color: Color::TRANSPARENT,
-            snap: false,
-        });
+        let dh = drag_handle(
+            state.sidebar_resizing,
+            is_dark,
+            Message::SidebarDragStarted(0.0),
+        );
 
-        row![sidebar, drag_handle, scroll]
+        row![sidebar, dh, scroll]
             .spacing(0)
             .height(Length::Fill)
             .into()
     } else {
-        scroll.into()
+        scroll
     }
 }

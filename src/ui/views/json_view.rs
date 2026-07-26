@@ -1,11 +1,13 @@
 use crate::app::Message;
 use crate::core::types::JsonState;
 use crate::parsers::json::JsonNode;
-use crate::ui::theme::{DARK_TEXT, DARK_TEXT_DIM, LIGHT_TEXT, LIGHT_TEXT_DIM};
-use crate::ui::theme::{breeze_container, breeze_text_input, glass_scrollable};
+use crate::ui::components::code_editor::code_editor;
+use crate::ui::components::scroll_pane::scroll_pane;
+use crate::ui::components::search_bar::{SearchKind, search_bar};
+use crate::ui::theme::breeze_text_input;
 use iced::widget::container;
 use iced::widget::tooltip;
-use iced::widget::{button, column, row, scrollable, text, text_editor, text_input};
+use iced::widget::{button, column, row, text, text_input};
 use iced::{Color, Element, Length, Padding};
 use std::collections::{HashMap, HashSet};
 
@@ -470,15 +472,6 @@ fn render_tree<'a>(
         .into()
 }
 
-fn line_number_width(line_count: usize, font_size: f32) -> Length {
-    let digits = if line_count > 0 {
-        (line_count as f32).log10() as usize + 1
-    } else {
-        1
-    };
-    Length::Fixed((digits as f32) * font_size * 0.65 + 16.0)
-}
-
 fn render_raw<'a>(
     state: &'a JsonState,
     is_dark: bool,
@@ -490,64 +483,25 @@ fn render_raw<'a>(
         None => iced::Font::MONOSPACE,
     };
 
-    let hl_theme = if is_dark {
-        iced::highlighter::Theme::Base16Mocha
-    } else {
-        iced::highlighter::Theme::InspiredGitHub
-    };
-
     let content = if state.raw_pretty {
         &state.pretty_content
     } else {
         &state.minified_content
     };
-    let line_count = content.lines().count();
-    let num_width = line_number_width(line_count, font_size);
-
-    let line_numbers = (1..=line_count)
+    let line_numbers = (1..=content.lines().count())
         .map(|n| n.to_string())
         .collect::<Vec<_>>()
         .join("\n");
 
-    let line_numbers_widget = text(line_numbers)
-        .font(mono_font)
-        .size(font_size)
-        .width(num_width)
-        .color(if is_dark {
-            DARK_TEXT_DIM
-        } else {
-            LIGHT_TEXT_DIM
-        })
-        .align_x(iced::alignment::Horizontal::Right);
-
-    let editor = text_editor(&state.raw_editor)
-        .highlight("json", hl_theme)
-        .font(mono_font)
-        .size(font_size)
-        .on_action(Message::JsonRawEdit)
-        .style(|theme: &iced::Theme, _status| {
-            let is_dark = matches!(theme, iced::Theme::Dark);
-            text_editor::Style {
-                background: Color::TRANSPARENT.into(),
-                border: iced::Border {
-                    width: 0.0,
-                    color: Color::TRANSPARENT,
-                    radius: 0.0.into(),
-                },
-                placeholder: Color::TRANSPARENT,
-                value: if is_dark { DARK_TEXT } else { LIGHT_TEXT },
-                selection: if is_dark {
-                    Color::from_rgba(1.0, 1.0, 1.0, 0.15)
-                } else {
-                    Color::from_rgba(0.0, 0.0, 0.0, 0.15)
-                },
-            }
-        });
-
-    row![line_numbers_widget, editor]
-        .spacing(6)
-        .align_y(iced::Alignment::Start)
-        .into()
+    code_editor(
+        &state.raw_editor,
+        &line_numbers,
+        "json",
+        is_dark,
+        font_size,
+        mono_font,
+        Message::JsonRawEdit,
+    )
 }
 
 fn header_button_style() -> impl Fn(&iced::Theme, button::Status) -> button::Style {
@@ -722,34 +676,12 @@ pub fn view_json<'a>(
     .width(Length::Fill);
 
     let search_bar: Option<Element<'a, Message>> = if state.search_visible && state.tree_mode {
-        let close_btn = button(text("✕").size(12))
-            .on_press(Message::JsonSearchClosed)
-            .padding([2, 6])
-            .style(small_btn_style());
-
-        let search_input: Element<'a, Message> =
-            text_input("Search key or value...", &state.search_query)
-                .on_input(Message::JsonSearchQueryChanged)
-                .id("json_search_input")
-                .style(breeze_text_input)
-                .width(Length::Fill)
-                .into();
-
-        Some(
-            container(
-                row![text("🔍").size(12), search_input, close_btn,]
-                    .align_y(iced::Alignment::Center)
-                    .spacing(4)
-                    .padding(Padding {
-                        left: 8.0,
-                        right: 8.0,
-                        top: 2.0,
-                        bottom: 2.0,
-                    }),
-            )
-            .width(Length::Fill)
-            .into(),
-        )
+        Some(search_bar(
+            SearchKind::Json,
+            &state.search_query,
+            None,
+            "Search key or value...",
+        ))
     } else {
         None
     };
@@ -761,19 +693,7 @@ pub fn view_json<'a>(
         render_raw(state, is_dark, font_size, font_family_mono)
     };
 
-    let scroll = scrollable(
-        container(content)
-            .width(Length::Fill)
-            .padding(4)
-            .style(breeze_container),
-    )
-    .id("json_scroll")
-    .direction(scrollable::Direction::Vertical(
-        scrollable::Scrollbar::new().width(4).margin(2),
-    ))
-    .style(glass_scrollable)
-    .width(Length::Fill)
-    .height(Length::Fill);
+    let scroll = scroll_pane("json_scroll", content).container_padding(4);
 
     let breadcrumbs = if state.tree_mode {
         render_breadcrumbs(state, is_dark, font_size)
@@ -794,7 +714,7 @@ pub fn view_json<'a>(
     if let Some(bc) = breadcrumbs {
         col_parts.push(bc);
     }
-    col_parts.push(scroll.into());
+    col_parts.push(scroll.build());
 
     column(col_parts).height(Length::Fill).into()
 }

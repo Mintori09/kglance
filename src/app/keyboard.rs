@@ -159,6 +159,18 @@ impl super::KglanceApp {
             return self.handle_open_clicked();
         }
 
+        // Search-aware Space/Escape: Space types, Escape closes search
+        if self.is_search_active() {
+            match &key {
+                iced::keyboard::Key::Named(Named::Space) => return Task::none(),
+                iced::keyboard::Key::Character(c) if c == " " => return Task::none(),
+                iced::keyboard::Key::Named(Named::Escape) => {
+                    return self.handle_search_close();
+                }
+                _ => {}
+            }
+        }
+
         if let Some(task) = self.handle_close_shortcuts(&key) {
             return task;
         }
@@ -182,31 +194,6 @@ impl super::KglanceApp {
         {
             self.state.json.search_visible = true;
             return iced::widget::operation::focus("json_search_input");
-        }
-
-        // Escape closes any search / editing overlay
-        if matches!(key, iced::keyboard::Key::Named(Named::Escape)) {
-            if matches!(self.current_content, Some(PreviewData::Json { .. })) {
-                if self.state.json.search_visible {
-                    self.state.json.search_visible = false;
-                    self.state.json.search_query.clear();
-                    return Task::none();
-                }
-                if self.state.json.editing_node.is_some() {
-                    self.state.json.editing_node = None;
-                    self.state.json.edit_value.clear();
-                    return Task::none();
-                }
-            }
-            if matches!(self.current_content, Some(PreviewData::Markdown { .. }))
-                && self.state.markdown.search_visible
-            {
-                self.state.markdown.search_visible = false;
-                self.state.markdown.search_query.clear();
-                self.state.markdown.search_match_count = 0;
-                self.state.markdown.search_match_index = 0;
-                return Task::none();
-            }
         }
 
         Task::none()
@@ -686,6 +673,47 @@ impl super::KglanceApp {
             Some(self.handle_close())
         } else {
             None
+        }
+    }
+
+    fn is_search_active(&self) -> bool {
+        match &self.current_content {
+            Some(PreviewData::Text { .. }) => self.state.text.search_visible,
+            Some(PreviewData::Json { .. }) => {
+                self.state.json.search_visible || self.state.json.editing_node.is_some()
+            }
+            Some(PreviewData::Markdown { .. }) => self.state.markdown.search_visible,
+            _ => false,
+        }
+    }
+
+    fn handle_search_close(&mut self) -> Task<Message> {
+        match &self.current_content {
+            Some(PreviewData::Text { .. }) if self.state.text.search_visible => {
+                self.state.text.search_visible = false;
+                self.state.text.search_query.clear();
+                Task::none()
+            }
+            Some(PreviewData::Json { .. }) => {
+                if self.state.json.search_visible {
+                    self.state.json.search_visible = false;
+                    self.state.json.search_query.clear();
+                    return Task::none();
+                }
+                if self.state.json.editing_node.is_some() {
+                    self.state.json.editing_node = None;
+                    self.state.json.edit_value.clear();
+                }
+                Task::none()
+            }
+            Some(PreviewData::Markdown { .. }) if self.state.markdown.search_visible => {
+                self.state.markdown.search_visible = false;
+                self.state.markdown.search_query.clear();
+                self.state.markdown.search_match_count = 0;
+                self.state.markdown.search_match_index = 0;
+                Task::none()
+            }
+            _ => Task::none(),
         }
     }
 
