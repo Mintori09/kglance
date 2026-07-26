@@ -1,5 +1,6 @@
 use std::cell::Cell;
-use std::sync::OnceLock;
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 
 use crate::app::Message;
 use crate::core::TocEntry;
@@ -17,9 +18,46 @@ use syntect::util::LinesWithEndings;
 
 fn get_code_font(font_family_mono: Option<&str>) -> Font {
     match font_family_mono {
-        Some(name) => Font::with_name(Box::leak(name.to_string().into_boxed_str())),
+        Some(name) => Font::with_name(Box::leak(resolve_font_name(name).into_boxed_str())),
         None => Font::MONOSPACE,
     }
+}
+
+fn get_main_font(font_family: Option<&str>) -> Font {
+    match font_family {
+        Some(name) => Font::with_name(Box::leak(resolve_font_name(name).into_boxed_str())),
+        None => Font::DEFAULT,
+    }
+}
+
+pub(crate) fn resolve_font_name(name: &str) -> String {
+    static CACHE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+
+    {
+        let guard = cache.lock().unwrap();
+        if let Some(resolved) = guard.get(name) {
+            return resolved.clone();
+        }
+    }
+
+    let resolved = std::process::Command::new("fc-match")
+        .args([name, "--format=%{family[0]}"])
+        .output()
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                if !s.is_empty() { Some(s) } else { None }
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| name.to_string());
+
+    let mut guard = cache.lock().unwrap();
+    guard.insert(name.to_string(), resolved.clone());
+    resolved
 }
 
 fn syntax_set() -> &'static SyntaxSet {
@@ -104,18 +142,20 @@ fn highlight_code<'a>(
 
 fn inlines_to_spans<'a>(
     inlines: &'a [Inline],
+    font_family: Option<&str>,
     font_family_mono: Option<&str>,
     search_query: &str,
     active_match: usize,
     counter: &Cell<usize>,
     is_dark: bool,
 ) -> Vec<Span<'a, (), Font>> {
+    let main_font = get_main_font(font_family);
     let mut spans = Vec::new();
     for inline in inlines {
         match inline {
             Inline::Text(t) => {
                 if search_query.is_empty() {
-                    spans.push(Span::new(t.as_str()));
+                    spans.push(Span::new(t.as_str()).font(main_font));
                 } else {
                     let lower = t.to_lowercase();
                     let q = search_query.to_lowercase();
@@ -124,7 +164,7 @@ fn inlines_to_spans<'a>(
                         let abs_pos = pos + match_pos;
                         let end_pos = abs_pos + q.len();
                         if abs_pos > pos {
-                            spans.push(Span::new(&t[pos..abs_pos]));
+                            spans.push(Span::new(&t[pos..abs_pos]).font(main_font));
                         }
                         let is_active = counter.get() == active_match;
                         let bg = if is_active {
@@ -140,18 +180,23 @@ fn inlines_to_spans<'a>(
                                 Color::from_rgb(0.95, 0.8, 0.2)
                             }
                         };
-                        spans.push(Span::new(&t[abs_pos..end_pos]).background(bg));
+                        spans.push(
+                            Span::new(&t[abs_pos..end_pos])
+                                .font(main_font)
+                                .background(bg),
+                        );
                         counter.set(counter.get() + 1);
                         pos = end_pos;
                     }
                     if pos < t.len() {
-                        spans.push(Span::new(&t[pos..]));
+                        spans.push(Span::new(&t[pos..]).font(main_font));
                     }
                 }
             }
             Inline::Bold(children) => {
                 for s in inlines_to_spans(
                     children,
+                    font_family,
                     font_family_mono,
                     search_query,
                     active_match,
@@ -160,13 +205,14 @@ fn inlines_to_spans<'a>(
                 ) {
                     spans.push(s.font(Font {
                         weight: Weight::Bold,
-                        ..Default::default()
+                        ..main_font
                     }));
                 }
             }
             Inline::Italic(children) => {
                 for s in inlines_to_spans(
                     children,
+                    font_family,
                     font_family_mono,
                     search_query,
                     active_match,
@@ -175,20 +221,21 @@ fn inlines_to_spans<'a>(
                 ) {
                     spans.push(s.font(Font {
                         style: iced::font::Style::Italic,
-                        ..Default::default()
+                        ..main_font
                     }));
                 }
             }
             Inline::Strikethrough(children) => {
                 for s in inlines_to_spans(
                     children,
+                    font_family,
                     font_family_mono,
                     search_query,
                     active_match,
                     counter,
                     is_dark,
                 ) {
-                    spans.push(s.strikethrough(true));
+                    spans.push(s.font(main_font).strikethrough(true));
                 }
             }
             Inline::Code(code) => {
@@ -248,6 +295,7 @@ fn inlines_to_spans<'a>(
             } => {
                 for s in inlines_to_spans(
                     link_text,
+                    font_family,
                     font_family_mono,
                     search_query,
                     active_match,
@@ -258,16 +306,28 @@ fn inlines_to_spans<'a>(
                 }
             }
             Inline::SoftBreak => {
-                spans.push(Span::new(" "));
+                spans.push(Span::new(" ").font(main_font));
             }
             Inline::Image { alt, .. } => {
-                spans.push(Span::new(format!("[{alt}]")).color(Color::from_rgb(0.5, 0.5, 0.5)));
+                spans.push(
+                    Span::new(format!("[{alt}]"))
+                        .font(main_font)
+                        .color(Color::from_rgb(0.5, 0.5, 0.5)),
+                );
             }
             Inline::InlineMath(latex) => {
-                spans.push(Span::new(latex.as_str()).color(Color::from_rgb(0.5, 0.2, 0.7)));
+                spans.push(
+                    Span::new(latex.as_str())
+                        .font(main_font)
+                        .color(Color::from_rgb(0.5, 0.2, 0.7)),
+                );
             }
             Inline::DisplayMath(latex) => {
-                spans.push(Span::new(latex.as_str()).color(Color::from_rgb(0.5, 0.2, 0.7)));
+                spans.push(
+                    Span::new(latex.as_str())
+                        .font(main_font)
+                        .color(Color::from_rgb(0.5, 0.2, 0.7)),
+                );
             }
         }
     }
@@ -300,6 +360,7 @@ fn link_button_style(theme: &iced::Theme, status: button::Status) -> button::Sty
 fn render_inlines<'a>(
     inlines: &'a [Inline],
     font_size: f32,
+    font_family: Option<&str>,
     font_family_mono: Option<&str>,
     search_query: &str,
     active_match: usize,
@@ -314,6 +375,7 @@ fn render_inlines<'a>(
     if !has_link && !has_math {
         return Rich::with_spans(inlines_to_spans(
             inlines,
+            font_family,
             font_family_mono,
             search_query,
             active_match,
@@ -338,6 +400,7 @@ fn render_inlines<'a>(
                 elements.push(
                     Rich::with_spans(inlines_to_spans(
                         &inlines[start..i],
+                        font_family,
                         font_family_mono,
                         search_query,
                         active_match,
@@ -379,6 +442,7 @@ fn render_inlines<'a>(
                 elements.push(
                     Rich::with_spans(inlines_to_spans(
                         &inlines[start..i],
+                        font_family,
                         font_family_mono,
                         search_query,
                         active_match,
@@ -397,6 +461,7 @@ fn render_inlines<'a>(
                 elements.push(
                     Rich::with_spans(inlines_to_spans(
                         &inlines[start..i],
+                        font_family,
                         font_family_mono,
                         search_query,
                         active_match,
@@ -417,6 +482,7 @@ fn render_inlines<'a>(
         elements.push(
             Rich::with_spans(inlines_to_spans(
                 &inlines[start..],
+                font_family,
                 font_family_mono,
                 search_query,
                 active_match,
@@ -482,6 +548,7 @@ fn render_heading<'a>(
     counter: &Cell<usize>,
     is_dark: bool,
     font_size: f32,
+    font_family: Option<&str>,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     let raw: f32 = match level {
@@ -501,6 +568,7 @@ fn render_heading<'a>(
     let label = render_inlines(
         content,
         size,
+        font_family,
         font_family_mono,
         search_query,
         active_match,
@@ -545,11 +613,13 @@ fn render_paragraph<'a>(
     counter: &Cell<usize>,
     is_dark: bool,
     font_size: f32,
+    font_family: Option<&str>,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     let rich = render_inlines(
         content,
         font_size,
+        font_family,
         font_family_mono,
         search_query,
         active_match,
@@ -677,6 +747,7 @@ fn render_table<'a>(
     counter: &Cell<usize>,
     is_dark: bool,
     font_size: f32,
+    font_family: Option<&str>,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     let hdr_size = scale(14.0, font_size);
@@ -721,6 +792,7 @@ fn render_table<'a>(
             let cell = render_inlines(
                 &h.content,
                 hdr_size,
+                font_family,
                 font_family_mono,
                 search_query,
                 active_match,
@@ -786,6 +858,7 @@ fn render_table<'a>(
                 let cell = render_inlines(
                     &c.content,
                     cel_size,
+                    font_family,
                     font_family_mono,
                     search_query,
                     active_match,
@@ -960,6 +1033,7 @@ fn render_list<'a>(
     counter: &Cell<usize>,
     is_dark: bool,
     font_size: f32,
+    font_family: Option<&str>,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     let item_elements = items.iter().enumerate().map(|(idx, item)| {
@@ -996,6 +1070,7 @@ fn render_list<'a>(
         let content_el = render_inlines(
             &item.content,
             font_size,
+            font_family,
             font_family_mono,
             search_query,
             active_match,
@@ -1015,6 +1090,7 @@ fn render_list<'a>(
                 counter,
                 is_dark,
                 font_size,
+                font_family,
                 font_family_mono,
             );
             children.push(
@@ -1053,6 +1129,7 @@ fn render_quote<'a>(
     counter: &Cell<usize>,
     is_dark: bool,
     font_size: f32,
+    font_family: Option<&str>,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     let inner: Element<'a, Message> = column(blocks.iter().enumerate().map(|(i, b)| {
@@ -1065,6 +1142,7 @@ fn render_quote<'a>(
             counter,
             is_dark,
             font_size,
+            font_family,
             font_family_mono,
         )
     }))
@@ -1155,6 +1233,7 @@ pub(crate) fn render_block<'a>(
     counter: &Cell<usize>,
     is_dark: bool,
     font_size: f32,
+    font_family: Option<&str>,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     match block {
@@ -1166,6 +1245,7 @@ pub(crate) fn render_block<'a>(
             counter,
             is_dark,
             font_size,
+            font_family,
             font_family_mono,
         ),
         Block::Paragraph(content) => render_paragraph(
@@ -1175,6 +1255,7 @@ pub(crate) fn render_block<'a>(
             counter,
             is_dark,
             font_size,
+            font_family,
             font_family_mono,
         ),
         Block::CodeBlock { lang, code, .. } => {
@@ -1187,6 +1268,7 @@ pub(crate) fn render_block<'a>(
             counter,
             is_dark,
             font_size,
+            font_family,
             font_family_mono,
         ),
         Block::Mermaid { lines, rendered } => {
@@ -1207,6 +1289,7 @@ pub(crate) fn render_block<'a>(
             counter,
             is_dark,
             font_size,
+            font_family,
             font_family_mono,
         ),
         Block::Quote(blocks) => render_quote(
@@ -1217,6 +1300,7 @@ pub(crate) fn render_block<'a>(
             counter,
             is_dark,
             font_size,
+            font_family,
             font_family_mono,
         ),
         Block::HorizontalRule => render_horizontal_rule(font_size),
@@ -1577,6 +1661,7 @@ pub fn view_markdown<'a>(
             &search_counter,
             is_dark,
             font_size,
+            None,
             font_family_mono,
         );
         let mb = block_margin(block);

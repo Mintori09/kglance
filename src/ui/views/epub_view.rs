@@ -14,7 +14,9 @@ pub fn view_epub<'a>(
     max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
     let main_font = match font_family {
-        Some(name) => Font::with_name(Box::leak(name.to_string().into_boxed_str())),
+        Some(name) => Font::with_name(Box::leak(
+            crate::ui::views::markdown_view::resolve_font_name(name).into_boxed_str(),
+        )),
         None => Font::DEFAULT,
     };
 
@@ -45,7 +47,7 @@ pub fn view_epub<'a>(
 
     let header_author = text(format!("by {}", state.author))
         .size(font_size * 0.85)
-        .font(main_font)
+        .font(Font::DEFAULT)
         .color(dim_color);
 
     let toggle_btn = button(
@@ -55,7 +57,7 @@ pub fn view_epub<'a>(
             "Chapters"
         })
         .size(12)
-        .font(main_font),
+        .font(Font::DEFAULT),
     )
     .on_press(Message::EpubSidebarToggled)
     .padding([4, 10]);
@@ -103,6 +105,7 @@ pub fn view_epub<'a>(
             &search_counter,
             is_dark,
             font_size,
+            font_family,
             font_family_mono,
         );
         let mb = crate::ui::views::markdown_view::block_margin(block);
@@ -142,7 +145,7 @@ pub fn view_epub<'a>(
     let main_view = column![header_bar, scroll].height(Length::Fill);
 
     if state.sidebar_visible && !state.chapters.is_empty() {
-        let sidebar = render_chapter_sidebar(state, is_dark, main_font);
+        let sidebar = render_chapter_sidebar(state, is_dark);
         let drag_handle = button(container(text("")).width(4).height(Length::Fill).style(
             move |theme: &iced::Theme| {
                 let d = matches!(theme, iced::Theme::Dark);
@@ -188,11 +191,7 @@ pub fn view_epub<'a>(
     }
 }
 
-fn render_chapter_sidebar<'a>(
-    state: &'a EpubState,
-    is_dark: bool,
-    main_font: Font,
-) -> Element<'a, Message> {
+fn render_chapter_sidebar<'a>(state: &'a EpubState, is_dark: bool) -> Element<'a, Message> {
     let (bg, border_color) = if is_dark {
         (glass::DARK_BG, glass::DARK_BORDER)
     } else {
@@ -203,7 +202,7 @@ fn render_chapter_sidebar<'a>(
         .size(12)
         .font(Font {
             weight: iced::font::Weight::Bold,
-            ..main_font
+            ..Font::DEFAULT
         })
         .color(if is_dark {
             glass::DARK_TEXT
@@ -212,7 +211,7 @@ fn render_chapter_sidebar<'a>(
         });
 
     let current_w = state.sidebar_width;
-    let shrink_btn = button(text("−").size(11).font(main_font))
+    let shrink_btn = button(text("−").size(11).font(Font::DEFAULT))
         .on_press(Message::EpubSidebarResized(current_w - 30.0))
         .padding([1, 4])
         .style(|_, _| button::Style {
@@ -223,7 +222,7 @@ fn render_chapter_sidebar<'a>(
             snap: false,
         });
 
-    let expand_btn = button(text("+").size(11).font(main_font))
+    let expand_btn = button(text("+").size(11).font(Font::DEFAULT))
         .on_press(Message::EpubSidebarResized(current_w + 30.0))
         .padding([1, 4])
         .style(|_, _| button::Style {
@@ -282,14 +281,14 @@ fn render_chapter_sidebar<'a>(
             .size(if ch.level == 1 { 12 } else { 11 })
             .font(Font {
                 weight: font_weight,
-                ..main_font
+                ..Font::DEFAULT
             });
 
         let mut row_content = row![].spacing(4).align_y(iced::Alignment::Center);
 
         if has_children {
             let arrow_icon = if is_collapsed { "▶" } else { "▼" };
-            let collapse_btn = button(text(arrow_icon).size(9).font(main_font))
+            let collapse_btn = button(text(arrow_icon).size(9).font(Font::DEFAULT))
                 .on_press(Message::EpubChapterToggleCollapse(idx))
                 .padding([2, 4])
                 .style(|_, _| button::Style {
