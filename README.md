@@ -165,4 +165,4 @@ src/
 
 ## License
 
-Distributed under the AGPL-3.0-only. See `LICENSE` for more information.
+Distributed under the GNU AGPL-3.0-only. See `LICENSE` for more information.
