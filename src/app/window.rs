@@ -113,16 +113,14 @@ impl super::KglanceApp {
                 self.probe.mark_window_opened(); // P2
                 self.window_id = Some(id);
                 self.update_grid_cols(size.width);
-                match &self.current_content {
-                    Some(crate::core::PreviewData::Image { width, height, .. }) => {
-                        let size =
-                            crate::ui::handlers::image::calculate_window_size(*width, *height);
-                        return iced::window::resize(id, size);
-                    }
-                    Some(crate::core::PreviewData::Media { .. }) => {
-                        return iced::window::resize(id, iced::Size::new(850.0, 550.0));
-                    }
-                    _ => {}
+                if let Some(content) = self.current_content.as_ref().filter(|c| {
+                    matches!(
+                        c,
+                        crate::core::PreviewData::Image { .. }
+                            | crate::core::PreviewData::Media { .. }
+                    )
+                }) {
+                    return iced::window::resize(id, content.initial_window_size());
                 }
             }
             iced::window::Event::CloseRequested => {

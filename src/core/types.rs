@@ -421,6 +421,7 @@ pub struct KglanceState {
     pub font_size: f32,
     pub font_family: Option<String>,
     pub font_family_mono: Option<String>,
+    pub epub_font_family: Option<String>,
     pub max_text_width: Option<f32>,
 
     pub theme_dark: bool,
@@ -470,6 +471,7 @@ impl Default for KglanceState {
             font_size: 14.0,
             font_family: None,
             font_family_mono: None,
+            epub_font_family: None,
             max_text_width: None,
             theme_dark: true,
             toasts: Vec::new(),
