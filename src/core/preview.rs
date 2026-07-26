@@ -318,6 +318,16 @@ impl PreviewData {
             }
         }
     }
+
+    pub fn initial_window_size(&self) -> iced::Size {
+        match self {
+            PreviewData::Image { width, height, .. } => {
+                crate::ui::handlers::image::calculate_window_size(*width, *height)
+            }
+            PreviewData::Media { .. } => iced::Size::new(850.0, 550.0),
+            _ => iced::Size::new(1024.0, 768.0),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -356,5 +366,40 @@ mod tests {
         );
 
         let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_initial_window_size() {
+        let img_preview = PreviewData::Image {
+            data: vec![],
+            width: 800,
+            height: 600,
+            format_info: "PNG".into(),
+            exif_content: None,
+        };
+        let size = img_preview.initial_window_size();
+        assert!(size.width > 0.0 && size.height > 0.0);
+
+        let media_preview = PreviewData::Media {
+            url: "test.mp4".into(),
+            metadata: "".into(),
+            thumbnail_or_waveform: vec![],
+            width: 0,
+            height: 0,
+        };
+        assert_eq!(
+            media_preview.initial_window_size(),
+            iced::Size::new(850.0, 550.0)
+        );
+
+        let text_preview = PreviewData::Text {
+            content: "".into(),
+            line_numbers: "".into(),
+            language: "".into(),
+        };
+        assert_eq!(
+            text_preview.initial_window_size(),
+            iced::Size::new(1024.0, 768.0)
+        );
     }
 }

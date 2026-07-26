@@ -254,6 +254,7 @@ impl KglanceApp {
             font_size: config.ui.font_size,
             font_family: config.ui.font_family,
             font_family_mono: config.ui.font_family_mono,
+            epub_font_family: config.ui.epub_font_family,
             max_text_width: config.ui.max_text_width,
             ..Default::default()
         };
@@ -1538,7 +1539,10 @@ impl KglanceApp {
                     &self.state.epub,
                     self.state.font_size,
                     self.state.theme_dark,
-                    self.state.font_family.as_deref(),
+                    self.state
+                        .epub_font_family
+                        .as_deref()
+                        .or(self.state.font_family.as_deref()),
                     self.state.font_family_mono.as_deref(),
                     self.state.max_text_width,
                 ),

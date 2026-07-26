@@ -6,6 +6,7 @@
     "default_height": 600,
     "font_family": "Noto Sans",
     "font_family_mono": "Fira Code",
+    "epub_font_family": "Noto Serif",
     "max_text_width": 820.0
   },
   "preview": {

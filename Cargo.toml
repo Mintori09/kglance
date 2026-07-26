@@ -74,8 +74,6 @@ notify = "6.1"
 dirs = "6.0"
 lru = "0.13"
 md5 = "0.7"
-
-
 [features]
 default = ["7z"]
 7z = ["sevenz-rust"]
