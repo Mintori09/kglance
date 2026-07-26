@@ -1376,9 +1376,15 @@ impl KglanceApp {
                 Task::none()
             }
             Message::JsonCopyPath(index) => {
-                let path = Self::build_json_path(&self.state.json.nodes, index);
-                let toast = self.show_toast("Copied path!");
-                Task::batch(vec![iced::clipboard::write(path), toast])
+                let val = self
+                    .state
+                    .json
+                    .nodes
+                    .get(index)
+                    .map(|n| n.value_preview.clone())
+                    .unwrap_or_default();
+                let toast = self.show_toast("Copied value!");
+                Task::batch(vec![iced::clipboard::write(val), toast])
             }
             Message::JsonNodeClicked(index) => {
                 self.state.json.active_node = Some(index);
@@ -1637,33 +1643,5 @@ impl KglanceApp {
     /// Variant for [`iced::daemon`] which requires a `window::Id` parameter.
     pub fn theme_daemon(&self, _window_id: iced::window::Id) -> Theme {
         self.theme()
-    }
-
-    fn build_json_path(nodes: &[crate::parsers::json::JsonNode], index: usize) -> String {
-        let node = match nodes.get(index) {
-            Some(n) => n,
-            None => return String::new(),
-        };
-        let key = match &node.key {
-            Some(k) => k.clone(),
-            None => return String::new(),
-        };
-        let mut path = key;
-        let mut current = node.parent_index;
-        while let Some(pi) = current {
-            if let Some(parent) = nodes.get(pi) {
-                if let Some(k) = &parent.key {
-                    if k.starts_with('[') {
-                        path = format!("{}{}", k, path);
-                    } else {
-                        path = format!("{}.{}", k, path);
-                    }
-                }
-                current = parent.parent_index;
-            } else {
-                break;
-            }
-        }
-        path
     }
 }

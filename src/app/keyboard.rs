@@ -351,6 +351,16 @@ impl super::KglanceApp {
                         let toast = self.show_toast("Copied!");
                         Some(Task::batch(vec![iced::clipboard::write(selection), toast]))
                     }
+                } else if matches!(self.current_content, Some(PreviewData::Json { .. }))
+                    && !self.state.json.tree_mode
+                {
+                    let selection = self.state.json.raw_editor.selection().unwrap_or_default();
+                    if selection.is_empty() {
+                        None
+                    } else {
+                        let toast = self.show_toast("Copied!");
+                        Some(Task::batch(vec![iced::clipboard::write(selection), toast]))
+                    }
                 } else {
                     Some(self.handle_copy_path())
                 }
