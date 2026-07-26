@@ -137,6 +137,8 @@ fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         .map(|name| Font::with_name(Box::leak(name.to_string().into_boxed_str())))
         .unwrap_or(Font::DEFAULT);
 
+    let window_icon = kglance::load_app_icon();
+
     log_info!("Running Iced GUI in standalone mode...");
     let reg = registry.clone();
     iced::application(
@@ -153,6 +155,7 @@ fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         visible: true,
         min_size: Some(Size::new(400.0, 300.0)),
         size: initial_size,
+        icon: window_icon,
         exit_on_close_request: true,
         decorations: true,
         ..Default::default()

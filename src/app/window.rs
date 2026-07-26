@@ -85,6 +85,7 @@ impl super::KglanceApp {
             let settings = iced::window::Settings {
                 size: iced::Size::new(1024.0, 768.0),
                 min_size: Some(iced::Size::new(800.0, 600.0)),
+                icon: crate::load_app_icon(),
                 exit_on_close_request: false,
                 decorations: true,
                 ..Default::default()
