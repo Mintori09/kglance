@@ -1,7 +1,7 @@
 use crate::app::Message;
 use crate::core::PdfState;
-use crate::ui::theme::glass_scrollable;
-use iced::widget::{column, container, image, scrollable, text};
+use crate::ui::components::scroll_pane::scroll_pane;
+use iced::widget::{column, container, image, text};
 use iced::{Element, Length};
 
 const PAGE_GAP: f32 = 8.0;
@@ -11,9 +11,7 @@ pub fn view_pdf<'a>(state: &'a PdfState) -> Element<'a, Message> {
     let mut col = column![].spacing(PAGE_GAP).padding(10);
 
     if state.page_count == 0 {
-        return scrollable(container(text("No pages").size(14)))
-            .height(Length::Fill)
-            .into();
+        return scroll_pane("content_scroll", text("No pages").size(14)).build();
     }
 
     for i in 0..state.page_count {
@@ -41,13 +39,10 @@ pub fn view_pdf<'a>(state: &'a PdfState) -> Element<'a, Message> {
         col = col.push(text("Loading…").size(14).width(Length::Fill).center());
     }
 
-    scrollable(container(col).width(Length::Fill).height(Length::Fill))
-        .id("content_scroll")
-        .direction(scrollable::Direction::Vertical(
-            scrollable::Scrollbar::new().width(4).margin(2),
-        ))
-        .style(glass_scrollable)
-        .on_scroll(Message::PdfScrolled)
-        .height(Length::Fill)
-        .into()
+    scroll_pane(
+        "content_scroll",
+        container(col).width(Length::Fill).height(Length::Fill),
+    )
+    .on_scroll(Message::PdfScrolled)
+    .build()
 }
