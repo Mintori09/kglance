@@ -3,7 +3,9 @@
 //! Provides a consistent frosted-glass aesthetic across all widget types,
 //! adapting automatically to dark and light themes.
 
-use iced::widget::{button, checkbox, container, pick_list, rule, scrollable, slider, text_input};
+use iced::widget::{
+    button, checkbox, container, pick_list, rule, scrollable, slider, text_editor, text_input,
+};
 use iced::{Border, Color, Shadow, Theme};
 
 // ── Accent ────────────────────────────────────────────────────────────────────
@@ -260,6 +262,28 @@ pub fn glass_text_input(theme: &Theme, status: text_input::Status) -> text_input
         },
         selection: ACCENT,
         icon: if is_dark { DARK_TEXT } else { LIGHT_TEXT },
+    }
+}
+
+// ── TextEditor ────────────────────────────────────────────────────────────────
+
+/// Transparent text-editor style for code display (no border, translucent selection).
+pub fn glass_text_editor(theme: &Theme, _status: text_editor::Status) -> text_editor::Style {
+    let is_dark = matches!(theme, Theme::Dark);
+    text_editor::Style {
+        background: Color::TRANSPARENT.into(),
+        border: Border {
+            width: 0.0,
+            color: Color::TRANSPARENT,
+            radius: 0.0.into(),
+        },
+        placeholder: Color::TRANSPARENT,
+        value: if is_dark { DARK_TEXT } else { LIGHT_TEXT },
+        selection: if is_dark {
+            Color::from_rgba(1.0, 1.0, 1.0, 0.15)
+        } else {
+            Color::from_rgba(0.0, 0.0, 0.0, 0.15)
+        },
     }
 }
 
