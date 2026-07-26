@@ -9,13 +9,6 @@ impl PreviewParser for CsvParser {
         &["csv"]
     }
 
-    fn is_supported(&self, path: &Path) -> bool {
-        path.extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e == "csv")
-            .unwrap_or(false)
-    }
-
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
         let content =
             std::fs::read_to_string(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;

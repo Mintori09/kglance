@@ -58,13 +58,6 @@ impl PreviewParser for PdfParser {
         &["pdf"]
     }
 
-    fn is_supported(&self, path: &Path) -> bool {
-        path.extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e.eq_ignore_ascii_case("pdf"))
-            .unwrap_or(false)
-    }
-
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
         let doc = Document::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
         let page_count = doc

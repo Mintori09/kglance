@@ -14,16 +14,6 @@ impl PreviewParser for AudioParser {
         &["mp3", "wav", "flac", "ogg", "aac", "m4a", "opus"]
     }
 
-    fn is_supported(&self, path: &Path) -> bool {
-        path.extension()
-            .and_then(|e| e.to_str())
-            .map(|e| {
-                self.supported_extensions()
-                    .contains(&e.to_lowercase().as_str())
-            })
-            .unwrap_or(false)
-    }
-
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
         let file = std::fs::File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
         let mss = MediaSourceStream::new(Box::new(file), Default::default());

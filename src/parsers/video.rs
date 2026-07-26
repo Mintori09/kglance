@@ -8,16 +8,6 @@ impl PreviewParser for VideoParser {
         &["mp4", "mkv", "avi", "mov", "wmv", "webm", "flv", "m4v"]
     }
 
-    fn is_supported(&self, path: &Path) -> bool {
-        path.extension()
-            .and_then(|e| e.to_str())
-            .map(|e| {
-                self.supported_extensions()
-                    .contains(&e.to_lowercase().as_str())
-            })
-            .unwrap_or(false)
-    }
-
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
         let path_str = path.to_string_lossy().to_string();
         let duration = probe_duration(path);
