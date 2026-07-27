@@ -3,6 +3,7 @@ mod media;
 pub mod probe;
 mod window;
 
+use iced::widget::operation;
 use iced::{Element, Subscription, Task, Theme};
 use iced_futures::subscription;
 use std::path::Path;
@@ -212,6 +213,22 @@ fn png_to_rgba_handle_with_size(png: Vec<u8>) -> Option<(iced::widget::image::Ha
             Some((handle, 0, 0))
         }
     }
+}
+
+fn markdown_block_y_offset(
+    blocks: &[Block],
+    target_index: usize,
+    font_size: f32,
+    image_sizes: &std::collections::HashMap<usize, (u32, u32)>,
+) -> f32 {
+    let mut y: f32 = 15.0;
+    for (i, block) in blocks.iter().enumerate() {
+        if i == target_index {
+            return y;
+        }
+        y += crate::parsers::markdown::estimated_block_height(block, font_size, i, image_sizes);
+    }
+    0.0
 }
 
 pub struct KglanceApp {
@@ -1104,8 +1121,12 @@ impl KglanceApp {
                     s.search_query.clear();
                     s.search_match_count = 0;
                     s.search_match_index = 0;
+                    s.search_match_blocks.clear();
+                    s.search_info.clear();
+                    Task::none()
+                } else {
+                    operation::focus("md_search_input")
                 }
-                Task::none()
             }
             Message::MarkdownSearchQueryChanged(query) => {
                 let s = &mut self.state.markdown;
@@ -1113,66 +1134,73 @@ impl KglanceApp {
                 s.search_match_index = 0;
                 if query.is_empty() {
                     s.search_match_count = 0;
+                    s.search_match_blocks.clear();
+                    s.search_info.clear();
                 } else if let Some(PreviewData::Markdown { blocks }) = &self.current_content {
                     let q = query.to_lowercase();
-                    let count: usize = blocks
-                        .iter()
-                        .map(|b| {
-                            let text = match b {
-                                Block::Heading { content, .. } | Block::Paragraph(content) => {
-                                    crate::parsers::markdown::flatten_inlines(content)
-                                }
-                                Block::CodeBlock { code, .. } => code.clone(),
-                                Block::Quote(inner) => inner
-                                    .iter()
-                                    .map(|ib| match ib {
-                                        Block::Heading { content, .. }
-                                        | Block::Paragraph(content) => {
-                                            crate::parsers::markdown::flatten_inlines(content)
-                                        }
-                                        _ => String::new(),
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join(" "),
-                                Block::List { items, .. } => items
-                                    .iter()
-                                    .flat_map(|item| {
-                                        let own = crate::parsers::markdown::flatten_inlines(
-                                            &item.content,
-                                        );
-                                        let sub: String = item
-                                            .sub_blocks
-                                            .iter()
-                                            .map(|lb| match lb {
-                                                Block::Heading { content, .. }
-                                                | Block::Paragraph(content) => {
-                                                    crate::parsers::markdown::flatten_inlines(
-                                                        content,
-                                                    )
-                                                }
-                                                _ => String::new(),
-                                            })
-                                            .collect::<Vec<_>>()
-                                            .join(" ");
-                                        vec![own, sub]
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join(" "),
-                                Block::Table(tbl) => tbl
-                                    .rows
-                                    .iter()
-                                    .flat_map(|r| r.iter())
-                                    .map(|cell| {
-                                        crate::parsers::markdown::flatten_inlines(&cell.content)
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join(" "),
-                                _ => String::new(),
-                            };
-                            text.to_lowercase().matches(&q).count()
-                        })
-                        .sum();
+                    let mut count = 0;
+                    let mut match_blocks = Vec::new();
+                    for (bi, block) in blocks.iter().enumerate() {
+                        let text = match block {
+                            Block::Heading { content, .. } | Block::Paragraph(content) => {
+                                crate::parsers::markdown::flatten_inlines(content)
+                            }
+                            Block::CodeBlock { code, .. } => code.clone(),
+                            Block::Quote(inner) => inner
+                                .iter()
+                                .map(|ib| match ib {
+                                    Block::Heading { content, .. } | Block::Paragraph(content) => {
+                                        crate::parsers::markdown::flatten_inlines(content)
+                                    }
+                                    _ => String::new(),
+                                })
+                                .collect::<Vec<_>>()
+                                .join(" "),
+                            Block::List { items, .. } => items
+                                .iter()
+                                .flat_map(|item| {
+                                    let own =
+                                        crate::parsers::markdown::flatten_inlines(&item.content);
+                                    let sub: String = item
+                                        .sub_blocks
+                                        .iter()
+                                        .map(|lb| match lb {
+                                            Block::Heading { content, .. }
+                                            | Block::Paragraph(content) => {
+                                                crate::parsers::markdown::flatten_inlines(content)
+                                            }
+                                            _ => String::new(),
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .join(" ");
+                                    vec![own, sub]
+                                })
+                                .collect::<Vec<_>>()
+                                .join(" "),
+                            Block::Table(tbl) => tbl
+                                .rows
+                                .iter()
+                                .flat_map(|r| r.iter())
+                                .map(|cell| {
+                                    crate::parsers::markdown::flatten_inlines(&cell.content)
+                                })
+                                .collect::<Vec<_>>()
+                                .join(" "),
+                            _ => String::new(),
+                        };
+                        let n = text.to_lowercase().matches(&q).count();
+                        for _ in 0..n {
+                            match_blocks.push(bi);
+                        }
+                        count += n;
+                    }
                     s.search_match_count = count;
+                    s.search_match_blocks = match_blocks;
+                    s.search_info = if count > 0 {
+                        format!("1/{}", count)
+                    } else {
+                        String::new()
+                    };
                 }
                 Task::none()
             }
@@ -1180,6 +1208,21 @@ impl KglanceApp {
                 let s = &mut self.state.markdown;
                 if s.search_match_count > 0 {
                     s.search_match_index = (s.search_match_index + 1) % s.search_match_count;
+                    s.search_info =
+                        format!("{}/{}", s.search_match_index + 1, s.search_match_count);
+                    let block_idx = s.search_match_blocks[s.search_match_index];
+                    if let Some(PreviewData::Markdown { blocks }) = &self.current_content {
+                        let y = markdown_block_y_offset(
+                            blocks,
+                            block_idx,
+                            self.state.font_size,
+                            &self.state.markdown.cached_image_sizes,
+                        );
+                        return iced::widget::operation::scroll_to(
+                            "content_scroll",
+                            iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                        );
+                    }
                 }
                 Task::none()
             }
@@ -1191,6 +1234,21 @@ impl KglanceApp {
                     } else {
                         s.search_match_index - 1
                     };
+                    s.search_info =
+                        format!("{}/{}", s.search_match_index + 1, s.search_match_count);
+                    let block_idx = s.search_match_blocks[s.search_match_index];
+                    if let Some(PreviewData::Markdown { blocks }) = &self.current_content {
+                        let y = markdown_block_y_offset(
+                            blocks,
+                            block_idx,
+                            self.state.font_size,
+                            &self.state.markdown.cached_image_sizes,
+                        );
+                        return iced::widget::operation::scroll_to(
+                            "content_scroll",
+                            iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                        );
+                    }
                 }
                 Task::none()
             }
@@ -1200,6 +1258,8 @@ impl KglanceApp {
                 s.search_query.clear();
                 s.search_match_count = 0;
                 s.search_match_index = 0;
+                s.search_match_blocks.clear();
+                s.search_info.clear();
                 Task::none()
             }
             Message::EpubSidebarToggled => {
@@ -1349,10 +1409,10 @@ impl KglanceApp {
                 s.search_visible = !s.search_visible;
                 if !s.search_visible {
                     s.search_query.clear();
+                    Task::none()
                 } else {
-                    // Expand all ancestors so search result is visible
+                    operation::focus("json_search_input")
                 }
-                Task::none()
             }
             Message::JsonSearchQueryChanged(query) => {
                 self.state.json.search_query = query;

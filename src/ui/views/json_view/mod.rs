@@ -120,6 +120,7 @@ pub fn view_json<'a>(
             &state.search_query,
             None,
             "Search key or value...",
+            "json_search_input",
         ))
     } else {
         None

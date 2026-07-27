@@ -20,6 +20,7 @@ pub fn view_text<'a>(
             &state.search_query,
             Some(&state.search_info),
             "Search...",
+            "txt_search_input",
         ));
     }
 
