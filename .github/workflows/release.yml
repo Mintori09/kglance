@@ -8,7 +8,17 @@ on:
 env:
   BINARY: kglance
   APP_ID: kglance
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
 
+# Minimal permissions at workflow level; jobs that need write override locally.
+permissions:
+  contents: read
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 1 — Build & package per architecture
+# Pattern from: fd, bat, zoxide, hyperfine
+# ─────────────────────────────────────────────────────────────────────────────
 jobs:
   build:
     name: Build (${{ matrix.arch }})
@@ -36,19 +46,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ── Cache APT packages ────────────────────────────────────────────────
+      # ── System dependencies ───────────────────────────────────────────────
+      # Cache apt archives keyed on the workflow file so it invalidates when
+      # the dep list changes. Pattern: alacritty, bat.
       - name: Cache APT packages
         uses: actions/cache@v4
-        id: cache-apt
         with:
           path: /var/cache/apt/archives
           key: apt-${{ matrix.arch }}-${{ hashFiles('.github/workflows/release.yml') }}
           restore-keys: apt-${{ matrix.arch }}-
 
-      - name: Install System Dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             libfontconfig1-dev \
             libfreetype-dev \
             libxkbcommon-dev \
@@ -60,14 +71,18 @@ jobs:
             patchelf \
             ffmpeg
 
-      # ── Rust toolchain + cargo deps ───────────────────────────────────────
+      # ── Rust toolchain ────────────────────────────────────────────────────
+      # dtolnay/rust-toolchain is the de-facto standard (fd, bat, zoxide, starship).
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Rust Cache
+      # Swatinem/rust-cache is the industry standard for Rust CI caching.
+      # Scoped per target triple automatically.
+      - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
 
-      # taiki-e/install-action has built-in caching for cargo-deb & cargo-generate-rpm
+      # taiki-e/install-action handles caching internally — no need for
+      # extra actions/cache wrappers. Pattern: fd, bat, zoxide.
       - name: Install cargo-deb
         uses: taiki-e/install-action@v2
         with:
@@ -78,7 +93,9 @@ jobs:
         with:
           tool: cargo-generate-rpm
 
-      # ── Cache AppImage tools ──────────────────────────────────────────────
+      # ── AppImage tools ────────────────────────────────────────────────────
+      # Cache the downloaded AppImages to avoid re-downloading on every run.
+      # Cache is keyed with a static version suffix — bump "v1" to invalidate.
       - name: Cache AppImage tools
         uses: actions/cache@v4
         id: cache-appimage-tools
@@ -88,38 +105,38 @@ jobs:
             appimagetool.AppImage
           key: appimage-tools-${{ matrix.arch }}-v1
 
-      - name: Download linuxdeploy
+      - name: Download AppImage tools
         if: steps.cache-appimage-tools.outputs.cache-hit != 'true'
         run: |
           curl -fsSL -o linuxdeploy.AppImage "${{ matrix.linuxdeploy_url }}"
-          chmod +x linuxdeploy.AppImage
-
-      - name: Download appimagetool
-        if: steps.cache-appimage-tools.outputs.cache-hit != 'true'
-        run: |
           curl -fsSL -o appimagetool.AppImage "${{ matrix.appimagetool_url }}"
-          chmod +x appimagetool.AppImage
 
-      - name: Make AppImage tools executable (cache restore)
-        if: steps.cache-appimage-tools.outputs.cache-hit == 'true'
+      # Cached files lose the executable bit — restore it unconditionally.
+      - name: Make AppImage tools executable
         run: chmod +x linuxdeploy.AppImage appimagetool.AppImage
 
-      # ── Build ─────────────────────────────────────────────────────────────
+      # ── Tests ─────────────────────────────────────────────────────────────
+      # Run tests before building. Pattern: fd, bat, zoxide.
       - name: Run tests
         run: cargo test --locked
 
+      # ── Build ─────────────────────────────────────────────────────────────
       - name: Build release binary
         run: cargo build --release --locked
 
+      # Strip debug symbols once, reuse for all package formats.
+      # Pattern: bat, fd, hyperfine — strip before packaging, not just for RPM.
+      - name: Strip binary
+        run: strip "target/release/${BINARY}"
+
+      # ── Package: .deb ─────────────────────────────────────────────────────
       - name: Build .deb package
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           cargo deb --no-build --deb-version "${VERSION}-1" \
             -o "${BINARY}_${VERSION}-1_${{ matrix.deb_arch }}.deb"
 
-      - name: Strip binary (for RPM)
-        run: strip target/release/${BINARY}
-
+      # ── Package: .rpm ─────────────────────────────────────────────────────
       - name: Build .rpm package
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -127,16 +144,17 @@ jobs:
           mv target/generate-rpm/*.rpm \
             "${BINARY}-${VERSION}-1.${{ matrix.rpm_arch }}.rpm"
 
+      # ── Package: .AppImage ────────────────────────────────────────────────
       - name: Build AppImage
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           APPDIR=AppDir
           rm -rf "$APPDIR"
 
-          install -Dm755 target/release/${BINARY} "$APPDIR/usr/bin/${BINARY}"
-          install -Dm644 data/${APP_ID}.desktop "$APPDIR/usr/share/applications/${APP_ID}.desktop"
-          install -Dm644 data/${APP_ID}.svg "$APPDIR/usr/share/icons/hicolor/scalable/apps/${APP_ID}.svg"
-          install -Dm644 data/${APP_ID}-rust.desktop "$APPDIR/usr/share/kio/servicemenus/${APP_ID}-rust.desktop"
+          install -Dm755 "target/release/${BINARY}" "$APPDIR/usr/bin/${BINARY}"
+          install -Dm644 "data/${APP_ID}.desktop"     "$APPDIR/usr/share/applications/${APP_ID}.desktop"
+          install -Dm644 "data/${APP_ID}.svg"         "$APPDIR/usr/share/icons/hicolor/scalable/apps/${APP_ID}.svg"
+          install -Dm644 "data/${APP_ID}-rust.desktop" "$APPDIR/usr/share/kio/servicemenus/${APP_ID}-rust.desktop"
 
           export VERSION="${VERSION}"
           export APPIMAGE_EXTRACT_AND_RUN=1
@@ -148,22 +166,76 @@ jobs:
             --icon-file "data/${APP_ID}.svg" \
             --output appimage
 
-          OUTPUT_FILE=$(ls *.AppImage | grep -v 'linuxdeploy' | grep -v 'appimagetool' | head -n 1)
+          # linuxdeploy names the output: <AppName>-<VERSION>-<arch>.AppImage
+          OUTPUT_FILE=$(ls ./*.AppImage | grep -v 'linuxdeploy' | grep -v 'appimagetool' | head -n 1)
           mv "$OUTPUT_FILE" "${BINARY}-${VERSION}-${{ matrix.appimg_arch }}.AppImage"
 
-      - name: Generate checksums
+      # ── Per-artifact checksums ────────────────────────────────────────────
+      # Generate individual sidecar .sha256 files per artifact.
+      # Pattern: ripgrep, fd, bat — each artifact gets a companion checksum.
+      - name: Generate per-artifact checksums
         run: |
-          sha256sum *.deb > checksums-${{ matrix.arch }}.sha256
-          sha256sum *.rpm >> checksums-${{ matrix.arch }}.sha256
-          sha256sum *.AppImage >> checksums-${{ matrix.arch }}.sha256
+          for f in *.deb *.rpm *.AppImage; do
+            sha256sum "$f" > "${f}.sha256"
+          done
 
-      - name: Upload artifacts to Release
-        uses: softprops/action-gh-release@v2
+      # ── Upload to artifact store ──────────────────────────────────────────
+      # Two-stage pattern (fd, bat, zoxide, alacritty):
+      #   build jobs → upload-artifact
+      #   publish job → download-artifact + release
+      # This guarantees no partial releases if one arch fails.
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
         with:
-          files: |
+          name: packages-${{ matrix.arch }}
+          path: |
             *.deb
             *.rpm
             *.AppImage
-            checksums-${{ matrix.arch }}.sha256
+            *.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 2 — Publish release (runs once, after ALL build matrix jobs succeed)
+# Pattern: fd, bat, alacritty, zoxide
+# ─────────────────────────────────────────────────────────────────────────────
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # Required to create/update the GitHub Release
+
+    steps:
+      # Download ALL artifacts from every matrix build in one step.
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          merge-multiple: true
+          path: dist/
+
+      # Consolidated SHA256SUMS file — single source of truth for users.
+      # Pattern: starship, cargo-binstall — unified manifest alongside sidecars.
+      - name: Generate unified SHA256SUMS
+        working-directory: dist
+        run: |
+          sha256sum *.deb *.rpm *.AppImage | tee SHA256SUMS
+
+      # Publish to GitHub Releases.
+      # - generate_release_notes: auto-generates changelog from commits (pattern: zoxide).
+      # - fail_on_unmatched_files: ensures all expected artifacts are present.
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.AppImage
+            dist/*.sha256
+            dist/SHA256SUMS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
