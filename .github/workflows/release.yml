@@ -47,7 +47,8 @@ jobs:
             gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad \
             file \
-            patchelf
+            patchelf \
+            ffmpeg
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
