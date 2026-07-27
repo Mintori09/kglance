@@ -115,6 +115,9 @@ assets = [
 [package.metadata.generate-rpm]
 summary = "A high-performance file preview system for KDE Plasma 6"
 
+[package.metadata.generate-rpm.requires]
+glibc = ">= 2.35"
+
 assets = [
   { source = "target/release/kglance", dest = "/usr/bin/kglance", mode = "755" },
   { source = "data/kglance.desktop", dest = "/usr/share/applications/kglance.desktop", mode = "644" },
@@ -122,7 +125,6 @@ assets = [
   { source = "data/kglance-rust.desktop", dest = "/usr/share/kio/servicemenus/kglance-rust.desktop", mode = "644" },
 ]
 
-requires = ["glibc >= 2.35"]
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["html_reports"] }
