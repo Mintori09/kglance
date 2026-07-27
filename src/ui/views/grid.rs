@@ -1,5 +1,6 @@
 use crate::app::Message;
 use crate::core::types::{GRID_GAP, GRID_ITEM_WIDTH, GridThumbnail};
+use crate::parsers::helpers::icon::icon_for_entry;
 use crate::ui::theme::icon_theme;
 use iced::widget::{button, column, container, image, responsive, row, scrollable, svg, text};
 use iced::{Alignment, Border, Color, Element, Length, Shadow, Theme};
@@ -86,7 +87,7 @@ pub fn view_grid<'a>(
                         .center_y(thumb_h)
                         .into()
                     } else {
-                        let icon_name = icon_theme::icon_for_entry(&item.name, false);
+                        let icon_name = icon_for_entry(&item.name, false);
                         let icon_el: Element<'_, Message> =
                             if let Some(svg_handle) = icon_theme::get_icon_handle(icon_name) {
                                 svg(svg_handle).width(icon_size).height(icon_size).into()

@@ -80,17 +80,23 @@ impl TextLayoutEngine {
         let syntax = ps
             .find_syntax_by_extension(extension)
             .unwrap_or_else(|| ps.find_syntax_plain_text());
-        let theme = if is_dark {
-            &ts.themes["base16-mocha.dark"]
+        let theme_name = if is_dark {
+            "base16-mocha.dark"
         } else {
-            &ts.themes["InspiredGitHub"]
+            "InspiredGitHub"
         };
+        let theme = ts
+            .themes
+            .get(theme_name)
+            .or_else(|| ts.themes.get("InspiredGitHub"))
+            .unwrap_or_else(|| &ts.themes["base16-ocean.dark"]);
+
         let mut highlighter = HighlightLines::new(syntax, theme);
 
         let default_color = if is_dark {
-            Color::from_rgb(0.93, 0.94, 0.96)
+            Color::from_rgb(0.90, 0.92, 0.95)
         } else {
-            Color::from_rgb(0.12, 0.13, 0.16)
+            Color::from_rgb(0.15, 0.16, 0.18)
         };
 
         let mut visual_lines = Vec::new();

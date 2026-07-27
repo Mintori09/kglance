@@ -1,7 +1,8 @@
-use iced::widget::{row, text, text_editor};
+use iced::widget::{container, row, text, text_editor};
 use iced::{Element, Font, Length};
 
 use crate::app::Message;
+use crate::core::layout_engine::LogicalDocument;
 use crate::ui::theme::{DARK_TEXT_DIM, LIGHT_TEXT_DIM, glass_text_editor};
 
 pub fn line_number_width(line_count: usize, font_size: f32) -> Length {
@@ -15,7 +16,6 @@ pub fn line_number_width(line_count: usize, font_size: f32) -> Length {
 
 pub fn code_editor<'a>(
     content: &'a iced::widget::text_editor::Content,
-    line_numbers: &str,
     extension: &str,
     is_dark: bool,
     font_size: f32,
@@ -28,18 +28,26 @@ pub fn code_editor<'a>(
         iced::highlighter::Theme::InspiredGitHub
     };
 
-    let num_width = line_number_width(line_numbers.lines().count(), font_size);
-    let line_numbers_owned = line_numbers.to_string();
+    let doc = LogicalDocument::from_text(&content.text());
+    let logical_line_count = doc.lines.len().max(1);
+    let num_width = line_number_width(logical_line_count, font_size);
 
-    let line_numbers_widget = text(line_numbers_owned)
+    let line_numbers = (1..=logical_line_count)
+        .map(|n| n.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let gutter_color = if is_dark {
+        DARK_TEXT_DIM
+    } else {
+        LIGHT_TEXT_DIM
+    };
+
+    let line_numbers_widget = text(line_numbers)
         .font(font)
         .size(font_size)
         .width(num_width)
-        .color(if is_dark {
-            DARK_TEXT_DIM
-        } else {
-            LIGHT_TEXT_DIM
-        })
+        .color(gutter_color)
         .align_x(iced::alignment::Horizontal::Right);
 
     let editor = text_editor(content)
@@ -49,8 +57,11 @@ pub fn code_editor<'a>(
         .on_action(on_action)
         .style(glass_text_editor);
 
-    row![line_numbers_widget, editor]
-        .spacing(6)
-        .align_y(iced::Alignment::Start)
-        .into()
+    row![
+        container(line_numbers_widget).align_y(iced::alignment::Vertical::Top),
+        editor
+    ]
+    .spacing(6)
+    .align_y(iced::Alignment::Start)
+    .into()
 }

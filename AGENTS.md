@@ -14,6 +14,8 @@ You are a senior Rust engineer developing Kglance (Oxiview), a high-performance 
 
 # General Rules
 
+- Never run `cargo clean`.
+
 ## File Deletion
 
 Always prefer:

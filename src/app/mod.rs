@@ -386,7 +386,7 @@ impl KglanceApp {
                             tasks.push(Task::perform(
                                 async move {
                                     let png = tokio::task::spawn_blocking(move || {
-                                        crate::parsers::markdown::render_mermaid_to_png(&code)
+                                        crate::parsers::markdown::render_mermaid_to_png(&code, None)
                                     })
                                     .await
                                     .ok()

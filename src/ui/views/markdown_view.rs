@@ -992,9 +992,11 @@ fn render_mermaid<'a>(
                 .height(Length::Shrink),
         )
         .center_x(Length::Fill)
-        .padding(10);
+        .width(Length::Fill)
+        .padding(14)
+        .style(code_block_style);
 
-        column![badge, img].spacing(0).into()
+        column![badge, img].spacing(4).into()
     } else {
         log_debug!(
             "render_mermaid[{}]: no handle, showing text fallback",
