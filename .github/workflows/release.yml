@@ -36,6 +36,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ── Cache APT packages ────────────────────────────────────────────────
+      - name: Cache APT packages
+        uses: actions/cache@v4
+        id: cache-apt
+        with:
+          path: /var/cache/apt/archives
+          key: apt-${{ matrix.arch }}-${{ hashFiles('.github/workflows/release.yml') }}
+          restore-keys: apt-${{ matrix.arch }}-
+
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -51,12 +60,14 @@ jobs:
             patchelf \
             ffmpeg
 
+      # ── Rust toolchain + cargo deps ───────────────────────────────────────
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
+      # taiki-e/install-action has built-in caching for cargo-deb & cargo-generate-rpm
       - name: Install cargo-deb
         uses: taiki-e/install-action@v2
         with:
@@ -67,6 +78,33 @@ jobs:
         with:
           tool: cargo-generate-rpm
 
+      # ── Cache AppImage tools ──────────────────────────────────────────────
+      - name: Cache AppImage tools
+        uses: actions/cache@v4
+        id: cache-appimage-tools
+        with:
+          path: |
+            linuxdeploy.AppImage
+            appimagetool.AppImage
+          key: appimage-tools-${{ matrix.arch }}-v1
+
+      - name: Download linuxdeploy
+        if: steps.cache-appimage-tools.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL -o linuxdeploy.AppImage "${{ matrix.linuxdeploy_url }}"
+          chmod +x linuxdeploy.AppImage
+
+      - name: Download appimagetool
+        if: steps.cache-appimage-tools.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL -o appimagetool.AppImage "${{ matrix.appimagetool_url }}"
+          chmod +x appimagetool.AppImage
+
+      - name: Make AppImage tools executable (cache restore)
+        if: steps.cache-appimage-tools.outputs.cache-hit == 'true'
+        run: chmod +x linuxdeploy.AppImage appimagetool.AppImage
+
+      # ── Build ─────────────────────────────────────────────────────────────
       - name: Run tests
         run: cargo test --locked
 
@@ -88,16 +126,6 @@ jobs:
           cargo generate-rpm
           mv target/generate-rpm/*.rpm \
             "${BINARY}-${VERSION}-1.${{ matrix.rpm_arch }}.rpm"
-
-      - name: Download linuxdeploy
-        run: |
-          curl -fsSL -o linuxdeploy.AppImage "${{ matrix.linuxdeploy_url }}"
-          chmod +x linuxdeploy.AppImage
-
-      - name: Download appimagetool
-        run: |
-          curl -fsSL -o appimagetool.AppImage "${{ matrix.appimagetool_url }}"
-          chmod +x appimagetool.AppImage
 
       - name: Build AppImage
         run: |
