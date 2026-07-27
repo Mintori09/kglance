@@ -120,7 +120,9 @@ assets = [
   { source = "data/kglance.svg", dest = "/usr/share/icons/hicolor/scalable/apps/kglance.svg", mode = "644" },
   { source = "data/kglance-rust.desktop", dest = "/usr/share/kio/servicemenus/kglance-rust.desktop", mode = "644" },
 ]
-requires = "glibc >= 2.35"
+[[package.metadata.generate-rpm.requires]]
+name = "glibc"
+version = ">= 2.35"
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["html_reports"] }
