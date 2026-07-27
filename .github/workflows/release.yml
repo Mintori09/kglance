@@ -120,7 +120,8 @@ jobs:
             --icon-file "data/${APP_ID}.svg" \
             --output appimage
 
-          mv *.AppImage "${BINARY}-${VERSION}-${{ matrix.appimg_arch }}.AppImage"
+          OUTPUT_FILE=$(ls *.AppImage | grep -v 'linuxdeploy' | grep -v 'appimagetool' | head -n 1)
+          mv "$OUTPUT_FILE" "${BINARY}-${VERSION}-${{ matrix.appimg_arch }}.AppImage"
 
       - name: Generate checksums
         run: |
