@@ -3,6 +3,8 @@ name = "kglance"
 version = "0.1.0"
 edition = "2024"
 license = "AGPL-3.0-only"
+description = "A high-performance file preview system for KDE Plasma 6"
+repository = "https://github.com/Mintori09/kglance"
 
 [dependencies]
 syntect = { version = "5.3.0", default-features = false, features = [
@@ -111,6 +113,7 @@ assets = [
 ]
 
 [package.metadata.generate-rpm]
+summary = "A high-performance file preview system for KDE Plasma 6"
 assets = [
   { source = "target/release/kglance", dest = "/usr/bin/kglance", mode = "755" },
   { source = "data/kglance.desktop", dest = "/usr/share/applications/kglance.desktop", mode = "644" },
