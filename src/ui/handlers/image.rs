@@ -1,45 +1,29 @@
 use iced::Size;
 
-/// Calculates the target window size to fit the image.
-/// The long side of the image will fit within the maximum allowed boundary (e.g. 1000px)
-/// without maximizing the window (not "open full"), and the short side will be scaled proportionally.
+const DEFAULT_WINDOW_WIDTH: f32 = 1024.0;
+const DEFAULT_WINDOW_HEIGHT: f32 = 768.0;
+
+const MIN_WINDOW_WIDTH: f32 = 400.0;
+const MIN_WINDOW_HEIGHT: f32 = 300.0;
+const MAX_WINDOW_WIDTH: f32 = 900.0;
+const MAX_WINDOW_HEIGHT: f32 = 700.0;
+
+const HEADER_HEIGHT: f32 = 50.0;
+
 pub fn calculate_window_size(img_width: u32, img_height: u32) -> Size {
-    let img_width = img_width as f32;
-    let img_height = img_height as f32;
-
-    if img_width == 0.0 || img_height == 0.0 {
-        return Size::new(1024.0, 768.0);
+    if img_width == 0 || img_height == 0 {
+        return Size::new(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
     }
 
-    let max_w = 900.0;
-    let max_h = 700.0;
-    let min_w = 400.0;
-    let min_h = 300.0;
+    let img_w = img_width as f32;
+    let img_h = img_height as f32;
 
-    // Calculate scale to fit within max bounds
-    let scale_w = max_w / img_width;
-    let scale_h = max_h / img_height;
-    let scale = scale_w.min(scale_h).min(1.0);
+    let scale = (MAX_WINDOW_WIDTH / img_w)
+        .min(MAX_WINDOW_HEIGHT / img_h)
+        .min(1.0);
 
-    let mut w = img_width * scale;
-    let mut h = img_height * scale;
+    let content_width = (img_w * scale).clamp(MIN_WINDOW_WIDTH, MAX_WINDOW_WIDTH);
+    let content_height = (img_h * scale).clamp(MIN_WINDOW_HEIGHT, MAX_WINDOW_HEIGHT);
 
-    // Apply minimum constraints
-    if w < min_w {
-        w = min_w;
-    }
-    if h < min_h {
-        h = min_h;
-    }
-
-    // Double check that we don't exceed max bounds after applying min bounds
-    if w > max_w {
-        w = max_w;
-    }
-    if h > max_h {
-        h = max_h;
-    }
-
-    let header_height = 50.0;
-    Size::new(w, h + header_height)
+    Size::new(content_width, content_height + HEADER_HEIGHT)
 }

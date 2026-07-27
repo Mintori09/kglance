@@ -1,5 +1,6 @@
 pub mod archive;
 pub mod csv;
+pub mod helpers;
 pub use archive::{ExtractedFile, extract_entry};
 
 pub mod audio;
@@ -15,6 +16,8 @@ pub mod svg;
 pub mod text;
 pub mod video;
 
+use crate::parsers::helpers::file_limit::preview_size_limit;
+use crate::parsers::helpers::icon::icon_for_entry;
 use crate::{log_debug, log_error, log_info};
 use std::fmt;
 use std::path::Path;
@@ -54,75 +57,6 @@ pub(crate) fn human_size(bytes: u64) -> String {
         format!("{} B", bytes)
     } else {
         format!("{:.1} {}", size, UNITS[unit_idx])
-    }
-}
-
-pub fn icon_for_entry(name: &str, is_dir: bool) -> &'static str {
-    if is_dir {
-        return "inode-directory";
-    }
-    let ext = std::path::Path::new(name)
-        .extension()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-    match ext.as_str() {
-        "rs" => "text-x-rust-source",
-        "md" => "text-x-markdown",
-        "txt" => "text-plain",
-        "pdf" => "application-pdf",
-        "png" => "image-png",
-        "jpg" | "jpeg" => "image-jpeg",
-        "gif" => "image-gif",
-        "bmp" => "image-bmp",
-        "webp" => "image-webp",
-        "svg" => "image-svg-xml",
-        "ico" => "image-x-ico",
-        "zip" => "application-zip",
-        "tar" => "application-x-tar",
-        "gz" | "tgz" => "application-gzip",
-        "bz2" => "application-x-bzip",
-        "xz" => "application-x-xz",
-        "7z" => "application-x-7z-compressed",
-        "rar" => "application-vnd.rar",
-        "mp4" => "video-mp4",
-        "mkv" => "video-x-matroska",
-        "webm" => "video-webm",
-        "avi" => "video-x-msvideo",
-        "mov" => "video-quicktime",
-        "wmv" => "video-x-ms-wmv",
-        "mp3" => "audio-mpeg",
-        "wav" => "audio-wav",
-        "flac" => "audio-flac",
-        "ogg" | "oga" => "audio-vorbis",
-        "aac" => "audio-aac",
-        "m4a" => "audio-mp4",
-        "opus" => "audio-opus",
-        "c" | "h" => "text-x-c-source",
-        "cpp" | "hpp" | "cc" | "hh" => "text-x-c++source",
-        "py" => "text-x-python",
-        "js" => "text-x-javascript",
-        "ts" | "tsx" => "text-x-typescript",
-        "html" | "htm" => "text-html",
-        "css" => "text-css",
-        "json" => "application-json",
-        "xml" => "application-xml",
-        "toml" => "text-x-toml",
-        "yaml" | "yml" => "text-x-yaml",
-        "sh" => "text-x-shellscript",
-        "conf" | "cfg" | "ini" => "text-x-config",
-        "ttf" => "font-ttf",
-        "otf" => "font-otf",
-        "woff" | "woff2" => "font-woff",
-        "csv" => "text-csv",
-        "doc" | "docx" => "application-msword",
-        "xls" | "xlsx" => "application-vnd-ms-excel",
-        "ppt" | "pptx" => "application-vnd-ms-powerpoint",
-        "odt" => "application-vnd-oasis-opendocument-text",
-        "ods" => "application-vnd-oasis-opendocument-spreadsheet",
-        "odp" => "application-vnd-oasis-opendocument-presentation",
-        "epub" => "application-epub+zip",
-        _ => "text-x-generic",
     }
 }
 
@@ -352,22 +286,7 @@ impl ParserRegistry {
             );
             ParseError::PermissionDenied
         })?;
-        let limit = match ext.as_str() {
-            // Video & Audio: 10 GB limit
-            "mp4" | "mkv" | "avi" | "mov" | "wmv" | "webm" | "mp3" | "wav" | "flac" | "ogg"
-            | "aac" | "m4a" => 10 * 1024 * 1024 * 1024,
-            // Archives: 2 GB
-            "zip" | "tar" | "gz" | "bz2" | "xz" | "7z" | "rar" => 2 * 1024 * 1024 * 1024,
-            // PDF/Office: 500 MB
-            "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "ods" | "odp"
-            | "epub" => 500 * 1024 * 1024,
-            // Images & Fonts: 100 MB
-            "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg" | "ico" | "ttf" | "otf"
-            | "woff" | "woff2" => 100 * 1024 * 1024,
-            // Default (Text/Code fallback): 20 MB
-            _ => 20 * 1024 * 1024,
-        };
-
+        let limit = preview_size_limit(&ext);
         if metadata.len() > limit {
             log_error!(
                 "ParserRegistry: File too large. Size: {}, Limit: {} for extension: {}",

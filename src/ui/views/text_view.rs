@@ -30,7 +30,6 @@ pub fn view_text<'a>(
 
     let editor_row = code_editor(
         &state.content,
-        &state.line_numbers,
         state.extension.as_str(),
         is_dark,
         font_size,

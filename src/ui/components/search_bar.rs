@@ -4,33 +4,18 @@ use iced::{Element, Length};
 use crate::app::Message;
 use crate::ui::theme::{breeze_button, breeze_text_input};
 
+const DEFAULT_SPACING: f32 = 10.0;
+const DEFAULT_PADDING: u16 = 5;
+const INFO_TEXT_SIZE: f32 = 14.0;
+
+const LABEL_NEXT: &str = "Next";
+const LABEL_PREV: &str = "Prev";
+const LABEL_CLOSE: &str = "Close";
+
 pub enum SearchKind {
     Text,
     Markdown,
     Json,
-}
-
-fn search_messages(kind: SearchKind) -> SearchMessages {
-    match kind {
-        SearchKind::Text => SearchMessages {
-            on_query: Message::SearchQueryChanged,
-            on_next: Some(Message::TextSearchNext),
-            on_prev: Some(Message::TextSearchPrev),
-            on_close: Message::TextSearchClosed,
-        },
-        SearchKind::Markdown => SearchMessages {
-            on_query: Message::MarkdownSearchQueryChanged,
-            on_next: Some(Message::MarkdownSearchNext),
-            on_prev: Some(Message::MarkdownSearchPrev),
-            on_close: Message::MarkdownSearchClosed,
-        },
-        SearchKind::Json => SearchMessages {
-            on_query: Message::JsonSearchQueryChanged,
-            on_next: None,
-            on_prev: None,
-            on_close: Message::JsonSearchClosed,
-        },
-    }
 }
 
 struct SearchMessages {
@@ -40,49 +25,73 @@ struct SearchMessages {
     on_close: Message,
 }
 
+impl SearchKind {
+    fn messages(&self) -> SearchMessages {
+        match self {
+            Self::Text => SearchMessages {
+                on_query: Message::SearchQueryChanged,
+                on_next: Some(Message::TextSearchNext),
+                on_prev: Some(Message::TextSearchPrev),
+                on_close: Message::TextSearchClosed,
+            },
+            Self::Markdown => SearchMessages {
+                on_query: Message::MarkdownSearchQueryChanged,
+                on_next: Some(Message::MarkdownSearchNext),
+                on_prev: Some(Message::MarkdownSearchPrev),
+                on_close: Message::MarkdownSearchClosed,
+            },
+            Self::Json => SearchMessages {
+                on_query: Message::JsonSearchQueryChanged,
+                on_next: None,
+                on_prev: None,
+                on_close: Message::JsonSearchClosed,
+            },
+        }
+    }
+}
+
 pub fn search_bar<'a>(
     kind: SearchKind,
     query: &'a str,
     info: Option<&'a str>,
     placeholder: &str,
 ) -> Element<'a, Message> {
-    let msgs = search_messages(kind);
+    let messages = kind.messages();
 
-    let input: Element<'a, Message> = text_input(placeholder, query)
-        .on_input(msgs.on_query)
+    let query_input: Element<'a, Message> = text_input(placeholder, query)
+        .on_input(messages.on_query)
         .style(breeze_text_input)
         .width(Length::Fill)
         .into();
 
-    let mut items: Vec<Element<'a, Message>> = vec![input];
+    let mut elements: Vec<Element<'a, Message>> = vec![query_input];
 
-    if let Some(next) = msgs.on_next {
-        items.push(
-            button(text("Next"))
-                .on_press(next)
-                .style(breeze_button)
-                .into(),
-        );
+    if let Some(next_msg) = messages.on_next {
+        elements.push(build_action_button(LABEL_NEXT, next_msg));
     }
-    if let Some(prev) = msgs.on_prev {
-        items.push(
-            button(text("Prev"))
-                .on_press(prev)
-                .style(breeze_button)
-                .into(),
-        );
+
+    if let Some(prev_msg) = messages.on_prev {
+        elements.push(build_action_button(LABEL_PREV, prev_msg));
     }
+
     if let Some(info_text) = info {
-        items.push(text(info_text).size(14).into());
+        elements.push(text(info_text).size(INFO_TEXT_SIZE).into());
     }
-    items.push(
-        button(text("Close"))
-            .on_press(msgs.on_close)
-            .style(breeze_button)
-            .into(),
-    );
 
-    container(row(items).spacing(10).padding(5))
-        .width(Length::Fill)
+    elements.push(build_action_button(LABEL_CLOSE, messages.on_close));
+
+    container(
+        row(elements)
+            .spacing(DEFAULT_SPACING)
+            .padding(DEFAULT_PADDING),
+    )
+    .width(Length::Fill)
+    .into()
+}
+
+fn build_action_button<'a>(label: &'static str, on_press: Message) -> Element<'a, Message> {
+    button(text(label))
+        .on_press(on_press)
+        .style(breeze_button)
         .into()
 }

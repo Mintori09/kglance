@@ -88,18 +88,34 @@ extended-description = "A high-performance file preview application for KDE Plas
 section = "utils"
 priority = "optional"
 assets = [
-    ["target/release/kglance", "usr/bin/", "755"],
-    ["data/kglance.desktop", "usr/share/applications/", "644"],
-    ["data/kglance.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
-    ["data/kglance-rust.desktop", "usr/share/kio/servicemenus/", "644"],
+  [
+    "target/release/kglance",
+    "usr/bin/",
+    "755",
+  ],
+  [
+    "data/kglance.desktop",
+    "usr/share/applications/",
+    "644",
+  ],
+  [
+    "data/kglance.svg",
+    "usr/share/icons/hicolor/scalable/apps/",
+    "644",
+  ],
+  [
+    "data/kglance-rust.desktop",
+    "usr/share/kio/servicemenus/",
+    "644",
+  ],
 ]
 
 [package.metadata.generate-rpm]
 assets = [
-    { source = "target/release/kglance", dest = "/usr/bin/kglance", mode = "755" },
-    { source = "data/kglance.desktop", dest = "/usr/share/applications/kglance.desktop", mode = "644" },
-    { source = "data/kglance.svg", dest = "/usr/share/icons/hicolor/scalable/apps/kglance.svg", mode = "644" },
-    { source = "data/kglance-rust.desktop", dest = "/usr/share/kio/servicemenus/kglance-rust.desktop", mode = "644" },
+  { source = "target/release/kglance", dest = "/usr/bin/kglance", mode = "755" },
+  { source = "data/kglance.desktop", dest = "/usr/share/applications/kglance.desktop", mode = "644" },
+  { source = "data/kglance.svg", dest = "/usr/share/icons/hicolor/scalable/apps/kglance.svg", mode = "644" },
+  { source = "data/kglance-rust.desktop", dest = "/usr/share/kio/servicemenus/kglance-rust.desktop", mode = "644" },
 ]
 requires = "glibc >= 2.35"
 

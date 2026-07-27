@@ -1,75 +1,136 @@
-use iced::{Background, Border, Color, Shadow, Theme, Vector, widget::button};
+use iced::{Background, Border, Color, Shadow, Theme};
 
-pub fn glass_button(theme: &Theme, status: button::Status) -> button::Style {
-    let palette = theme.extended_palette();
+pub use iced::widget::button::{Status, Style};
 
-    let base = palette.background.base.color;
-    let text = palette.background.base.text;
+use crate::ui::theme::glass::{ACCENT, ACCENT_HOVER, ACCENT_PRESSED};
+use crate::ui::theme::{
+    DARK_BORDER, DARK_SURFACE, DARK_SURFACE_RAISED, DARK_TEXT, DARK_TEXT_DIM, LIGHT_BORDER,
+    LIGHT_SURFACE, LIGHT_SURFACE_RAISED, LIGHT_TEXT, LIGHT_TEXT_DIM,
+};
 
-    match status {
-        button::Status::Disabled => button::Style {
-            background: Some(Background::Color(Color { a: 0.05, ..base })),
+fn is_dark(theme: &Theme) -> bool {
+    matches!(theme, Theme::Dark)
+}
 
-            text_color: Color { a: 0.35, ..text },
-
-            border: Border {
-                radius: 12.0.into(),
-                width: 1.0,
-                color: Color { a: 0.06, ..text },
+/// Standard KDE Breeze-style button.
+///
+/// - Subtle surface background
+/// - 1px border
+/// - 4px border radius
+/// - Accent highlight on hover/pressed
+pub fn breeze(theme: &Theme, status: Status) -> Style {
+    let dark = is_dark(theme);
+    let (bg, border_color, text_color) = match status {
+        Status::Active => (
+            if dark {
+                DARK_SURFACE_RAISED
+            } else {
+                LIGHT_SURFACE_RAISED
             },
+            if dark { DARK_BORDER } else { LIGHT_BORDER },
+            if dark { DARK_TEXT } else { LIGHT_TEXT },
+        ),
+        Status::Hovered => (ACCENT_HOVER, ACCENT_HOVER, Color::WHITE),
+        Status::Pressed => (ACCENT_PRESSED, ACCENT_PRESSED, Color::WHITE),
+        Status::Disabled => (
+            if dark { DARK_SURFACE } else { LIGHT_SURFACE },
+            if dark { DARK_BORDER } else { LIGHT_BORDER },
+            if dark { DARK_TEXT_DIM } else { LIGHT_TEXT_DIM },
+        ),
+    };
 
-            shadow: Shadow::default(),
-            snap: false,
+    Style {
+        background: Some(Background::Color(bg)),
+        text_color,
+        border: Border {
+            radius: 4.0.into(),
+            width: if matches!(status, Status::Disabled) {
+                0.0
+            } else {
+                1.0
+            },
+            color: border_color,
         },
-
-        _ => {
-            let (alpha, border_alpha, border_width, shadow_blur, shadow_alpha) = match status {
-                button::Status::Active => (0.10, 0.10, 1.0, 4.0, 0.06),
-
-                button::Status::Hovered => (0.40, 0.40, 1.5, 24.0, 0.28),
-
-                button::Status::Pressed => (0.55, 0.50, 1.5, 6.0, 0.10),
-
-                button::Status::Disabled => unreachable!(),
-            };
-
-            button::Style {
-                background: Some(Background::Color(Color { a: alpha, ..base })),
-
-                text_color: text,
-
-                border: Border {
-                    radius: 12.0.into(),
-                    width: border_width,
-                    color: Color {
-                        a: border_alpha,
-                        ..text
-                    },
-                },
-
-                shadow: Shadow {
-                    offset: if matches!(status, button::Status::Pressed) {
-                        Vector::new(0.0, 1.0)
-                    } else {
-                        Vector::new(0.0, 3.0)
-                    },
-
-                    blur_radius: shadow_blur,
-
-                    color: Color::from_rgba(0.0, 0.0, 0.0, shadow_alpha),
-                },
-                snap: false,
-            }
-        }
+        shadow: Shadow::default(),
+        snap: false,
     }
 }
-pub fn close_button(_theme: &Theme, status: button::Status) -> button::Style {
+
+/// Primary action button filled with accent color.
+pub fn breeze_primary(theme: &Theme, status: Status) -> Style {
+    let dark = is_dark(theme);
+    let bg = match status {
+        Status::Hovered => ACCENT_HOVER,
+        Status::Pressed => ACCENT_PRESSED,
+        Status::Disabled => {
+            if dark {
+                DARK_SURFACE
+            } else {
+                LIGHT_SURFACE
+            }
+        }
+        _ => ACCENT,
+    };
+    let text_color = match status {
+        Status::Disabled => {
+            if dark {
+                DARK_TEXT_DIM
+            } else {
+                LIGHT_TEXT_DIM
+            }
+        }
+        _ => Color::WHITE,
+    };
+
+    Style {
+        background: Some(Background::Color(bg)),
+        text_color,
+        border: Border {
+            radius: 4.0.into(),
+            width: 0.0,
+            color: Color::TRANSPARENT,
+        },
+        shadow: Shadow::default(),
+        snap: false,
+    }
+}
+
+/// Flat toolbar-style button with hover-only background.
+pub fn breeze_tool(theme: &Theme, status: Status) -> Style {
+    let dark = is_dark(theme);
+    let bg = match status {
+        Status::Hovered | Status::Pressed => {
+            let a = if dark { 0.10 } else { 0.06 };
+            Some(Background::Color(Color {
+                a,
+                ..if dark { Color::WHITE } else { Color::BLACK }
+            }))
+        }
+        _ => None,
+    };
+
+    Style {
+        background: bg,
+        text_color: if dark { DARK_TEXT } else { LIGHT_TEXT },
+        border: Border {
+            radius: 3.0.into(),
+            width: 0.0,
+            color: Color::TRANSPARENT,
+        },
+        shadow: Shadow::default(),
+        snap: false,
+    }
+}
+
+/// Destructive close button (red hover/pressed).
+pub fn breeze_close(theme: &Theme, status: Status) -> Style {
+    let dark = is_dark(theme);
     match status {
-        button::Status::Active => button::Style {
+        Status::Active => Style {
             background: None,
-            text_color: Color::WHITE,
+            text_color: if dark { DARK_TEXT } else { LIGHT_TEXT },
             border: Border {
-                radius: 12.0.into(),
+                radius: 4.0.into(),
                 width: 0.0,
                 color: Color::TRANSPARENT,
             },
@@ -77,27 +138,11 @@ pub fn close_button(_theme: &Theme, status: button::Status) -> button::Style {
             snap: false,
         },
 
-        button::Status::Hovered => button::Style {
+        Status::Hovered => Style {
             background: Some(Background::Color(Color::from_rgb8(232, 17, 35))),
             text_color: Color::WHITE,
             border: Border {
-                radius: 12.0.into(),
-                width: 0.0,
-                color: Color::TRANSPARENT,
-            },
-            shadow: Shadow {
-                offset: Vector::new(0.0, 2.0),
-                blur_radius: 12.0,
-                color: Color::from_rgba(0.0, 0.0, 0.0, 0.25),
-            },
-            snap: false,
-        },
-
-        button::Status::Pressed => button::Style {
-            background: Some(Background::Color(Color::from_rgb8(180, 0, 0))),
-            text_color: Color::WHITE,
-            border: Border {
-                radius: 12.0.into(),
+                radius: 4.0.into(),
                 width: 0.0,
                 color: Color::TRANSPARENT,
             },
@@ -105,9 +150,21 @@ pub fn close_button(_theme: &Theme, status: button::Status) -> button::Style {
             snap: false,
         },
 
-        button::Status::Disabled => button::Style {
+        Status::Pressed => Style {
+            background: Some(Background::Color(Color::from_rgb8(180, 0, 0))),
+            text_color: Color::WHITE,
+            border: Border {
+                radius: 4.0.into(),
+                width: 0.0,
+                color: Color::TRANSPARENT,
+            },
+            shadow: Shadow::default(),
+            snap: false,
+        },
+
+        Status::Disabled => Style {
             background: None,
-            text_color: Color::from_rgba(1.0, 1.0, 1.0, 0.4),
+            text_color: if dark { DARK_TEXT_DIM } else { LIGHT_TEXT_DIM },
             border: Border::default(),
             shadow: Shadow::default(),
             snap: false,
