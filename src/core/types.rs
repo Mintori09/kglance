@@ -320,6 +320,8 @@ pub struct MarkdownState {
     pub search_query: String,
     pub search_match_count: usize,
     pub search_match_index: usize,
+    pub search_match_blocks: Vec<usize>,
+    pub search_info: String,
 }
 
 impl Default for MarkdownState {
@@ -343,6 +345,8 @@ impl Default for MarkdownState {
             search_query: String::new(),
             search_match_count: 0,
             search_match_index: 0,
+            search_match_blocks: Vec::new(),
+            search_info: String::new(),
         }
     }
 }

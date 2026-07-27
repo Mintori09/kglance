@@ -7,6 +7,7 @@ use crate::core::TocEntry;
 use crate::log_debug;
 use crate::parsers::markdown::{Block, Inline, ListItem, TableBlock, flatten_inlines};
 use crate::ui::components::scroll_pane::scroll_pane;
+use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::components::sidebar::{collapse_arrow, drag_handle, sidebar_entry_style};
 use crate::ui::theme::glass;
 use iced::font::Weight;
@@ -1496,7 +1497,7 @@ pub fn view_markdown<'a>(
         .on_scroll(|v| Message::MarkdownScrolled(v.absolute_offset().y))
         .build();
 
-    if state.toc_visible && !state.toc.is_empty() {
+    let content_area: Element<'a, Message> = if state.toc_visible && !state.toc.is_empty() {
         let sidebar = render_toc_sidebar(&state.toc, state, state.scroll_y, is_dark);
         let dh = drag_handle(
             state.sidebar_resizing,
@@ -1510,5 +1511,22 @@ pub fn view_markdown<'a>(
             .into()
     } else {
         scroll
+    };
+
+    if state.search_visible {
+        let sb = search_bar(
+            SearchKind::Markdown,
+            &state.search_query,
+            if state.search_info.is_empty() {
+                None
+            } else {
+                Some(state.search_info.as_str())
+            },
+            "Search markdown...",
+            "md_search_input",
+        );
+        column![sb, content_area].height(Length::Fill).into()
+    } else {
+        content_area
     }
 }

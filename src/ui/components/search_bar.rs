@@ -55,10 +55,12 @@ pub fn search_bar<'a>(
     query: &'a str,
     info: Option<&'a str>,
     placeholder: &str,
+    input_id: impl Into<iced::widget::Id>,
 ) -> Element<'a, Message> {
     let messages = kind.messages();
 
     let query_input: Element<'a, Message> = text_input(placeholder, query)
+        .id(input_id)
         .on_input(messages.on_query)
         .style(breeze_text_input)
         .width(Length::Fill)

@@ -175,6 +175,16 @@ impl super::KglanceApp {
             return task;
         }
 
+        // "/" vim-style search toggle for Text
+        if let iced::keyboard::Key::Character(c) = &key
+            && c == "/"
+            && matches!(self.current_content, Some(PreviewData::Text { .. }))
+            && !self.state.text.search_visible
+        {
+            self.state.text.search_visible = true;
+            return iced::widget::operation::focus("txt_search_input");
+        }
+
         // "/" vim-style search toggle for Markdown
         if let iced::keyboard::Key::Character(c) = &key
             && c == "/"
@@ -182,6 +192,7 @@ impl super::KglanceApp {
             && !self.state.markdown.search_visible
         {
             self.state.markdown.search_visible = true;
+            self.state.markdown.search_match_blocks.clear();
             return iced::widget::operation::focus("md_search_input");
         }
 
@@ -428,10 +439,23 @@ impl super::KglanceApp {
                     Some(iced::widget::operation::focus("json_search_input"))
                 }
             }
+            "f" | "F" if matches!(self.current_content, Some(PreviewData::Text { .. })) => {
+                self.state.text.search_visible = !self.state.text.search_visible;
+                if !self.state.text.search_visible {
+                    self.state.text.search_query.clear();
+                    Some(Task::none())
+                } else {
+                    Some(iced::widget::operation::focus("txt_search_input"))
+                }
+            }
             "f" | "F" if matches!(self.current_content, Some(PreviewData::Markdown { .. })) => {
                 self.state.markdown.search_visible = !self.state.markdown.search_visible;
                 if !self.state.markdown.search_visible {
                     self.state.markdown.search_query.clear();
+                    self.state.markdown.search_match_count = 0;
+                    self.state.markdown.search_match_index = 0;
+                    self.state.markdown.search_match_blocks.clear();
+                    self.state.markdown.search_info.clear();
                     Some(Task::none())
                 } else {
                     Some(iced::widget::operation::focus("md_search_input"))
@@ -711,6 +735,8 @@ impl super::KglanceApp {
                 self.state.markdown.search_query.clear();
                 self.state.markdown.search_match_count = 0;
                 self.state.markdown.search_match_index = 0;
+                self.state.markdown.search_match_blocks.clear();
+                self.state.markdown.search_info.clear();
                 Task::none()
             }
             _ => Task::none(),

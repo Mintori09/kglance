@@ -175,6 +175,8 @@ impl PreviewData {
                     search_query: String::new(),
                     search_match_count: 0,
                     search_match_index: 0,
+                    search_match_blocks: Vec::new(),
+                    search_info: String::new(),
                 };
                 for (i, block) in blocks.iter().enumerate() {
                     if let Block::Mermaid {
