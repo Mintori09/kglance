@@ -80,6 +80,8 @@ jobs:
       # Scoped per target triple automatically.
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          sharedKey: kglance-release
 
       # taiki-e/install-action handles caching internally — no need for
       # extra actions/cache wrappers. Pattern: fd, bat, zoxide.
@@ -116,9 +118,8 @@ jobs:
         run: chmod +x linuxdeploy.AppImage appimagetool.AppImage
 
       # ── Tests ─────────────────────────────────────────────────────────────
-      # Run tests before building. Pattern: fd, bat, zoxide.
       - name: Run tests
-        run: cargo test --locked
+        run: cargo test --release --locked
 
       # ── Build ─────────────────────────────────────────────────────────────
       - name: Build release binary
