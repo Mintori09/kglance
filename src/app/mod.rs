@@ -1,6 +1,6 @@
 mod keyboard;
 mod media;
-pub mod probe;
+
 mod window;
 
 use iced::widget::operation;
@@ -252,7 +252,6 @@ pub struct KglanceApp {
     pub shift_held: bool,
     pub pending_g: bool,
     pub pending_home: bool,
-    pub probe: probe::StartupProbe,
     pub file_watcher: Option<crate::core::file_watcher::FileWatcher>,
 }
 
@@ -301,7 +300,6 @@ impl KglanceApp {
             shift_held: false,
             pending_g: false,
             pending_home: false,
-            probe: probe::StartupProbe::default(),
             file_watcher,
         };
 
@@ -580,7 +578,6 @@ impl KglanceApp {
             vec![]
         };
 
-        self.probe.mark_state_ready(); // P1
         log_info!(
             "[PERF] handle_file_loaded state+tasks prepared in {:?}",
             t0.elapsed()
@@ -895,7 +892,6 @@ impl KglanceApp {
                         self.state.current_index = 0;
                     }
                 }
-                self.probe.mark_file_loaded();
                 self.handle_file_loaded(path, content)
             }
 
@@ -903,7 +899,6 @@ impl KglanceApp {
                 if !self.state.playlist.contains(&path) {
                     self.state.playlist.clear();
                 }
-                self.probe.mark_file_loaded(); // P0
                 self.handle_file_loaded(path, content)
             }
             Message::WindowEvent(id, event) => self.handle_window_event(id, event),
@@ -1612,13 +1607,6 @@ impl KglanceApp {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        // PROBE P3+P4: first call marks widget tree build start/end.
-        // SAFETY: probe is interior-mutable via Cell pattern — view() takes &self.
-        // We cast to *mut to write the probe without &mut. This is safe because
-        // view() is only called from the Iced event loop (single thread).
-        let probe_ptr = &self.probe as *const probe::StartupProbe as *mut probe::StartupProbe;
-        unsafe { (*probe_ptr).mark_view_start() }; // P3
-
         let (preview_body, is_media) = if let Some(content) = &self.current_content {
             let is_media = matches!(content, PreviewData::Media { .. });
             let body: Element<'_, Message> = match content {
@@ -1680,9 +1668,7 @@ impl KglanceApp {
             (iced::widget::text("No file loaded.").size(18).into(), false)
         };
 
-        let res = crate::ui::window::view_window(&self.state, preview_body, is_media);
-        unsafe { (*probe_ptr).mark_view_done() }; // P4
-        res
+        crate::ui::window::view_window(&self.state, preview_body, is_media)
     }
 
     /// Variant for [`iced::daemon`] which requires a `window::Id` parameter.

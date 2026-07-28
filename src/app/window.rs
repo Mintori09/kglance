@@ -111,7 +111,6 @@ impl super::KglanceApp {
     ) -> Task<Message> {
         match event {
             iced::window::Event::Opened { size, .. } => {
-                self.probe.mark_window_opened(); // P2
                 self.window_id = Some(id);
                 self.update_grid_cols(size.width);
                 if let Some(content) = self.current_content.as_ref().filter(|c| {
