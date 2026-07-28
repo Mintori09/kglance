@@ -184,6 +184,8 @@ pub struct SpreadsheetState {
     pub active_sheet: usize,
     pub sort_col: Option<usize>,
     pub sort_ascending: Option<bool>,
+    pub search_visible: bool,
+    pub search_query: String,
 }
 
 #[derive(Debug, Clone)]
@@ -421,6 +423,8 @@ pub struct KglanceState {
     pub grid_cols: usize,
     pub window_width: f32,
     pub grid_scale: f32,
+    pub grid_search_visible: bool,
+    pub grid_search_query: String,
 
     pub font_size: f32,
     pub font_family: Option<String>,
@@ -472,6 +476,8 @@ impl Default for KglanceState {
             grid_cols: 5,
             window_width: 0.0,
             grid_scale: 1.0,
+            grid_search_visible: false,
+            grid_search_query: String::new(),
             font_size: 14.0,
             font_family: None,
             font_family_mono: None,

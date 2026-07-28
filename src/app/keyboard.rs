@@ -38,6 +38,32 @@ impl super::KglanceApp {
             return self.update(Message::ToggleViewMode);
         }
 
+        // Type-to-search in spreadsheet: open search bar with typed char
+        if matches!(self.current_content, Some(PreviewData::Spreadsheet { .. }))
+            && !self.state.spreadsheet.search_visible
+            && let iced::keyboard::Key::Character(c) = &key
+            && !modifiers.control()
+            && !modifiers.alt()
+            && c != "/"
+        {
+            self.state.spreadsheet.search_visible = true;
+            self.state.spreadsheet.search_query = c.to_string();
+            return iced::widget::operation::focus("ss_search_input");
+        }
+
+        // Type-to-search in grid: open search bar with typed char
+        if matches!(&self.state.view_mode, crate::core::ViewMode::Grid(_))
+            && !self.state.grid_search_visible
+            && let iced::keyboard::Key::Character(c) = &key
+            && !modifiers.control()
+            && !modifiers.alt()
+            && c != "/"
+        {
+            self.state.grid_search_visible = true;
+            self.state.grid_search_query = c.to_string();
+            return iced::widget::operation::focus("grid_search_input");
+        }
+
         match &self.state.view_mode {
             crate::core::ViewMode::Detail => match &key {
                 iced::keyboard::Key::Named(Named::ArrowRight) => {
@@ -205,6 +231,24 @@ impl super::KglanceApp {
         {
             self.state.json.search_visible = true;
             return iced::widget::operation::focus("json_search_input");
+        }
+
+        // "/" vim-style search toggle for Spreadsheet
+        if let iced::keyboard::Key::Character(c) = &key
+            && c == "/"
+            && matches!(self.current_content, Some(PreviewData::Spreadsheet { .. }))
+        {
+            self.state.spreadsheet.search_visible = true;
+            return iced::widget::operation::focus("ss_search_input");
+        }
+
+        // "/" vim-style search toggle for Grid
+        if let iced::keyboard::Key::Character(c) = &key
+            && c == "/"
+            && matches!(&self.state.view_mode, crate::core::ViewMode::Grid(_))
+        {
+            self.state.grid_search_visible = true;
+            return iced::widget::operation::focus("grid_search_input");
         }
 
         Task::none()
@@ -461,6 +505,14 @@ impl super::KglanceApp {
                     Some(iced::widget::operation::focus("md_search_input"))
                 }
             }
+            "f" | "F" if matches!(self.current_content, Some(PreviewData::Spreadsheet { .. })) => {
+                self.state.spreadsheet.search_visible = true;
+                Some(iced::widget::operation::focus("ss_search_input"))
+            }
+            "f" | "F" if matches!(&self.state.view_mode, crate::core::ViewMode::Grid(_)) => {
+                self.state.grid_search_visible = true;
+                Some(iced::widget::operation::focus("grid_search_input"))
+            }
             "e" if matches!(self.current_content, Some(PreviewData::Json { .. })) => {
                 Some(Task::done(Message::JsonExpandAll))
             }
@@ -701,17 +753,28 @@ impl super::KglanceApp {
     }
 
     fn is_search_active(&self) -> bool {
+        if matches!(&self.state.view_mode, crate::core::ViewMode::Grid(_)) {
+            return self.state.grid_search_visible;
+        }
         match &self.current_content {
             Some(PreviewData::Text { .. }) => self.state.text.search_visible,
             Some(PreviewData::Json { .. }) => {
                 self.state.json.search_visible || self.state.json.editing_node.is_some()
             }
             Some(PreviewData::Markdown { .. }) => self.state.markdown.search_visible,
+            Some(PreviewData::Spreadsheet { .. }) => self.state.spreadsheet.search_visible,
             _ => false,
         }
     }
 
     fn handle_search_close(&mut self) -> Task<Message> {
+        if matches!(&self.state.view_mode, crate::core::ViewMode::Grid(_))
+            && self.state.grid_search_visible
+        {
+            self.state.grid_search_visible = false;
+            self.state.grid_search_query.clear();
+            return Task::none();
+        }
         match &self.current_content {
             Some(PreviewData::Text { .. }) if self.state.text.search_visible => {
                 self.state.text.search_visible = false;
@@ -737,6 +800,11 @@ impl super::KglanceApp {
                 self.state.markdown.search_match_index = 0;
                 self.state.markdown.search_match_blocks.clear();
                 self.state.markdown.search_info.clear();
+                Task::none()
+            }
+            Some(PreviewData::Spreadsheet { .. }) if self.state.spreadsheet.search_visible => {
+                self.state.spreadsheet.search_visible = false;
+                self.state.spreadsheet.search_query.clear();
                 Task::none()
             }
             _ => Task::none(),
