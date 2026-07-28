@@ -16,6 +16,8 @@ pub enum SearchKind {
     Text,
     Markdown,
     Json,
+    Spreadsheet,
+    Grid,
 }
 
 struct SearchMessages {
@@ -45,6 +47,18 @@ impl SearchKind {
                 on_next: None,
                 on_prev: None,
                 on_close: Message::JsonSearchClosed,
+            },
+            Self::Spreadsheet => SearchMessages {
+                on_query: Message::SpreadsheetSearchQueryChanged,
+                on_next: None,
+                on_prev: None,
+                on_close: Message::SpreadsheetSearchClosed,
+            },
+            Self::Grid => SearchMessages {
+                on_query: Message::GridSearchQueryChanged,
+                on_next: None,
+                on_prev: None,
+                on_close: Message::GridSearchClosed,
             },
         }
     }

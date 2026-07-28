@@ -105,6 +105,12 @@ pub enum Message {
     // Spreadsheet
     SheetTabClicked(usize),
     SpreadsheetColumnClicked(usize),
+    SpreadsheetSearchQueryChanged(String),
+    SpreadsheetSearchClosed,
+
+    // Grid search
+    GridSearchQueryChanged(String),
+    GridSearchClosed,
 
     // Async Mermaid rendering
     MermaidBlockRendered {
@@ -638,6 +644,26 @@ impl KglanceApp {
                     } else {
                         self.state.current_index = 0;
                     }
+                    if matches!(self.state.view_mode, crate::core::ViewMode::Grid(_)) {
+                        let thumbnails: Vec<crate::core::GridThumbnail> = self
+                            .state
+                            .playlist
+                            .iter()
+                            .map(|p| {
+                                let name = std::path::Path::new(p)
+                                    .file_name()
+                                    .map(|n| n.to_string_lossy().to_string())
+                                    .unwrap_or_else(|| p.clone());
+                                crate::core::GridThumbnail {
+                                    path: p.clone(),
+                                    name,
+                                    thumbnail_handle: None,
+                                    is_loading: true,
+                                }
+                            })
+                            .collect();
+                        self.state.view_mode = crate::core::ViewMode::Grid(thumbnails);
+                    }
                     return self.trigger_preload();
                 }
                 Task::none()
@@ -789,10 +815,15 @@ impl KglanceApp {
             }
 
             Message::FileClickedInGrid(idx) => {
-                if idx < self.state.playlist.len() {
+                let target_path = match &self.state.view_mode {
+                    crate::core::ViewMode::Grid(thumbnails) => {
+                        thumbnails.get(idx).map(|t| t.path.clone())
+                    }
+                    _ => None,
+                };
+                if let Some(target_path) = target_path {
                     self.state.current_index = idx;
                     self.state.view_mode = crate::core::ViewMode::Detail;
-                    let target_path = self.state.playlist[idx].clone();
                     let reg = self.registry.clone();
                     let path_for_err = target_path.clone();
                     return Task::perform(
@@ -1045,6 +1076,24 @@ impl KglanceApp {
                     sort.sort_col = Some(col);
                     sort.sort_ascending = Some(true);
                 }
+                Task::none()
+            }
+            Message::SpreadsheetSearchQueryChanged(query) => {
+                self.state.spreadsheet.search_query = query;
+                Task::none()
+            }
+            Message::SpreadsheetSearchClosed => {
+                self.state.spreadsheet.search_visible = false;
+                self.state.spreadsheet.search_query.clear();
+                Task::none()
+            }
+            Message::GridSearchQueryChanged(query) => {
+                self.state.grid_search_query = query;
+                Task::none()
+            }
+            Message::GridSearchClosed => {
+                self.state.grid_search_visible = false;
+                self.state.grid_search_query.clear();
                 Task::none()
             }
             Message::OpenLink(url) => {

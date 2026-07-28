@@ -1,6 +1,7 @@
 use crate::app::Message;
 use crate::core::types::{GRID_GAP, GRID_ITEM_WIDTH, GridThumbnail};
 use crate::parsers::helpers::icon::icon_for_entry;
+use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::theme::icon_theme;
 use iced::widget::{button, column, container, image, responsive, row, scrollable, svg, text};
 use iced::{Alignment, Border, Color, Element, Length, Shadow, Theme};
@@ -49,8 +50,21 @@ pub fn view_grid<'a>(
     thumbnails: &'a [GridThumbnail],
     active_index: usize,
     scale: f32,
+    search_visible: bool,
+    search_query: &'a str,
 ) -> Element<'a, Message> {
-    responsive(move |bounds| {
+    let filtered: Vec<(usize, &GridThumbnail)> = if search_query.is_empty() {
+        thumbnails.iter().enumerate().collect()
+    } else {
+        let q = search_query.to_lowercase();
+        thumbnails
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| t.name.to_lowercase().contains(&q))
+            .collect()
+    };
+
+    let grid = responsive(move |bounds| {
         let item_w = GRID_ITEM_WIDTH * scale;
         let gap = GRID_GAP * scale;
         let thumb_w = (136.0 * scale).round();
@@ -67,11 +81,10 @@ pub fn view_grid<'a>(
 
         let mut col_widget = column![].spacing(gap).padding([gap, h_pad]);
 
-        for (chunk_idx, chunk) in thumbnails.chunks(cols).enumerate() {
+        for chunk in filtered.chunks(cols) {
             let mut row_widget = row![].spacing(gap);
-            for (item_idx, item) in chunk.iter().enumerate() {
-                let global_idx = chunk_idx * cols + item_idx;
-                let is_active = global_idx == active_index;
+            for (global_idx, item) in chunk.iter() {
+                let is_active = *global_idx == active_index;
 
                 let card_content: Element<'_, Message> =
                     if let Some(ref handle) = item.thumbnail_handle {
@@ -116,7 +129,7 @@ pub fn view_grid<'a>(
                     .spacing(4)
                     .padding(6),
                 )
-                .on_press(Message::FileClickedInGrid(global_idx))
+                .on_press(Message::FileClickedInGrid(*global_idx))
                 .style(move |theme: &Theme, status: button::Status| {
                     let is_dark = matches!(theme, Theme::Dark);
 
@@ -189,6 +202,23 @@ pub fn view_grid<'a>(
             .height(Length::Fill)
             .width(Length::Fill)
             .into()
-    })
-    .into()
+    });
+
+    if search_visible {
+        column![
+            search_bar(
+                SearchKind::Grid,
+                search_query,
+                None,
+                "Search files...",
+                "grid_search_input",
+            ),
+            grid,
+        ]
+        .spacing(6)
+        .height(Length::Fill)
+        .into()
+    } else {
+        grid.into()
+    }
 }

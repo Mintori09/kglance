@@ -1,5 +1,6 @@
 use crate::app::Message;
 use crate::core::SpreadsheetState;
+use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::theme::{breeze_button, glass_card, glass_scrollable};
 use iced::widget::{button, column, container, row, scrollable, text};
 use iced::{Element, Length, Theme};
@@ -56,6 +57,18 @@ pub fn view_spreadsheet<'a>(state: &'a SpreadsheetState) -> Element<'a, Message>
         let sort_col = state.sort_col;
         let sort_asc = state.sort_ascending;
 
+        // Filter rows by search query (case-insensitive, across all columns)
+        let filtered: Vec<&Vec<String>> = if state.search_query.is_empty() {
+            sheet.rows.iter().collect()
+        } else {
+            let q = state.search_query.to_lowercase();
+            sheet
+                .rows
+                .iter()
+                .filter(|row| row.iter().any(|cell| cell.to_lowercase().contains(&q)))
+                .collect()
+        };
+
         let mut header_row = row![].spacing(8);
         for (ci, h) in sheet.headers.iter().enumerate() {
             let label = format!("{}{}", h, sort_indicator(ci, sort_col, sort_asc));
@@ -72,7 +85,8 @@ pub fn view_spreadsheet<'a>(state: &'a SpreadsheetState) -> Element<'a, Message>
 
         let display_rows = if let Some(sc) = sort_col {
             let ascending = sort_asc == Some(true);
-            let mut sorted: Vec<(usize, &Vec<String>)> = sheet.rows.iter().enumerate().collect();
+            let mut sorted: Vec<(usize, &Vec<String>)> =
+                filtered.iter().enumerate().map(|(i, r)| (i, *r)).collect();
             sorted.sort_by(|(_, a), (_, b)| {
                 let va = a.get(sc).map(|s| s.as_str()).unwrap_or("");
                 let vb = b.get(sc).map(|s| s.as_str()).unwrap_or("");
@@ -80,7 +94,7 @@ pub fn view_spreadsheet<'a>(state: &'a SpreadsheetState) -> Element<'a, Message>
             });
             sorted.into_iter().map(|(_, r)| r).collect::<Vec<_>>()
         } else {
-            sheet.rows.iter().collect::<Vec<_>>()
+            filtered
         };
 
         let mut rows_list = column![].spacing(2);
@@ -107,7 +121,19 @@ pub fn view_spreadsheet<'a>(state: &'a SpreadsheetState) -> Element<'a, Message>
             .style(glass_scrollable)
             .height(Length::Fill);
 
-        column![header, scroll_area].spacing(6).into()
+        let mut col = column![].spacing(6);
+        if state.search_visible {
+            col = col.push(search_bar(
+                SearchKind::Spreadsheet,
+                &state.search_query,
+                None,
+                "Search spreadsheet...",
+                "ss_search_input",
+            ));
+        }
+        col = col.push(header);
+        col = col.push(scroll_area);
+        col.into()
     } else {
         text("No data").size(18).into()
     };
