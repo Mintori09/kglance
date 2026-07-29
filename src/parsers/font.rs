@@ -84,15 +84,17 @@ fn render_text(font: &fontdue::Font, text: &str, px: f32) -> (Vec<u8>, u32, u32)
     let height = total_height.max(1);
 
     let mut img: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> =
-        image::ImageBuffer::from_pixel(width, height, image::Rgba([255, 255, 255, 255]));
+        image::ImageBuffer::from_pixel(width, height, image::Rgba([0, 0, 0, 0]));
+
+    let ascent = line_metrics.map(|lm| lm.ascent).unwrap_or(px * 0.8);
 
     for (line_idx, line) in lines.iter().enumerate() {
-        let line_y = 5.0 + line_idx as f32 * line_height;
+        let baseline_y = 5.0 + line_idx as f32 * line_height + ascent;
         let mut x: f32 = 10.0;
 
         for (metrics, bitmap) in line {
             let gx = (x + metrics.xmin as f32) as i32;
-            let gy = (line_y - metrics.ymin as f32) as i32;
+            let gy = (baseline_y - metrics.ymin as f32 - metrics.height as f32) as i32;
 
             for row in 0..metrics.height {
                 for col in 0..metrics.width {
@@ -103,7 +105,7 @@ fn render_text(font: &fontdue::Font, text: &str, px: f32) -> (Vec<u8>, u32, u32)
                             let px = (gx + col as i32) as u32;
                             let py = (gy + row as i32) as u32;
                             if px < width && py < height {
-                                img.put_pixel(px, py, image::Rgba([0, 0, 0, alpha]));
+                                img.put_pixel(px, py, image::Rgba([230, 230, 230, alpha]));
                             }
                         }
                     }

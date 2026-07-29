@@ -433,10 +433,18 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                     images,
                 }
             }
-            ParsedContent::Font { name, metadata, .. } => crate::core::preview::PreviewData::Text {
-                content: format!("Font: {}\n\n{}", name, metadata),
-                line_numbers: String::new(),
-                language: "Font File".to_string(),
+            ParsedContent::Font {
+                name,
+                metadata,
+                sample,
+                sample_width,
+                sample_height,
+            } => crate::core::preview::PreviewData::Font {
+                name,
+                metadata,
+                sample,
+                sample_width,
+                sample_height,
             },
             ParsedContent::Image {
                 data,
@@ -645,5 +653,51 @@ mod tests {
         assert!(!formatted.is_empty());
         assert!(formatted.contains("-"));
         assert!(formatted.contains(":"));
+    }
+
+    #[test]
+    fn test_font_conversion_to_preview_data() {
+        let content = ParsedContent::Font {
+            name: "TestFont".to_string(),
+            metadata: "Name: TestFont\nGlyphs: 2".to_string(),
+            sample: vec![0u8; 100 * 50 * 4],
+            sample_width: 100,
+            sample_height: 50,
+        };
+
+        let preview = match content {
+            ParsedContent::Font {
+                name,
+                metadata,
+                sample,
+                sample_width,
+                sample_height,
+            } => crate::core::preview::PreviewData::Font {
+                name,
+                metadata,
+                sample,
+                sample_width,
+                sample_height,
+            },
+            _ => unreachable!(),
+        };
+
+        match preview {
+            crate::core::preview::PreviewData::Font {
+                name,
+                metadata,
+                sample,
+                sample_width,
+                sample_height,
+            } => {
+                assert_eq!(name, "TestFont");
+                assert!(metadata.contains("TestFont"));
+                assert!(!sample.is_empty());
+                assert_eq!(sample_width, 100);
+                assert_eq!(sample_height, 50);
+                assert_eq!(sample.len(), (100 * 50 * 4) as usize);
+            }
+            other => panic!("expected PreviewData::Font, got {other:?}"),
+        }
     }
 }

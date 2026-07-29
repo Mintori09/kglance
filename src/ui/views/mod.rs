@@ -1,4 +1,5 @@
 pub mod epub_view;
+pub mod font_view;
 pub mod grid;
 pub mod image_view;
 pub mod json_view;
@@ -10,6 +11,7 @@ pub mod table_view;
 pub mod text_view;
 
 pub use epub_view::view_epub;
+pub use font_view::view_font;
 pub use grid::view_grid;
 pub use image_view::view_image;
 pub use json_view::view_json;
