@@ -21,6 +21,27 @@ It operates in two modes:
 
 ---
 
+## Supported File Formats
+
+| Category        | Formats                                                                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Code**        | `.rs`, `.py`, `.js`, `.ts`, `.jsx`, `.tsx`, `.html`, `.css`, `.scss`, `.json`, `.toml`, `.yml/.yaml`, `.xml`, `.sh`, `.bash`, `.zsh`, `.fish`, `.c`, `.h`, `.cpp`, `.hpp`, `.java`, `.kt`, `.swift`, `.go`, `.rb`, `.php`, `.pl`, `.pm`, `.lua`, `.r`, `.sql`, `.graphql`, `.proto`, `.tex`, `.bib`, `.dockerfile`, `.makefile`, `.cmake`, `.gradle`, `.cfg`, `.ini`, `.conf`, `.txt`, `.log`, `.diff`, `.patch`, `.vim`, `.ps1`, `.bat` |
+| **Markdown**    | `.md`, `.markdown`, `.mdown`, `.mdwn`, `.mkd`, `.mkdn`                                                                               |
+| **Images**      | `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.bmp`, `.ico`                                                                             |
+| **Vector**      | `.svg`                                                                                                                               |
+| **Documents**   | `.pdf`, `.epub`                                                                                                                      |
+| **Office**      | `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp`                                                                                    |
+| **Spreadsheets**| `.csv`, `.xlsx`, `.ods`                                                                                                              |
+| **Archives**    | `.zip`, `.tar`, `.gz`, `.tgz`, `.xz`, `.txz`, `.7z`                                                                                  |
+| **Fonts**       | `.ttf`, `.otf`, `.woff`, `.woff2`                                                                                                    |
+| **Audio**       | `.mp3`, `.wav`, `.flac`, `.ogg`, `.aac`, `.m4a`, `.opus`                                                                             |
+| **Video**       | `.mp4`, `.mkv`, `.avi`, `.mov`, `.wmv`, `.webm`, `.flv`, `.m4v`                                                                      |
+| **Folders**     | Any directory — browse and navigate its contents                                                                                     |
+
+Files without a matching extension fall back to plain text rendering.
+
+---
+
 ## Dependencies
 
 ### System Build Dependencies
@@ -56,31 +77,31 @@ To build Kglance from source on Linux (Debian/Ubuntu/Arch/Fedora), the following
 
 Kglance offers rich keyboard navigation for navigating files, zooming images, scrolling PDFs, and searching text.
 
-| Shortcut                         | Action                                           | Scope / Context                      |
-| -------------------------------- | ------------------------------------------------ | ------------------------------------ |
-| `Space` / `Escape`               | Close preview window                             | Global                              |
-| `Ctrl` + `C`                     | Copy file path / Copy selected text              | Global / Text preview               |
-| `Ctrl` + `A`                     | Select all text                                  | Text / Code preview                  |
-| `Ctrl` + `F`                     | Open text search bar                             | Text / Code preview                  |
-| `Ctrl` + `W`                     | Toggle line word wrap                            | Text / Code preview                  |
-| `Ctrl` + `+` / `Ctrl` + `=`     | Zoom in / Increase font size                     | Image / PDF / Text preview           |
-| `Ctrl` + `-`                     | Zoom out / Decrease font size                    | Image / PDF / Text preview           |
-| `Ctrl` + `0`                     | Reset zoom to 100%                               | Image preview                        |
-| `Shift` + `+` / `Shift` + `=`   | Reset font size to 14px                          | Text / Code preview                  |
-| `Ctrl` + `T`                     | Toggle dark / light theme                        | Global                               |
-| `←` / `→`                        | Go to parent dir / Preview selected file         | Folder view                          |
-| `Left Arrow` / `PageUp`         | Previous file in directory / Previous PDF page   | Directory / Multi-file / PDF         |
-| `Right Arrow` / `PageDown`      | Next file in directory / Next PDF page           | Directory / Multi-file / PDF         |
-| `Enter`                          | Preview selected file / Open externally          | Folder view / Global                |
-| `Arrow Up` / `k`                | Scroll up                                        | Scrollable content                   |
-| `Arrow Down` / `j`              | Scroll down                                      | Scrollable content                   |
-| `PageUp` / `u`                  | Scroll half page up                              | Scrollable content                   |
-| `PageDown` / `d`                | Scroll half page down                            | Scrollable content                   |
-| `gg` (double-tap `g`)            | Scroll to top                                    | Scrollable content                   |
-| `G` / `Shift` + `g`             | Scroll to bottom                                 | Scrollable content                   |
-| `Home` (double-tap)              | Scroll to top                                    | Scrollable content                   |
-| `End`                            | Scroll to bottom                                 | Scrollable content                   |
-| `Mouse Wheel`                    | Scroll / Zoom (with `Ctrl`)                      | All previews                         |
+| Shortcut                      | Action                                         | Scope / Context              |
+| ----------------------------- | ---------------------------------------------- | ---------------------------- |
+| `Space` / `Escape`            | Close preview window                           | Global                       |
+| `Ctrl` + `C`                  | Copy file path / Copy selected text            | Global / Text preview        |
+| `Ctrl` + `A`                  | Select all text                                | Text / Code preview          |
+| `Ctrl` + `F`                  | Open text search bar                           | Text / Code preview          |
+| `Ctrl` + `W`                  | Toggle line word wrap                          | Text / Code preview          |
+| `Ctrl` + `+` / `Ctrl` + `=`   | Zoom in / Increase font size                   | Image / PDF / Text preview   |
+| `Ctrl` + `-`                  | Zoom out / Decrease font size                  | Image / PDF / Text preview   |
+| `Ctrl` + `0`                  | Reset zoom to 100%                             | Image preview                |
+| `Shift` + `+` / `Shift` + `=` | Reset font size to 14px                        | Text / Code preview          |
+| `Ctrl` + `T`                  | Toggle dark / light theme                      | Global                       |
+| `←` / `→`                     | Go to parent dir / Preview selected file       | Folder view                  |
+| `Left Arrow` / `PageUp`       | Previous file in directory / Previous PDF page | Directory / Multi-file / PDF |
+| `Right Arrow` / `PageDown`    | Next file in directory / Next PDF page         | Directory / Multi-file / PDF |
+| `Enter`                       | Preview selected file / Open externally        | Folder view / Global         |
+| `Arrow Up` / `k`              | Scroll up                                      | Scrollable content           |
+| `Arrow Down` / `j`            | Scroll down                                    | Scrollable content           |
+| `PageUp` / `u`                | Scroll half page up                            | Scrollable content           |
+| `PageDown` / `d`              | Scroll half page down                          | Scrollable content           |
+| `gg` (double-tap `g`)         | Scroll to top                                  | Scrollable content           |
+| `G` / `Shift` + `g`           | Scroll to bottom                               | Scrollable content           |
+| `Home` (double-tap)           | Scroll to top                                  | Scrollable content           |
+| `End`                         | Scroll to bottom                               | Scrollable content           |
+| `Mouse Wheel`                 | Scroll / Zoom (with `Ctrl`)                    | All previews                 |
 
 ---
 
@@ -96,27 +117,40 @@ cargo build --release
 
 The resulting binary will be at `target/release/kglance`.
 
-### 2. Configure Autostart (Daemon Mode)
+### 2. Install Dolphin Integration (KIO Service Menu)
 
-To start the Kglance daemon automatically on KDE login:
+> **Prerequisite**: Ensure `kglance` is in your `PATH` or set `BIN=/path/to/kglance`.
 
-```bash
-mkdir -p ~/.config/autostart
-cp data/kglance-daemon.desktop ~/.config/autostart/
-```
-
-_(Ensure the `Exec` path in the desktop file points to your `kglance` binary location)_
-
-### 3. Install Dolphin Integration (KIO Service Menu)
-
-To enable pressing **Space** in Dolphin to preview files:
+To enable pressing **Space** in Dolphin to preview files, use the setup script:
 
 ```bash
-mkdir -p ~/.local/share/kio/servicemenus
-cp data/kglance-rust.desktop ~/.local/share/kio/servicemenus/
+# If you have the repo cloned:
+./scripts/dolphin-setup.sh install
+
+# Or fetch directly from GitHub:
+bash <(curl -s https://raw.githubusercontent.com/Mintori09/kglance/main/scripts/dolphin-setup.sh) install
 ```
 
-Restart Dolphin or log out and back in to apply the changes.
+Restart Dolphin (`killall dolphin`) or log out and back in to apply the changes.
+
+### 3. Configure Dolphin Keyboard Shortcut
+
+To preview files by pressing **Space**:
+
+1. Open Dolphin → **Configure** → **Configure Keyboard Shortcuts**…
+2. Search for `Quick Preview` or `Quick Preview (KIO)`
+3. Assign the **Space** key as the shortcut
+
+Now select any supported file and press **Space** to preview.
+
+To remove:
+
+```bash
+./scripts/dolphin-setup.sh uninstall
+
+# Or fetch directly from GitHub:
+bash <(curl -s https://raw.githubusercontent.com/Mintori09/kglance/main/scripts/dolphin-setup.sh) uninstall
+```
 
 ---
 
@@ -132,6 +166,44 @@ kglance /path/to/file
 # Force Standalone mode
 kglance --standalone /path/to/file
 ```
+
+---
+
+## Configuration
+
+Kglance reads a JSON config file from:
+
+| Platform | Path |
+| -------- | ---- |
+| **Linux** | `~/.config/kglance/config.json` |
+
+The config file is auto-created with defaults on first run. See `data/examples/config.example.json` for all available options:
+
+```json
+{
+  "ui": {
+    "theme": "Dark",
+    "font_size": 14.0,
+    "default_width": 900,
+    "default_height": 600,
+    "font_family": "Noto Sans",
+    "font_family_mono": "Fira Code",
+    "epub_font_family": "Noto Serif",
+    "max_text_width": 820.0
+  },
+  "preview": {
+    "max_file_size_mb": 50,
+    "render_timeout_ms": 5000
+  },
+  "parsers": {
+    "enable_syntax_highlighting": true,
+    "enable_video_preview": true,
+    "enable_office_parser": true
+  }
+}
+```
+
+For a full reference, see [`data/examples/config.example.json`](data/examples/config.example.json).
 
 ---
 
