@@ -55,6 +55,13 @@ pub enum PreviewData {
         active_chapter: usize,
         images: std::collections::HashMap<String, Vec<u8>>,
     },
+    Font {
+        name: String,
+        metadata: String,
+        sample: Vec<u8>,
+        sample_width: u32,
+        sample_height: u32,
+    },
     Error(String),
 }
 
@@ -305,6 +312,29 @@ impl PreviewData {
                 };
                 state.file_type_text = "JSON Document".to_string();
             }
+            PreviewData::Font {
+                name,
+                metadata,
+                sample,
+                sample_width,
+                sample_height,
+            } => {
+                state.image = crate::core::ImageState {
+                    handle: Some(iced::widget::image::Handle::from_rgba(
+                        *sample_width,
+                        *sample_height,
+                        sample.clone(),
+                    )),
+                    image_bytes: sample.clone(),
+                    width: *sample_width,
+                    height: *sample_height,
+                    format_info: format!("Font — {name}"),
+                    exif_content: metadata.clone(),
+                    load_state: crate::preview::image::ImageLoadState::Ready,
+                    ..Default::default()
+                };
+                state.file_type_text = "Font".to_string();
+            }
             PreviewData::Media { metadata, .. } => {
                 state.media = crate::core::MediaState::default();
                 state.media.metadata = metadata.clone();
@@ -403,5 +433,52 @@ mod tests {
             text_preview.initial_window_size(),
             iced::Size::new(1024.0, 768.0)
         );
+    }
+
+    #[test]
+    fn test_font_preview_populate_state() {
+        let temp_dir = std::env::temp_dir().join("kglance-font-populate-test");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let test_file = temp_dir.join("font.ttf");
+        std::fs::write(&test_file, b"dummy").unwrap();
+
+        let mut state = KglanceState {
+            file_name: test_file.to_string_lossy().to_string(),
+            ..Default::default()
+        };
+
+        let sample = vec![128u8; 60 * 30 * 4];
+        let preview_data = PreviewData::Font {
+            name: "TestFont".to_string(),
+            metadata: "Name: TestFont".to_string(),
+            sample: sample.clone(),
+            sample_width: 60,
+            sample_height: 30,
+        };
+
+        preview_data.populate_state(&mut state);
+
+        assert_eq!(state.file_type_text, "Font");
+        assert!(state.image.format_info.contains("TestFont"));
+        assert_eq!(state.image.exif_content, "Name: TestFont");
+        assert!(state.image.handle.is_some());
+        assert_eq!(state.image.width, 60);
+        assert_eq!(state.image.height, 30);
+        assert_eq!(state.image.image_bytes, sample);
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_font_preview_initial_window_size() {
+        let preview = PreviewData::Font {
+            name: "Test".into(),
+            metadata: "meta".into(),
+            sample: vec![0u8; 100 * 50 * 4],
+            sample_width: 100,
+            sample_height: 50,
+        };
+        let size = preview.initial_window_size();
+        assert!(size.width > 0.0 && size.height > 0.0);
     }
 }
