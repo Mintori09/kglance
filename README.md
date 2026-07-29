@@ -1,5 +1,7 @@
 # Kglance (Oxiview)
 
+![image](./data/image.png)
+
 A high-performance file preview application for **KDE Plasma 6** built in Rust and Iced. Inspired by macOS QuickLook, Kglance provides near-instantaneous file previews via a single keypress.
 
 It operates in two modes:
@@ -137,7 +139,7 @@ Restart Dolphin (`killall dolphin`) or log out and back in to apply the changes.
 
 To preview files by pressing **Space**:
 
-1. Open Dolphin → **Configure** → **Configure Keyboard Shortcuts**…
+1. Open Dolphin → **Settings** → **Configure Keyboard Shortcuts**…
 2. Search for `Quick Preview` or `Quick Preview (KIO)`
 3. Assign the **Space** key as the shortcut
 
