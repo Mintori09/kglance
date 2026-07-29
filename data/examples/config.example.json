@@ -8,14 +8,5 @@
     "font_family_mono": "Fira Code",
     "epub_font_family": "Noto Serif",
     "max_text_width": 820.0
-  },
-  "preview": {
-    "max_file_size_mb": 50,
-    "render_timeout_ms": 5000
-  },
-  "parsers": {
-    "enable_syntax_highlighting": true,
-    "enable_video_preview": true,
-    "enable_office_parser": true
   }
 }

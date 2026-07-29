@@ -1625,6 +1625,9 @@ impl KglanceApp {
                     self.state.max_text_width,
                 ),
                 PreviewData::Image { .. } => crate::ui::views::view_image(&self.state.image),
+                PreviewData::Font { name, metadata, .. } => {
+                    crate::ui::views::view_font(name, metadata, self.state.theme_dark)
+                }
                 PreviewData::Pdf { .. } => crate::ui::views::view_pdf(&self.state.pdf),
                 PreviewData::Folder { .. } => {
                     crate::ui::views::view_table(&self.state.table, self.state.theme_dark)

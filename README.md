@@ -23,20 +23,20 @@ It operates in two modes:
 
 ## Supported File Formats
 
-| Category        | Formats                                                                                                                              |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **Code**        | `.rs`, `.py`, `.js`, `.ts`, `.jsx`, `.tsx`, `.html`, `.css`, `.scss`, `.json`, `.toml`, `.yml/.yaml`, `.xml`, `.sh`, `.bash`, `.zsh`, `.fish`, `.c`, `.h`, `.cpp`, `.hpp`, `.java`, `.kt`, `.swift`, `.go`, `.rb`, `.php`, `.pl`, `.pm`, `.lua`, `.r`, `.sql`, `.graphql`, `.proto`, `.tex`, `.bib`, `.dockerfile`, `.makefile`, `.cmake`, `.gradle`, `.cfg`, `.ini`, `.conf`, `.txt`, `.log`, `.diff`, `.patch`, `.vim`, `.ps1`, `.bat` |
-| **Markdown**    | `.md`, `.markdown`, `.mdown`, `.mdwn`, `.mkd`, `.mkdn`                                                                               |
-| **Images**      | `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.bmp`, `.ico`                                                                             |
-| **Vector**      | `.svg`                                                                                                                               |
-| **Documents**   | `.pdf`, `.epub`                                                                                                                      |
-| **Office**      | `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp`                                                                                    |
-| **Spreadsheets**| `.csv`, `.xlsx`, `.ods`                                                                                                              |
-| **Archives**    | `.zip`, `.tar`, `.gz`, `.tgz`, `.xz`, `.txz`, `.7z`                                                                                  |
-| **Fonts**       | `.ttf`, `.otf`, `.woff`, `.woff2`                                                                                                    |
-| **Audio**       | `.mp3`, `.wav`, `.flac`, `.ogg`, `.aac`, `.m4a`, `.opus`                                                                             |
-| **Video**       | `.mp4`, `.mkv`, `.avi`, `.mov`, `.wmv`, `.webm`, `.flv`, `.m4v`                                                                      |
-| **Folders**     | Any directory — browse and navigate its contents                                                                                     |
+| Category         | Formats                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Code**         | `.rs`, `.py`, `.js`, `.ts`, `.jsx`, `.tsx`, `.html`, `.css`, `.scss`, `.json`, `.toml`, `.yml/.yaml`, `.xml`, `.sh`, `.bash`, `.zsh`, `.fish`, `.c`, `.h`, `.cpp`, `.hpp`, `.java`, `.kt`, `.swift`, `.go`, `.rb`, `.php`, `.pl`, `.pm`, `.lua`, `.r`, `.sql`, `.graphql`, `.proto`, `.tex`, `.bib`, `.dockerfile`, `.makefile`, `.cmake`, `.gradle`, `.cfg`, `.ini`, `.conf`, `.txt`, `.log`, `.diff`, `.patch`, `.vim`, `.ps1`, `.bat` |
+| **Markdown**     | `.md`, `.markdown`, `.mdown`, `.mdwn`, `.mkd`, `.mkdn`                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Images**       | `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.bmp`, `.ico`                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Vector**       | `.svg`                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Documents**    | `.pdf`, `.epub`                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **Office**       | `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp`                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Spreadsheets** | `.csv`, `.xlsx`, `.ods`                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Archives**     | `.zip`, `.tar`, `.gz`, `.tgz`, `.xz`, `.txz`, `.7z`                                                                                                                                                                                                                                                                                                                                                                                      |
+| **Fonts**        | `.ttf`, `.otf`, `.woff`, `.woff2`                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Audio**        | `.mp3`, `.wav`, `.flac`, `.ogg`, `.aac`, `.m4a`, `.opus`                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Video**        | `.mp4`, `.mkv`, `.avi`, `.mov`, `.wmv`, `.webm`, `.flv`, `.m4v`                                                                                                                                                                                                                                                                                                                                                                          |
+| **Folders**      | Any directory — browse and navigate its contents                                                                                                                                                                                                                                                                                                                                                                                         |
 
 Files without a matching extension fall back to plain text rendering.
 
@@ -173,8 +173,8 @@ kglance --standalone /path/to/file
 
 Kglance reads a JSON config file from:
 
-| Platform | Path |
-| -------- | ---- |
+| Platform  | Path                            |
+| --------- | ------------------------------- |
 | **Linux** | `~/.config/kglance/config.json` |
 
 The config file is auto-created with defaults on first run. See `data/examples/config.example.json` for all available options:
@@ -190,15 +190,6 @@ The config file is auto-created with defaults on first run. See `data/examples/c
     "font_family_mono": "Fira Code",
     "epub_font_family": "Noto Serif",
     "max_text_width": 820.0
-  },
-  "preview": {
-    "max_file_size_mb": 50,
-    "render_timeout_ms": 5000
-  },
-  "parsers": {
-    "enable_syntax_highlighting": true,
-    "enable_video_preview": true,
-    "enable_office_parser": true
   }
 }
 ```

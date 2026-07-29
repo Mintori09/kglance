@@ -96,26 +96,27 @@ jobs:
           tool: cargo-generate-rpm
 
       # ── AppImage tools ────────────────────────────────────────────────────
-      # Cache the downloaded AppImages to avoid re-downloading on every run.
+      # Tools are kept in .tools/ so *.AppImage upload glob doesn't capture them.
       # Cache is keyed with a static version suffix — bump "v1" to invalidate.
       - name: Cache AppImage tools
         uses: actions/cache@v4
         id: cache-appimage-tools
         with:
           path: |
-            linuxdeploy.AppImage
-            appimagetool.AppImage
+            .tools/linuxdeploy.AppImage
+            .tools/appimagetool.AppImage
           key: appimage-tools-${{ matrix.arch }}-v1
 
       - name: Download AppImage tools
         if: steps.cache-appimage-tools.outputs.cache-hit != 'true'
         run: |
-          curl -fsSL -o linuxdeploy.AppImage "${{ matrix.linuxdeploy_url }}"
-          curl -fsSL -o appimagetool.AppImage "${{ matrix.appimagetool_url }}"
+          mkdir -p .tools
+          curl -fsSL -o .tools/linuxdeploy.AppImage "${{ matrix.linuxdeploy_url }}"
+          curl -fsSL -o .tools/appimagetool.AppImage "${{ matrix.appimagetool_url }}"
 
       # Cached files lose the executable bit — restore it unconditionally.
       - name: Make AppImage tools executable
-        run: chmod +x linuxdeploy.AppImage appimagetool.AppImage
+        run: chmod +x .tools/linuxdeploy.AppImage .tools/appimagetool.AppImage
 
       # ── Tests ─────────────────────────────────────────────────────────────
       - name: Run tests
@@ -160,7 +161,7 @@ jobs:
           export VERSION="${VERSION}"
           export APPIMAGE_EXTRACT_AND_RUN=1
 
-          ./linuxdeploy.AppImage \
+          ./.tools/linuxdeploy.AppImage \
             --appdir "$APPDIR" \
             --executable "$APPDIR/usr/bin/${BINARY}" \
             --desktop-file "data/${APP_ID}.desktop" \
@@ -168,8 +169,9 @@ jobs:
             --output appimage
 
           # linuxdeploy names the output: <AppName>-<VERSION>-<arch>.AppImage
-          OUTPUT_FILE=$(ls ./*.AppImage | grep -v 'linuxdeploy' | grep -v 'appimagetool' | head -n 1)
-          mv "$OUTPUT_FILE" "${BINARY}-${VERSION}-${{ matrix.appimg_arch }}.AppImage"
+          mv "${APP_ID}-${VERSION}-${{ matrix.appimg_arch }}.AppImage" \
+             "${BINARY}-${VERSION}-${{ matrix.appimg_arch }}.AppImage" 2>/dev/null \
+          || mv ./*.AppImage "${BINARY}-${VERSION}-${{ matrix.appimg_arch }}.AppImage"
 
       # ── Per-artifact checksums ────────────────────────────────────────────
       # Generate individual sidecar .sha256 files per artifact.

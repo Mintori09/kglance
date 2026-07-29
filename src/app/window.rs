@@ -117,6 +117,7 @@ impl super::KglanceApp {
                     matches!(
                         c,
                         crate::core::PreviewData::Image { .. }
+                            | crate::core::PreviewData::Font { .. }
                             | crate::core::PreviewData::Media { .. }
                     )
                 }) {
