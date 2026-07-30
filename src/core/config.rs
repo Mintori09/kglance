@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct UiConfig {
-    pub theme: String,
+    pub theme: Option<String>,
     pub font_size: f32,
     pub font_family: Option<String>,
     pub font_family_mono: Option<String>,
@@ -32,7 +32,8 @@ pub fn detect_system_theme() -> String {
 impl Default for UiConfig {
     fn default() -> Self {
         Self {
-            theme: detect_system_theme(),
+            // theme: detect_system_theme(),
+            theme: None,
             font_size: 14.0,
             font_family: None,
             font_family_mono: None,
@@ -44,49 +45,18 @@ impl Default for UiConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct PreviewConfig {
-    pub max_file_size_mb: u64,
-    pub render_timeout_ms: u64,
-}
-
-impl Default for PreviewConfig {
-    fn default() -> Self {
-        Self {
-            max_file_size_mb: 50,
-            render_timeout_ms: 5000,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ParsersConfig {
-    pub enable_syntax_highlighting: bool,
-    pub enable_video_preview: bool,
-    pub enable_office_parser: bool,
-}
-
-impl Default for ParsersConfig {
-    fn default() -> Self {
-        Self {
-            enable_syntax_highlighting: true,
-            enable_video_preview: true,
-            enable_office_parser: true,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct AppConfig {
     pub ui: UiConfig,
-    pub preview: PreviewConfig,
-    pub parsers: ParsersConfig,
 }
 
 pub struct ConfigManager;
 
 impl ConfigManager {
     pub fn get_config_dir() -> PathBuf {
+        if let Ok(dir) = std::env::var("KGLANCE_CONFIG_DIR") {
+            return PathBuf::from(dir);
+        }
         dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("~/.config"))
             .join("kglance")
@@ -119,5 +89,17 @@ impl ConfigManager {
         let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
         fs::write(Self::get_config_path(), json).map_err(|e| e.to_string())?;
         Ok(())
+    }
+
+    pub fn get_theme(config: &AppConfig) -> String {
+        if let Some(theme) = &config.ui.theme {
+            if theme == "Auto" || theme == "auto" {
+                detect_system_theme()
+            } else {
+                theme.to_string()
+            }
+        } else {
+            detect_system_theme()
+        }
     }
 }

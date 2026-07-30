@@ -269,7 +269,7 @@ impl KglanceApp {
         let file_watcher = crate::core::file_watcher::FileWatcher::new().ok();
 
         let config = crate::core::config::ConfigManager::load_or_create();
-        let theme_dark = config.ui.theme != "Light";
+        let theme_dark = crate::core::config::ConfigManager::get_theme(&config) != "Light";
 
         let mut state = KglanceState {
             theme_dark,
