@@ -2,11 +2,6 @@ pub mod glass;
 pub mod icon_theme;
 
 pub use glass::{
-    DARK_BG, DARK_BORDER, DARK_BORDER_FOCUS, DARK_RULE, DARK_SHADOW, DARK_SURFACE,
-    DARK_SURFACE_RAISED, DARK_TEXT, DARK_TEXT_DIM, LIGHT_BG, LIGHT_BORDER, LIGHT_BORDER_FOCUS,
-    LIGHT_RULE, LIGHT_SHADOW, LIGHT_SURFACE, LIGHT_SURFACE_RAISED, LIGHT_TEXT, LIGHT_TEXT_DIM,
-};
-pub use glass::{
     glass_button, glass_button_primary, glass_card, glass_checkbox, glass_inset, glass_pick_list,
     glass_raised, glass_root, glass_row_button, glass_rule, glass_scrollable, glass_slider,
     glass_text_editor, glass_text_input,

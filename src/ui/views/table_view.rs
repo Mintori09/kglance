@@ -6,7 +6,8 @@ use iced::{Alignment, Border, Color, Element, Font, Length, Shadow, Theme, align
 
 use crate::app::Message;
 use crate::core::{SortField, TableState};
-use crate::ui::theme::{DARK_TEXT, LIGHT_TEXT, glass_row_button, glass_scrollable, icon_theme};
+use crate::ui::theme::glass;
+use crate::ui::theme::{glass_row_button, glass_scrollable, icon_theme};
 
 const FONT_WEIGHT_BOLD: Font = Font {
     weight: Weight::Bold,
@@ -45,7 +46,7 @@ pub fn view_table<'a>(state: &'a TableState, theme_dark: bool) -> Element<'a, Me
 }
 
 fn resolve_theme_colors(theme_dark: bool) -> (Color, Color, Color) {
-    let base = if theme_dark { DARK_TEXT } else { LIGHT_TEXT };
+    let base = glass::palette_for(theme_dark).text;
 
     (base, Color { a: 0.75, ..base }, Color { a: 0.50, ..base })
 }
@@ -125,15 +126,18 @@ fn format_sort_label(sort: &crate::core::SortState, field: SortField, label: &st
 }
 
 fn header_button_style(theme: &Theme, status: button::Status) -> button::Style {
-    let is_dark = matches!(theme, Theme::Dark);
-    let text_color = if is_dark { DARK_TEXT } else { LIGHT_TEXT };
+    let p = glass::palette(theme);
 
     let alpha = match status {
         button::Status::Hovered => HOVER_OPACITY,
         _ => DEFAULT_OPACITY,
     };
 
-    let base_color = if is_dark { Color::WHITE } else { Color::BLACK };
+    let base_color = if p.bg.r > 0.5 {
+        Color::BLACK
+    } else {
+        Color::WHITE
+    };
     let background = Some(
         Color {
             a: alpha,
@@ -144,7 +148,7 @@ fn header_button_style(theme: &Theme, status: button::Status) -> button::Style {
 
     button::Style {
         background,
-        text_color,
+        text_color: p.text,
         border: Border::default(),
         shadow: Shadow::default(),
         snap: false,

@@ -3,7 +3,8 @@ use iced::{Element, Font, Length};
 
 use crate::app::Message;
 use crate::core::layout_engine::LogicalDocument;
-use crate::ui::theme::{DARK_TEXT_DIM, LIGHT_TEXT_DIM, glass_text_editor};
+use crate::ui::theme::glass;
+use crate::ui::theme::glass_text_editor;
 
 pub fn line_number_width(line_count: usize, font_size: f32) -> Length {
     let digits = if line_count > 0 {
@@ -37,11 +38,7 @@ pub fn code_editor<'a>(
         .collect::<Vec<_>>()
         .join("\n");
 
-    let gutter_color = if is_dark {
-        DARK_TEXT_DIM
-    } else {
-        LIGHT_TEXT_DIM
-    };
+    let gutter_color = glass::palette_for(is_dark).text_dim;
 
     let line_numbers_widget = text(line_numbers)
         .font(font)

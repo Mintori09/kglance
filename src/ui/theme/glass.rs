@@ -8,50 +8,77 @@ use iced::widget::{
 };
 use iced::{Border, Color, Shadow, Theme};
 
+#[derive(Clone, Copy)]
+pub struct ThemePalette {
+    pub bg: Color,
+    pub surface: Color,
+    pub surface_raised: Color,
+    pub border: Color,
+    pub border_focus: Color,
+    pub text: Color,
+    pub text_dim: Color,
+    pub shadow: Color,
+    pub rule: Color,
+}
+
+pub const DARK_PALETTE: ThemePalette = ThemePalette {
+    bg: Color::from_rgba(0.08, 0.09, 0.11, 1.0),
+    surface: Color::from_rgba(0.14, 0.16, 0.20, 0.85),
+    surface_raised: Color::from_rgba(0.18, 0.21, 0.26, 0.90),
+    border: Color::from_rgba(1.0, 1.0, 1.0, 0.08),
+    border_focus: Color::from_rgba(1.0, 1.0, 1.0, 0.16),
+    text: Color::from_rgb(0.93, 0.94, 0.96),
+    text_dim: Color::from_rgba(0.93, 0.94, 0.96, 0.50),
+    shadow: Color::from_rgba(0.0, 0.0, 0.0, 0.40),
+    rule: Color::from_rgba(1.0, 1.0, 1.0, 0.07),
+};
+
+pub const LIGHT_PALETTE: ThemePalette = ThemePalette {
+    bg: Color::from_rgba(0.93, 0.94, 0.96, 1.0),
+    surface: Color::from_rgba(0.98, 0.98, 1.0, 0.82),
+    surface_raised: Color::from_rgba(1.0, 1.0, 1.0, 0.88),
+    border: Color::from_rgba(0.0, 0.0, 0.0, 0.07),
+    border_focus: Color::from_rgba(0.0, 0.0, 0.0, 0.14),
+    text: Color::from_rgb(0.12, 0.13, 0.16),
+    text_dim: Color::from_rgba(0.12, 0.13, 0.16, 0.50),
+    shadow: Color::from_rgba(0.0, 0.0, 0.0, 0.08),
+    rule: Color::from_rgba(0.0, 0.0, 0.0, 0.08),
+};
+
+pub fn palette(theme: &Theme) -> &'static ThemePalette {
+    match theme {
+        Theme::Dark => &DARK_PALETTE,
+        _ => &LIGHT_PALETTE,
+    }
+}
+
+pub fn palette_for(is_dark: bool) -> &'static ThemePalette {
+    if is_dark {
+        &DARK_PALETTE
+    } else {
+        &LIGHT_PALETTE
+    }
+}
+
 // ── Accent ────────────────────────────────────────────────────────────────────
 
-/// Vibrant blue accent used for interactive focus and hover states.
 pub const ACCENT: Color = Color::from_rgb(0.0, 0.55, 1.0);
 pub const ACCENT_HOVER: Color = Color::from_rgb(0.05, 0.62, 1.0);
 pub const ACCENT_PRESSED: Color = Color::from_rgb(0.0, 0.42, 0.85);
 
-// ── Dark palette ──────────────────────────────────────────────────────────────
+// ── Shadow builders ───────────────────────────────────────────────────────────
 
-pub const DARK_BG: Color = Color::from_rgba(0.08, 0.09, 0.11, 1.0);
-pub const DARK_SURFACE: Color = Color::from_rgba(0.14, 0.16, 0.20, 0.85);
-pub const DARK_SURFACE_RAISED: Color = Color::from_rgba(0.18, 0.21, 0.26, 0.90);
-pub const DARK_BORDER: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.08);
-pub const DARK_BORDER_FOCUS: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.16);
-pub const DARK_TEXT: Color = Color::from_rgb(0.93, 0.94, 0.96);
-pub const DARK_TEXT_DIM: Color = Color::from_rgba(0.93, 0.94, 0.96, 0.50);
-pub const DARK_SHADOW: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.40);
-pub const DARK_RULE: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.07);
-
-// ── Light palette ─────────────────────────────────────────────────────────────
-
-pub const LIGHT_BG: Color = Color::from_rgba(0.93, 0.94, 0.96, 1.0);
-pub const LIGHT_SURFACE: Color = Color::from_rgba(0.98, 0.98, 1.0, 0.82);
-pub const LIGHT_SURFACE_RAISED: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.88);
-pub const LIGHT_BORDER: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.07);
-pub const LIGHT_BORDER_FOCUS: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.14);
-pub const LIGHT_TEXT: Color = Color::from_rgb(0.12, 0.13, 0.16);
-pub const LIGHT_TEXT_DIM: Color = Color::from_rgba(0.12, 0.13, 0.16, 0.50);
-pub const LIGHT_SHADOW: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.08);
-pub const LIGHT_RULE: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.08);
-
-// ── Shared shadow builders ────────────────────────────────────────────────────
-
-fn card_shadow(is_dark: bool) -> Shadow {
+fn card_shadow(shadow_color: Color) -> Shadow {
     Shadow {
-        color: if is_dark { DARK_SHADOW } else { LIGHT_SHADOW },
+        color: shadow_color,
         offset: iced::Vector::new(0.0, 4.0),
         blur_radius: 16.0,
     }
 }
 
-fn subtle_shadow(is_dark: bool) -> Shadow {
+fn subtle_shadow(shadow_color: Color) -> Shadow {
     Shadow {
-        color: if is_dark { DARK_SHADOW } else { LIGHT_SHADOW },
+        color: shadow_color,
         offset: iced::Vector::new(0.0, 2.0),
         blur_radius: 6.0,
     }
@@ -61,10 +88,10 @@ fn subtle_shadow(is_dark: bool) -> Shadow {
 
 /// Root background container — opaque base layer.
 pub fn glass_root(theme: &Theme) -> container::Style {
-    let is_dark = matches!(theme, Theme::Dark);
+    let p = palette(theme);
     container::Style {
-        background: Some((if is_dark { DARK_BG } else { LIGHT_BG }).into()),
-        text_color: Some(if is_dark { DARK_TEXT } else { LIGHT_TEXT }),
+        background: Some(p.bg.into()),
+        text_color: Some(p.text),
         border: Border::default(),
         shadow: Shadow::default(),
         snap: false,
@@ -73,51 +100,44 @@ pub fn glass_root(theme: &Theme) -> container::Style {
 
 /// Frosted-glass card / panel with subtle border and shadow.
 pub fn glass_card(theme: &Theme) -> container::Style {
-    let is_dark = matches!(theme, Theme::Dark);
+    let p = palette(theme);
     container::Style {
-        background: Some((if is_dark { DARK_SURFACE } else { LIGHT_SURFACE }).into()),
-        text_color: Some(if is_dark { DARK_TEXT } else { LIGHT_TEXT }),
+        background: Some(p.surface.into()),
+        text_color: Some(p.text),
         border: Border {
-            color: if is_dark { DARK_BORDER } else { LIGHT_BORDER },
+            color: p.border,
             width: 1.0,
             radius: 12.0.into(),
         },
-        shadow: card_shadow(is_dark),
+        shadow: card_shadow(p.shadow),
         snap: false,
     }
 }
 
 /// Slightly elevated surface used for toolbars, headers and sidebars.
 pub fn glass_raised(theme: &Theme) -> container::Style {
-    let is_dark = matches!(theme, Theme::Dark);
+    let p = palette(theme);
     container::Style {
-        background: Some(
-            (if is_dark {
-                DARK_SURFACE_RAISED
-            } else {
-                LIGHT_SURFACE_RAISED
-            })
-            .into(),
-        ),
-        text_color: Some(if is_dark { DARK_TEXT } else { LIGHT_TEXT }),
+        background: Some(p.surface_raised.into()),
+        text_color: Some(p.text),
         border: Border {
-            color: if is_dark { DARK_BORDER } else { LIGHT_BORDER },
+            color: p.border,
             width: 1.0,
             radius: 10.0.into(),
         },
-        shadow: subtle_shadow(is_dark),
+        shadow: subtle_shadow(p.shadow),
         snap: false,
     }
 }
 
 /// Inset well — used inside scrollable areas / text panes.
 pub fn glass_inset(theme: &Theme) -> container::Style {
-    let is_dark = matches!(theme, Theme::Dark);
+    let p = palette(theme);
     container::Style {
-        background: Some((if is_dark { DARK_BG } else { LIGHT_BG }).into()),
-        text_color: Some(if is_dark { DARK_TEXT } else { LIGHT_TEXT }),
+        background: Some(p.bg.into()),
+        text_color: Some(p.text),
         border: Border {
-            color: if is_dark { DARK_BORDER } else { LIGHT_BORDER },
+            color: p.border,
             width: 1.0,
             radius: 6.0.into(),
         },
@@ -130,20 +150,12 @@ pub fn glass_inset(theme: &Theme) -> container::Style {
 
 /// Standard ghost-glass button.
 pub fn glass_button(theme: &Theme, status: button::Status) -> button::Style {
-    let is_dark = matches!(theme, Theme::Dark);
+    let p = palette(theme);
 
-    let (bg, border_color, text_color) = if is_dark {
-        match status {
-            button::Status::Hovered => (ACCENT_HOVER, ACCENT_HOVER, Color::WHITE),
-            button::Status::Pressed => (ACCENT_PRESSED, ACCENT_PRESSED, Color::WHITE),
-            _ => (DARK_SURFACE, DARK_BORDER, DARK_TEXT),
-        }
-    } else {
-        match status {
-            button::Status::Hovered => (ACCENT_HOVER, ACCENT_HOVER, Color::WHITE),
-            button::Status::Pressed => (ACCENT_PRESSED, ACCENT_PRESSED, Color::WHITE),
-            _ => (LIGHT_SURFACE, LIGHT_BORDER, LIGHT_TEXT),
-        }
+    let (bg, border_color, text_color) = match status {
+        button::Status::Hovered => (ACCENT_HOVER, ACCENT_HOVER, Color::WHITE),
+        button::Status::Pressed => (ACCENT_PRESSED, ACCENT_PRESSED, Color::WHITE),
+        _ => (p.surface, p.border, p.text),
     };
 
     button::Style {
@@ -154,15 +166,15 @@ pub fn glass_button(theme: &Theme, status: button::Status) -> button::Style {
             radius: 8.0.into(),
         },
         text_color,
-        shadow: subtle_shadow(is_dark),
+        shadow: subtle_shadow(p.shadow),
         snap: false,
     }
 }
 
 /// Dynamic list-item style for file rows supporting Finder-like hover and selection.
 pub fn glass_row_button(theme: &Theme, status: button::Status, is_selected: bool) -> button::Style {
-    let is_dark = matches!(theme, Theme::Dark);
-    let text_color = if is_dark { DARK_TEXT } else { LIGHT_TEXT };
+    let p = palette(theme);
+    let text_color = p.text;
 
     let bg_color = match (is_selected, status) {
         (true, button::Status::Hovered) => {
@@ -176,7 +188,11 @@ pub fn glass_row_button(theme: &Theme, status: button::Status, is_selected: bool
             Some(c.into())
         }
         (false, button::Status::Hovered) => {
-            let mut c = if is_dark { Color::WHITE } else { Color::BLACK };
+            let mut c = if p.bg.r > 0.5 {
+                Color::BLACK
+            } else {
+                Color::WHITE
+            };
             c.a = 0.06;
             Some(c.into())
         }
@@ -206,14 +222,12 @@ pub fn glass_row_button(theme: &Theme, status: button::Status, is_selected: bool
 
 /// Accent-filled primary action button (always uses accent colour).
 pub fn glass_button_primary(theme: &Theme, status: button::Status) -> button::Style {
-    let is_dark = matches!(theme, Theme::Dark);
-
+    let p = palette(theme);
     let bg = match status {
         button::Status::Hovered => ACCENT_HOVER,
         button::Status::Pressed => ACCENT_PRESSED,
         _ => ACCENT,
     };
-
     button::Style {
         background: Some(bg.into()),
         border: Border {
@@ -222,7 +236,7 @@ pub fn glass_button_primary(theme: &Theme, status: button::Status) -> button::St
             radius: 8.0.into(),
         },
         text_color: Color::WHITE,
-        shadow: subtle_shadow(is_dark),
+        shadow: subtle_shadow(p.shadow),
         snap: false,
     }
 }
@@ -231,20 +245,12 @@ pub fn glass_button_primary(theme: &Theme, status: button::Status) -> button::St
 
 /// Frosted-glass text-input field.
 pub fn glass_text_input(theme: &Theme, status: text_input::Status) -> text_input::Style {
-    let is_dark = matches!(theme, Theme::Dark);
+    let p = palette(theme);
 
-    let (bg, border_color) = if is_dark {
-        match status {
-            text_input::Status::Focused { .. } => (DARK_SURFACE_RAISED, ACCENT),
-            text_input::Status::Hovered => (DARK_SURFACE_RAISED, DARK_BORDER_FOCUS),
-            _ => (DARK_SURFACE, DARK_BORDER),
-        }
-    } else {
-        match status {
-            text_input::Status::Focused { .. } => (LIGHT_SURFACE_RAISED, ACCENT),
-            text_input::Status::Hovered => (LIGHT_SURFACE_RAISED, LIGHT_BORDER_FOCUS),
-            _ => (LIGHT_SURFACE, LIGHT_BORDER),
-        }
+    let (bg, border_color) = match status {
+        text_input::Status::Focused { .. } => (p.surface_raised, ACCENT),
+        text_input::Status::Hovered => (p.surface_raised, p.border_focus),
+        _ => (p.surface, p.border),
     };
 
     text_input::Style {
@@ -254,14 +260,10 @@ pub fn glass_text_input(theme: &Theme, status: text_input::Status) -> text_input
             width: 1.0,
             radius: 8.0.into(),
         },
-        value: if is_dark { DARK_TEXT } else { LIGHT_TEXT },
-        placeholder: if is_dark {
-            DARK_TEXT_DIM
-        } else {
-            LIGHT_TEXT_DIM
-        },
+        value: p.text,
+        placeholder: p.text_dim,
         selection: ACCENT,
-        icon: if is_dark { DARK_TEXT } else { LIGHT_TEXT },
+        icon: p.text,
     }
 }
 
@@ -269,7 +271,7 @@ pub fn glass_text_input(theme: &Theme, status: text_input::Status) -> text_input
 
 /// Transparent text-editor style for code display (no border, translucent selection).
 pub fn glass_text_editor(theme: &Theme, _status: text_editor::Status) -> text_editor::Style {
-    let is_dark = matches!(theme, Theme::Dark);
+    let p = palette(theme);
     text_editor::Style {
         background: Color::TRANSPARENT.into(),
         border: Border {
@@ -278,11 +280,11 @@ pub fn glass_text_editor(theme: &Theme, _status: text_editor::Status) -> text_ed
             radius: 0.0.into(),
         },
         placeholder: Color::TRANSPARENT,
-        value: if is_dark { DARK_TEXT } else { LIGHT_TEXT },
-        selection: if is_dark {
-            Color::from_rgba(1.0, 1.0, 1.0, 0.15)
-        } else {
+        value: p.text,
+        selection: if p.bg.r > 0.5 {
             Color::from_rgba(0.0, 0.0, 0.0, 0.15)
+        } else {
+            Color::from_rgba(1.0, 1.0, 1.0, 0.15)
         },
     }
 }
@@ -291,32 +293,29 @@ pub fn glass_text_editor(theme: &Theme, _status: text_editor::Status) -> text_ed
 
 /// Minimal glass scrollbar — subtle rail/scroller, expanding and highlighting on hover/drag.
 pub fn glass_scrollable(theme: &Theme, status: scrollable::Status) -> scrollable::Style {
-    let is_dark = matches!(theme, Theme::Dark);
+    let p = palette(theme);
 
     let (scroller_bg, scroller_radius, rail_bg) = match status {
         scrollable::Status::Dragged { .. } => (
             ACCENT_PRESSED,
             3.0,
-            if is_dark {
-                Color::from_rgba(1.0, 1.0, 1.0, 0.08)
-            } else {
-                Color::from_rgba(0.0, 0.0, 0.0, 0.08)
+            Color {
+                a: 0.08,
+                ..p.border
             },
         ),
         scrollable::Status::Hovered { .. } => (
             ACCENT_HOVER,
             3.0,
-            if is_dark {
-                Color::from_rgba(1.0, 1.0, 1.0, 0.05)
-            } else {
-                Color::from_rgba(0.0, 0.0, 0.0, 0.05)
+            Color {
+                a: 0.05,
+                ..p.border
             },
         ),
         _ => (
-            if is_dark {
-                Color::from_rgba(1.0, 1.0, 1.0, 0.20)
-            } else {
-                Color::from_rgba(0.0, 0.0, 0.0, 0.20)
+            Color {
+                a: 0.20,
+                ..p.border
             },
             1.5,
             Color::TRANSPARENT,
@@ -346,17 +345,13 @@ pub fn glass_scrollable(theme: &Theme, status: scrollable::Status) -> scrollable
         },
         gap: None,
         auto_scroll: scrollable::AutoScroll {
-            background: (if is_dark { DARK_SURFACE } else { LIGHT_SURFACE }).into(),
+            background: p.surface.into(),
             border: Border {
                 radius: 4.0.into(),
                 ..Border::default()
             },
             shadow: Shadow::default(),
-            icon: if is_dark {
-                DARK_TEXT_DIM
-            } else {
-                LIGHT_TEXT_DIM
-            },
+            icon: p.text_dim,
         },
     }
 }
@@ -365,17 +360,16 @@ pub fn glass_scrollable(theme: &Theme, status: scrollable::Status) -> scrollable
 
 /// Glass-style range slider with accent track fill.
 pub fn glass_slider(theme: &Theme, status: slider::Status) -> slider::Style {
-    let is_dark = matches!(theme, Theme::Dark);
+    let p = palette(theme);
 
     let handle_color = match status {
         slider::Status::Hovered | slider::Status::Dragged => ACCENT_HOVER,
         _ => ACCENT,
     };
 
-    let rail_color = if is_dark {
-        Color::from_rgba(1.0, 1.0, 1.0, 0.15)
-    } else {
-        Color::from_rgba(0.0, 0.0, 0.0, 0.15)
+    let rail_color = Color {
+        a: 0.15,
+        ..p.border
     };
 
     slider::Style {
@@ -400,7 +394,7 @@ pub fn glass_slider(theme: &Theme, status: slider::Status) -> slider::Style {
 
 /// Frosted-glass checkbox with accent check mark.
 pub fn glass_checkbox(theme: &Theme, status: checkbox::Status) -> checkbox::Style {
-    let is_dark = matches!(theme, Theme::Dark);
+    let p = palette(theme);
 
     let (bg, border_color, icon_color) = match status {
         checkbox::Status::Active { is_checked: true }
@@ -409,19 +403,9 @@ pub fn glass_checkbox(theme: &Theme, status: checkbox::Status) -> checkbox::Styl
             (ACCENT_HOVER, ACCENT_HOVER, Color::WHITE)
         }
         checkbox::Status::Hovered { is_checked: false } => {
-            if is_dark {
-                (DARK_SURFACE_RAISED, DARK_BORDER_FOCUS, DARK_TEXT)
-            } else {
-                (LIGHT_SURFACE_RAISED, LIGHT_BORDER_FOCUS, LIGHT_TEXT)
-            }
+            (p.surface_raised, p.border_focus, p.text)
         }
-        _ => {
-            if is_dark {
-                (DARK_SURFACE, DARK_BORDER, DARK_TEXT)
-            } else {
-                (LIGHT_SURFACE, LIGHT_BORDER, LIGHT_TEXT)
-            }
-        }
+        _ => (p.surface, p.border, p.text),
     };
 
     checkbox::Style {
@@ -432,7 +416,7 @@ pub fn glass_checkbox(theme: &Theme, status: checkbox::Status) -> checkbox::Styl
             width: 1.0,
             radius: 4.0.into(),
         },
-        text_color: Some(if is_dark { DARK_TEXT } else { LIGHT_TEXT }),
+        text_color: Some(p.text),
     }
 }
 
@@ -440,36 +424,35 @@ pub fn glass_checkbox(theme: &Theme, status: checkbox::Status) -> checkbox::Styl
 
 /// Tooltip popup — dark surface with rounded corners and subtle shadow.
 pub fn glass_tooltip(theme: &Theme) -> container::Style {
-    let is_dark = matches!(theme, Theme::Dark);
+    let p = palette(theme);
+    let bg = if p.bg.r > 0.5 {
+        Color::from_rgba(0.22, 0.24, 0.28, 0.95)
+    } else {
+        Color::from_rgba(0.12, 0.14, 0.18, 0.95)
+    };
+    let border_color = if p.bg.r > 0.5 {
+        Color::from_rgba(1.0, 1.0, 1.0, 0.12)
+    } else {
+        p.border
+    };
     container::Style {
-        background: Some(
-            (if is_dark {
-                Color::from_rgba(0.12, 0.14, 0.18, 0.95)
-            } else {
-                Color::from_rgba(0.22, 0.24, 0.28, 0.95)
-            })
-            .into(),
-        ),
-        text_color: Some(if is_dark { DARK_TEXT } else { Color::WHITE }),
+        background: Some(bg.into()),
+        text_color: Some(p.text),
         border: Border {
-            color: if is_dark {
-                DARK_BORDER
-            } else {
-                Color::from_rgba(1.0, 1.0, 1.0, 0.12)
-            },
+            color: border_color,
             width: 1.0,
             radius: 6.0.into(),
         },
-        shadow: subtle_shadow(is_dark),
+        shadow: subtle_shadow(p.shadow),
         snap: false,
     }
 }
 
 /// Translucent hairline separator.
 pub fn glass_rule(theme: &Theme) -> rule::Style {
-    let is_dark = matches!(theme, Theme::Dark);
+    let p = palette(theme);
     rule::Style {
-        color: if is_dark { DARK_RULE } else { LIGHT_RULE },
+        color: p.rule,
         radius: 0.0.into(),
         fill_mode: rule::FillMode::Full,
         snap: false,
@@ -480,47 +463,18 @@ pub fn glass_rule(theme: &Theme) -> rule::Style {
 
 /// Glass-style drop-down selector.
 pub fn glass_pick_list(theme: &Theme, status: pick_list::Status) -> pick_list::Style {
-    let is_dark = matches!(theme, Theme::Dark);
+    let p = palette(theme);
 
     let (bg, border_color) = match status {
-        pick_list::Status::Opened { .. } => (
-            if is_dark {
-                DARK_SURFACE_RAISED
-            } else {
-                LIGHT_SURFACE_RAISED
-            },
-            ACCENT,
-        ),
-        pick_list::Status::Hovered => (
-            if is_dark {
-                DARK_SURFACE_RAISED
-            } else {
-                LIGHT_SURFACE_RAISED
-            },
-            if is_dark {
-                DARK_BORDER_FOCUS
-            } else {
-                LIGHT_BORDER_FOCUS
-            },
-        ),
-        _ => (
-            if is_dark { DARK_SURFACE } else { LIGHT_SURFACE },
-            if is_dark { DARK_BORDER } else { LIGHT_BORDER },
-        ),
+        pick_list::Status::Opened { .. } => (p.surface_raised, ACCENT),
+        pick_list::Status::Hovered => (p.surface_raised, p.border_focus),
+        _ => (p.surface, p.border),
     };
 
     pick_list::Style {
-        text_color: if is_dark { DARK_TEXT } else { LIGHT_TEXT },
-        placeholder_color: if is_dark {
-            DARK_TEXT_DIM
-        } else {
-            LIGHT_TEXT_DIM
-        },
-        handle_color: if is_dark {
-            DARK_TEXT_DIM
-        } else {
-            LIGHT_TEXT_DIM
-        },
+        text_color: p.text,
+        placeholder_color: p.text_dim,
+        handle_color: p.text_dim,
         background: bg.into(),
         border: Border {
             color: border_color,
