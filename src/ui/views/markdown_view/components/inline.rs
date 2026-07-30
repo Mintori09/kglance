@@ -1,0 +1,154 @@
+use crate::app::Message;
+use crate::parsers::markdown::{Inline, flatten_inlines};
+use crate::ui::views::markdown_view::blocks::RenderContext;
+use crate::ui::views::markdown_view::components::inline_spans::{SpanCtx, inlines_to_spans};
+use crate::ui::views::markdown_view::components::style::{
+    DARK_MD_PALETTE, LIGHT_MD_PALETTE, MarkdownPalette, STYLE, md_palette,
+};
+use iced::widget::text::Rich;
+use iced::widget::{button, tooltip};
+use iced::{Border, Color, Element, Length, Pixels, Shadow};
+
+fn link_button_style(theme: &iced::Theme, _status: button::Status) -> button::Style {
+    let mp = md_palette(theme);
+    let color = mp.link;
+    button::Style {
+        background: None,
+        text_color: color,
+        border: Border {
+            width: STYLE.inline.link_button_border_width,
+            color: Color::TRANSPARENT,
+            radius: 0.0.into(),
+        },
+        shadow: Shadow::default(),
+        snap: false,
+    }
+}
+
+fn flush_text_segment<'a>(
+    elements: &mut Vec<Element<'a, Message>>,
+    inlines: &'a [Inline],
+    start: usize,
+    end: usize,
+    font_size: f32,
+    span_ctx: &SpanCtx,
+) {
+    if start >= end {
+        return;
+    }
+    elements.push(
+        Rich::with_spans(inlines_to_spans(&inlines[start..end], span_ctx))
+            .size(Pixels(font_size))
+            .width(Length::Shrink)
+            .into(),
+    );
+}
+
+fn build_link_button<'a>(
+    link_text: &'a [Inline],
+    url: &'a str,
+    font_size: f32,
+    mp: &MarkdownPalette,
+) -> Element<'a, Message> {
+    let display = flatten_inlines(link_text);
+    let url_clone = url.to_string();
+    let btn = button(iced::widget::text(display).size(font_size).color(mp.link))
+        .on_press(Message::OpenLink(url_clone))
+        .style(link_button_style)
+        .padding(0);
+
+    let tooltip_label = iced::widget::text(url)
+        .size(STYLE.inline.tooltip_font_size)
+        .color(Color::WHITE);
+    let tooltip_wrapped = iced::widget::container(tooltip_label)
+        .padding(STYLE.inline.tooltip_padding)
+        .style(crate::ui::theme::glass::glass_tooltip);
+
+    tooltip(btn, tooltip_wrapped, tooltip::Position::Top)
+        .gap(STYLE.inline.tooltip_gap)
+        .into()
+}
+
+pub(crate) fn render_inlines<'a>(
+    inlines: &'a [Inline],
+    font_size: f32,
+    ctx: &RenderContext<'_>,
+) -> Element<'a, Message> {
+    let mp = if ctx.is_dark {
+        &DARK_MD_PALETTE
+    } else {
+        &LIGHT_MD_PALETTE
+    };
+    let span_ctx = SpanCtx {
+        font_family: ctx.font_family,
+        font_family_mono: ctx.font_family_mono,
+        search_query: ctx.search_query,
+        active_match: ctx.active_match,
+        counter: ctx.counter,
+        mp,
+    };
+    let has_special = inlines.iter().any(|i| {
+        matches!(
+            i,
+            Inline::Link { .. } | Inline::InlineMath(_) | Inline::DisplayMath(_)
+        )
+    });
+
+    if !has_special {
+        return Rich::with_spans(inlines_to_spans(inlines, &span_ctx))
+            .size(Pixels(font_size))
+            .width(Length::Fill)
+            .into();
+    }
+
+    let mut elements: Vec<Element<'a, Message>> = Vec::new();
+    let mut start = 0;
+
+    for (i, inline) in inlines.iter().enumerate() {
+        let is_special = matches!(
+            inline,
+            Inline::Link { .. } | Inline::InlineMath(_) | Inline::DisplayMath(_)
+        );
+
+        if !is_special {
+            continue;
+        }
+
+        flush_text_segment(&mut elements, inlines, start, i, font_size, &span_ctx);
+
+        match inline {
+            Inline::Link {
+                text: link_text,
+                url,
+            } => {
+                elements.push(build_link_button(link_text, url, font_size, mp));
+            }
+            Inline::InlineMath(latex) => {
+                elements.push(iced_math::inline(latex.as_str()));
+            }
+            Inline::DisplayMath(latex) => {
+                elements.push(iced_math::block(latex.as_str()));
+            }
+            _ => {}
+        }
+
+        start = i + 1;
+    }
+
+    flush_text_segment(
+        &mut elements,
+        inlines,
+        start,
+        inlines.len(),
+        font_size,
+        &span_ctx,
+    );
+
+    let mut wrap = iced_aw::Wrap::new()
+        .spacing(STYLE.inline.wrap_spacing)
+        .line_spacing(STYLE.inline.wrap_line_spacing);
+    for el in elements {
+        wrap = wrap.push(el);
+    }
+    wrap.into()
+}
