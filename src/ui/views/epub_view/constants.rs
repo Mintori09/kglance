@@ -1,0 +1,25 @@
+use crate::ui::theme::tokens::{border, spacing, typography};
+
+pub const HEADER_FONT_SCALE: f32 = typography::LINE_HEIGHT_DENSE;
+pub const AUTHOR_FONT_SCALE: f32 = 0.85;
+pub const SIDEBAR_TOGGLE_FONT_SIZE: f32 = typography::SIZE_SMALL;
+pub const RESIZE_BUTTON_FONT_SIZE: f32 = typography::SIZE_SMALL - border::THIN;
+pub const CHAPTER_TITLE_SIZE_LEVEL_ONE: f32 = typography::SIZE_SMALL;
+pub const CHAPTER_TITLE_SIZE_OTHER: f32 = typography::SIZE_SMALL - border::THIN;
+pub const SIDEBAR_RESIZE_STEP: f32 = spacing::XXL;
+pub const MAX_INDENT: f32 = spacing::XXL + spacing::XS;
+pub const CONTENT_SPACING: f32 = spacing::L;
+pub const HEADER_SPACING: f32 = spacing::XS;
+pub const CHAPTER_LIST_PADDING: f32 = spacing::S;
+pub const CHAPTER_ENTRY_SPACING: f32 = spacing::XS;
+pub const ENTRY_PADDING_TOP: f32 = spacing::XS;
+pub const ENTRY_PADDING_RIGHT: f32 = spacing::S;
+pub const ENTRY_PADDING_BOTTOM: f32 = ENTRY_PADDING_TOP;
+pub const ENTRY_PADDING_LEFT_BASE: f32 = spacing::S;
+pub const SIDEBAR_HEADER_PADDING_VERTICAL: f32 = spacing::S;
+pub const SIDEBAR_HEADER_PADDING_HORIZONTAL: f32 = spacing::M;
+pub const TOGGLE_BUTTON_PADDING_VERTICAL: f32 = spacing::XS;
+pub const TOGGLE_BUTTON_PADDING_HORIZONTAL: f32 = spacing::S;
+pub const HEADER_PADDING_VERTICAL: f32 = spacing::S;
+pub const HEADER_PADDING_HORIZONTAL: f32 = spacing::L;
+pub const TITLE_AUTHOR_SPACING: f32 = border::THIN;

@@ -490,7 +490,7 @@ impl KglanceApp {
             let page_count = self.state.pdf.page_count;
             let pdf_path = path.clone();
             let visible_page = self.state.pdf.visible_page.clone();
-            Some(crate::core::handlers::pdf::lazy_load_pages(
+            Some(crate::ui::handlers::pdf::lazy_load_pages(
                 pdf_path,
                 page_count,
                 visible_page,

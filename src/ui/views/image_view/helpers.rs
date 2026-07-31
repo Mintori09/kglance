@@ -1,14 +1,15 @@
 use iced::Size;
 
-const DEFAULT_WINDOW_WIDTH: f32 = 1024.0;
-const DEFAULT_WINDOW_HEIGHT: f32 = 768.0;
+use crate::core::ImageState;
 
-const MIN_WINDOW_WIDTH: f32 = 400.0;
-const MIN_WINDOW_HEIGHT: f32 = 300.0;
-const MAX_WINDOW_WIDTH: f32 = 900.0;
-const MAX_WINDOW_HEIGHT: f32 = 700.0;
+use super::constants::{
+    DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, HEADER_HEIGHT, MAX_WINDOW_HEIGHT,
+    MAX_WINDOW_WIDTH, MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH,
+};
 
-const HEADER_HEIGHT: f32 = 50.0;
+pub fn is_loaded(state: &ImageState) -> bool {
+    state.handle.is_some()
+}
 
 pub fn calculate_window_size(img_width: u32, img_height: u32) -> Size {
     if img_width == 0 || img_height == 0 {

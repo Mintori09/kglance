@@ -1,0 +1,50 @@
+use iced::widget::container;
+use iced::{Element, Length, Padding};
+
+use crate::app::Message;
+use crate::core::types::EpubState;
+use crate::ui::components::content_layout::scrollable_content;
+use crate::ui::views::epub_view::constants::CONTENT_SPACING;
+use crate::ui::views::markdown_view::blocks::RenderContext;
+
+pub(crate) fn build_epub_content<'a>(
+    state: &'a EpubState,
+    active_chapter: usize,
+    ctx: &RenderContext<'_>,
+    max_text_width: Option<f32>,
+) -> Element<'a, Message> {
+    let chapter_blocks: &[crate::parsers::markdown::Block] = state
+        .chapters
+        .get(active_chapter)
+        .map(|ch| ch.blocks.as_slice())
+        .unwrap_or(&[]);
+
+    let chapter_offset: usize = state
+        .chapters
+        .iter()
+        .take(active_chapter)
+        .map(|ch| ch.blocks.len())
+        .sum();
+
+    let elements = chapter_blocks.iter().enumerate().map(|(i, block)| {
+        let global_index = chapter_offset + i;
+        let inner = crate::ui::views::markdown_view::render_block(
+            global_index,
+            block,
+            &state.markdown_state,
+            ctx,
+        );
+        let margin_bottom = crate::ui::views::markdown_view::block_margin(block);
+        container(inner)
+            .padding(Padding {
+                top: 0.0,
+                right: 0.0,
+                bottom: margin_bottom,
+                left: 0.0,
+            })
+            .width(Length::Fill)
+            .into()
+    });
+
+    scrollable_content(elements, max_text_width, CONTENT_SPACING, "content_scroll").build()
+}
