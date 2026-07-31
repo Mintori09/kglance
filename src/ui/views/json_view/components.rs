@@ -2,6 +2,7 @@ use crate::app::Message;
 use crate::core::types::JsonState;
 use crate::parsers::json::JsonNode;
 use crate::ui::components::code_editor::code_editor;
+use crate::ui::theme::tokens::spacing;
 use iced::widget::{button, container, row, text};
 use iced::{Color, Element, Length, Padding};
 use std::collections::HashMap;
@@ -80,10 +81,10 @@ pub fn render_breadcrumbs<'a>(
             row(parts)
                 .align_y(iced::Alignment::Center)
                 .padding(Padding {
-                    left: 8.0,
-                    right: 8.0,
-                    top: 2.0,
-                    bottom: 2.0,
+                    left: spacing::S,
+                    right: spacing::S,
+                    top: spacing::XXS,
+                    bottom: spacing::XXS,
                 }),
         )
         .width(Length::Fill)
@@ -127,12 +128,12 @@ pub fn render_schema<'a>(
         container(
             row(parts)
                 .align_y(iced::Alignment::Center)
-                .spacing(8)
+                .spacing(spacing::S)
                 .padding(Padding {
-                    left: 8.0,
-                    right: 8.0,
-                    top: 2.0,
-                    bottom: 2.0,
+                    left: spacing::S,
+                    right: spacing::S,
+                    top: spacing::XXS,
+                    bottom: spacing::XXS,
                 }),
         )
         .width(Length::Fill)

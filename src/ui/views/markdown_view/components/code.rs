@@ -1,9 +1,9 @@
 use super::style::{STYLE, code_block_style, copy_button_style, language_label_style};
 use crate::app::Message;
+use crate::ui::theme::font::get_code_font;
+use crate::ui::theme::scale_size;
 use crate::ui::views::markdown_view::blocks::RenderContext;
 use crate::ui::views::markdown_view::highlight::highlight_code;
-use crate::ui::views::shared::font::get_code_font;
-use crate::ui::views::shared::theme::scale_size;
 use iced::widget::{button, column, container, row, text};
 use iced::{Element, Length};
 

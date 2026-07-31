@@ -8,18 +8,16 @@ use std::cell::Cell;
 use crate::app::Message;
 use crate::core::MarkdownState;
 use crate::parsers::markdown::Block;
+use crate::ui::components::content_layout::scrollable_content;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::components::sidebar::drag_handle;
 use crate::ui::views::markdown_view::toc::render_toc_sidebar;
-use crate::ui::views::shared::content_layout::scrollable_content;
 use iced::widget::{column, container, row};
 use iced::{Element, Length, Padding};
 
 pub(crate) use blocks::{RenderContext, block_margin, render_block};
 use components::style::STYLE;
 const SCROLL_PANE_ID: &str = "content_scroll";
-const SEARCH_PLACEHOLDER: &str = "Search markdown...";
-const SEARCH_INPUT_ID: &str = "md_search_input";
 
 pub fn view_markdown<'a>(
     blocks: &'a [Block],
@@ -51,8 +49,6 @@ pub fn view_markdown<'a>(
             } else {
                 Some(state.search_info.as_str())
             },
-            SEARCH_PLACEHOLDER,
-            SEARCH_INPUT_ID,
         );
         column![search, content_area].height(Length::Fill).into()
     } else {

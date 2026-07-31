@@ -118,3 +118,37 @@ fn render_text(font: &fontdue::Font, text: &str, px: f32) -> (Vec<u8>, u32, u32)
 
     (img.into_raw(), width, height)
 }
+
+pub fn resolve_font_name(name: &str) -> String {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+
+    static CACHE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let key = name.to_lowercase();
+
+    {
+        let guard = cache.lock().unwrap();
+        if let Some(resolved) = guard.get(&key) {
+            return resolved.clone();
+        }
+    }
+
+    let resolved = std::process::Command::new("fc-match")
+        .args([name, "--format=%{family[0]}"])
+        .output()
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                if !s.is_empty() { Some(s) } else { None }
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| name.to_string());
+
+    let mut guard = cache.lock().unwrap();
+    guard.insert(key, resolved.clone());
+    resolved
+}

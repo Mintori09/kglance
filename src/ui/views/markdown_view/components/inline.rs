@@ -69,7 +69,7 @@ fn build_link_button<'a>(
         .into()
 }
 
-pub(crate) fn render_inlines<'a>(
+pub fn render_inlines<'a>(
     inlines: &'a [Inline],
     font_size: f32,
     ctx: &RenderContext<'_>,

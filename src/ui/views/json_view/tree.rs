@@ -3,6 +3,7 @@ use crate::core::types::JsonState;
 use crate::parsers::json::JsonNode;
 use crate::ui::components::button as ui_btn;
 use crate::ui::theme::breeze_text_input;
+use crate::ui::theme::tokens::spacing;
 use iced::widget::{button, column, container, row, text, text_input};
 use iced::{Color, Element, Length, Padding};
 use std::collections::HashSet;
@@ -160,8 +161,8 @@ pub fn render_tree_node<'a>(
 
     let padded = container(content)
         .padding(Padding {
-            left: indent + node.depth as f32 * 20.0,
-            right: 4.0,
+            left: indent + node.depth as f32 * (spacing::L + spacing::XS),
+            right: spacing::XS,
             top: 1.0,
             bottom: 1.0,
         })
@@ -250,10 +251,10 @@ pub fn render_tree<'a>(
     column(nodes)
         .spacing(0)
         .padding(Padding {
-            left: 4.0,
-            right: 4.0,
-            top: 4.0,
-            bottom: 4.0,
+            left: spacing::XS,
+            right: spacing::XS,
+            top: spacing::XS,
+            bottom: spacing::XS,
         })
         .into()
 }

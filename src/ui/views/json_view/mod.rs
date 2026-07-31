@@ -9,6 +9,8 @@ use crate::ui::components::search_bar::{SearchKind, search_bar};
 use iced::widget::{button, column, container, row, text, tooltip};
 use iced::{Color, Element, Length, Padding};
 
+use crate::ui::theme::tokens::spacing;
+
 use components::{render_breadcrumbs, render_raw, render_schema};
 use style::{header_button_style, small_btn_style};
 use tree::render_tree;
@@ -104,24 +106,18 @@ pub fn view_json<'a>(
     let header = container(
         row(header_items)
             .align_y(iced::Alignment::Center)
-            .spacing(4)
+            .spacing(spacing::XS)
             .padding(Padding {
-                left: 8.0,
-                right: 8.0,
-                top: 4.0,
-                bottom: 4.0,
+                left: spacing::S,
+                right: spacing::S,
+                top: spacing::XS,
+                bottom: spacing::XS,
             }),
     )
     .width(Length::Fill);
 
     let search_bar: Option<Element<'a, Message>> = if state.search_visible && state.tree_mode {
-        Some(search_bar(
-            SearchKind::Json,
-            &state.search_query,
-            None,
-            "Search key or value...",
-            "json_search_input",
-        ))
+        Some(search_bar(SearchKind::Json, &state.search_query, None))
     } else {
         None
     };

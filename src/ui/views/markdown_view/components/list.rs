@@ -1,9 +1,9 @@
 use super::style::{STYLE, md_palette_for};
 use crate::app::Message;
 use crate::parsers::markdown::ListItem;
+use crate::ui::theme::font::get_code_font;
 use crate::ui::views::markdown_view::blocks::{RenderContext, render_block};
 use crate::ui::views::markdown_view::components::render_inlines;
-use crate::ui::views::shared::font::get_code_font;
 use iced::widget::{column, container, row, text};
 use iced::{Color, Element, Length, Padding};
 
