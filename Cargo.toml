@@ -75,7 +75,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 notify = "6.1"
 dirs = "6.0"
-lru = "0.13"
+lru = "0.18.1"
 md5 = "0.7"
 mermaid-rs-renderer = { version = "0.3.1", default-features = false }
 [features]
