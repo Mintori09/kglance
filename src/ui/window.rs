@@ -8,43 +8,53 @@ use crate::core::KglanceState;
 use crate::ui::theme::color::primitive::OVERLAY_SHADOW;
 use crate::ui::theme::{default_raised, default_root};
 
-fn left_metadata_text(state: &KglanceState) -> String {
-    let mut parts = Vec::new();
+use std::borrow::Cow;
+use std::path::Path;
 
-    if let Some(folder_name) = std::path::Path::new(&state.file_name)
+fn left_metadata_text(state: &KglanceState) -> String {
+    let mut parts: Vec<Cow<'_, str>> = Vec::new();
+
+    if let Some(folder_name) = Path::new(&state.file_name)
         .parent()
         .and_then(|p| p.file_name())
     {
         let name = folder_name.to_string_lossy();
-        if !name.is_empty() && name != "/" {
-            parts.push(format!("{}/", name));
+        if !name.is_empty() {
+            parts.push(Cow::Owned(format!("{}", name)));
         }
     }
 
     if !state.file_type_text.is_empty() {
-        parts.push(state.file_type_text.clone());
+        parts.push(Cow::Borrowed(&state.file_type_text));
     }
 
     if !state.file_modified_text.is_empty() {
-        parts.push(state.file_modified_text.clone());
+        parts.push(Cow::Borrowed(&state.file_modified_text));
     }
 
-    if state.file_type_text.contains("Markdown") {
-        if state.markdown.word_count > 0 {
-            parts.push(format!(
-                "{} words ({} chars)",
-                state.markdown.word_count, state.markdown.char_count
-            ));
-            let mins = state.markdown.reading_time_mins;
-            parts.push(format!("{} min read", if mins == 0 { 1 } else { mins }));
-        }
+    let is_markdown = state.file_type_text.contains("Markdown");
+    let stats = if is_markdown {
+        Some((
+            state.markdown.word_count,
+            state.markdown.char_count,
+            state.markdown.reading_time_mins,
+        ))
     } else if state.text.word_count > 0 {
-        parts.push(format!(
-            "{} words ({} chars)",
-            state.text.word_count, state.text.char_count
-        ));
-        let mins = state.text.reading_time_mins;
-        parts.push(format!("{} min read", if mins == 0 { 1 } else { mins }));
+        Some((
+            state.text.word_count,
+            state.text.char_count,
+            state.text.reading_time_mins,
+        ))
+    } else {
+        None
+    };
+
+    if let Some((words, chars, reading_mins)) = stats
+        && words > 0
+    {
+        parts.push(Cow::Owned(format!("{} words ({} chars)", words, chars)));
+        let mins = if reading_mins == 0 { 1 } else { reading_mins };
+        parts.push(Cow::Owned(format!("{} min read", mins)));
     }
 
     parts.join(" • ")
@@ -208,7 +218,7 @@ mod tests {
     #[test]
     fn test_metadata_text_full() {
         let state = KglanceState {
-            file_name: "/home/mintori/Desktop/subfolder/test_doc.md".to_string(),
+            file_name: "../../testing-file/markdown.md".to_string(),
             file_type_text: "Markdown Document".to_string(),
             file_size_text: "12.4 KB".to_string(),
             file_modified_text: "2026-07-22".to_string(),
@@ -216,7 +226,7 @@ mod tests {
         };
 
         let left = left_metadata_text(&state);
-        assert_eq!(left, "subfolder/ • Markdown Document • 2026-07-22");
+        assert_eq!(left, "testing-file • Markdown Document • 2026-07-22");
         assert_eq!(state.file_size_text, "12.4 KB");
     }
 
