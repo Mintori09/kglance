@@ -82,7 +82,7 @@ impl KglanceApp {
 
         Task::perform(
             tokio::time::sleep(Duration::from_secs(TOAST_DURATION_SECS)),
-            move |_| Message::ToastDismissed(toast_id),
+            move |_| crate::app::messages::SystemMsg::ToastDismissed(toast_id).into(),
         )
     }
 
@@ -114,13 +114,14 @@ impl KglanceApp {
         let (_, open_task) = window::open(settings);
 
         open_task.map(|opened_window_id| {
-            Message::WindowEvent(
+            crate::app::messages::SystemMsg::WindowEvent(
                 opened_window_id,
                 WindowEvent::Opened {
                     position: None,
                     size: Size::ZERO,
                 },
             )
+            .into()
         })
     }
 

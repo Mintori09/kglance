@@ -103,7 +103,7 @@ fn render_toc_entry<'a>(
         collapse_arrow(
             is_collapsed,
             is_dark,
-            Message::TocToggleCollapse(entry.block_index),
+            crate::app::messages::MarkdownMsg::TocToggleCollapse(entry.block_index).into(),
         )
     } else {
         Space::new()
@@ -113,7 +113,7 @@ fn render_toc_entry<'a>(
 
     let heading_label = text(&entry.text).size(STYLE.toc.entry_font_size);
     let heading_button = button(heading_label)
-        .on_press(Message::TocHeadingClicked(entry.block_index))
+        .on_press(crate::app::messages::MarkdownMsg::TocHeadingClicked(entry.block_index).into())
         .width(Length::Fill)
         .style(move |theme, status| sidebar_entry_style(theme, status, is_active, is_dark))
         .padding(STYLE.toc.entry_padding);

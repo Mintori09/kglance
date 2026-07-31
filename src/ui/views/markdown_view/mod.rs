@@ -82,7 +82,7 @@ fn build_scrollable_content<'a>(
         STYLE.general.content_padding,
         SCROLL_PANE_ID,
     )
-    .on_scroll(|v| Message::MarkdownScrolled(v.absolute_offset().y))
+    .on_scroll(|v| crate::app::messages::MarkdownMsg::Scrolled(v.absolute_offset().y).into())
     .build()
 }
 

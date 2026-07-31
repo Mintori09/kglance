@@ -26,7 +26,7 @@ pub fn create_grid_card<'a>(
         .padding(CARD_PADDING);
 
     button(card_content)
-        .on_press(Message::FileClickedInGrid(item_index))
+        .on_press(crate::app::messages::NavigationMsg::FileClickedInGrid(item_index).into())
         .style(move |theme: &Theme, status: button::Status| {
             default_grid_card(theme, status, is_active)
         })

@@ -51,34 +51,34 @@ impl SearchKind {
     fn messages(&self) -> SearchMessages {
         match self {
             Self::Text => SearchMessages {
-                on_query: Message::SearchQueryChanged,
-                on_next: Some(Message::TextSearchNext),
-                on_prev: Some(Message::TextSearchPrev),
-                on_close: Message::TextSearchClosed,
+                on_query: |q| crate::app::messages::TextMsg::SearchQueryChanged(q).into(),
+                on_next: Some(crate::app::messages::TextMsg::SearchNext.into()),
+                on_prev: Some(crate::app::messages::TextMsg::SearchPrev.into()),
+                on_close: crate::app::messages::TextMsg::SearchClosed.into(),
             },
             Self::Markdown => SearchMessages {
-                on_query: Message::MarkdownSearchQueryChanged,
-                on_next: Some(Message::MarkdownSearchNext),
-                on_prev: Some(Message::MarkdownSearchPrev),
-                on_close: Message::MarkdownSearchClosed,
+                on_query: |q| crate::app::messages::MarkdownMsg::SearchQueryChanged(q).into(),
+                on_next: Some(crate::app::messages::MarkdownMsg::SearchNext.into()),
+                on_prev: Some(crate::app::messages::MarkdownMsg::SearchPrev.into()),
+                on_close: crate::app::messages::MarkdownMsg::SearchClosed.into(),
             },
             Self::Json => SearchMessages {
-                on_query: Message::JsonSearchQueryChanged,
+                on_query: |q| crate::app::messages::JsonMsg::SearchQueryChanged(q).into(),
                 on_next: None,
                 on_prev: None,
-                on_close: Message::JsonSearchClosed,
+                on_close: crate::app::messages::JsonMsg::SearchClosed.into(),
             },
             Self::Spreadsheet => SearchMessages {
-                on_query: Message::SpreadsheetSearchQueryChanged,
+                on_query: |q| crate::app::messages::SpreadsheetMsg::SearchQueryChanged(q).into(),
                 on_next: None,
                 on_prev: None,
-                on_close: Message::SpreadsheetSearchClosed,
+                on_close: crate::app::messages::SpreadsheetMsg::SearchClosed.into(),
             },
             Self::Grid => SearchMessages {
-                on_query: Message::GridSearchQueryChanged,
+                on_query: |q| crate::app::messages::GridMsg::SearchQueryChanged(q).into(),
                 on_next: None,
                 on_prev: None,
-                on_close: Message::GridSearchClosed,
+                on_close: crate::app::messages::GridMsg::SearchClosed.into(),
             },
         }
     }

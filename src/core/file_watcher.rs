@@ -146,7 +146,12 @@ impl subscription::Recipe for FileWatcherRecipe {
                         match rx.try_recv() {
                             Ok(path) => {
                                 let _ = output
-                                    .send(Message::FileChanged(path.to_string_lossy().to_string()))
+                                    .send(
+                                        crate::app::messages::SystemMsg::FileChanged(
+                                            path.to_string_lossy().to_string(),
+                                        )
+                                        .into(),
+                                    )
                                     .await;
                             }
                             Err(mpsc::TryRecvError::Empty) => {

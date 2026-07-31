@@ -46,7 +46,7 @@ pub fn view_pdf<'a>(state: &'a PdfState) -> Element<'a, Message> {
             .width(Length::Fill)
             .height(Length::Fill),
     )
-    .on_scroll(Message::PdfScrolled)
+    .on_scroll(|vp| crate::app::messages::PdfMsg::Scrolled(vp).into())
     .build()
 }
 

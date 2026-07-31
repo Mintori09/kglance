@@ -78,7 +78,7 @@ fn build_resize_button<'a>(label: &'a str, new_width: f32) -> Element<'a, Messag
             .size(RESIZE_BUTTON_FONT_SIZE)
             .font(Font::DEFAULT),
     )
-    .on_press(Message::EpubSidebarResized(new_width))
+    .on_press(crate::app::messages::EpubMsg::SidebarResized(new_width).into())
     .padding([1, 4])
     .style(|_, _| button::Style {
         background: None,
@@ -162,7 +162,7 @@ fn build_chapter_entry<'a>(
         .align_y(iced::Alignment::Center);
 
     if has_children {
-        let collapse_message = Message::EpubChapterToggleCollapse(index);
+        let collapse_message = crate::app::messages::EpubMsg::ChapterToggleCollapse(index).into();
         let arrow = collapse_arrow(is_collapsed, is_dark, collapse_message);
         row_content = row_content.push(arrow);
     }
@@ -170,7 +170,7 @@ fn build_chapter_entry<'a>(
     row_content = row_content.push(label);
 
     let entry_button = button(row_content)
-        .on_press(Message::EpubChapterClicked(index))
+        .on_press(crate::app::messages::EpubMsg::ChapterClicked(index).into())
         .width(Length::Fill)
         .style(move |theme, status| {
             let mut style = sidebar_entry_style(theme, status, is_active, is_dark);

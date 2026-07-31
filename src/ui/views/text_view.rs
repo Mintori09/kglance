@@ -37,12 +37,14 @@ pub fn view_text<'a>(
         is_dark,
         font_size,
         font,
-        Message::TextEdit,
+        |action| crate::app::messages::TextMsg::Edit(action).into(),
     );
 
     let scrollable_editor = scroll_pane(SCROLL_PANE_ID, editor_element)
         .container_padding(SCROLL_PANE_PADDING)
-        .on_scroll(|viewport| Message::TextScrolled(viewport.absolute_offset().y))
+        .on_scroll(|viewport| {
+            crate::app::messages::TextMsg::Scrolled(viewport.absolute_offset().y).into()
+        })
         .build();
 
     main_content.push(scrollable_editor).into()

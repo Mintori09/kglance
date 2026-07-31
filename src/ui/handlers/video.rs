@@ -190,7 +190,7 @@ impl Recipe for VideoRecipe {
                     use iced::futures::SinkExt;
                     while let Some(event) = rx.recv().await {
                         if output
-                            .send(Message::VideoEventReceived(event))
+                            .send(crate::app::messages::MediaMsg::VideoEventReceived(event).into())
                             .await
                             .is_err()
                         {

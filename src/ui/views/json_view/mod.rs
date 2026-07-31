@@ -27,17 +27,17 @@ pub fn view_json<'a>(
         weight: iced::font::Weight::Bold,
         ..iced::Font::DEFAULT
     }))
-    .on_press(Message::JsonToggleMode)
+    .on_press(crate::app::messages::JsonMsg::ToggleMode.into())
     .padding([3, 10])
     .style(header_button_style());
 
     let expand_btn = button(text("+").size(12))
-        .on_press(Message::JsonExpandAll)
+        .on_press(crate::app::messages::JsonMsg::ExpandAll.into())
         .padding([2, 6])
         .style(small_btn_style());
 
     let collapse_btn = button(text("−").size(12))
-        .on_press(Message::JsonCollapseAll)
+        .on_press(crate::app::messages::JsonMsg::CollapseAll.into())
         .padding([2, 6])
         .style(small_btn_style());
 
@@ -45,7 +45,7 @@ pub fn view_json<'a>(
         let lbl = if state.raw_pretty { "Minify" } else { "Pretty" };
         Some(
             button(text(lbl).size(11))
-                .on_press(Message::JsonToggleFormat)
+                .on_press(crate::app::messages::JsonMsg::ToggleFormat.into())
                 .padding([2, 6])
                 .style(small_btn_style()),
         )
@@ -57,7 +57,7 @@ pub fn view_json<'a>(
         weight: iced::font::Weight::Bold,
         ..iced::Font::MONOSPACE
     }))
-    .on_press(Message::JsonSchemaToggle)
+    .on_press(crate::app::messages::JsonMsg::SchemaToggle.into())
     .padding([2, 6])
     .style(small_btn_style());
 

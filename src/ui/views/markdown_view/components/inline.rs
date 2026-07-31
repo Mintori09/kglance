@@ -56,7 +56,7 @@ fn build_link_button<'a>(
             .size(font_size)
             .color(link_color),
     )
-    .on_press(Message::OpenLink(url_clone))
+    .on_press(crate::app::messages::SystemMsg::OpenLink(url_clone).into())
     .style(link_button_style)
     .padding(0);
 
