@@ -84,7 +84,7 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         let label = format!("[ {} / {} ]", state.current_index + 1, state.playlist.len());
         Some(
             iced::widget::button(text(label).size(11).style(metadata_style))
-                .on_press(Message::ToggleViewMode)
+                .on_press(crate::app::messages::NavigationMsg::ToggleViewMode.into())
                 .style(iced::widget::button::secondary)
                 .padding([2, 6])
                 .into(),
@@ -95,6 +95,14 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
 
     let left_el: Element<'a, Message> = text(left_display).size(11).style(metadata_style).into();
     let right_el: Element<'a, Message> = text(right_display).size(11).style(metadata_style).into();
+    let settings_btn: Element<'a, Message> =
+        iced::widget::button(text("⚙").size(12).style(metadata_style))
+            .on_press(crate::app::messages::NavigationMsg::ToggleSettingsClicked.into())
+            .style(iced::widget::button::secondary)
+            .padding([2, 6])
+            .into();
+
+    let right_row = row![right_el, Space::new().width(8), settings_btn].align_y(Alignment::Center);
 
     let left_row = if let Some(cnt) = counter_el {
         row![cnt, Space::new().width(8), left_el].align_y(Alignment::Center)
@@ -103,7 +111,7 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     };
 
     container(
-        row![left_row, Space::new().width(Length::Fill), right_el]
+        row![left_row, Space::new().width(Length::Fill), right_row]
             .align_y(Alignment::Center)
             .padding([4, 12]),
     )
@@ -177,6 +185,8 @@ pub fn view_window<'a>(
     preview_body: Element<'a, Message>,
     edge_to_edge: bool,
 ) -> Element<'a, Message> {
+    let show_settings_modal = matches!(state.view_mode, crate::core::ViewMode::Settings);
+
     let main_body: Element<'a, Message> = match &state.view_mode {
         crate::core::ViewMode::Grid(thumbnails) => crate::ui::views::view_grid(
             thumbnails,
@@ -185,7 +195,7 @@ pub fn view_window<'a>(
             state.grid_search_visible,
             &state.grid_search_query,
         ),
-        crate::core::ViewMode::Detail => content(preview_body, edge_to_edge),
+        _ => content(preview_body, edge_to_edge),
     };
 
     let layout = column![
@@ -208,7 +218,84 @@ pub fn view_window<'a>(
         .align_y(Alignment::End)
         .align_x(iced::alignment::Horizontal::Center);
 
-    Stack::new().push(base).push(toast_layer).into()
+    let mut stack = Stack::new().push(base).push(toast_layer);
+
+    if show_settings_modal {
+        let dummy_config: &'static crate::core::config::UiConfig =
+            Box::leak(Box::new(crate::core::config::UiConfig {
+                theme: if state.theme_dark {
+                    Some("Dark".to_string())
+                } else {
+                    Some("Light".to_string())
+                },
+                font_size: state.font_size,
+                font_family: state.font_family.clone(),
+                font_family_mono: state.font_family_mono.clone(),
+                epub_font_family: state.epub_font_family.clone(),
+                max_text_width: state.max_text_width,
+                default_width: state.window_default_size.width as u32,
+                default_height: state.window_default_size.height as u32,
+                min_width: state.window_min_size.width as u32,
+                min_height: state.window_min_size.height as u32,
+            }));
+
+        let static_fonts: &'static [String] =
+            Box::leak(crate::ui::views::setting_page::get_system_fonts().into_boxed_slice());
+        let theme = if state.theme_dark {
+            iced::Theme::Dark
+        } else {
+            iced::Theme::Light
+        };
+
+        let close_btn = iced::widget::button(text("✕ Close").size(12))
+            .on_press(crate::app::messages::NavigationMsg::ToggleSettingsClicked.into())
+            .style(iced::widget::button::secondary)
+            .padding([4, 10]);
+
+        let settings_content = column![
+            row![Space::new().width(Length::Fill), close_btn].align_y(Alignment::Center),
+            crate::ui::views::setting_page::settings_page(&theme, dummy_config, static_fonts)
+        ]
+        .spacing(10);
+
+        let modal_box = container(iced::widget::scrollable(settings_content))
+            .max_width(550.0)
+            .max_height(500.0)
+            .padding(16)
+            .style(|theme: &iced::Theme| {
+                use iced::widget::container;
+                let palette = theme.extended_palette();
+                container::Style {
+                    background: Some(palette.background.base.color.into()),
+                    text_color: Some(palette.background.base.text),
+                    border: iced::Border {
+                        radius: 12.0.into(),
+                        width: 1.0,
+                        color: palette.background.strong.color,
+                    },
+                    shadow: iced::Shadow {
+                        offset: iced::Vector::new(0.0, 4.0),
+                        blur_radius: 16.0,
+                        color: OVERLAY_SHADOW,
+                    },
+                    ..Default::default()
+                }
+            });
+
+        let backdrop = container(modal_box)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Center)
+            .align_y(Alignment::Center)
+            .style(|_| container::Style {
+                background: Some(iced::Color::from_rgba(0.0, 0.0, 0.0, 0.5).into()),
+                ..Default::default()
+            });
+
+        stack = stack.push(backdrop);
+    }
+
+    stack.into()
 }
 
 #[cfg(test)]

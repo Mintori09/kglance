@@ -1,9 +1,7 @@
-use iced::{Background, Border, Color, Shadow, Theme};
-
-pub use iced::widget::button::{Status, Style};
-
 use crate::ui::theme::color::base::BaseColors;
 use crate::ui::theme::color::{primitive, roles};
+pub use iced::widget::button::{Status, Style};
+use iced::{Background, Border, Color, Shadow, Theme};
 
 pub fn breeze(theme: &Theme, status: Status) -> Style {
     let p = BaseColors::palette(theme);
@@ -32,7 +30,6 @@ pub fn breeze(theme: &Theme, status: Status) -> Style {
     }
 }
 
-/// Primary action button filled with accent color.
 pub fn breeze_primary(theme: &Theme, status: Status) -> Style {
     let p = BaseColors::palette(theme);
     let role = roles::RoleColors::DARK;
@@ -60,7 +57,6 @@ pub fn breeze_primary(theme: &Theme, status: Status) -> Style {
     }
 }
 
-/// Flat toolbar-style button with hover-only background.
 pub fn breeze_tool(theme: &Theme, status: Status) -> Style {
     let p = BaseColors::palette(theme);
     let bg = match status {
@@ -88,7 +84,6 @@ pub fn breeze_tool(theme: &Theme, status: Status) -> Style {
     }
 }
 
-/// Destructive close button (red hover/pressed).
 pub fn breeze_close(theme: &Theme, status: Status) -> Style {
     let p = BaseColors::palette(theme);
     match status {
