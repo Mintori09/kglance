@@ -210,42 +210,72 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
         Message::Settings(msg) => match msg {
             crate::app::messages::SettingsMsg::ThemeChanged(t) => {
                 app.state.theme_dark = t != "Light";
+                let mut config = crate::core::config::ConfigManager::load_or_create();
+                config.ui.theme = Some(t);
+                let _ = crate::core::config::ConfigManager::save(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::FontSizeChanged(s) => {
                 app.state.font_size = s;
+                let mut config = crate::core::config::ConfigManager::load_or_create();
+                config.ui.font_size = s;
+                let _ = crate::core::config::ConfigManager::save(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::FontFamilySelected(f) => {
-                app.state.font_family = Some(f);
+                app.state.font_family = Some(f.clone());
+                let mut config = crate::core::config::ConfigManager::load_or_create();
+                config.ui.font_family = Some(f);
+                let _ = crate::core::config::ConfigManager::save(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::FontFamilyMonoSelected(f) => {
-                app.state.font_family_mono = Some(f);
+                app.state.font_family_mono = Some(f.clone());
+                let mut config = crate::core::config::ConfigManager::load_or_create();
+                config.ui.font_family_mono = Some(f);
+                let _ = crate::core::config::ConfigManager::save(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::EpubFontFamilySelected(f) => {
-                app.state.epub_font_family = Some(f);
+                app.state.epub_font_family = Some(f.clone());
+                let mut config = crate::core::config::ConfigManager::load_or_create();
+                config.ui.epub_font_family = Some(f);
+                let _ = crate::core::config::ConfigManager::save(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::MaxTextWidthChanged(w) => {
                 app.state.max_text_width = w;
+                let mut config = crate::core::config::ConfigManager::load_or_create();
+                config.ui.max_text_width = w;
+                let _ = crate::core::config::ConfigManager::save(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::DefaultWidthChanged(w) => {
                 app.state.window_default_size.width = w as f32;
+                let mut config = crate::core::config::ConfigManager::load_or_create();
+                config.ui.default_width = w;
+                let _ = crate::core::config::ConfigManager::save(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::DefaultHeightChanged(h) => {
                 app.state.window_default_size.height = h as f32;
+                let mut config = crate::core::config::ConfigManager::load_or_create();
+                config.ui.default_height = h;
+                let _ = crate::core::config::ConfigManager::save(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::MinWidthChanged(w) => {
                 app.state.window_min_size.width = w as f32;
+                let mut config = crate::core::config::ConfigManager::load_or_create();
+                config.ui.min_width = w;
+                let _ = crate::core::config::ConfigManager::save(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::MinHeightChanged(h) => {
                 app.state.window_min_size.height = h as f32;
+                let mut config = crate::core::config::ConfigManager::load_or_create();
+                config.ui.min_height = h;
+                let _ = crate::core::config::ConfigManager::save(&config);
                 Task::none()
             }
         },

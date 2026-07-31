@@ -247,40 +247,12 @@ pub fn view_window<'a>(
             iced::Theme::Light
         };
 
-        let close_btn = iced::widget::button(text("✕ Close").size(12))
-            .on_press(crate::app::messages::NavigationMsg::ToggleSettingsClicked.into())
-            .style(iced::widget::button::secondary)
-            .padding([4, 10]);
-
-        let settings_content = column![
-            row![Space::new().width(Length::Fill), close_btn].align_y(Alignment::Center),
-            crate::ui::views::setting_page::settings_page(&theme, dummy_config, static_fonts)
-        ]
-        .spacing(10);
+        let settings_content =
+            crate::ui::views::setting_page::settings_page(&theme, dummy_config, static_fonts);
 
         let modal_box = container(iced::widget::scrollable(settings_content))
             .max_width(550.0)
-            .max_height(500.0)
-            .padding(16)
-            .style(|theme: &iced::Theme| {
-                use iced::widget::container;
-                let palette = theme.extended_palette();
-                container::Style {
-                    background: Some(palette.background.base.color.into()),
-                    text_color: Some(palette.background.base.text),
-                    border: iced::Border {
-                        radius: 12.0.into(),
-                        width: 1.0,
-                        color: palette.background.strong.color,
-                    },
-                    shadow: iced::Shadow {
-                        offset: iced::Vector::new(0.0, 4.0),
-                        blur_radius: 16.0,
-                        color: OVERLAY_SHADOW,
-                    },
-                    ..Default::default()
-                }
-            });
+            .max_height(500.0);
 
         let backdrop = iced::widget::opaque(
             container(modal_box)
