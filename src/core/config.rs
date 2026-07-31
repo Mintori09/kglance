@@ -68,10 +68,10 @@ pub struct ConfigManager;
 
 impl ConfigManager {
     pub fn get_config_dir() -> PathBuf {
-        if let Ok(dir) = std::env::var("KGLANCE_CONFIG_DIR") {
-            if !dir.trim().is_empty() {
-                return PathBuf::from(dir);
-            }
+        if let Ok(dir) = std::env::var("KGLANCE_CONFIG_DIR")
+            && !dir.trim().is_empty()
+        {
+            return PathBuf::from(dir);
         }
 
         if let Some(mut config_dir) = dirs::config_dir() {
