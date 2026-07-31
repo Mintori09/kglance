@@ -8,7 +8,8 @@ use crate::ui::components::sidebar::{
     SIDEBAR_BORDER_WIDTH as BORDER_WIDTH, SIDEBAR_ITEM_SPACING as CHAPTER_LIST_SPACING,
     collapse_arrow, sidebar_entry_style,
 };
-use crate::ui::theme::glass;
+use crate::ui::theme::color::base::BaseColors;
+use crate::ui::theme::color::primitive;
 use crate::ui::views::epub_view::constants::{
     CHAPTER_ENTRY_SPACING, CHAPTER_LIST_PADDING, ENTRY_PADDING_BOTTOM, ENTRY_PADDING_LEFT_BASE,
     ENTRY_PADDING_RIGHT, ENTRY_PADDING_TOP, HEADER_SPACING, RESIZE_BUTTON_FONT_SIZE,
@@ -20,7 +21,7 @@ use crate::ui::views::epub_view::helpers::{
 };
 
 pub fn render_chapter_sidebar<'a>(state: &'a EpubState, is_dark: bool) -> Element<'a, Message> {
-    let palette = *glass::palette_for(is_dark);
+    let palette = *BaseColors::palette_for(is_dark);
     let sidebar_header = build_sidebar_header(state, palette.text);
     let chapter_list = build_sidebar_chapter_list(state, is_dark);
 
@@ -81,7 +82,7 @@ fn build_resize_button<'a>(label: &'a str, new_width: f32) -> Element<'a, Messag
     .padding([1, 4])
     .style(|_, _| button::Style {
         background: None,
-        text_color: Color::from_rgb(0.6, 0.65, 0.7),
+        text_color: primitive::SIDEBAR_DARK_ARROW_TEXT,
         border: Border::default(),
         shadow: Shadow::default(),
         snap: false,
@@ -90,7 +91,7 @@ fn build_resize_button<'a>(label: &'a str, new_width: f32) -> Element<'a, Messag
 }
 
 fn build_sidebar_chapter_list<'a>(state: &'a EpubState, is_dark: bool) -> Element<'a, Message> {
-    let palette = *glass::palette_for(is_dark);
+    let palette = *BaseColors::palette_for(is_dark);
     let is_light_background = palette.bg.r > 0.5;
 
     let mut entries: Vec<Element<'a, Message>> = Vec::new();

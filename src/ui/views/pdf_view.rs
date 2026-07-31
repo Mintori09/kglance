@@ -4,7 +4,7 @@ use crate::ui::components::scroll_pane::scroll_pane;
 use iced::widget::{column, container, image, text};
 use iced::{Element, Length};
 
-use crate::ui::theme::tokens::{spacing, typography};
+use crate::ui::theme::tokens::spacing;
 
 const PAGE_SPACING: f32 = spacing::S;
 const PAGE_CONTAINER_PADDING: f32 = spacing::XS;
@@ -13,9 +13,9 @@ const MAIN_COLUMN_PADDING: f32 = spacing::M;
 
 const PLACEHOLDER_HEIGHT: f32 = 200.0;
 
-const EMPTY_STATE_TEXT_SIZE: f32 = typography::SIZE_BODY;
-const LOADING_TEXT_SIZE: f32 = typography::SIZE_BODY;
-const PLACEHOLDER_TEXT_SIZE: f32 = typography::SIZE_SMALL;
+const EMPTY_STATE_TEXT_SIZE: f32 = 14.0;
+const LOADING_TEXT_SIZE: f32 = 14.0;
+const PLACEHOLDER_TEXT_SIZE: f32 = 12.0;
 
 const SCROLL_PANE_ID: &str = "content_scroll";
 const EMPTY_STATE_MESSAGE: &str = "No pages";

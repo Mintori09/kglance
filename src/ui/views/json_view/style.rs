@@ -1,60 +1,56 @@
 use iced::Color;
 
 use crate::ui::components::button;
+use crate::ui::theme::color::json::JsonColors;
+use crate::ui::theme::color::primitive::{
+    JSON_DARK_ERROR, JSON_DARK_LINK, JSON_DARK_SELECTION, JSON_LIGHT_ERROR, JSON_LIGHT_LINK,
+    JSON_LIGHT_SELECTION,
+};
 
 pub fn type_color(value_type: &str, is_dark: bool) -> Color {
+    let c = JsonColors::palette_for(is_dark);
     match value_type {
-        "String" => {
-            if is_dark {
-                Color::from_rgb(0.6, 0.9, 0.4)
-            } else {
-                Color::from_rgb(0.2, 0.6, 0.1)
-            }
-        }
-        "Number" => {
-            if is_dark {
-                Color::from_rgb(0.8, 0.6, 0.3)
-            } else {
-                Color::from_rgb(0.7, 0.4, 0.0)
-            }
-        }
-        "Bool" => {
-            if is_dark {
-                Color::from_rgb(0.4, 0.7, 1.0)
-            } else {
-                Color::from_rgb(0.0, 0.3, 0.8)
-            }
-        }
-        "Null" => {
-            if is_dark {
-                Color::from_rgb(0.6, 0.6, 0.6)
-            } else {
-                Color::from_rgb(0.5, 0.5, 0.5)
-            }
-        }
-        _ => {
-            if is_dark {
-                Color::from_rgb(0.7, 0.7, 0.9)
-            } else {
-                Color::from_rgb(0.3, 0.3, 0.6)
-            }
-        }
+        "String" => c.string,
+        "Number" => c.number,
+        "Bool" => c.boolean,
+        "Null" => c.null,
+        _ => c.object,
     }
 }
 
 pub fn text_color(is_dark: bool) -> Color {
-    if is_dark {
-        Color::from_rgb(0.85, 0.85, 0.85)
-    } else {
-        Color::from_rgb(0.15, 0.15, 0.15)
-    }
+    JsonColors::palette_for(is_dark).text
 }
 
 pub fn dim_color(is_dark: bool) -> Color {
+    JsonColors::palette_for(is_dark).dim
+}
+
+pub fn string_color(is_dark: bool) -> Color {
+    JsonColors::palette_for(is_dark).string
+}
+
+pub fn link_color(is_dark: bool) -> Color {
     if is_dark {
-        Color::from_rgb(0.5, 0.5, 0.5)
+        JSON_DARK_LINK
     } else {
-        Color::from_rgb(0.6, 0.6, 0.6)
+        JSON_LIGHT_LINK
+    }
+}
+
+pub fn error_color(is_dark: bool) -> Color {
+    if is_dark {
+        JSON_DARK_ERROR
+    } else {
+        JSON_LIGHT_ERROR
+    }
+}
+
+pub fn selection_color(is_dark: bool) -> Color {
+    if is_dark {
+        JSON_DARK_SELECTION
+    } else {
+        JSON_LIGHT_SELECTION
     }
 }
 

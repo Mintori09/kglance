@@ -5,6 +5,8 @@ use iced::{
 
 use crate::app::Message;
 use crate::core::KglanceState;
+use crate::ui::theme::color::primitive::OVERLAY_SHADOW;
+use crate::ui::theme::{default_raised, default_root};
 
 fn left_metadata_text(state: &KglanceState) -> String {
     let mut parts = Vec::new();
@@ -96,7 +98,7 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
             .padding([4, 12]),
     )
     .width(Length::Fill)
-    .style(crate::ui::theme::breeze_header_container)
+    .style(default_raised)
     .into()
 }
 
@@ -139,7 +141,7 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
                         shadow: iced::Shadow {
                             offset: iced::Vector::new(0.0, 2.0),
                             blur_radius: 8.0,
-                            color: iced::Color::from_rgba(0.0, 0.0, 0.0, 0.25),
+                            color: OVERLAY_SHADOW,
                         },
                         ..Default::default()
                     }
@@ -188,7 +190,7 @@ pub fn view_window<'a>(
     let base = container(layout)
         .width(Length::Fill)
         .height(Length::Fill)
-        .style(crate::ui::theme::breeze_container);
+        .style(default_root);
 
     let toast_layer = container(toasts(state))
         .width(Length::Fill)

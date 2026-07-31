@@ -1,7 +1,5 @@
-use crate::ui::theme::tokens::typography;
-
 pub const EMPTY_LABEL: &str = "No image loaded";
-pub const EMPTY_LABEL_FONT_SIZE: f32 = typography::SIZE_TITLE;
+pub const EMPTY_LABEL_FONT_SIZE: f32 = 18.0;
 
 pub const DEFAULT_WINDOW_WIDTH: f32 = 1024.0;
 pub const DEFAULT_WINDOW_HEIGHT: f32 = 768.0;

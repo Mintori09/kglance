@@ -7,7 +7,7 @@ use iced::widget::{button, container, row, text};
 use iced::{Color, Element, Length, Padding};
 use std::collections::HashMap;
 
-use super::style::{dim_color, text_color};
+use super::style::{dim_color, link_color, text_color};
 
 pub fn build_breadcrumbs(nodes: &[JsonNode], index: usize) -> Vec<(usize, String)> {
     let mut crumbs: Vec<(usize, String)> = Vec::new();
@@ -54,11 +54,11 @@ pub fn render_breadcrumbs<'a>(
             ));
         } else {
             parts.push(Element::from(
-                button(text(label.clone()).size(font_size * 0.8).color(if is_dark {
-                    Color::from_rgb(0.4, 0.7, 1.0)
-                } else {
-                    Color::from_rgb(0.0, 0.3, 0.8)
-                }))
+                button(
+                    text(label.clone())
+                        .size(font_size * 0.8)
+                        .color(link_color(is_dark)),
+                )
                 .on_press(Message::JsonBreadcrumbClicked(*idx))
                 .padding(0)
                 .style(|_theme, _status| button::Style {

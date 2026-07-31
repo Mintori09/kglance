@@ -1,5 +1,6 @@
+pub mod color;
+pub mod default;
 pub mod font;
-pub mod glass;
 pub mod icon_theme;
 pub mod tokens;
 
@@ -12,33 +13,9 @@ pub(crate) fn scale_size(design_size: f32, user_font_size: f32) -> f32 {
         .max(MIN_SCALED_SIZE)
 }
 
-pub use glass::{
-    glass_button, glass_button_primary, glass_card, glass_checkbox, glass_inset, glass_pick_list,
-    glass_raised, glass_root, glass_row_button, glass_rule, glass_scrollable, glass_slider,
-    glass_text_editor, glass_text_input,
+pub use default::{
+    default_button, default_button_primary, default_card, default_checkbox, default_grid_card,
+    default_inset, default_pick_list, default_raised, default_root, default_row_button,
+    default_rule, default_scrollable, default_slider, default_text_editor, default_text_input,
+    default_tooltip,
 };
-
-// ── Backward-compat aliases (kept so existing call-sites compile without change) ──
-
-use iced::Theme;
-use iced::widget::{button, container, text_input};
-
-/// Header / toolbar panel — maps to `glass_raised`.
-pub fn breeze_header_container(theme: &Theme) -> container::Style {
-    glass_raised(theme)
-}
-
-/// Root background container — maps to `glass_root`.
-pub fn breeze_container(theme: &Theme) -> container::Style {
-    glass_root(theme)
-}
-
-/// Standard button — maps to `glass_button`.
-pub fn breeze_button(theme: &Theme, status: button::Status) -> button::Style {
-    glass_button(theme, status)
-}
-
-/// Text input — maps to `glass_text_input`.
-pub fn breeze_text_input(theme: &Theme, status: text_input::Status) -> text_input::Style {
-    glass_text_input(theme, status)
-}

@@ -2,7 +2,7 @@ use crate::app::Message;
 use crate::core::{MarkdownState, TocEntry};
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::sidebar::{collapse_arrow, sidebar_entry_style};
-use crate::ui::theme::glass;
+use crate::ui::theme::color::base::BaseColors;
 use crate::ui::views::markdown_view::components::style::STYLE;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Padding};
@@ -134,6 +134,6 @@ fn render_toc_entry<'a>(
 }
 
 fn get_sidebar_theme_colors(is_dark: bool) -> (iced::Color, iced::Color) {
-    let p = glass::palette_for(is_dark);
+    let p = BaseColors::palette_for(is_dark);
     (p.bg, p.border)
 }

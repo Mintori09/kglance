@@ -1,5 +1,5 @@
 use crate::core::types::{GRID_GAP, GRID_ITEM_WIDTH};
-use crate::ui::theme::tokens::{grid as grid_tokens, spacing, typography};
+use crate::ui::theme::tokens::{grid as grid_tokens, spacing};
 
 pub const MAX_LABEL_LENGTH: usize = 20;
 pub const ELLIPSIS: char = '…';
@@ -10,12 +10,12 @@ const BASE_CONTAINER_HEIGHT: f32 = 96.0;
 const BASE_IMAGE_WIDTH: f32 = 130.0;
 const BASE_IMAGE_HEIGHT: f32 = 90.0;
 const BASE_ICON_SIZE: f32 = 48.0;
-const BASE_FONT_SIZE: f32 = typography::SIZE_CAPTION;
+const BASE_FONT_SIZE: f32 = 10.0;
 
 const MIN_ICON_SIZE: f32 = 16.0;
 const MAX_ICON_SIZE: f32 = 96.0;
-const MIN_FONT_SIZE: f32 = typography::SIZE_CAPTION - spacing::XXS;
-const MAX_FONT_SIZE: f32 = typography::SIZE_HEADER;
+const MIN_FONT_SIZE: f32 = 10.0 - spacing::XXS;
+const MAX_FONT_SIZE: f32 = 24.0;
 
 pub const CARD_INNER_SPACING: f32 = spacing::XS;
 pub const CARD_PADDING: f32 = grid_tokens::CELL_PADDING;

@@ -1,11 +1,11 @@
-use crate::ui::theme::tokens::{border, spacing, typography};
+use crate::ui::theme::tokens::{border, spacing};
 
-pub const HEADER_FONT_SCALE: f32 = typography::LINE_HEIGHT_DENSE;
+pub const HEADER_FONT_SCALE: f32 = 1.2;
 pub const AUTHOR_FONT_SCALE: f32 = 0.85;
-pub const SIDEBAR_TOGGLE_FONT_SIZE: f32 = typography::SIZE_SMALL;
-pub const RESIZE_BUTTON_FONT_SIZE: f32 = typography::SIZE_SMALL - border::THIN;
-pub const CHAPTER_TITLE_SIZE_LEVEL_ONE: f32 = typography::SIZE_SMALL;
-pub const CHAPTER_TITLE_SIZE_OTHER: f32 = typography::SIZE_SMALL - border::THIN;
+pub const SIDEBAR_TOGGLE_FONT_SIZE: f32 = 12.0;
+pub const RESIZE_BUTTON_FONT_SIZE: f32 = 12.0 - border::THIN;
+pub const CHAPTER_TITLE_SIZE_LEVEL_ONE: f32 = 12.0;
+pub const CHAPTER_TITLE_SIZE_OTHER: f32 = 12.0 - border::THIN;
 pub const SIDEBAR_RESIZE_STEP: f32 = spacing::XXL;
 pub const MAX_INDENT: f32 = spacing::XXL + spacing::XS;
 pub const CONTENT_SPACING: f32 = spacing::L;

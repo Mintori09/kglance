@@ -2,14 +2,16 @@ use iced::{Background, Border, Color, Shadow, Theme};
 
 pub use iced::widget::button::{Status, Style};
 
-use crate::ui::theme::glass;
+use crate::ui::theme::color::base::BaseColors;
+use crate::ui::theme::color::{primitive, roles};
 
 pub fn breeze(theme: &Theme, status: Status) -> Style {
-    let p = glass::palette(theme);
+    let p = BaseColors::palette(theme);
+    let role = roles::RoleColors::DARK;
     let (bg, border_color, text_color) = match status {
         Status::Active => (p.surface_raised, p.border, p.text),
-        Status::Hovered => (glass::ACCENT_HOVER, glass::ACCENT_HOVER, Color::WHITE),
-        Status::Pressed => (glass::ACCENT_PRESSED, glass::ACCENT_PRESSED, Color::WHITE),
+        Status::Hovered => (role.accent_hover, role.accent_hover, Color::WHITE),
+        Status::Pressed => (role.accent_pressed, role.accent_pressed, Color::WHITE),
         Status::Disabled => (p.surface, p.border, p.text_dim),
     };
 
@@ -32,12 +34,13 @@ pub fn breeze(theme: &Theme, status: Status) -> Style {
 
 /// Primary action button filled with accent color.
 pub fn breeze_primary(theme: &Theme, status: Status) -> Style {
-    let p = glass::palette(theme);
+    let p = BaseColors::palette(theme);
+    let role = roles::RoleColors::DARK;
     let bg = match status {
-        Status::Hovered => glass::ACCENT_HOVER,
-        Status::Pressed => glass::ACCENT_PRESSED,
+        Status::Hovered => role.accent_hover,
+        Status::Pressed => role.accent_pressed,
         Status::Disabled => p.surface,
-        _ => glass::ACCENT,
+        _ => role.accent,
     };
     let text_color = match status {
         Status::Disabled => p.text_dim,
@@ -59,19 +62,16 @@ pub fn breeze_primary(theme: &Theme, status: Status) -> Style {
 
 /// Flat toolbar-style button with hover-only background.
 pub fn breeze_tool(theme: &Theme, status: Status) -> Style {
-    let p = glass::palette(theme);
+    let p = BaseColors::palette(theme);
     let bg = match status {
-        Status::Hovered | Status::Pressed => {
-            let a = if p.bg.r > 0.5 { 0.06 } else { 0.10 };
-            Some(Background::Color(Color {
-                a,
-                ..if p.bg.r > 0.5 {
-                    Color::BLACK
-                } else {
-                    Color::WHITE
-                }
-            }))
-        }
+        Status::Hovered | Status::Pressed => Some(
+            if p.bg.r > 0.5 {
+                primitive::BLACK_006
+            } else {
+                primitive::WHITE_010
+            }
+            .into(),
+        ),
         _ => None,
     };
 
@@ -90,7 +90,7 @@ pub fn breeze_tool(theme: &Theme, status: Status) -> Style {
 
 /// Destructive close button (red hover/pressed).
 pub fn breeze_close(theme: &Theme, status: Status) -> Style {
-    let p = glass::palette(theme);
+    let p = BaseColors::palette(theme);
     match status {
         Status::Active => Style {
             background: None,
@@ -105,7 +105,7 @@ pub fn breeze_close(theme: &Theme, status: Status) -> Style {
         },
 
         Status::Hovered => Style {
-            background: Some(Background::Color(Color::from_rgb8(232, 17, 35))),
+            background: Some(Background::Color(primitive::DANGER)),
             text_color: Color::WHITE,
             border: Border {
                 radius: 4.0.into(),
@@ -117,7 +117,7 @@ pub fn breeze_close(theme: &Theme, status: Status) -> Style {
         },
 
         Status::Pressed => Style {
-            background: Some(Background::Color(Color::from_rgb8(180, 0, 0))),
+            background: Some(Background::Color(primitive::DANGER_PRESSED)),
             text_color: Color::WHITE,
             border: Border {
                 radius: 4.0.into(),

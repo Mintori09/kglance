@@ -2,13 +2,13 @@ use crate::app::Message;
 use crate::core::types::JsonState;
 use crate::parsers::json::JsonNode;
 use crate::ui::components::button as ui_btn;
-use crate::ui::theme::breeze_text_input;
+use crate::ui::theme::default_text_input;
 use crate::ui::theme::tokens::spacing;
 use iced::widget::{button, column, container, row, text, text_input};
 use iced::{Color, Element, Length, Padding};
 use std::collections::HashSet;
 
-use super::style::{dim_color, text_color, type_color};
+use super::style::{dim_color, selection_color, string_color, text_color, type_color};
 
 pub fn visible_node_indices(state: &JsonState) -> Vec<usize> {
     let query = state.search_query.trim().to_lowercase();
@@ -111,11 +111,7 @@ pub fn render_tree_node<'a>(
     let value_text = text(&node.value_preview)
         .size(font_size)
         .color(if node.value_type == "String" {
-            if is_dark {
-                Color::from_rgb(0.6, 0.9, 0.4)
-            } else {
-                Color::from_rgb(0.2, 0.6, 0.1)
-            }
+            string_color(is_dark)
         } else {
             text_color(is_dark)
         })
@@ -136,14 +132,7 @@ pub fn render_tree_node<'a>(
         .style(ui_btn::breeze_tool);
 
     let active_bg = if is_active {
-        Some(
-            (if is_dark {
-                Color::from_rgba(1.0, 1.0, 1.0, 0.08)
-            } else {
-                Color::from_rgba(0.0, 0.0, 0.0, 0.05)
-            })
-            .into(),
-        )
+        Some(selection_color(is_dark).into())
     } else {
         None
     };
@@ -220,7 +209,7 @@ pub fn render_tree<'a>(
                     text_input(&node.value_preview, &state.edit_value)
                         .on_input(Message::JsonEditValue)
                         .on_submit(Message::JsonEditSave)
-                        .style(breeze_text_input)
+                        .style(default_text_input)
                         .width(Length::Fill)
                         .into();
 

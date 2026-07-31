@@ -1,7 +1,7 @@
 use crate::app::Message;
 use crate::core::types::GridThumbnail;
 use crate::parsers::helpers::icon::icon_for_entry;
-use crate::ui::theme::{glass, icon_theme};
+use crate::ui::theme::{default_grid_card, icon_theme};
 use crate::ui::views::grid::calculate::truncate_middle;
 use crate::ui::views::grid::constants::*;
 use iced::widget::{button, column, container, image, svg, text};
@@ -28,7 +28,7 @@ pub fn create_grid_card<'a>(
     button(card_content)
         .on_press(Message::FileClickedInGrid(item_index))
         .style(move |theme: &Theme, status: button::Status| {
-            glass::glass_grid_card(theme, status, is_active)
+            default_grid_card(theme, status, is_active)
         })
         .width(dimensions.item_width)
 }

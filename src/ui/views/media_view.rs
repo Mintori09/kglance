@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use crate::app::Message;
 use crate::core::MediaState;
 use crate::ui::handlers::video::VideoController;
-use crate::ui::theme::{glass_button, glass_card, glass_slider};
+use crate::ui::theme::{default_button, default_card, default_slider};
 use iced::widget::{Space, button, column, container, image, mouse_area, row, slider, stack, text};
 use iced::{Alignment, Element, Length};
 use iced_video_player::VideoPlayer;
@@ -118,7 +118,7 @@ fn render_controls_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
 
     let seek_bar = slider(0.0..=1.0, state.progress, Message::SeekClicked)
         .step(SEEK_STEP)
-        .style(glass_slider)
+        .style(default_slider)
         .width(Length::Fill);
 
     let metadata_row = row![
@@ -132,17 +132,17 @@ fn render_controls_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
 
     let rewind_button = button(text(ICON_FAST_FORWARD))
         .on_press(Message::SeekRelativeClicked(-SEEK_SKIP_SECONDS))
-        .style(glass_button)
+        .style(default_button)
         .padding(BUTTON_SMALL_PADDING);
 
     let play_pause_button = button(text(play_pause_icon))
         .on_press(Message::PlayPauseClicked)
-        .style(glass_button)
+        .style(default_button)
         .padding(BUTTON_LARGE_PADDING);
 
     let fast_forward_button = button(text(ICON_REWIND))
         .on_press(Message::SeekRelativeClicked(SEEK_SKIP_SECONDS))
-        .style(glass_button)
+        .style(default_button)
         .padding(BUTTON_SMALL_PADDING);
 
     let action_row = row![rewind_button, play_pause_button, fast_forward_button]
@@ -151,7 +151,7 @@ fn render_controls_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
 
     let controls_card =
         container(column![seek_bar, metadata_row, action_row].spacing(CONTROLS_SPACING))
-            .style(glass_card)
+            .style(default_card)
             .padding(CARD_PADDING)
             .width(Length::Fill);
 

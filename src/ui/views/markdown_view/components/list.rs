@@ -1,6 +1,8 @@
-use super::style::{STYLE, md_palette_for};
+use super::style::STYLE;
 use crate::app::Message;
 use crate::parsers::markdown::ListItem;
+use crate::ui::theme::color::base::BaseColors;
+use crate::ui::theme::color::roles;
 use crate::ui::theme::font::get_code_font;
 use crate::ui::views::markdown_view::blocks::{RenderContext, render_block};
 use crate::ui::views::markdown_view::components::render_inlines;
@@ -66,9 +68,9 @@ fn create_list_prefix<'a>(
     if let Some(checked) = item.is_task {
         let symbol = if checked { "[x] " } else { "[ ] " };
         let color: Color = if checked {
-            md_palette_for(ctx.is_dark).task_checked
+            roles::palette_for(ctx.is_dark).success
         } else {
-            crate::ui::theme::glass::palette_for(ctx.is_dark).text_dim
+            BaseColors::palette_for(ctx.is_dark).text_dim
         };
         text(symbol)
             .font(get_code_font(ctx.font_family_mono))
