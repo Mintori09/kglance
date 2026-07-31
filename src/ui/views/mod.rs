@@ -7,6 +7,7 @@ pub mod json_view;
 pub mod markdown_view;
 pub mod media_view;
 pub mod pdf_view;
+pub mod setting_page;
 pub mod spreadsheet_view;
 pub mod text_view;
 
