@@ -1,142 +1,237 @@
 use crate::app::Message;
 use crate::core::SpreadsheetState;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
-use crate::ui::theme::{breeze_button, glass_card, glass_scrollable};
+use crate::ui::theme::{breeze_button, glass_button_primary, glass_card, glass_scrollable};
 use iced::widget::{button, column, container, row, scrollable, text};
-use iced::{Element, Length, Theme};
+use iced::{Color, Element, Length, Theme};
 
-fn even_row_style(theme: &Theme) -> container::Style {
-    let is_dark = matches!(theme, Theme::Dark);
-    container::Style {
-        background: Some(
-            (if is_dark {
-                iced::Color::from_rgba(1.0, 1.0, 1.0, 0.03)
+use crate::ui::theme::tokens::{spacing, typography};
+
+const SORT_ASCENDING_INDICATOR: &str = " ↑";
+const SORT_DESCENDING_INDICATOR: &str = " ↓";
+const SORT_NONE_INDICATOR: &str = "";
+
+const CELL_TEXT_SIZE: f32 = typography::SIZE_BODY;
+const EMPTY_STATE_TEXT_SIZE: f32 = typography::SIZE_TITLE;
+
+const TAB_SPACING: f32 = spacing::XS;
+const MAIN_SPACING: f32 = spacing::S;
+const HEADER_ROW_SPACING: f32 = spacing::S;
+const DATA_ROW_SPACING: f32 = spacing::S;
+const ROWS_LIST_SPACING: f32 = spacing::XXS;
+
+const CARD_PADDING: [u16; 2] = [spacing::XS as u16, spacing::S as u16];
+const HEADER_INNER_PADDING: u16 = 5;
+const DATA_ROW_INNER_PADDING: u16 = 3;
+
+const EVEN_ROW_BG_ALPHA_DARK: f32 = 0.03;
+const EVEN_ROW_BG_ALPHA_LIGHT: f32 = 0.03;
+
+const EMPTY_STATE_MESSAGE: &str = "No data";
+
+pub fn view_spreadsheet<'a>(state: &'a SpreadsheetState) -> Element<'a, Message> {
+    let active_sheet = state.sheets.get(state.active_sheet);
+
+    let tabs_bar = render_sheet_tabs(&state.sheets, state.active_sheet);
+    let content_body = match active_sheet {
+        Some(sheet) => render_spreadsheet_body(state, sheet),
+        None => render_empty_state(),
+    };
+
+    column![tabs_bar, content_body].spacing(MAIN_SPACING).into()
+}
+
+fn render_sheet_tabs<'a>(
+    sheets: &'a [crate::core::SheetInfo],
+    active_sheet_index: usize,
+) -> Element<'a, Message> {
+    if sheets.len() <= 1 {
+        return container(row![]).into();
+    }
+
+    let mut tabs_row = row![].spacing(TAB_SPACING);
+
+    for (index, sheet) in sheets.iter().enumerate() {
+        let is_active = index == active_sheet_index;
+        let tab_button = button(text(&sheet.name))
+            .on_press(Message::SheetTabClicked(index))
+            .style(if is_active {
+                glass_button_primary
             } else {
-                iced::Color::from_rgba(0.0, 0.0, 0.0, 0.03)
+                breeze_button
+            });
+
+        tabs_row = tabs_row.push(tab_button);
+    }
+
+    container(tabs_row)
+        .style(glass_card)
+        .padding(CARD_PADDING)
+        .into()
+}
+
+fn render_spreadsheet_body<'a>(
+    state: &'a SpreadsheetState,
+    sheet: &'a crate::core::SheetInfo,
+) -> Element<'a, Message> {
+    let filtered_rows = filter_rows(&sheet.rows, &state.search_query);
+    let sorted_rows = sort_rows(filtered_rows, state.sort_col, state.sort_ascending);
+
+    let header = render_table_header(&sheet.headers, state.sort_col, state.sort_ascending);
+    let rows_list = render_table_rows(&sorted_rows, sheet.headers.len());
+
+    let scrollable_area = scrollable(rows_list)
+        .style(glass_scrollable)
+        .height(Length::Fill);
+
+    let mut layout = column![].spacing(MAIN_SPACING);
+
+    if state.search_visible {
+        layout = layout.push(search_bar(
+            SearchKind::Spreadsheet,
+            &state.search_query,
+            None,
+        ));
+    }
+
+    layout = layout.push(header);
+    layout = layout.push(scrollable_area);
+
+    layout.into()
+}
+
+fn render_table_header<'a>(
+    headers: &'a [String],
+    sort_column: Option<usize>,
+    sort_ascending: Option<bool>,
+) -> Element<'a, Message> {
+    let mut header_row = row![].spacing(HEADER_ROW_SPACING);
+
+    for (column_index, header_title) in headers.iter().enumerate() {
+        let indicator = get_sort_indicator(column_index, sort_column, sort_ascending);
+        let button_label = format!("{}{}", header_title, indicator);
+
+        let header_button = button(text(button_label))
+            .on_press(Message::SpreadsheetColumnClicked(column_index))
+            .style(breeze_button)
+            .width(Length::FillPortion(1));
+
+        header_row = header_row.push(header_button);
+    }
+
+    container(header_row.padding(HEADER_INNER_PADDING))
+        .style(glass_card)
+        .padding(CARD_PADDING)
+        .into()
+}
+
+fn render_table_rows<'a>(rows: &[&'a Vec<String>], column_count: usize) -> Element<'a, Message> {
+    let mut rows_list = column![].spacing(ROWS_LIST_SPACING);
+
+    for (row_index, row_data) in rows.iter().enumerate() {
+        let mut row_widget = row![]
+            .spacing(DATA_ROW_SPACING)
+            .padding(DATA_ROW_INNER_PADDING);
+        let total_columns = row_data.len().max(column_count);
+
+        for column_index in 0..total_columns {
+            let cell_text = row_data
+                .get(column_index)
+                .map(|text_val| text_val.as_str())
+                .unwrap_or("");
+
+            let cell_container =
+                container(text(cell_text).size(CELL_TEXT_SIZE).width(Length::Fill))
+                    .width(Length::FillPortion(1));
+
+            row_widget = row_widget.push(cell_container);
+        }
+
+        let is_even_row = row_index % 2 == 0;
+        let row_container = container(row_widget).style(move |theme: &Theme| {
+            if is_even_row {
+                apply_even_row_style(theme)
+            } else {
+                container::Style::default()
+            }
+        });
+
+        rows_list = rows_list.push(row_container);
+    }
+
+    rows_list.into()
+}
+
+fn filter_rows<'a>(rows: &'a [Vec<String>], search_query: &str) -> Vec<&'a Vec<String>> {
+    if search_query.is_empty() {
+        rows.iter().collect()
+    } else {
+        let query_lowercase = search_query.to_lowercase();
+        rows.iter()
+            .filter(|row| {
+                row.iter()
+                    .any(|cell| cell.to_lowercase().contains(&query_lowercase))
             })
-            .into(),
-        ),
+            .collect()
+    }
+}
+
+fn sort_rows<'a>(
+    rows: Vec<&'a Vec<String>>,
+    sort_column: Option<usize>,
+    sort_ascending: Option<bool>,
+) -> Vec<&'a Vec<String>> {
+    let Some(column_index) = sort_column else {
+        return rows;
+    };
+
+    let is_ascending = sort_ascending == Some(true);
+    let mut indexed_rows: Vec<(usize, &'a Vec<String>)> = rows.into_iter().enumerate().collect();
+
+    indexed_rows.sort_by(|(_, row_a), (_, row_b)| {
+        let val_a = row_a.get(column_index).map(|s| s.as_str()).unwrap_or("");
+        let val_b = row_b.get(column_index).map(|s| s.as_str()).unwrap_or("");
+
+        if is_ascending {
+            val_a.cmp(val_b)
+        } else {
+            val_b.cmp(val_a)
+        }
+    });
+
+    indexed_rows.into_iter().map(|(_, row)| row).collect()
+}
+
+fn get_sort_indicator(
+    column_index: usize,
+    sort_column: Option<usize>,
+    sort_ascending: Option<bool>,
+) -> &'static str {
+    if Some(column_index) != sort_column {
+        return SORT_NONE_INDICATOR;
+    }
+
+    match sort_ascending {
+        Some(true) => SORT_ASCENDING_INDICATOR,
+        Some(false) => SORT_DESCENDING_INDICATOR,
+        None => SORT_NONE_INDICATOR,
+    }
+}
+
+fn apply_even_row_style(theme: &Theme) -> container::Style {
+    let is_dark_theme = matches!(theme, Theme::Dark);
+    let background_color = if is_dark_theme {
+        Color::from_rgba(1.0, 1.0, 1.0, EVEN_ROW_BG_ALPHA_DARK)
+    } else {
+        Color::from_rgba(0.0, 0.0, 0.0, EVEN_ROW_BG_ALPHA_LIGHT)
+    };
+
+    container::Style {
+        background: Some(background_color.into()),
         ..container::Style::default()
     }
 }
 
-fn sort_indicator(col: usize, sort_col: Option<usize>, ascending: Option<bool>) -> &'static str {
-    if Some(col) == sort_col {
-        match ascending {
-            Some(true) => " ↑",
-            Some(false) => " ↓",
-            None => "",
-        }
-    } else {
-        ""
-    }
-}
-
-pub fn view_spreadsheet<'a>(state: &'a SpreadsheetState) -> Element<'a, Message> {
-    let active = state.sheets.get(state.active_sheet);
-
-    let sheet_tabs: Element<'a, Message> = if state.sheets.len() > 1 {
-        let mut tabs = row![].spacing(4);
-        for (i, sheet) in state.sheets.iter().enumerate() {
-            let is_active = i == state.active_sheet;
-            let btn = button(text(&sheet.name))
-                .on_press(Message::SheetTabClicked(i))
-                .style(if is_active {
-                    crate::ui::theme::glass_button_primary
-                } else {
-                    breeze_button
-                });
-            tabs = tabs.push(btn);
-        }
-        container(tabs).style(glass_card).padding([4, 8]).into()
-    } else {
-        container(row![]).into()
-    };
-
-    let body: Element<'a, Message> = if let Some(sheet) = active {
-        let sort_col = state.sort_col;
-        let sort_asc = state.sort_ascending;
-
-        // Filter rows by search query (case-insensitive, across all columns)
-        let filtered: Vec<&Vec<String>> = if state.search_query.is_empty() {
-            sheet.rows.iter().collect()
-        } else {
-            let q = state.search_query.to_lowercase();
-            sheet
-                .rows
-                .iter()
-                .filter(|row| row.iter().any(|cell| cell.to_lowercase().contains(&q)))
-                .collect()
-        };
-
-        let mut header_row = row![].spacing(8);
-        for (ci, h) in sheet.headers.iter().enumerate() {
-            let label = format!("{}{}", h, sort_indicator(ci, sort_col, sort_asc));
-            let btn = button(text(label))
-                .on_press(Message::SpreadsheetColumnClicked(ci))
-                .style(breeze_button)
-                .width(Length::FillPortion(1));
-            header_row = header_row.push(btn);
-        }
-
-        let header = container(header_row.padding(5))
-            .style(glass_card)
-            .padding([4, 8]);
-
-        let display_rows = if let Some(sc) = sort_col {
-            let ascending = sort_asc == Some(true);
-            let mut sorted: Vec<(usize, &Vec<String>)> =
-                filtered.iter().enumerate().map(|(i, r)| (i, *r)).collect();
-            sorted.sort_by(|(_, a), (_, b)| {
-                let va = a.get(sc).map(|s| s.as_str()).unwrap_or("");
-                let vb = b.get(sc).map(|s| s.as_str()).unwrap_or("");
-                if ascending { va.cmp(vb) } else { vb.cmp(va) }
-            });
-            sorted.into_iter().map(|(_, r)| r).collect::<Vec<_>>()
-        } else {
-            filtered
-        };
-
-        let mut rows_list = column![].spacing(2);
-        for (idx, row_data) in display_rows.iter().enumerate() {
-            let mut row_widget = row![].spacing(8).padding(3);
-            let max_cols = row_data.len().max(sheet.headers.len());
-            for ci in 0..max_cols {
-                let cell_text = row_data.get(ci).map(|s| s.as_str()).unwrap_or("");
-                row_widget = row_widget.push(
-                    container(text(cell_text).size(14).width(Length::Fill))
-                        .width(Length::FillPortion(1)),
-                );
-            }
-
-            let row_style: fn(&Theme) -> container::Style = if idx % 2 == 0 {
-                even_row_style
-            } else {
-                |_| container::Style::default()
-            };
-            rows_list = rows_list.push(container(row_widget).style(row_style));
-        }
-
-        let scroll_area = scrollable(rows_list)
-            .style(glass_scrollable)
-            .height(Length::Fill);
-
-        let mut col = column![].spacing(6);
-        if state.search_visible {
-            col = col.push(search_bar(
-                SearchKind::Spreadsheet,
-                &state.search_query,
-                None,
-                "Search spreadsheet...",
-                "ss_search_input",
-            ));
-        }
-        col = col.push(header);
-        col = col.push(scroll_area);
-        col.into()
-    } else {
-        text("No data").size(18).into()
-    };
-
-    column![sheet_tabs, body].spacing(6).into()
+fn render_empty_state<'a>() -> Element<'a, Message> {
+    text(EMPTY_STATE_MESSAGE).size(EMPTY_STATE_TEXT_SIZE).into()
 }
