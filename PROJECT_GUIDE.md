@@ -2,7 +2,7 @@
 
 ## System Requirements
 
-- **KDE Plasma 6** (Wayland or X11)
+- **KDE Plasma 6** (Wayland)
 - **Rust 1.85+** (Edition 2024)
 
 ## Architecture Overview
