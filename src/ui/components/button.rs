@@ -4,12 +4,6 @@ pub use iced::widget::button::{Status, Style};
 
 use crate::ui::theme::glass;
 
-/// Standard KDE Breeze-style button.
-///
-/// - Subtle surface background
-/// - 1px border
-/// - 4px border radius
-/// - Accent highlight on hover/pressed
 pub fn breeze(theme: &Theme, status: Status) -> Style {
     let p = glass::palette(theme);
     let (bg, border_color, text_color) = match status {

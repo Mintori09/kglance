@@ -1,8 +1,8 @@
 use std::cell::Cell;
 
 use crate::parsers::markdown::Inline;
+use crate::ui::theme::font::{get_code_font, get_main_font};
 use crate::ui::views::markdown_view::components::style::{MarkdownPalette, STYLE};
-use crate::ui::views::shared::font::{get_code_font, get_main_font};
 use iced::font::Weight;
 use iced::widget::text::Span;
 use iced::{Color, Font};

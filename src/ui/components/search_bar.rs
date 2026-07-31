@@ -28,6 +28,26 @@ struct SearchMessages {
 }
 
 impl SearchKind {
+    fn placeholder(&self) -> &'static str {
+        match self {
+            Self::Text => "Search...",
+            Self::Markdown => "Search markdown...",
+            Self::Json => "Search key or value...",
+            Self::Spreadsheet => "Search spreadsheet...",
+            Self::Grid => "Search files...",
+        }
+    }
+
+    fn input_id(&self) -> &'static str {
+        match self {
+            Self::Text => "txt_search_input",
+            Self::Markdown => "md_search_input",
+            Self::Json => "json_search_input",
+            Self::Spreadsheet => "ss_search_input",
+            Self::Grid => "grid_search_input",
+        }
+    }
+
     fn messages(&self) -> SearchMessages {
         match self {
             Self::Text => SearchMessages {
@@ -68,12 +88,11 @@ pub fn search_bar<'a>(
     kind: SearchKind,
     query: &'a str,
     info: Option<&'a str>,
-    placeholder: &str,
-    input_id: impl Into<iced::widget::Id>,
 ) -> Element<'a, Message> {
     let messages = kind.messages();
+    let input_id = kind.input_id();
 
-    let query_input: Element<'a, Message> = text_input(placeholder, query)
+    let query_input: Element<'a, Message> = text_input(kind.placeholder(), query)
         .id(input_id)
         .on_input(messages.on_query)
         .style(breeze_text_input)

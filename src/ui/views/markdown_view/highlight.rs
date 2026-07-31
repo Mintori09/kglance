@@ -43,6 +43,7 @@ pub(crate) fn highlight_code<'a>(
     } else {
         "InspiredGitHub"
     };
+
     let theme = ts
         .themes
         .get(theme_name)

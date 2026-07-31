@@ -6,6 +6,12 @@ const ARROW_FONT_SIZE: f32 = 9.0;
 const DRAG_HANDLE_CONTAINER_WIDTH: f32 = 4.0;
 const DRAG_HANDLE_BUTTON_WIDTH: f32 = 6.0;
 
+pub const INDENT_PER_LEVEL: f32 = 12.0;
+pub const SIDEBAR_BORDER_WIDTH: f32 = 1.0;
+pub const SIDEBAR_ITEM_SPACING: f32 = 2.0;
+pub const SIDEBAR_ENTRY_PADDING_V: f32 = 4.0;
+pub const SIDEBAR_ENTRY_FONT_SIZE: f32 = 12.0;
+
 const ICON_EXPANDED: &str = "▼ ";
 const ICON_COLLAPSED: &str = "▶ ";
 

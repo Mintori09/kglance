@@ -1,9 +1,9 @@
 use super::style::{STYLE, code_block_style, mermaid_badge_style};
 use crate::app::Message;
 use crate::log_debug;
+use crate::ui::theme::font::get_code_font;
+use crate::ui::theme::scale_size;
 use crate::ui::views::markdown_view::blocks::RenderContext;
-use crate::ui::views::shared::font::get_code_font;
-use crate::ui::views::shared::theme::scale_size;
 use iced::widget::{column, container, image, text};
 use iced::{Element, Length};
 

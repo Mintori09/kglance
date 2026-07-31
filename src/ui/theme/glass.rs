@@ -220,6 +220,53 @@ pub fn glass_row_button(theme: &Theme, status: button::Status, is_selected: bool
     }
 }
 
+/// Dynamic card style for grid item buttons supporting glassmorphism hover, border, shadow, and selection.
+pub fn glass_grid_card(theme: &Theme, status: button::Status, is_selected: bool) -> button::Style {
+    let p = palette(theme);
+    let is_dark = matches!(theme, Theme::Dark);
+
+    let (bg_color, border_color, border_width, shadow) = if is_selected {
+        let mut active_bg = ACCENT;
+        active_bg.a = if is_dark { 0.25 } else { 0.20 };
+
+        let active_shadow = Shadow {
+            color: Color { a: 0.4, ..ACCENT },
+            offset: iced::Vector::new(0.0, 2.0),
+            blur_radius: 8.0,
+        };
+        (active_bg, ACCENT, 2.0, active_shadow)
+    } else {
+        match status {
+            button::Status::Hovered => {
+                let hover_bg = if is_dark {
+                    Color::from_rgba(1.0, 1.0, 1.0, 0.12)
+                } else {
+                    Color::from_rgba(0.0, 0.0, 0.0, 0.08)
+                };
+                let hover_border = if is_dark {
+                    Color::from_rgba(1.0, 1.0, 1.0, 0.2)
+                } else {
+                    Color::from_rgba(0.0, 0.0, 0.0, 0.15)
+                };
+                (hover_bg, hover_border, 1.0, Shadow::default())
+            }
+            _ => (p.surface, p.border, 1.0, Shadow::default()),
+        }
+    };
+
+    button::Style {
+        background: Some(bg_color.into()),
+        text_color: p.text,
+        border: Border {
+            color: border_color,
+            width: border_width,
+            radius: 10.0.into(),
+        },
+        shadow,
+        snap: false,
+    }
+}
+
 /// Accent-filled primary action button (always uses accent colour).
 pub fn glass_button_primary(theme: &Theme, status: button::Status) -> button::Style {
     let p = palette(theme);
