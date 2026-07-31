@@ -25,23 +25,24 @@ pub fn render_chapter_sidebar<'a>(state: &'a EpubState, is_dark: bool) -> Elemen
     let sidebar_header = build_sidebar_header(state, palette.text);
     let chapter_list = build_sidebar_chapter_list(state, is_dark);
 
-    container(
-        column![sidebar_header, chapter_list]
-            .width(state.sidebar_width)
-            .height(Length::Fill),
+    iced::widget::opaque(
+        container(
+            column![sidebar_header, chapter_list]
+                .width(state.sidebar_width)
+                .height(Length::Fill),
+        )
+        .width(state.sidebar_width)
+        .height(Length::Fill)
+        .style(move |_| container::Style {
+            background: Some(palette.bg.into()),
+            border: Border {
+                width: BORDER_WIDTH,
+                color: palette.border,
+                radius: 0.0.into(),
+            },
+            ..Default::default()
+        }),
     )
-    .width(state.sidebar_width)
-    .height(Length::Fill)
-    .style(move |_| container::Style {
-        background: Some(palette.bg.into()),
-        border: Border {
-            width: BORDER_WIDTH,
-            color: palette.border,
-            radius: 0.0.into(),
-        },
-        ..Default::default()
-    })
-    .into()
 }
 
 fn build_sidebar_header<'a>(state: &'a EpubState, text_color: Color) -> Element<'a, Message> {

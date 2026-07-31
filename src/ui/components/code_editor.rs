@@ -27,6 +27,33 @@ pub fn line_number_width(line_count: usize, font_size: f32) -> Length {
     Length::Fixed(calculated_width)
 }
 
+fn select_highlight_syntax(extension: &str) -> String {
+    let ext = extension.trim_start_matches('.').to_lowercase();
+    match ext.as_str() {
+        "rs" | "rust" => "rs".to_string(),
+        "py" | "pyw" | "python" => "py".to_string(),
+        "js" | "mjs" | "cjs" | "javascript" => "js".to_string(),
+        "ts" | "mts" | "cts" | "typescript" => "ts".to_string(),
+        "jsx" => "jsx".to_string(),
+        "tsx" => "tsx".to_string(),
+        "json" | "jsonc" => "json".to_string(),
+        "html" | "htm" => "html".to_string(),
+        "css" => "css".to_string(),
+        "scss" | "sass" => "scss".to_string(),
+        "md" | "markdown" => "md".to_string(),
+        "toml" => "toml".to_string(),
+        "yaml" | "yml" => "yaml".to_string(),
+        "xml" | "svg" => "xml".to_string(),
+        "sh" | "bash" | "zsh" => "sh".to_string(),
+        "c" | "h" => "c".to_string(),
+        "cpp" | "hpp" | "cc" | "cxx" => "cpp".to_string(),
+        "java" => "java".to_string(),
+        "go" => "go".to_string(),
+        "sql" => "sql".to_string(),
+        _ => ext,
+    }
+}
+
 fn select_highlight_theme(is_dark: bool) -> HighlightTheme {
     if is_dark {
         HighlightTheme::Base16Mocha
@@ -72,8 +99,10 @@ pub fn code_editor<'a>(
         left: 0.0,
     });
 
+    let syntax = select_highlight_syntax(extension);
+
     let editor_widget = text_editor(content)
-        .highlight(extension, highlight_theme)
+        .highlight(&syntax, highlight_theme)
         .font(font)
         .size(font_size)
         .wrapping(iced::widget::text::Wrapping::None)
@@ -87,4 +116,37 @@ pub fn code_editor<'a>(
     .spacing(GUTTER_SPACING)
     .align_y(Alignment::Start)
     .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_select_highlight_syntax() {
+        assert_eq!(select_highlight_syntax("rs"), "rs");
+        assert_eq!(select_highlight_syntax(".rs"), "rs");
+        assert_eq!(select_highlight_syntax("PY"), "py");
+        assert_eq!(select_highlight_syntax(".mjs"), "js");
+        assert_eq!(select_highlight_syntax("jsonc"), "json");
+        assert_eq!(select_highlight_syntax("unknown_ext"), "unknown_ext");
+    }
+
+    #[test]
+    fn test_calculate_digit_count() {
+        assert_eq!(calculate_digit_count(0), 1);
+        assert_eq!(calculate_digit_count(1), 1);
+        assert_eq!(calculate_digit_count(9), 1);
+        assert_eq!(calculate_digit_count(10), 2);
+        assert_eq!(calculate_digit_count(99), 2);
+        assert_eq!(calculate_digit_count(100), 3);
+        assert_eq!(calculate_digit_count(999), 3);
+        assert_eq!(calculate_digit_count(1000), 4);
+    }
+
+    #[test]
+    fn test_generate_line_numbers_text() {
+        assert_eq!(generate_line_numbers_text(1), "1");
+        assert_eq!(generate_line_numbers_text(3), "1\n2\n3");
+    }
 }

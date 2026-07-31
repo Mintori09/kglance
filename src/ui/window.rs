@@ -282,15 +282,17 @@ pub fn view_window<'a>(
                 }
             });
 
-        let backdrop = container(modal_box)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(iced::alignment::Horizontal::Center)
-            .align_y(Alignment::Center)
-            .style(|_| container::Style {
-                background: Some(iced::Color::from_rgba(0.0, 0.0, 0.0, 0.5).into()),
-                ..Default::default()
-            });
+        let backdrop = iced::widget::opaque(
+            container(modal_box)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Center)
+                .align_y(Alignment::Center)
+                .style(|_| container::Style {
+                    background: Some(iced::Color::from_rgba(0.0, 0.0, 0.0, 0.5).into()),
+                    ..Default::default()
+                }),
+        );
 
         stack = stack.push(backdrop);
     }

@@ -92,7 +92,15 @@ impl PreviewData {
                 let mins = (words as f32 / 200.0).ceil() as usize;
 
                 state.text.content = iced::widget::text_editor::Content::with_text(content);
-                state.text.extension = language.clone();
+                let path_ext = if !state.file_name.is_empty() {
+                    Path::new(&state.file_name)
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or(language)
+                } else {
+                    language
+                };
+                state.text.extension = path_ext.to_string();
                 state.text.line_numbers.clone_from(line_numbers);
                 state.text.word_count = words;
                 state.text.char_count = chars;
