@@ -432,6 +432,9 @@ pub struct KglanceState {
     pub epub_font_family: Option<String>,
     pub max_text_width: Option<f32>,
 
+    pub window_default_size: iced::Size,
+    pub window_min_size: iced::Size,
+
     pub theme_dark: bool,
 
     pub toasts: Vec<ToastInfo>,
@@ -483,6 +486,8 @@ impl Default for KglanceState {
             font_family_mono: None,
             epub_font_family: None,
             max_text_width: None,
+            window_default_size: iced::Size::new(1024.0, 768.0),
+            window_min_size: iced::Size::new(800.0, 600.0),
             theme_dark: true,
             toasts: Vec::new(),
             next_toast_id: 0,

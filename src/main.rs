@@ -118,17 +118,21 @@ fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let start_time = std::time::Instant::now();
     let registry = std::sync::Arc::new(build_registry());
 
+    let owned_paths: Vec<String> = paths.to_vec();
+    let config = kglance::core::config::ConfigManager::load_or_create();
+
     let primary = &paths[0];
     let resolved = std::path::Path::new(primary);
-    let mut initial_size = Size::new(1024.0, 768.0);
+    let mut initial_size = Size::new(
+        config.ui.default_width as f32,
+        config.ui.default_height as f32,
+    );
     if let Ok(kglance::parsers::ParsedContent::Image { width, height, .. }) =
         registry.parse(resolved)
     {
         initial_size = kglance::ui::handlers::image::calculate_window_size(width, height);
     }
 
-    let owned_paths: Vec<String> = paths.to_vec();
-    let config = kglance::core::config::ConfigManager::load_or_create();
     let default_font = config
         .ui
         .font_family
@@ -152,7 +156,10 @@ fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     )
     .window(iced::window::Settings {
         visible: true,
-        min_size: Some(Size::new(400.0, 300.0)),
+        min_size: Some(Size::new(
+            config.ui.min_width as f32,
+            config.ui.min_height as f32,
+        )),
         size: initial_size,
         icon: window_icon,
         exit_on_close_request: true,
