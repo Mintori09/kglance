@@ -13,7 +13,7 @@ pub use layout_engine::{
 };
 pub use preview::{FilePreviewer, PreviewData};
 pub use types::{
-    DirState, GridThumbnail, HistoryState, ImageState, KglanceState, MarkdownState, MediaState,
-    PageCacheEntry, PdfState, SheetInfo, SortField, SortState, SpreadsheetState, TableRowState,
-    TableState, TextState, ToastInfo, TocEntry, ViewMode, sort_table_rows,
+    DirState, FolderRowState, FolderState, GridThumbnail, HistoryState, ImageState, KglanceState,
+    MarkdownState, MediaState, PageCacheEntry, PdfState, SheetInfo, SortField, SortState,
+    SpreadsheetState, TextState, ToastInfo, TocEntry, ViewMode, sort_folder_rows,
 };

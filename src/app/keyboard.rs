@@ -255,7 +255,7 @@ impl super::KglanceApp {
     }
 
     fn handle_folder_navigation(&mut self, key: &iced::keyboard::Key) -> Option<Task<Message>> {
-        let rows_len = self.state.table.rows.len();
+        let rows_len = self.state.folder.rows.len();
 
         if rows_len == 0 {
             return None;
@@ -267,23 +267,23 @@ impl super::KglanceApp {
 
         match key {
             iced::keyboard::Key::Named(Named::ArrowDown) => {
-                let new_idx = match self.state.table.selected_index {
+                let new_idx = match self.state.folder.selected_index {
                     Some(idx) => (idx + 1).min(rows_len - 1),
                     None => 0,
                 };
-                self.state.table.selected_index = Some(new_idx);
+                self.state.folder.selected_index = Some(new_idx);
                 Some(Task::none())
             }
             iced::keyboard::Key::Named(Named::ArrowUp) => {
-                let new_idx = match self.state.table.selected_index {
+                let new_idx = match self.state.folder.selected_index {
                     Some(idx) => idx.saturating_sub(1),
                     None => 0,
                 };
-                self.state.table.selected_index = Some(new_idx);
+                self.state.folder.selected_index = Some(new_idx);
                 Some(Task::none())
             }
             iced::keyboard::Key::Named(Named::ArrowLeft) => {
-                let parent = Path::new(&self.state.table.folder_path).parent()?;
+                let parent = Path::new(&self.state.folder.folder_path).parent()?;
                 let parent_str = parent.to_string_lossy().to_string();
                 let registry = self.registry.clone();
                 Some(Task::perform(
@@ -303,8 +303,8 @@ impl super::KglanceApp {
                 ))
             }
             iced::keyboard::Key::Named(Named::ArrowRight) => {
-                let idx = self.state.table.selected_index?;
-                let row = self.state.table.rows.get(idx)?;
+                let idx = self.state.folder.selected_index?;
+                let row = self.state.folder.rows.get(idx)?;
                 let full_path = Path::new(&self.state.file_name).join(&row.path);
                 let path_str = full_path.to_string_lossy().to_string();
                 let registry = self.registry.clone();
@@ -323,33 +323,33 @@ impl super::KglanceApp {
             }
             iced::keyboard::Key::Named(Named::Home) => {
                 self.pending_home = false;
-                self.state.table.selected_index = Some(0);
+                self.state.folder.selected_index = Some(0);
                 Some(Task::none())
             }
             iced::keyboard::Key::Named(Named::End) => {
                 self.pending_home = false;
-                self.state.table.selected_index = Some(rows_len - 1);
+                self.state.folder.selected_index = Some(rows_len - 1);
                 Some(Task::none())
             }
             iced::keyboard::Key::Named(Named::PageUp) => {
-                let new_idx = match self.state.table.selected_index {
+                let new_idx = match self.state.folder.selected_index {
                     Some(idx) => idx.saturating_sub(10),
                     None => 0,
                 };
-                self.state.table.selected_index = Some(new_idx);
+                self.state.folder.selected_index = Some(new_idx);
                 Some(Task::none())
             }
             iced::keyboard::Key::Named(Named::PageDown) => {
-                let new_idx = match self.state.table.selected_index {
+                let new_idx = match self.state.folder.selected_index {
                     Some(idx) => (idx + 10).min(rows_len - 1),
                     None => 0,
                 };
-                self.state.table.selected_index = Some(new_idx);
+                self.state.folder.selected_index = Some(new_idx);
                 Some(Task::none())
             }
             iced::keyboard::Key::Named(Named::Enter) => {
-                let idx = self.state.table.selected_index?;
-                let row = self.state.table.rows.get(idx)?;
+                let idx = self.state.folder.selected_index?;
+                let row = self.state.folder.rows.get(idx)?;
                 let full_path = Path::new(&self.state.file_name).join(&row.path);
                 let path_str = full_path.to_string_lossy().to_string();
                 let registry = self.registry.clone();
