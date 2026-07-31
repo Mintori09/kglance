@@ -52,7 +52,7 @@ fn render_sheet_tabs<'a>(
     for (index, sheet) in sheets.iter().enumerate() {
         let is_active = index == active_sheet_index;
         let tab_button = button(text(&sheet.name))
-            .on_press(Message::SheetTabClicked(index))
+            .on_press(crate::app::messages::SpreadsheetMsg::SheetTabClicked(index).into())
             .style(if is_active {
                 default_button_primary
             } else {
@@ -110,7 +110,7 @@ fn render_table_header<'a>(
         let button_label = format!("{}{}", header_title, indicator);
 
         let header_button = button(text(button_label))
-            .on_press(Message::SpreadsheetColumnClicked(column_index))
+            .on_press(crate::app::messages::SpreadsheetMsg::ColumnClicked(column_index).into())
             .style(default_button)
             .width(Length::FillPortion(1));
 

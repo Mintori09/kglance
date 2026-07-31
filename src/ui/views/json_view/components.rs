@@ -59,7 +59,7 @@ pub fn render_breadcrumbs<'a>(
                         .size(font_size * 0.8)
                         .color(link_color(is_dark)),
                 )
-                .on_press(Message::JsonBreadcrumbClicked(*idx))
+                .on_press(crate::app::messages::JsonMsg::BreadcrumbClicked(*idx).into())
                 .padding(0)
                 .style(|_theme, _status| button::Style {
                     background: None,
@@ -158,6 +158,6 @@ pub fn render_raw<'a>(
         is_dark,
         font_size,
         mono_font,
-        Message::JsonRawEdit,
+        |action| crate::app::messages::JsonMsg::RawEdit(action).into(),
     )
 }

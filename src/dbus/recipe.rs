@@ -39,7 +39,15 @@ impl Recipe for DaemonRecipe {
                         match cmd {
                             // Single merged event: open window + load content in one Iced cycle.
                             DaemonCommand::OpenWindowWithContent { path, content } => {
-                                let _ = output.send(Message::FileLoaded { path, content }).await;
+                                let _ = output
+                                    .send(
+                                        crate::app::messages::SystemMsg::FileLoaded {
+                                            path,
+                                            content,
+                                        }
+                                        .into(),
+                                    )
+                                    .await;
                             }
                             // Open window with content + pre-populated playlist.
                             DaemonCommand::OpenWindowWithPlaylist {
@@ -48,19 +56,32 @@ impl Recipe for DaemonRecipe {
                                 playlist,
                             } => {
                                 let _ = output
-                                    .send(Message::DaemonOpenWithPlaylist {
-                                        path,
-                                        content,
-                                        playlist,
-                                    })
+                                    .send(
+                                        crate::app::messages::SystemMsg::DaemonOpenWithPlaylist {
+                                            path,
+                                            content,
+                                            playlist,
+                                        }
+                                        .into(),
+                                    )
                                     .await;
                             }
                             // Kept for future use (e.g. reloading without window re-open).
                             DaemonCommand::ShowPreviewExisting { path, content } => {
-                                let _ = output.send(Message::FileLoaded { path, content }).await;
+                                let _ = output
+                                    .send(
+                                        crate::app::messages::SystemMsg::FileLoaded {
+                                            path,
+                                            content,
+                                        }
+                                        .into(),
+                                    )
+                                    .await;
                             }
                             DaemonCommand::HidePreview => {
-                                let _ = output.send(Message::CloseRequested).await;
+                                let _ = output
+                                    .send(crate::app::messages::ActionMsg::CloseRequested.into())
+                                    .await;
                             }
                         }
                     }

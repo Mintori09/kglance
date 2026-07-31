@@ -277,7 +277,7 @@ fn create_folder_row<'a>(
     .spacing(ROW_CONTENT_SPACING);
 
     button(row_content)
-        .on_press(Message::FileClicked(row_index))
+        .on_press(crate::app::messages::NavigationMsg::FileClicked(row_index).into())
         .style(move |theme, status| default_row_button(theme, status, is_selected))
         .padding(0)
         .height(ROW_BUTTON_HEIGHT)

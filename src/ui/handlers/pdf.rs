@@ -81,7 +81,9 @@ async fn process_pdf_page_loading(
         tokio::time::sleep(LOOP_POLL_INTERVAL).await;
     }
 
-    let _ = output.send(Message::PdfPagesLoaded(Vec::new())).await;
+    let _ = output
+        .send(crate::app::messages::PdfMsg::PagesLoaded(Vec::new()).into())
+        .await;
 }
 
 fn find_unrendered_pages(rendered_pages: &[bool]) -> Vec<usize> {
@@ -122,12 +124,13 @@ async fn render_and_send_batch(output: &mut Sender<Message>, file_path: &str, ba
 
     for (&page_index, task_result) in batch.iter().zip(render_results) {
         if let Ok(Some(page_data)) = task_result {
-            let message = Message::PdfPageReady(
+            let message: Message = crate::app::messages::PdfMsg::PageReady(
                 page_index,
                 page_data.data,
                 page_data.width,
                 page_data.height,
-            );
+            )
+            .into();
             let _ = output.send(message).await;
         }
     }

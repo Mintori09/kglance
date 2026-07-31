@@ -127,7 +127,7 @@ pub fn render_tree_node<'a>(
     };
 
     let copy_btn = button(text("C").size(font_size * 0.7).font(iced::Font::MONOSPACE))
-        .on_press(Message::JsonCopyPath(index))
+        .on_press(crate::app::messages::JsonMsg::CopyPath(index).into())
         .padding([0, 3])
         .style(ui_btn::breeze_tool);
 
@@ -163,7 +163,7 @@ pub fn render_tree_node<'a>(
 
     if node.children_count > 0 {
         button(padded)
-            .on_press(Message::JsonToggleNode(index))
+            .on_press(crate::app::messages::JsonMsg::ToggleNode(index).into())
             .style(
                 |_theme: &iced::Theme, _status: button::Status| button::Style {
                     background: None,
@@ -207,8 +207,8 @@ pub fn render_tree<'a>(
             if is_editing && editing_view {
                 let edit_input: Element<'a, Message> =
                     text_input(&node.value_preview, &state.edit_value)
-                        .on_input(Message::JsonEditValue)
-                        .on_submit(Message::JsonEditSave)
+                        .on_input(|v| crate::app::messages::JsonMsg::EditValue(v).into())
+                        .on_submit(crate::app::messages::JsonMsg::EditSave.into())
                         .style(default_text_input)
                         .width(Length::Fill)
                         .into();
@@ -216,7 +216,7 @@ pub fn render_tree<'a>(
                 column![row_elem, edit_input].spacing(2).into()
             } else if is_active && !editing_view {
                 button(row_elem)
-                    .on_press(Message::JsonEditStart(i))
+                    .on_press(crate::app::messages::JsonMsg::EditStart(i).into())
                     .style(|_theme, _status| button::Style {
                         background: None,
                         text_color: Color::TRANSPARENT,

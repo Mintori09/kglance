@@ -42,8 +42,8 @@ pub fn view_media<'a>(
     }
 
     let interactive_content = mouse_area(stack(layers))
-        .on_enter(Message::MediaMouseEnter)
-        .on_exit(Message::MediaMouseLeave);
+        .on_enter(crate::app::messages::MediaMsg::MouseEnter.into())
+        .on_exit(crate::app::messages::MediaMsg::MouseLeave.into());
 
     container(interactive_content)
         .width(Length::Fill)
@@ -116,10 +116,12 @@ fn render_placeholder_text<'a>(metadata: &str) -> Element<'a, Message> {
 fn render_controls_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
     let play_pause_icon = if state.playing { ICON_PAUSE } else { ICON_PLAY };
 
-    let seek_bar = slider(0.0..=1.0, state.progress, Message::SeekClicked)
-        .step(SEEK_STEP)
-        .style(default_slider)
-        .width(Length::Fill);
+    let seek_bar = slider(0.0..=1.0, state.progress, |val| {
+        crate::app::messages::MediaMsg::SeekClicked(val).into()
+    })
+    .step(SEEK_STEP)
+    .style(default_slider)
+    .width(Length::Fill);
 
     let metadata_row = row![
         text(&state.metadata)
@@ -131,17 +133,17 @@ fn render_controls_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
     .align_y(Alignment::Center);
 
     let rewind_button = button(text(ICON_FAST_FORWARD))
-        .on_press(Message::SeekRelativeClicked(-SEEK_SKIP_SECONDS))
+        .on_press(crate::app::messages::MediaMsg::SeekRelativeClicked(-SEEK_SKIP_SECONDS).into())
         .style(default_button)
         .padding(BUTTON_SMALL_PADDING);
 
     let play_pause_button = button(text(play_pause_icon))
-        .on_press(Message::PlayPauseClicked)
+        .on_press(crate::app::messages::MediaMsg::PlayPauseClicked.into())
         .style(default_button)
         .padding(BUTTON_LARGE_PADDING);
 
     let fast_forward_button = button(text(ICON_REWIND))
-        .on_press(Message::SeekRelativeClicked(SEEK_SKIP_SECONDS))
+        .on_press(crate::app::messages::MediaMsg::SeekRelativeClicked(SEEK_SKIP_SECONDS).into())
         .style(default_button)
         .padding(BUTTON_SMALL_PADDING);
 

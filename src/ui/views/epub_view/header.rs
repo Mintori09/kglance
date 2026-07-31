@@ -41,7 +41,7 @@ pub fn build_epub_header<'a>(
         .size(SIDEBAR_TOGGLE_FONT_SIZE)
         .font(Font::DEFAULT),
     )
-    .on_press(Message::EpubSidebarToggled)
+    .on_press(crate::app::messages::EpubMsg::SidebarToggled.into())
     .padding([
         TOGGLE_BUTTON_PADDING_VERTICAL,
         TOGGLE_BUTTON_PADDING_HORIZONTAL,
