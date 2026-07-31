@@ -7,7 +7,7 @@ use crate::core::types::JsonState;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
 use iced::widget::{button, column, container, row, text, tooltip};
-use iced::{Color, Element, Length, Padding};
+use iced::{Element, Length, Padding};
 
 use crate::ui::theme::tokens::spacing;
 
@@ -70,11 +70,7 @@ pub fn view_json<'a>(
     let mut header_items: Vec<Element<'a, Message>> = vec![
         text(err_text)
             .size(11)
-            .color(if is_dark {
-                Color::from_rgb(1.0, 0.5, 0.3)
-            } else {
-                Color::from_rgb(0.8, 0.2, 0.0)
-            })
+            .color(style::error_color(is_dark))
             .into(),
         iced::widget::Space::new().width(Length::Fill).into(),
     ];

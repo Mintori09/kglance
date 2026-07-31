@@ -2,6 +2,7 @@ use iced::Color;
 
 use crate::core::types::EpubState;
 use crate::ui::components::sidebar::INDENT_PER_LEVEL;
+use crate::ui::theme::color::primitive;
 use crate::ui::views::epub_view::constants::{
     CHAPTER_TITLE_SIZE_LEVEL_ONE, CHAPTER_TITLE_SIZE_OTHER, MAX_INDENT,
 };
@@ -38,13 +39,13 @@ pub fn entry_text_color(is_active: bool, is_light_background: bool, level: u8) -
     }
     if is_light_background {
         if level == 1 {
-            Some(Color::from_rgb(0.2, 0.22, 0.25))
+            Some(primitive::EPUB_CHAPTER_TEXT_L1_LIGHT)
         } else {
-            Some(Color::from_rgb(0.4, 0.42, 0.45))
+            Some(primitive::EPUB_CHAPTER_TEXT_L2_LIGHT)
         }
     } else if level == 1 {
-        Some(Color::from_rgb(0.9, 0.92, 0.95))
+        Some(primitive::EPUB_CHAPTER_TEXT_L1_DARK)
     } else {
-        Some(Color::from_rgb(0.75, 0.78, 0.82))
+        Some(primitive::EPUB_CHAPTER_TEXT_L2_DARK)
     }
 }

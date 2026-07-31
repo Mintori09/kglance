@@ -8,18 +8,6 @@ pub mod spacing {
     pub const XXL: f32 = 32.0;
 }
 
-pub mod typography {
-    pub const SIZE_CAPTION: f32 = 10.0;
-    pub const SIZE_SMALL: f32 = 12.0;
-    pub const SIZE_BODY: f32 = 14.0;
-    pub const SIZE_TITLE: f32 = 18.0;
-    pub const SIZE_HEADER: f32 = 24.0;
-
-    pub const LINE_HEIGHT_DENSE: f32 = 1.2;
-    pub const LINE_HEIGHT_NORMAL: f32 = 1.4;
-    pub const LINE_HEIGHT_RELAXED: f32 = 1.6;
-}
-
 pub mod border {
     pub const THIN: f32 = 1.0;
     pub const MEDIUM: f32 = 2.0;
@@ -71,10 +59,10 @@ pub mod grid {
 }
 
 pub mod font_view {
-    use super::{spacing, typography};
+    use super::spacing;
 
-    pub const PREVIEW_TITLE_SIZE: f32 = typography::SIZE_HEADER;
-    pub const PREVIEW_BODY_SIZE: f32 = typography::SIZE_BODY;
+    pub const PREVIEW_TITLE_SIZE: f32 = 24.0;
+    pub const PREVIEW_BODY_SIZE: f32 = 14.0;
     pub const SAMPLE_TEXT_SIZE: f32 = 36.0;
 
     pub const CARD_PADDING: f32 = spacing::L;
@@ -82,7 +70,7 @@ pub mod font_view {
 }
 
 pub mod tables {
-    use super::{border, radius, spacing, typography};
+    use super::{border, radius, spacing};
 
     pub const ROW_HEIGHT: f32 = 36.0;
     pub const HEADER_HEIGHT: f32 = 40.0;
@@ -90,8 +78,8 @@ pub mod tables {
     pub const PADDING_HORIZONTAL: f32 = spacing::M;
     pub const PADDING_VERTICAL: f32 = spacing::S;
 
-    pub const FONT_SIZE_HEADER: f32 = typography::SIZE_BODY;
-    pub const FONT_SIZE_BODY: f32 = typography::SIZE_SMALL;
+    pub const FONT_SIZE_HEADER: f32 = 14.0;
+    pub const FONT_SIZE_BODY: f32 = 12.0;
 
     pub const BORDER_WIDTH: f32 = border::THIN;
     pub const CORNER_RADIUS: f32 = radius::SMALL;

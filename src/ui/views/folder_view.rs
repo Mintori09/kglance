@@ -6,10 +6,11 @@ use iced::{Alignment, Border, Color, Element, Font, Length, Shadow, Theme, align
 
 use crate::app::Message;
 use crate::core::{FolderState, SortField};
-use crate::ui::theme::glass;
-use crate::ui::theme::{glass_row_button, glass_scrollable, icon_theme};
+use crate::ui::theme::color::base::BaseColors;
+use crate::ui::theme::color::primitive;
+use crate::ui::theme::{default_row_button, default_scrollable, icon_theme};
 
-use crate::ui::theme::tokens::{spacing, tables, typography};
+use crate::ui::theme::tokens::{spacing, tables};
 
 const FONT_WEIGHT_BOLD: Font = Font {
     weight: Weight::Bold,
@@ -36,14 +37,14 @@ const DEFAULT_FOLDER_NAME: &str = "Folder";
 const DEFAULT_FOLDER_EMOJI: &str = "📁";
 const FOLDER_ICON_NAME: &str = "inode-directory";
 
-const SUMMARY_FOLDER_NAME_SIZE: f32 = typography::SIZE_BODY;
-const SUMMARY_PATH_SIZE: f32 = typography::SIZE_CAPTION;
-const SUMMARY_STATS_SIZE: f32 = typography::SIZE_SMALL;
-const SUMMARY_ICON_SIZE: f32 = typography::SIZE_TITLE;
+const SUMMARY_FOLDER_NAME_SIZE: f32 = 14.0;
+const SUMMARY_PATH_SIZE: f32 = 10.0;
+const SUMMARY_STATS_SIZE: f32 = 12.0;
+const SUMMARY_ICON_SIZE: f32 = 18.0;
 
 const HEADER_TEXT_SIZE: f32 = tables::FONT_SIZE_BODY;
 const ROW_TEXT_SIZE: f32 = tables::FONT_SIZE_BODY;
-const ROW_NAME_SIZE: f32 = typography::SIZE_BODY;
+const ROW_NAME_SIZE: f32 = 14.0;
 const ROW_ICON_SIZE: f32 = spacing::L;
 
 const MAIN_LAYOUT_SPACING: f32 = spacing::XS;
@@ -72,7 +73,7 @@ pub fn view_folder<'a>(state: &'a FolderState, theme_dark: bool) -> Element<'a, 
         summary_block,
         folder_header,
         scrollable(rows_list)
-            .style(glass_scrollable)
+            .style(default_scrollable)
             .height(Length::Fill)
     ]
     .spacing(MAIN_LAYOUT_SPACING)
@@ -80,7 +81,7 @@ pub fn view_folder<'a>(state: &'a FolderState, theme_dark: bool) -> Element<'a, 
 }
 
 fn resolve_theme_colors(theme_dark: bool) -> (Color, Color, Color) {
-    let base_color = glass::palette_for(theme_dark).text;
+    let base_color = BaseColors::palette_for(theme_dark).text;
 
     let text_color = base_color;
     let dim_color = Color {
@@ -196,7 +197,7 @@ fn format_sort_label(sort_state: &crate::core::SortState, field: SortField, labe
 }
 
 fn header_button_style(theme: &Theme, status: button::Status) -> button::Style {
-    let palette = glass::palette(theme);
+    let palette = BaseColors::palette(theme);
 
     let hover_alpha = match status {
         button::Status::Hovered => HEADER_HOVER_OPACITY,
@@ -205,9 +206,9 @@ fn header_button_style(theme: &Theme, status: button::Status) -> button::Style {
 
     let is_light_theme = palette.bg.r > 0.5;
     let base_color = if is_light_theme {
-        Color::BLACK
+        primitive::BLACK
     } else {
-        Color::WHITE
+        primitive::WHITE
     };
 
     let background_color = Color {
@@ -277,7 +278,7 @@ fn create_folder_row<'a>(
 
     button(row_content)
         .on_press(Message::FileClicked(row_index))
-        .style(move |theme, status| glass_row_button(theme, status, is_selected))
+        .style(move |theme, status| default_row_button(theme, status, is_selected))
         .padding(0)
         .height(ROW_BUTTON_HEIGHT)
 }

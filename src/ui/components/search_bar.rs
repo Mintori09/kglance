@@ -2,7 +2,7 @@ use iced::widget::{button, container, row, text, text_input};
 use iced::{Element, Length};
 
 use crate::app::Message;
-use crate::ui::theme::{breeze_button, breeze_text_input};
+use crate::ui::theme::{default_button, default_text_input};
 
 const DEFAULT_SPACING: f32 = 10.0;
 const DEFAULT_PADDING: u16 = 5;
@@ -95,7 +95,7 @@ pub fn search_bar<'a>(
     let query_input: Element<'a, Message> = text_input(kind.placeholder(), query)
         .id(input_id)
         .on_input(messages.on_query)
-        .style(breeze_text_input)
+        .style(default_text_input)
         .width(Length::Fill)
         .into();
 
@@ -127,6 +127,6 @@ pub fn search_bar<'a>(
 fn build_action_button<'a>(label: &'static str, on_press: Message) -> Element<'a, Message> {
     button(text(label))
         .on_press(on_press)
-        .style(breeze_button)
+        .style(default_button)
         .into()
 }

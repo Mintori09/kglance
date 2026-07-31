@@ -1,18 +1,19 @@
 use crate::app::Message;
 use crate::core::SpreadsheetState;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
-use crate::ui::theme::{breeze_button, glass_button_primary, glass_card, glass_scrollable};
+use crate::ui::theme::color::primitive::{BLACK_003, WHITE_003};
+use crate::ui::theme::{default_button, default_button_primary, default_card, default_scrollable};
 use iced::widget::{button, column, container, row, scrollable, text};
-use iced::{Color, Element, Length, Theme};
+use iced::{Element, Length, Theme};
 
-use crate::ui::theme::tokens::{spacing, typography};
+use crate::ui::theme::tokens::spacing;
 
 const SORT_ASCENDING_INDICATOR: &str = " ↑";
 const SORT_DESCENDING_INDICATOR: &str = " ↓";
 const SORT_NONE_INDICATOR: &str = "";
 
-const CELL_TEXT_SIZE: f32 = typography::SIZE_BODY;
-const EMPTY_STATE_TEXT_SIZE: f32 = typography::SIZE_TITLE;
+const CELL_TEXT_SIZE: f32 = 14.0;
+const EMPTY_STATE_TEXT_SIZE: f32 = 18.0;
 
 const TAB_SPACING: f32 = spacing::XS;
 const MAIN_SPACING: f32 = spacing::S;
@@ -23,9 +24,6 @@ const ROWS_LIST_SPACING: f32 = spacing::XXS;
 const CARD_PADDING: [u16; 2] = [spacing::XS as u16, spacing::S as u16];
 const HEADER_INNER_PADDING: u16 = 5;
 const DATA_ROW_INNER_PADDING: u16 = 3;
-
-const EVEN_ROW_BG_ALPHA_DARK: f32 = 0.03;
-const EVEN_ROW_BG_ALPHA_LIGHT: f32 = 0.03;
 
 const EMPTY_STATE_MESSAGE: &str = "No data";
 
@@ -56,16 +54,16 @@ fn render_sheet_tabs<'a>(
         let tab_button = button(text(&sheet.name))
             .on_press(Message::SheetTabClicked(index))
             .style(if is_active {
-                glass_button_primary
+                default_button_primary
             } else {
-                breeze_button
+                default_button
             });
 
         tabs_row = tabs_row.push(tab_button);
     }
 
     container(tabs_row)
-        .style(glass_card)
+        .style(default_card)
         .padding(CARD_PADDING)
         .into()
 }
@@ -81,7 +79,7 @@ fn render_spreadsheet_body<'a>(
     let rows_list = render_table_rows(&sorted_rows, sheet.headers.len());
 
     let scrollable_area = scrollable(rows_list)
-        .style(glass_scrollable)
+        .style(default_scrollable)
         .height(Length::Fill);
 
     let mut layout = column![].spacing(MAIN_SPACING);
@@ -113,14 +111,14 @@ fn render_table_header<'a>(
 
         let header_button = button(text(button_label))
             .on_press(Message::SpreadsheetColumnClicked(column_index))
-            .style(breeze_button)
+            .style(default_button)
             .width(Length::FillPortion(1));
 
         header_row = header_row.push(header_button);
     }
 
     container(header_row.padding(HEADER_INNER_PADDING))
-        .style(glass_card)
+        .style(default_card)
         .padding(CARD_PADDING)
         .into()
 }
@@ -220,11 +218,7 @@ fn get_sort_indicator(
 
 fn apply_even_row_style(theme: &Theme) -> container::Style {
     let is_dark_theme = matches!(theme, Theme::Dark);
-    let background_color = if is_dark_theme {
-        Color::from_rgba(1.0, 1.0, 1.0, EVEN_ROW_BG_ALPHA_DARK)
-    } else {
-        Color::from_rgba(0.0, 0.0, 0.0, EVEN_ROW_BG_ALPHA_LIGHT)
-    };
+    let background_color = if is_dark_theme { WHITE_003 } else { BLACK_003 };
 
     container::Style {
         background: Some(background_color.into()),

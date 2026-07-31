@@ -1,12 +1,16 @@
 use crate::app::Message;
+use crate::ui::theme::color::primitive::{
+    FONT_META_DARK, FONT_META_LIGHT, FONT_SAMPLE_DARK, FONT_SAMPLE_LIGHT, FONT_TITLE_DARK,
+    FONT_TITLE_LIGHT,
+};
 use iced::widget::{column, container, text};
 use iced::{Alignment, Color, Element, Font, Length};
 
-use crate::ui::theme::tokens::{font_view as font_tokens, typography};
+use crate::ui::theme::tokens::font_view as font_tokens;
 
 const TITLE_FONT_SIZE: f32 = font_tokens::PREVIEW_TITLE_SIZE;
 const LARGE_SAMPLE_FONT_SIZE: f32 = font_tokens::SAMPLE_TEXT_SIZE;
-const CHARSET_FONT_SIZE: f32 = typography::SIZE_TITLE;
+const CHARSET_FONT_SIZE: f32 = 18.0;
 const METADATA_FONT_SIZE: f32 = font_tokens::PREVIEW_BODY_SIZE;
 
 const CARD_SPACING: f32 = font_tokens::ELEMENT_SPACING;
@@ -25,15 +29,15 @@ impl ThemeColors {
     fn new(is_dark: bool) -> Self {
         if is_dark {
             Self {
-                title: Color::from_rgb(0.90, 0.90, 0.95),
-                meta: Color::from_rgb(0.65, 0.68, 0.72),
-                sample: Color::from_rgb(0.85, 0.88, 0.92),
+                title: FONT_TITLE_DARK,
+                meta: FONT_META_DARK,
+                sample: FONT_SAMPLE_DARK,
             }
         } else {
             Self {
-                title: Color::from_rgb(0.10, 0.10, 0.15),
-                meta: Color::from_rgb(0.35, 0.38, 0.42),
-                sample: Color::from_rgb(0.15, 0.18, 0.22),
+                title: FONT_TITLE_LIGHT,
+                meta: FONT_META_LIGHT,
+                sample: FONT_SAMPLE_LIGHT,
             }
         }
     }

@@ -12,8 +12,8 @@ use iced::{Element, Length};
 use crate::app::Message;
 use crate::core::types::EpubState;
 use crate::ui::components::sidebar::drag_handle;
+use crate::ui::theme::color::base::BaseColors;
 use crate::ui::theme::font::get_main_font;
-use crate::ui::theme::glass;
 use crate::ui::views::epub_view::content::build_epub_content;
 use crate::ui::views::epub_view::header::build_epub_header;
 use crate::ui::views::epub_view::helpers::clamp_active_chapter;
@@ -42,7 +42,7 @@ pub fn view_epub<'a>(
         font_family_mono,
     };
 
-    let palette = *glass::palette_for(is_dark);
+    let palette = *BaseColors::palette_for(is_dark);
     let header_bar = build_epub_header(
         state,
         main_font,

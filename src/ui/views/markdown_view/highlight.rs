@@ -6,6 +6,8 @@ use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
 
+use crate::ui::theme::color::primitive::{MD_DARK_CODE_FG, MD_LIGHT_CODE_FG};
+
 fn syntax_set() -> &'static SyntaxSet {
     static SS: OnceLock<SyntaxSet> = OnceLock::new();
     SS.get_or_init(SyntaxSet::load_defaults_newlines)
@@ -64,9 +66,9 @@ pub(crate) fn highlight_code<'a>(
                 .map(syntect_to_iced_color)
                 .unwrap_or_else(|| {
                     if is_dark {
-                        Color::from_rgb(0.8, 0.8, 0.8)
+                        MD_DARK_CODE_FG
                     } else {
-                        Color::from_rgb(0.2, 0.2, 0.2)
+                        MD_LIGHT_CODE_FG
                     }
                 });
             let t = line.strip_suffix('\n').unwrap_or(line);

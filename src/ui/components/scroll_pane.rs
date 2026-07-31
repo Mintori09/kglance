@@ -1,7 +1,7 @@
 use iced::widget::{container, scrollable};
 use iced::{Element, Length, Padding};
 
-use crate::ui::theme::{breeze_container, glass_scrollable};
+use crate::ui::theme::{default_root, default_scrollable};
 
 pub fn scroll_pane<'a, Message: 'static>(
     id: &'static str,
@@ -49,7 +49,7 @@ impl<'a, Message: 'static> ScrollPaneBuilder<'a, Message> {
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .padding(padding)
-                .style(breeze_container)
+                .style(default_root)
                 .into()
         } else {
             self.content
@@ -60,7 +60,7 @@ impl<'a, Message: 'static> ScrollPaneBuilder<'a, Message> {
             .direction(scrollable::Direction::Vertical(
                 scrollable::Scrollbar::new().width(4).margin(2),
             ))
-            .style(glass_scrollable)
+            .style(default_scrollable)
             .width(Length::Fill)
             .height(self.height);
 

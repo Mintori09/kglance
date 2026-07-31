@@ -1,5 +1,7 @@
-use crate::ui::theme::glass;
-use crate::ui::theme::tokens::{border, radius, spacing, tables, typography};
+use crate::ui::theme::color::base::BaseColors;
+use crate::ui::theme::color::markdown::MarkdownColors;
+use crate::ui::theme::color::primitive;
+use crate::ui::theme::tokens::{border, radius, spacing, tables};
 use iced::widget::{button, container};
 use iced::{Border, Color, Shadow, Theme};
 
@@ -13,14 +15,14 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
     },
     paragraph: ParagraphStyle { padding: [2, 0] },
     inline: InlineStyle {
-        inline_code_color: Color::from_rgb(0.8, 0.35, 0.35),
-        image_alt_color: Color::from_rgb(0.5, 0.5, 0.5),
-        math_color: Color::from_rgb(0.5, 0.2, 0.7),
+        inline_code_color: primitive::MD_INLINE_CODE,
+        image_alt_color: primitive::GRAY_500,
+        math_color: primitive::MD_MATH,
         link_button_border_width: 0.0,
         wrap_spacing: spacing::XS,
         wrap_line_spacing: spacing::XS,
         tooltip_gap: spacing::S,
-        tooltip_font_size: typography::SIZE_SMALL,
+        tooltip_font_size: 12.0,
         tooltip_padding: [4, 8],
     },
     code: CodeStyle {
@@ -40,7 +42,7 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
         min_column_weight: 10.0,
     },
     list: ListStyle {
-        bullet_color: Color::from_rgb(0.5, 0.5, 0.5),
+        bullet_color: primitive::GRAY_500,
         item_spacing: spacing::S,
         item_padding: spacing::XXS,
         sub_block_left_padding: spacing::XL,
@@ -59,7 +61,7 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
         badge_padding: [4, 10],
     },
     html: HtmlStyle {
-        font_size: typography::SIZE_SMALL,
+        font_size: 12.0,
         preview_truncate: 80,
     },
     hr: HrStyle { padding: [8, 0] },
@@ -91,65 +93,6 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
         sidebar_border_width: crate::ui::components::sidebar::SIDEBAR_BORDER_WIDTH,
     },
 };
-
-#[derive(Clone, Copy)]
-pub(crate) struct MarkdownPalette {
-    pub link: Color,
-    pub search_active_bg: Color,
-    pub search_inactive_bg: Color,
-    pub table_header_bg: Color,
-    pub table_header_text: Color,
-    pub table_separator: Color,
-    pub table_border: Color,
-    pub task_checked: Color,
-    pub quote_accent: Color,
-    pub quote_bg: Color,
-    pub html_fg: Color,
-}
-
-pub(crate) const DARK_MD_PALETTE: MarkdownPalette = MarkdownPalette {
-    link: Color::from_rgb(0.4, 0.6, 1.0),
-    search_active_bg: Color::from_rgb(0.7, 0.6, 0.15),
-    search_inactive_bg: Color::from_rgb(0.5, 0.4, 0.1),
-    table_header_bg: Color::from_rgb(0.2, 0.22, 0.25),
-    table_header_text: Color::from_rgb(0.95, 0.95, 0.95),
-    table_separator: Color::from_rgba(0.45, 0.47, 0.5, 0.6),
-    table_border: Color::from_rgb(0.45, 0.47, 0.5),
-    task_checked: Color::from_rgb(0.4, 0.8, 0.4),
-    quote_accent: Color::from_rgb(0.45, 0.5, 0.65),
-    quote_bg: Color::from_rgba(1.0, 1.0, 1.0, 0.03),
-    html_fg: Color::from_rgb(0.5, 0.5, 0.5),
-};
-
-pub(crate) const LIGHT_MD_PALETTE: MarkdownPalette = MarkdownPalette {
-    link: Color::from_rgb(0.3, 0.5, 0.9),
-    search_active_bg: Color::from_rgb(1.0, 0.85, 0.3),
-    search_inactive_bg: Color::from_rgb(0.95, 0.8, 0.2),
-    table_header_bg: Color::from_rgb(0.9, 0.91, 0.93),
-    table_header_text: Color::from_rgb(0.2, 0.2, 0.2),
-    table_separator: Color::from_rgba(0.6, 0.62, 0.65, 0.5),
-    table_border: Color::from_rgb(0.6, 0.62, 0.65),
-    task_checked: Color::from_rgb(0.1, 0.6, 0.2),
-    quote_accent: Color::from_rgb(0.6, 0.5, 0.8),
-    quote_bg: Color::from_rgba(0.0, 0.0, 0.0, 0.02),
-    html_fg: Color::from_rgb(0.5, 0.5, 0.5),
-};
-
-pub(crate) fn md_palette(theme: &Theme) -> &'static MarkdownPalette {
-    if matches!(theme, Theme::Dark) {
-        &DARK_MD_PALETTE
-    } else {
-        &LIGHT_MD_PALETTE
-    }
-}
-
-pub(crate) fn md_palette_for(is_dark: bool) -> &'static MarkdownPalette {
-    if is_dark {
-        &DARK_MD_PALETTE
-    } else {
-        &LIGHT_MD_PALETTE
-    }
-}
 
 #[derive(Clone, Copy)]
 pub(crate) struct MarkdownStyle {
@@ -291,7 +234,7 @@ pub(super) fn heading_layout(level: u8) -> (f32, f32, f32) {
 }
 
 pub(super) fn code_block_style(theme: &Theme) -> container::Style {
-    let p = glass::palette(theme);
+    let p = BaseColors::palette(theme);
     container::Style {
         background: Some(p.surface.into()),
         text_color: Some(p.text),
@@ -306,7 +249,7 @@ pub(super) fn code_block_style(theme: &Theme) -> container::Style {
 }
 
 pub(super) fn copy_button_style(theme: &Theme, status: button::Status) -> button::Style {
-    let p = glass::palette(theme);
+    let p = BaseColors::palette(theme);
     let bg = p.bg;
     button::Style {
         background: Some(match status {
@@ -330,7 +273,7 @@ pub(super) fn copy_button_style(theme: &Theme, status: button::Status) -> button
 }
 
 pub(super) fn language_label_style(theme: &Theme) -> container::Style {
-    let p = glass::palette(theme);
+    let p = BaseColors::palette(theme);
     container::Style {
         background: Some(p.bg.into()),
         text_color: Some(p.text_dim),
@@ -339,7 +282,7 @@ pub(super) fn language_label_style(theme: &Theme) -> container::Style {
 }
 
 pub(super) fn divider_line_style(theme: &Theme) -> container::Style {
-    let p = glass::palette(theme);
+    let p = BaseColors::palette(theme);
     container::Style {
         background: Some(p.border.into()),
         ..Default::default()
@@ -347,7 +290,7 @@ pub(super) fn divider_line_style(theme: &Theme) -> container::Style {
 }
 
 pub(super) fn table_header_style(theme: &Theme) -> container::Style {
-    let mp = md_palette(theme);
+    let mp = MarkdownColors::palette(theme);
     container::Style {
         background: Some(mp.table_header_bg.into()),
         text_color: Some(mp.table_header_text),
@@ -356,7 +299,7 @@ pub(super) fn table_header_style(theme: &Theme) -> container::Style {
 }
 
 pub(super) fn table_separator_style(theme: &Theme) -> container::Style {
-    let mp = md_palette(theme);
+    let mp = MarkdownColors::palette(theme);
     container::Style {
         background: Some(mp.table_separator.into()),
         ..Default::default()
@@ -364,7 +307,7 @@ pub(super) fn table_separator_style(theme: &Theme) -> container::Style {
 }
 
 pub(super) fn table_row_background_style(theme: &Theme, row_index: usize) -> container::Style {
-    let p = glass::palette(theme);
+    let p = BaseColors::palette(theme);
     let bg = if row_index.is_multiple_of(2) {
         p.surface
     } else {
@@ -377,7 +320,7 @@ pub(super) fn table_row_background_style(theme: &Theme, row_index: usize) -> con
 }
 
 pub(super) fn table_border_style(theme: &Theme) -> container::Style {
-    let mp = md_palette(theme);
+    let mp = MarkdownColors::palette(theme);
     container::Style {
         border: Border {
             color: mp.table_border,
@@ -389,7 +332,7 @@ pub(super) fn table_border_style(theme: &Theme) -> container::Style {
 }
 
 pub(super) fn mermaid_badge_style(theme: &Theme) -> container::Style {
-    let p = glass::palette(theme);
+    let p = BaseColors::palette(theme);
     container::Style {
         background: Some(p.surface.into()),
         text_color: Some(p.text_dim),

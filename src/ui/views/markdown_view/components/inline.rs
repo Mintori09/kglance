@@ -1,20 +1,19 @@
 use crate::app::Message;
 use crate::parsers::markdown::{Inline, flatten_inlines};
+use crate::ui::theme::color::roles;
+use crate::ui::theme::default_tooltip;
 use crate::ui::views::markdown_view::blocks::RenderContext;
 use crate::ui::views::markdown_view::components::inline_spans::{SpanCtx, inlines_to_spans};
-use crate::ui::views::markdown_view::components::style::{
-    DARK_MD_PALETTE, LIGHT_MD_PALETTE, MarkdownPalette, STYLE, md_palette,
-};
+use crate::ui::views::markdown_view::components::style::STYLE;
 use iced::widget::text::Rich;
 use iced::widget::{button, tooltip};
 use iced::{Border, Color, Element, Length, Pixels, Shadow};
 
 fn link_button_style(theme: &iced::Theme, _status: button::Status) -> button::Style {
-    let mp = md_palette(theme);
-    let color = mp.link;
+    let link_color = roles::palette(theme).link;
     button::Style {
         background: None,
-        text_color: color,
+        text_color: link_color,
         border: Border {
             width: STYLE.inline.link_button_border_width,
             color: Color::TRANSPARENT,
@@ -48,21 +47,25 @@ fn build_link_button<'a>(
     link_text: &'a [Inline],
     url: &'a str,
     font_size: f32,
-    mp: &MarkdownPalette,
+    link_color: Color,
 ) -> Element<'a, Message> {
     let display = flatten_inlines(link_text);
     let url_clone = url.to_string();
-    let btn = button(iced::widget::text(display).size(font_size).color(mp.link))
-        .on_press(Message::OpenLink(url_clone))
-        .style(link_button_style)
-        .padding(0);
+    let btn = button(
+        iced::widget::text(display)
+            .size(font_size)
+            .color(link_color),
+    )
+    .on_press(Message::OpenLink(url_clone))
+    .style(link_button_style)
+    .padding(0);
 
     let tooltip_label = iced::widget::text(url)
         .size(STYLE.inline.tooltip_font_size)
         .color(Color::WHITE);
     let tooltip_wrapped = iced::widget::container(tooltip_label)
         .padding(STYLE.inline.tooltip_padding)
-        .style(crate::ui::theme::glass::glass_tooltip);
+        .style(default_tooltip);
 
     tooltip(btn, tooltip_wrapped, tooltip::Position::Top)
         .gap(STYLE.inline.tooltip_gap)
@@ -74,18 +77,14 @@ pub fn render_inlines<'a>(
     font_size: f32,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
-    let mp = if ctx.is_dark {
-        &DARK_MD_PALETTE
-    } else {
-        &LIGHT_MD_PALETTE
-    };
+    let link_color = roles::palette_for(ctx.is_dark).link;
     let span_ctx = SpanCtx {
         font_family: ctx.font_family,
         font_family_mono: ctx.font_family_mono,
         search_query: ctx.search_query,
         active_match: ctx.active_match,
         counter: ctx.counter,
-        mp,
+        is_dark: ctx.is_dark,
     };
     let has_special = inlines.iter().any(|i| {
         matches!(
@@ -121,7 +120,7 @@ pub fn render_inlines<'a>(
                 text: link_text,
                 url,
             } => {
-                elements.push(build_link_button(link_text, url, font_size, mp));
+                elements.push(build_link_button(link_text, url, font_size, link_color));
             }
             Inline::InlineMath(latex) => {
                 elements.push(iced_math::inline(latex.as_str()));
