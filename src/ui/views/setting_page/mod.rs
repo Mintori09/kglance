@@ -1,17 +1,17 @@
-use iced::widget::{column, container, pick_list, row, slider, text, text_input};
+use iced::widget::{button, column, container, pick_list, row, slider, text, text_input};
 use iced::{Alignment, Element, Theme};
 use std::process::Command;
 
 use crate::app::messages::{Message, SettingsMsg};
 use crate::core::config::UiConfig;
-use crate::ui::theme::{default_pick_list, default_slider, default_text_input};
+use crate::ui::theme::color::BaseColors;
+use crate::ui::theme::tokens::spacing;
+use crate::ui::theme::{
+    default_button, default_card, default_pick_list, default_slider, default_text_input,
+};
 
-const TITLE_FONT_SIZE: f32 = 20.0;
-const SECTION_FONT_SIZE: f32 = 14.0;
-const SECTION_ITEM_SPACING: f32 = 4.0;
-const SETTINGS_COLUMN_SPACING: f32 = 16.0;
-const DIMENSION_ROW_SPACING: f32 = 8.0;
-const CONTAINER_PADDING: f32 = 16.0;
+const TITLE_FONT_SIZE: f32 = 18.0;
+const SECTION_FONT_SIZE: f32 = 13.0;
 
 const MIN_FONT_SIZE: f32 = 8.0;
 const MAX_FONT_SIZE: f32 = 32.0;
@@ -41,15 +41,32 @@ const AVAILABLE_THEMES: [&str; 10] = [
 ];
 
 pub fn settings_page<'a>(
-    _theme: &Theme,
+    theme: &Theme,
     config: &'a UiConfig,
     available_fonts: &'a [String],
 ) -> Element<'a, Message> {
+    let base_colors = BaseColors::palette(theme);
+
+    let header_row = row![
+        text("Application Settings")
+            .size(TITLE_FONT_SIZE)
+            .style(move |_| iced::widget::text::Style {
+                color: Some(base_colors.text)
+            }),
+        iced::widget::Space::new().width(iced::Length::Fill),
+        button(text("✕").size(13))
+            .on_press(crate::app::messages::NavigationMsg::ToggleSettingsClicked.into())
+            .style(move |theme, status| default_button(theme, status))
+            .padding([spacing::XS, spacing::S])
+    ]
+    .align_y(Alignment::Center);
+
     let settings_content = column![
-        text("Application Settings").size(TITLE_FONT_SIZE),
-        build_theme_section(config),
-        build_font_size_section(config),
+        header_row,
+        build_theme_section(theme, config),
+        build_font_size_section(theme, config),
         build_font_picker_section(
+            theme,
             "Main Font Family",
             config.font_family.clone(),
             available_fonts,
@@ -57,6 +74,7 @@ pub fn settings_page<'a>(
             |font| Message::Settings(SettingsMsg::FontFamilySelected(font))
         ),
         build_font_picker_section(
+            theme,
             "Monospace Font Family",
             config.font_family_mono.clone(),
             available_fonts,
@@ -64,14 +82,16 @@ pub fn settings_page<'a>(
             |font| Message::Settings(SettingsMsg::FontFamilyMonoSelected(font))
         ),
         build_font_picker_section(
+            theme,
             "EPUB Reader Font",
             config.epub_font_family.clone(),
             available_fonts,
             "Default Reader Font",
             |font| Message::Settings(SettingsMsg::EpubFontFamilySelected(font))
         ),
-        build_reader_width_section(config),
+        build_reader_width_section(theme, config),
         build_dimension_input_section(
+            theme,
             "Default Window Size (Width × Height)",
             config.default_width,
             config.default_height,
@@ -81,6 +101,7 @@ pub fn settings_page<'a>(
             |h| Message::Settings(SettingsMsg::DefaultHeightChanged(h))
         ),
         build_dimension_input_section(
+            theme,
             "Minimum Window Size (Width × Height)",
             config.min_width,
             config.min_height,
@@ -90,10 +111,11 @@ pub fn settings_page<'a>(
             |h| Message::Settings(SettingsMsg::MinHeightChanged(h))
         ),
     ]
-    .spacing(SETTINGS_COLUMN_SPACING);
+    .spacing(spacing::L);
 
     container(settings_content)
-        .padding(CONTAINER_PADDING)
+        .padding(spacing::L)
+        .style(move |theme| default_card(theme))
         .into()
 }
 
@@ -120,34 +142,52 @@ pub fn get_system_fonts() -> Vec<String> {
     }
 }
 
-fn build_theme_section<'a>(config: &'a UiConfig) -> Element<'a, Message> {
+fn build_theme_section<'a>(theme: &Theme, config: &'a UiConfig) -> Element<'a, Message> {
+    let base_colors = BaseColors::palette(theme);
     let themes: Vec<String> = AVAILABLE_THEMES.iter().map(|&t| t.to_string()).collect();
     let theme_picker = pick_list(themes, config.theme.clone(), |theme| {
         Message::Settings(SettingsMsg::ThemeChanged(theme))
     })
     .placeholder("System Default (Auto)")
-    .style(default_pick_list);
+    .style({
+        let theme = theme.clone();
+        move |_, status| default_pick_list(&theme, status)
+    });
 
-    column![text("Color Theme").size(SECTION_FONT_SIZE), theme_picker]
-        .spacing(SECTION_ITEM_SPACING)
-        .into()
+    column![
+        text("Color Theme")
+            .size(SECTION_FONT_SIZE)
+            .style(move |_| iced::widget::text::Style {
+                color: Some(base_colors.text)
+            }),
+        theme_picker
+    ]
+    .spacing(spacing::XS)
+    .into()
 }
 
-fn build_font_size_section<'a>(config: &'a UiConfig) -> Element<'a, Message> {
+fn build_font_size_section<'a>(theme: &Theme, config: &'a UiConfig) -> Element<'a, Message> {
+    let base_colors = BaseColors::palette(theme);
     let font_size = config.font_size;
-    let label = text(format!("Font Size: {:.1} px", font_size)).size(SECTION_FONT_SIZE);
+    let label = text(format!("Font Size: {:.1} px", font_size))
+        .size(SECTION_FONT_SIZE)
+        .style(move |_| iced::widget::text::Style {
+            color: Some(base_colors.text),
+        });
     let slider_widget = slider(MIN_FONT_SIZE..=MAX_FONT_SIZE, font_size, |size| {
         Message::Settings(SettingsMsg::FontSizeChanged(size))
     })
     .step(FONT_SIZE_STEP)
-    .style(default_slider);
+    .style({
+        let theme = theme.clone();
+        move |_, status| default_slider(&theme, status)
+    });
 
-    column![label, slider_widget]
-        .spacing(SECTION_ITEM_SPACING)
-        .into()
+    column![label, slider_widget].spacing(spacing::XS).into()
 }
 
 fn build_font_picker_section<'a, F>(
+    theme: &Theme,
     label_text: &'static str,
     selected_font: Option<String>,
     available_fonts: &'a [String],
@@ -157,30 +197,48 @@ fn build_font_picker_section<'a, F>(
 where
     F: 'static + Fn(String) -> Message,
 {
+    let base_colors = BaseColors::palette(theme);
     let picker = pick_list(available_fonts, selected_font, on_select)
         .placeholder(placeholder)
-        .style(default_pick_list);
+        .style({
+            let theme = theme.clone();
+            move |_, status| default_pick_list(&theme, status)
+        });
 
-    column![text(label_text).size(SECTION_FONT_SIZE), picker]
-        .spacing(SECTION_ITEM_SPACING)
-        .into()
+    column![
+        text(label_text)
+            .size(SECTION_FONT_SIZE)
+            .style(move |_| iced::widget::text::Style {
+                color: Some(base_colors.text)
+            }),
+        picker
+    ]
+    .spacing(spacing::XS)
+    .into()
 }
 
-fn build_reader_width_section<'a>(config: &'a UiConfig) -> Element<'a, Message> {
+fn build_reader_width_section<'a>(theme: &Theme, config: &'a UiConfig) -> Element<'a, Message> {
+    let base_colors = BaseColors::palette(theme);
     let width = config.max_text_width.unwrap_or(DEFAULT_MAX_READER_WIDTH);
-    let label = text(format!("Max Text Reader Width: {:.0} px", width)).size(SECTION_FONT_SIZE);
+    let label = text(format!("Max Text Reader Width: {:.0} px", width))
+        .size(SECTION_FONT_SIZE)
+        .style(move |_| iced::widget::text::Style {
+            color: Some(base_colors.text),
+        });
     let slider_widget = slider(MIN_READER_WIDTH..=MAX_READER_WIDTH, width, |val| {
         Message::Settings(SettingsMsg::MaxTextWidthChanged(Some(val)))
     })
     .step(READER_WIDTH_STEP)
-    .style(default_slider);
+    .style({
+        let theme = theme.clone();
+        move |_, status| default_slider(&theme, status)
+    });
 
-    column![label, slider_widget]
-        .spacing(SECTION_ITEM_SPACING)
-        .into()
+    column![label, slider_widget].spacing(spacing::XS).into()
 }
 
 fn build_dimension_input_section<'a, FW, FH>(
+    theme: &Theme,
     label_text: &'static str,
     current_width: u32,
     current_height: u32,
@@ -193,29 +251,44 @@ where
     FW: 'static + Fn(u32) -> Message,
     FH: 'static + Fn(u32) -> Message,
 {
+    let base_colors = BaseColors::palette(theme);
     let width_str = current_width.to_string();
     let height_str = current_height.to_string();
 
+    let theme_w = theme.clone();
     let width_input = text_input("Width", &width_str)
         .on_input(move |input| {
             let parsed_val = input.parse::<u32>().unwrap_or(fallback_width);
             on_width_change(parsed_val)
         })
-        .style(default_text_input);
+        .style(move |_, status| default_text_input(&theme_w, status));
 
+    let theme_h = theme.clone();
     let height_input = text_input("Height", &height_str)
         .on_input(move |input| {
             let parsed_val = input.parse::<u32>().unwrap_or(fallback_height);
             on_height_change(parsed_val)
         })
-        .style(default_text_input);
+        .style(move |_, status| default_text_input(&theme_h, status));
 
     column![
-        text(label_text).size(SECTION_FONT_SIZE),
-        row![width_input, text("×").size(SECTION_FONT_SIZE), height_input]
-            .spacing(DIMENSION_ROW_SPACING)
-            .align_y(Alignment::Center)
+        text(label_text)
+            .size(SECTION_FONT_SIZE)
+            .style(move |_| iced::widget::text::Style {
+                color: Some(base_colors.text)
+            }),
+        row![
+            width_input,
+            text("×")
+                .size(SECTION_FONT_SIZE)
+                .style(move |_| iced::widget::text::Style {
+                    color: Some(base_colors.text_dim)
+                }),
+            height_input
+        ]
+        .spacing(spacing::S)
+        .align_y(Alignment::Center)
     ]
-    .spacing(SECTION_ITEM_SPACING)
+    .spacing(spacing::XS)
     .into()
 }
