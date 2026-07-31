@@ -38,12 +38,8 @@ impl super::KglanceApp {
             } else {
                 operation::scroll_by("content_scroll", AbsoluteOffset { x: -y, y: 0.0 })
             }
-        } else if matches!(self.current_content, Some(PreviewData::Image { .. }))
-            && self.state.image.camera.zoom == 1.0
-        {
-            Task::none()
         } else {
-            operation::scroll_by("content_scroll", AbsoluteOffset { x: 0.0, y: -y })
+            Task::none()
         }
     }
 

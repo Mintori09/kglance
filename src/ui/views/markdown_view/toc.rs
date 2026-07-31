@@ -41,19 +41,20 @@ pub fn render_toc_sidebar<'a>(
     .width(state.sidebar_width)
     .height(Length::Fill);
 
-    container(content)
-        .width(state.sidebar_width)
-        .height(Length::Fill)
-        .style(move |_| container::Style {
-            background: Some(background_color.into()),
-            border: Border {
-                width: STYLE.toc.sidebar_border_width,
-                color: border_color,
-                radius: 0.0.into(),
-            },
-            ..Default::default()
-        })
-        .into()
+    iced::widget::opaque(
+        container(content)
+            .width(state.sidebar_width)
+            .height(Length::Fill)
+            .style(move |_| container::Style {
+                background: Some(background_color.into()),
+                border: Border {
+                    width: STYLE.toc.sidebar_border_width,
+                    color: border_color,
+                    radius: 0.0.into(),
+                },
+                ..Default::default()
+            }),
+    )
 }
 
 fn find_active_block_index(toc: &[TocEntry], scroll_y: f32) -> Option<usize> {
