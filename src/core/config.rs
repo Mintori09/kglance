@@ -12,6 +12,18 @@ pub struct UiConfig {
     pub max_text_width: Option<f32>,
     pub default_width: u32,
     pub default_height: u32,
+    #[serde(default = "default_min_width")]
+    pub min_width: u32,
+    #[serde(default = "default_min_height")]
+    pub min_height: u32,
+}
+
+fn default_min_width() -> u32 {
+    800
+}
+
+fn default_min_height() -> u32 {
+    600
 }
 
 pub fn detect_system_theme() -> String {
@@ -39,8 +51,10 @@ impl Default for UiConfig {
             font_family_mono: None,
             epub_font_family: None,
             max_text_width: Some(820.0),
-            default_width: 900,
-            default_height: 600,
+            default_width: 1024,
+            default_height: 768,
+            min_width: default_min_width(),
+            min_height: default_min_height(),
         }
     }
 }
@@ -55,11 +69,19 @@ pub struct ConfigManager;
 impl ConfigManager {
     pub fn get_config_dir() -> PathBuf {
         if let Ok(dir) = std::env::var("KGLANCE_CONFIG_DIR") {
-            return PathBuf::from(dir);
+            if !dir.trim().is_empty() {
+                return PathBuf::from(dir);
+            }
         }
-        dirs::config_dir()
-            .unwrap_or_else(|| PathBuf::from("~/.config"))
-            .join("kglance")
+
+        if let Some(mut config_dir) = dirs::config_dir() {
+            config_dir.push("kglance");
+            return config_dir;
+        }
+
+        dirs::home_dir()
+            .map(|h| h.join(".config").join("kglance"))
+            .unwrap_or_else(|| PathBuf::from(".kglance"))
     }
 
     pub fn get_config_path() -> PathBuf {

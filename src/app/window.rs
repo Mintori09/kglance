@@ -1,41 +1,54 @@
-use iced::Task;
+use std::time::Duration;
 
+use iced::window::{self, Event as WindowEvent, Mode, Settings as WindowSettings};
+use iced::{Size, Task, clipboard};
+
+use super::KglanceApp;
 use super::Message;
 use crate::core::types::{GRID_GAP, GRID_ITEM_WIDTH};
+use crate::core::{PreviewData, ToastInfo};
+use crate::ui::handlers::video::PlayerCommand;
 
-impl super::KglanceApp {
-    fn update_grid_cols(&mut self, width: f32) {
-        self.state.window_width = width;
-        let scale = self.state.grid_scale;
-        self.state.grid_cols = Self::calc_grid_cols(width, scale);
+const TOAST_DURATION_SECS: u64 = 2;
+const MIN_GRID_COLUMNS: usize = 1;
+
+impl KglanceApp {
+    fn update_grid_cols(&mut self, window_width: f32) {
+        self.state.window_width = window_width;
+        self.state.grid_cols = Self::calculate_grid_cols(window_width, self.state.grid_scale);
     }
 
     pub(crate) fn recalc_grid_cols(&mut self) {
-        let w = self.state.window_width;
-        let scale = self.state.grid_scale;
-        if w > 0.0 {
-            self.state.grid_cols = Self::calc_grid_cols(w, scale);
+        if self.state.window_width > 0.0 {
+            self.update_grid_cols(self.state.window_width);
         }
     }
 
-    fn calc_grid_cols(width: f32, scale: f32) -> usize {
-        let item_w = GRID_ITEM_WIDTH * scale;
-        let gap = GRID_GAP * scale;
-        ((width - gap) / (item_w + gap)).floor().max(1.0) as usize
+    fn calculate_grid_cols(available_width: f32, scale: f32) -> usize {
+        let scaled_item_width = GRID_ITEM_WIDTH * scale;
+        let scaled_gap = GRID_GAP * scale;
+
+        let available_content_width = available_width - scaled_gap;
+        let item_slot_width = scaled_item_width + scaled_gap;
+
+        let calculated_cols = (available_content_width / item_slot_width).floor();
+        calculated_cols.max(MIN_GRID_COLUMNS as f32) as usize
     }
+
     fn close_current(&mut self) -> Task<Message> {
-        if let Some(tx) = &self.video_tx {
-            let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Stop);
-        }
+        self.stop_video_player();
+
         if self.is_daemon {
             self.current_content = None;
-            if let Some(id) = self.window_id.take() {
-                iced::window::close(id)
-            } else {
-                Task::none()
-            }
+            self.window_id.take().map_or_else(Task::none, window::close)
         } else {
             iced::exit()
+        }
+    }
+
+    fn stop_video_player(&mut self) {
+        if let Some(video_sender) = &self.video_tx {
+            let _ = video_sender.try_send(PlayerCommand::Stop);
         }
     }
 
@@ -47,27 +60,29 @@ impl super::KglanceApp {
         let _ = std::process::Command::new("xdg-open")
             .arg(&self.state.file_name)
             .spawn();
+
         self.close_current()
     }
 
     pub fn handle_copy_path(&mut self) -> Task<Message> {
-        let toast = self.show_toast("Copied!");
-        Task::batch(vec![
-            iced::clipboard::write(self.state.file_name.clone()),
-            toast,
-        ])
+        let copy_task = clipboard::write(self.state.file_name.clone());
+        let toast_task = self.show_toast("Copied!");
+
+        Task::batch(vec![copy_task, toast_task])
     }
 
     pub fn show_toast(&mut self, message: impl Into<String>) -> Task<Message> {
-        let id = self.state.next_toast_id;
+        let toast_id = self.state.next_toast_id;
         self.state.next_toast_id += 1;
-        self.state.toasts.push(crate::core::ToastInfo {
-            id,
+
+        self.state.toasts.push(ToastInfo {
+            id: toast_id,
             message: message.into(),
         });
+
         Task::perform(
-            tokio::time::sleep(std::time::Duration::from_secs(2)),
-            move |_| Message::ToastDismissed(id),
+            tokio::time::sleep(Duration::from_secs(TOAST_DURATION_SECS)),
+            move |_| Message::ToastDismissed(toast_id),
         )
     }
 
@@ -76,68 +91,86 @@ impl super::KglanceApp {
         self.state.content_ready = false;
         self.current_content = None;
 
-        if let Some(id) = self.window_id {
+        if let Some(window_id) = self.window_id {
             Task::batch(vec![
-                iced::window::set_mode(id, iced::window::Mode::Windowed),
-                iced::window::gain_focus(id),
+                window::set_mode(window_id, Mode::Windowed),
+                window::gain_focus(window_id),
             ])
         } else {
-            let settings = iced::window::Settings {
-                size: iced::Size::new(1024.0, 768.0),
-                min_size: Some(iced::Size::new(800.0, 600.0)),
-                icon: crate::load_app_icon(),
-                exit_on_close_request: false,
-                decorations: true,
-                ..Default::default()
-            };
-            let (id, open_task) = iced::window::open(settings);
-            let _ = id;
-            open_task.map(|wid| {
-                Message::WindowEvent(
-                    wid,
-                    iced::window::Event::Opened {
-                        position: None,
-                        size: iced::Size::ZERO,
-                    },
-                )
-            })
+            self.create_new_window()
         }
+    }
+
+    pub(crate) fn create_new_window(&self) -> Task<Message> {
+        let settings = WindowSettings {
+            size: self.state.window_default_size,
+            min_size: Some(self.state.window_min_size),
+            icon: crate::load_app_icon(),
+            exit_on_close_request: false,
+            decorations: true,
+            ..Default::default()
+        };
+
+        let (_, open_task) = window::open(settings);
+
+        open_task.map(|opened_window_id| {
+            Message::WindowEvent(
+                opened_window_id,
+                WindowEvent::Opened {
+                    position: None,
+                    size: Size::ZERO,
+                },
+            )
+        })
     }
 
     pub fn handle_window_event(
         &mut self,
-        id: iced::window::Id,
-        event: iced::window::Event,
+        window_id: window::Id,
+        event: WindowEvent,
     ) -> Task<Message> {
         match event {
-            iced::window::Event::Opened { size, .. } => {
-                self.window_id = Some(id);
+            WindowEvent::Opened { size, .. } => self.handle_window_opened(window_id, size),
+            WindowEvent::CloseRequested => self.handle_window_close_requested(window_id),
+            WindowEvent::Resized(size) => {
                 self.update_grid_cols(size.width);
-                if let Some(content) = self.current_content.as_ref().filter(|c| {
-                    matches!(
-                        c,
-                        crate::core::PreviewData::Image { .. }
-                            | crate::core::PreviewData::Font { .. }
-                            | crate::core::PreviewData::Media { .. }
-                    )
-                }) {
-                    return iced::window::resize(id, content.initial_window_size());
-                }
+                Task::none()
             }
-            iced::window::Event::CloseRequested => {
-                if self.is_daemon {
-                    self.current_content = None;
-                    self.window_id = None;
-                    return iced::window::close(id);
-                } else {
-                    return iced::exit();
-                }
-            }
-            iced::window::Event::Resized(size) => {
-                self.update_grid_cols(size.width);
-            }
-            _ => {}
+            _ => Task::none(),
         }
+    }
+
+    fn handle_window_opened(&mut self, window_id: window::Id, size: Size) -> Task<Message> {
+        self.window_id = Some(window_id);
+        self.update_grid_cols(size.width);
+
+        if let Some(content) = self
+            .current_content
+            .as_ref()
+            .filter(|c| c.supports_custom_initial_size())
+        {
+            return window::resize(window_id, content.initial_window_size());
+        }
+
         Task::none()
+    }
+
+    fn handle_window_close_requested(&mut self, window_id: window::Id) -> Task<Message> {
+        if self.is_daemon {
+            self.current_content = None;
+            self.window_id = None;
+            window::close(window_id)
+        } else {
+            iced::exit()
+        }
+    }
+}
+
+impl PreviewData {
+    fn supports_custom_initial_size(&self) -> bool {
+        matches!(
+            self,
+            PreviewData::Image { .. } | PreviewData::Font { .. } | PreviewData::Media { .. }
+        )
     }
 }

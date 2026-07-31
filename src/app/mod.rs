@@ -278,6 +278,14 @@ impl KglanceApp {
             font_family_mono: config.ui.font_family_mono,
             epub_font_family: config.ui.epub_font_family,
             max_text_width: config.ui.max_text_width,
+            window_default_size: iced::Size::new(
+                config.ui.default_width as f32,
+                config.ui.default_height as f32,
+            ),
+            window_min_size: iced::Size::new(
+                config.ui.min_width as f32,
+                config.ui.min_height as f32,
+            ),
             ..Default::default()
         };
 
@@ -553,24 +561,7 @@ impl KglanceApp {
             } else {
                 // First preview: open window now. Content is already in self.current_content
                 // so the first rendered frame will show content immediately.
-                let settings = iced::window::Settings {
-                    size: iced::Size::new(1024.0, 768.0),
-                    min_size: Some(iced::Size::new(800.0, 600.0)),
-                    exit_on_close_request: false,
-                    decorations: true,
-                    ..Default::default()
-                };
-                let (id, open_task) = iced::window::open(settings);
-                let _ = id;
-                vec![open_task.map(|wid| {
-                    Message::WindowEvent(
-                        wid,
-                        iced::window::Event::Opened {
-                            position: None,
-                            size: iced::Size::ZERO,
-                        },
-                    )
-                })]
+                vec![self.create_new_window()]
             }
         } else if let Some(id) = self.window_id {
             vec![iced::window::gain_focus(id)]

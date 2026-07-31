@@ -25,8 +25,10 @@ fn test_ui_config_default() {
     assert_eq!(config.epub_font_family, None);
     assert!(config.max_text_width.is_some());
     assert!((config.max_text_width.unwrap() - 820.0).abs() < f32::EPSILON);
-    assert_eq!(config.default_width, 900);
-    assert_eq!(config.default_height, 600);
+    assert_eq!(config.default_width, 1024);
+    assert_eq!(config.default_height, 768);
+    assert_eq!(config.min_width, 800);
+    assert_eq!(config.min_height, 600);
 }
 
 #[test]
@@ -47,6 +49,8 @@ fn test_config_serialization_round_trip() {
             max_text_width: Some(720.0),
             default_width: 1024,
             default_height: 768,
+            min_width: 800,
+            min_height: 600,
         },
     };
     let json = serde_json::to_string_pretty(&config).unwrap();
@@ -166,7 +170,8 @@ fn test_save_load_and_create_default() {
     with_temp_config_dir(|tmp| {
         let config = ConfigManager::load_or_create();
         assert!((config.ui.max_text_width.unwrap() - 820.0).abs() < f32::EPSILON);
-        assert_eq!(config.ui.default_width, 900);
+        assert_eq!(config.ui.default_width, 1024);
+        assert_eq!(config.ui.min_width, 800);
         assert!(tmp.join("config.json").exists());
     });
 }
@@ -177,7 +182,8 @@ fn test_load_or_create_handles_corrupted_json() {
         std::fs::write(tmp.join("config.json"), b"not valid json {").unwrap();
 
         let config = ConfigManager::load_or_create();
-        assert_eq!(config.ui.default_width, 900);
+        assert_eq!(config.ui.default_width, 1024);
+        assert_eq!(config.ui.min_height, 600);
         assert!((config.ui.max_text_width.unwrap() - 820.0).abs() < f32::EPSILON);
 
         let content = std::fs::read_to_string(tmp.join("config.json")).unwrap();
@@ -192,6 +198,30 @@ fn test_load_or_create_handles_empty_file() {
         std::fs::write(tmp.join("config.json"), b"").unwrap();
 
         let config = ConfigManager::load_or_create();
+        assert_eq!(config.ui.default_width, 1024);
+        assert_eq!(config.ui.min_width, 800);
+    });
+}
+
+#[test]
+fn test_load_or_create_legacy_config_without_min_fields() {
+    with_temp_config_dir(|tmp| {
+        let legacy = r#"{
+            "ui": {
+                "theme": "Dark",
+                "font_size": 15.0,
+                "default_width": 900,
+                "default_height": 600
+            }
+        }"#;
+        std::fs::write(tmp.join("config.json"), legacy).unwrap();
+
+        let config = ConfigManager::load_or_create();
+        assert_eq!(config.ui.theme.as_deref(), Some("Dark"));
+        assert_eq!(config.ui.font_size, 15.0);
         assert_eq!(config.ui.default_width, 900);
+        assert_eq!(config.ui.default_height, 600);
+        assert_eq!(config.ui.min_width, 800);
+        assert_eq!(config.ui.min_height, 600);
     });
 }
