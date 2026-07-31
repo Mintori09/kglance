@@ -1,0 +1,5 @@
+Line 1: Short line.
+Line 2: This is a very long line designed to test line wrapping behavior in the previewer. When text wrapping is enabled, this single logical line will wrap into multiple visual lines on the screen. If line numbers are rendered as a separate static column with simple linebreaks (1\n2\n3), the number 3 will be aligned with the wrapped continuation of Line 2 instead of the actual Line 3.
+Line 3: Short line.
+Line 4: Another extremely long line with lots of characters. aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+Line 5: End of file test.
