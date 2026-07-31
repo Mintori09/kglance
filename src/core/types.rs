@@ -375,6 +375,7 @@ pub enum ViewMode {
     #[default]
     Detail,
     Grid(Vec<GridThumbnail>),
+    Settings,
 }
 
 pub const GRID_ITEM_WIDTH: f32 = 150.0;
@@ -427,6 +428,7 @@ pub struct KglanceState {
     pub grid_search_query: String,
 
     pub font_size: f32,
+    pub default_font_size: f32,
     pub font_family: Option<String>,
     pub font_family_mono: Option<String>,
     pub epub_font_family: Option<String>,
@@ -482,6 +484,7 @@ impl Default for KglanceState {
             grid_search_visible: false,
             grid_search_query: String::new(),
             font_size: 14.0,
+            default_font_size: 14.0,
             font_family: None,
             font_family_mono: None,
             epub_font_family: None,
