@@ -24,7 +24,7 @@ impl Default for SortState {
 }
 
 #[derive(Debug, Clone)]
-pub struct TableRowState {
+pub struct FolderRowState {
     pub name: String,
     pub kind: String,
     pub size: String,
@@ -140,15 +140,15 @@ impl Default for PdfState {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct TableState {
-    pub rows: Vec<TableRowState>,
+pub struct FolderState {
+    pub rows: Vec<FolderRowState>,
     pub sort_state: SortState,
     pub selected_index: Option<usize>,
     pub total_size: u64,
     pub folder_path: String,
 }
 
-pub fn sort_table_rows(rows: &mut [TableRowState], sort: &SortState) {
+pub fn sort_folder_rows(rows: &mut [FolderRowState], sort: &SortState) {
     if !sort.active {
         return;
     }
@@ -411,7 +411,7 @@ pub struct KglanceState {
     pub image: ImageState,
     pub text: TextState,
     pub pdf: PdfState,
-    pub table: TableState,
+    pub folder: FolderState,
     pub spreadsheet: SpreadsheetState,
     pub media: MediaState,
     pub history: HistoryState,
@@ -468,7 +468,7 @@ impl Default for KglanceState {
             image: ImageState::default(),
             text: TextState::default(),
             pdf: PdfState::default(),
-            table: TableState::default(),
+            folder: FolderState::default(),
             spreadsheet: SpreadsheetState::default(),
             media: MediaState::default(),
             history: HistoryState::default(),

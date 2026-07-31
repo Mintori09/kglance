@@ -35,7 +35,7 @@ pub enum PreviewData {
         height: u32,
     },
     Folder {
-        rows: Vec<crate::core::types::TableRowState>,
+        rows: Vec<crate::core::types::FolderRowState>,
         total_size: u64,
     },
     Spreadsheet {
@@ -126,10 +126,10 @@ impl PreviewData {
                 state.file_type_text = "PDF Document".to_string();
             }
             PreviewData::Folder { rows, total_size } => {
-                state.table.rows = rows.clone();
-                state.table.total_size = *total_size;
-                state.table.folder_path = state.file_name.clone();
-                state.table.selected_index = None;
+                state.folder.rows = rows.clone();
+                state.folder.total_size = *total_size;
+                state.folder.folder_path = state.file_name.clone();
+                state.folder.selected_index = None;
                 state.file_type_text = "Folder / Archive".to_string();
                 state.file_size_text.clear();
             }

@@ -829,21 +829,21 @@ impl KglanceApp {
                 Task::none()
             }
             Message::FileClicked(idx) => {
-                if idx < self.state.table.rows.len() {
-                    self.state.table.selected_index = Some(idx);
+                if idx < self.state.folder.rows.len() {
+                    self.state.folder.selected_index = Some(idx);
                 }
                 Task::none()
             }
             Message::SortByFieldClicked(field) => {
-                let sort = &mut self.state.table.sort_state;
+                let sort = &mut self.state.folder.sort_state;
                 if sort.active && sort.field == field {
                     match sort.ascending {
                         true => sort.ascending = false,
                         false => {
                             sort.active = false;
                             sort.ascending = true;
-                            crate::core::sort_table_rows(
-                                &mut self.state.table.rows,
+                            crate::core::sort_folder_rows(
+                                &mut self.state.folder.rows,
                                 &crate::core::SortState {
                                     field: crate::core::SortField::Name,
                                     ascending: true,
@@ -858,7 +858,7 @@ impl KglanceApp {
                     sort.active = true;
                 }
                 if sort.active {
-                    crate::core::sort_table_rows(&mut self.state.table.rows, sort);
+                    crate::core::sort_folder_rows(&mut self.state.folder.rows, sort);
                 }
                 Task::none()
             }
@@ -1621,7 +1621,7 @@ impl KglanceApp {
                 }
                 PreviewData::Pdf { .. } => crate::ui::views::view_pdf(&self.state.pdf),
                 PreviewData::Folder { .. } => {
-                    crate::ui::views::view_table(&self.state.table, self.state.theme_dark)
+                    crate::ui::views::view_folder(&self.state.folder, self.state.theme_dark)
                 }
                 PreviewData::Spreadsheet { .. } => {
                     crate::ui::views::view_spreadsheet(&self.state.spreadsheet)

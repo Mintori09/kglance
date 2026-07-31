@@ -505,7 +505,7 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                     .into_iter()
                     .map(|entry| {
                         let icon = icon_for_entry(&entry.path, entry.is_dir);
-                        crate::core::TableRowState {
+                        crate::core::FolderRowState {
                             name: entry.path.clone(),
                             kind: if entry.is_dir {
                                 "Directory".to_string()
@@ -530,7 +530,7 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                     .into_iter()
                     .map(|entry| {
                         let icon = icon_for_entry(&entry.name, entry.is_dir);
-                        crate::core::TableRowState {
+                        crate::core::FolderRowState {
                             name: entry.name.clone(),
                             kind: if entry.is_dir {
                                 "Directory".to_string()
