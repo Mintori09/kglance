@@ -1,7 +1,6 @@
 pub mod config;
 pub mod config_watcher;
 pub mod file_watcher;
-pub mod handlers;
 pub mod layout_engine;
 pub mod navigation;
 pub mod preloader;

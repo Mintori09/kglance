@@ -130,7 +130,8 @@ fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if let Ok(kglance::parsers::ParsedContent::Image { width, height, .. }) =
         registry.parse(resolved)
     {
-        initial_size = kglance::ui::handlers::image::calculate_window_size(width, height);
+        initial_size =
+            kglance::ui::views::image_view::helpers::calculate_window_size(width, height);
     }
 
     let default_font = config

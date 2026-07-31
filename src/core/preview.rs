@@ -354,7 +354,7 @@ impl PreviewData {
     pub fn initial_window_size(&self) -> iced::Size {
         match self {
             PreviewData::Image { width, height, .. } => {
-                crate::ui::handlers::image::calculate_window_size(*width, *height)
+                crate::ui::views::image_view::helpers::calculate_window_size(*width, *height)
             }
             PreviewData::Media { .. } => iced::Size::new(850.0, 550.0),
             _ => iced::Size::new(1024.0, 768.0),
