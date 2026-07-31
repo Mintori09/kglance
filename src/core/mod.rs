@@ -1,16 +1,11 @@
 pub mod config;
 pub mod config_watcher;
 pub mod file_watcher;
-pub mod layout_engine;
 pub mod navigation;
 pub mod preloader;
 pub mod preview;
 pub mod types;
 
-pub use layout_engine::{
-    LayoutConfig, LogicalDocument, LogicalLine, TextLayoutEngine, VisualDocument, VisualLine,
-    WrapMode,
-};
 pub use preview::{FilePreviewer, PreviewData};
 pub use types::{
     DirState, FolderRowState, FolderState, GridThumbnail, HistoryState, ImageState, KglanceState,
