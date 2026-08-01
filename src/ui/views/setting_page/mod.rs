@@ -27,18 +27,7 @@ const FALLBACK_DEFAULT_HEIGHT: u32 = 768;
 const FALLBACK_MIN_WIDTH: u32 = 800;
 const FALLBACK_MIN_HEIGHT: u32 = 600;
 
-const AVAILABLE_THEMES: [&str; 10] = [
-    "Auto",
-    "Dark",
-    "Light",
-    "Nord",
-    "Solarized Dark",
-    "Solarized Light",
-    "Gruvbox Dark",
-    "Catppuccin Mocha",
-    "Dracula",
-    "Tokyo Night",
-];
+const AVAILABLE_THEMES: [&str; 3] = ["Auto", "Dark", "Light"];
 
 pub fn settings_page<'a>(
     theme: &Theme,
