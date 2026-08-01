@@ -22,8 +22,18 @@ const EMPTY_STATE_MESSAGE: &str = "No pages";
 const LOADING_MESSAGE: &str = "Loading…";
 
 pub fn view_pdf<'a>(state: &'a PdfState) -> Element<'a, Message> {
+    view_pdf_pages(state, SCROLL_PANE_ID, |vp| {
+        crate::app::messages::PdfMsg::Scrolled(vp).into()
+    })
+}
+
+pub fn view_pdf_pages<'a>(
+    state: &'a PdfState,
+    scroll_id: &'static str,
+    on_scroll: impl Fn(iced::widget::scrollable::Viewport) -> Message + 'static,
+) -> Element<'a, Message> {
     if state.page_count == 0 {
-        return render_empty_state();
+        return render_empty_state(scroll_id);
     }
 
     let mut pages_column = column![].spacing(PAGE_SPACING).padding(MAIN_COLUMN_PADDING);
@@ -41,18 +51,18 @@ pub fn view_pdf<'a>(state: &'a PdfState) -> Element<'a, Message> {
     }
 
     scroll_pane(
-        SCROLL_PANE_ID,
+        scroll_id,
         container(pages_column)
             .width(Length::Fill)
             .height(Length::Fill),
     )
-    .on_scroll(|vp| crate::app::messages::PdfMsg::Scrolled(vp).into())
+    .on_scroll(on_scroll)
     .build()
 }
 
-fn render_empty_state<'a>() -> Element<'a, Message> {
+fn render_empty_state<'a>(scroll_id: &'static str) -> Element<'a, Message> {
     scroll_pane(
-        SCROLL_PANE_ID,
+        scroll_id,
         text(EMPTY_STATE_MESSAGE).size(EMPTY_STATE_TEXT_SIZE),
     )
     .build()

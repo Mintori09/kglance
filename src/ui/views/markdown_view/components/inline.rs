@@ -38,11 +38,14 @@ fn flush_text_segment<'a>(
         return;
     }
     let segment_block_index = ctx.block_index + seg_idx + 1;
+    let default_text_color =
+        crate::ui::theme::color::base::BaseColors::palette_for(ctx.is_dark).text;
     elements.push(
         crate::ui::components::selectable_text::SelectableText::new(
             inlines_to_spans(&inlines[start..end], span_ctx),
             font_size,
         )
+        .default_text_color(default_text_color)
         .width(iced::Length::Shrink)
         .block_index(segment_block_index)
         .selection_range(ctx.selection_range)
@@ -111,10 +114,13 @@ pub fn render_inlines<'a>(
     });
 
     if !has_special {
+        let default_text_color =
+            crate::ui::theme::color::base::BaseColors::palette_for(ctx.is_dark).text;
         return crate::ui::components::selectable_text::SelectableText::new(
             inlines_to_spans(inlines, &span_ctx),
             font_size,
         )
+        .default_text_color(default_text_color)
         .block_index(ctx.block_index)
         .selection_range(ctx.selection_range)
         .drag_active(ctx.drag_active)

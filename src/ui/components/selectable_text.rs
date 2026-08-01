@@ -17,6 +17,7 @@ where
 {
     spans: Vec<Span<'a, (), Font>>,
     font_size: f32,
+    default_text_color: Color,
     selection_color: Color,
     block_index: Option<usize>,
     selection_range: Option<crate::core::SelectionRange>,
@@ -39,6 +40,7 @@ where
         Self {
             spans,
             font_size,
+            default_text_color: Color::BLACK,
             selection_color: Color::from_rgba(0.2, 0.4, 0.8, 0.3),
             block_index: None,
             selection_range: None,
@@ -51,6 +53,11 @@ where
             width: Length::Fill,
             _phantom: std::marker::PhantomData,
         }
+    }
+
+    pub fn default_text_color(mut self, color: Color) -> Self {
+        self.default_text_color = color;
+        self
     }
 
     pub fn width(mut self, width: Length) -> Self {
@@ -462,7 +469,12 @@ where
             }
         }
 
-        renderer.fill_paragraph(paragraph, bounds.position(), Color::BLACK, bounds);
+        renderer.fill_paragraph(
+            paragraph,
+            bounds.position(),
+            self.default_text_color,
+            bounds,
+        );
     }
 }
 

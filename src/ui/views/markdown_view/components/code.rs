@@ -39,10 +39,13 @@ pub(crate) fn render_code_block<'a>(
         .enumerate()
         .map(|(line_idx, spans)| {
             let line_block_index = ctx.block_index + line_idx + 1;
+            let default_text_color =
+                crate::ui::theme::color::base::BaseColors::palette_for(is_dark).text;
             crate::ui::components::selectable_text::SelectableText::new(
                 spans,
                 scale_size(STYLE.code.line_font_size, font_size),
             )
+            .default_text_color(default_text_color)
             .block_index(line_block_index)
             .selection_range(ctx.selection_range)
             .drag_active(ctx.drag_active)
@@ -66,14 +69,20 @@ pub(crate) fn render_code_block<'a>(
                 .size(scale_size(STYLE.code.label_button_font_size, font_size)),
         )
         .padding(STYLE.code.top_bar_padding)
-        .style(language_label_style);
+        .style(move |_: &iced::Theme| language_label_style(is_dark));
         row![
             language_label,
-            copy_button_inline(code_font, copy_content, font_size),
+            copy_button_inline(code_font, copy_content, font_size, is_dark),
         ]
         .into()
     } else {
-        row![copy_button_inline(code_font, copy_content, font_size),].into()
+        row![copy_button_inline(
+            code_font,
+            copy_content,
+            font_size,
+            is_dark
+        ),]
+        .into()
     };
 
     column![
@@ -81,7 +90,7 @@ pub(crate) fn render_code_block<'a>(
         container(column(code_lines))
             .padding(STYLE.code.padding)
             .width(Length::Fill)
-            .style(code_block_style),
+            .style(move |_: &iced::Theme| code_block_style(is_dark)),
     ]
     .spacing(0)
     .into()
@@ -91,6 +100,7 @@ fn copy_button_inline<'a>(
     code_font: iced::Font,
     copy_content: String,
     font_size: f32,
+    is_dark: bool,
 ) -> Element<'a, Message> {
     container(
         button(
@@ -99,7 +109,7 @@ fn copy_button_inline<'a>(
                 .size(scale_size(STYLE.code.label_button_font_size, font_size)),
         )
         .on_press(crate::app::messages::ActionMsg::CopyCode(copy_content).into())
-        .style(copy_button_style)
+        .style(move |_: &iced::Theme, status| copy_button_style(is_dark, status))
         .padding(STYLE.code.button_padding),
     )
     .padding(0)
