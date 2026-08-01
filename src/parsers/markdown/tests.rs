@@ -476,11 +476,11 @@ fn non_mermaid_content_intact_after_parse() {
 
 #[test]
 fn render_mermaid_to_png_returns_valid_png() {
-    let result = render_mermaid_to_png("sequenceDiagram\nAlice->>Bob: Hello", None);
+    let result = render_mermaid_to_png("sequenceDiagram\nAlice->>Bob: Hello", None, false);
     assert!(result.is_some(), "should render successfully in-process");
 
     let bg = resvg::tiny_skia::Color::from_rgba8(30, 30, 30, 255);
-    let result_bg = render_mermaid_to_png("graph TD\nA-->B", Some(bg));
+    let result_bg = render_mermaid_to_png("graph TD\nA-->B", Some(bg), false);
     assert!(
         result_bg.is_some(),
         "should render successfully with background color"

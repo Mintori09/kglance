@@ -441,6 +441,7 @@ pub struct KglanceState {
 
     pub toasts: Vec<ToastInfo>,
     pub next_toast_id: u64,
+    pub prefer_mermaid_cli: bool,
 }
 
 const CACHE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(7) {
@@ -494,6 +495,7 @@ impl Default for KglanceState {
             theme_dark: true,
             toasts: Vec::new(),
             next_toast_id: 0,
+            prefer_mermaid_cli: false,
         }
     }
 }

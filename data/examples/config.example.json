@@ -9,6 +9,7 @@
     "font_family": "Noto Sans",
     "font_family_mono": "Fira Code",
     "epub_font_family": "Noto Serif",
-    "max_text_width": 820.0
+    "max_text_width": 820.0,
+    "prefer_mermaid_cli": false
   }
 }

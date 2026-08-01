@@ -237,6 +237,7 @@ pub fn view_window<'a>(
                 default_height: state.window_default_size.height as u32,
                 min_width: state.window_min_size.width as u32,
                 min_height: state.window_min_size.height as u32,
+                prefer_mermaid_cli: state.prefer_mermaid_cli,
             }));
 
         let static_fonts: &'static [String] =

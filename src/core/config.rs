@@ -16,6 +16,8 @@ pub struct UiConfig {
     pub min_width: u32,
     #[serde(default = "default_min_height")]
     pub min_height: u32,
+    #[serde(default)]
+    pub prefer_mermaid_cli: bool,
 }
 
 fn default_min_width() -> u32 {
@@ -44,8 +46,7 @@ pub fn detect_system_theme() -> String {
 impl Default for UiConfig {
     fn default() -> Self {
         Self {
-            // theme: detect_system_theme(),
-            theme: None,
+            theme: Some("Auto".into()),
             font_size: 14.0,
             font_family: None,
             font_family_mono: None,
@@ -55,6 +56,7 @@ impl Default for UiConfig {
             default_height: 768,
             min_width: default_min_width(),
             min_height: default_min_height(),
+            prefer_mermaid_cli: false,
         }
     }
 }

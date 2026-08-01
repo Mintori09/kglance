@@ -225,7 +225,6 @@ fn build_reader_width_section<'a>(theme: &Theme, config: &'a UiConfig) -> Elemen
 
     column![label, slider_widget].spacing(spacing::XS).into()
 }
-
 fn build_dimension_input_section<'a, FW, FH>(
     theme: &Theme,
     label_text: &'static str,

@@ -18,7 +18,7 @@ where
 #[test]
 fn test_ui_config_default() {
     let config = UiConfig::default();
-    assert_eq!(config.theme, None);
+    assert_eq!(config.theme, Some("Auto".into()));
     assert_eq!(config.font_size, 14.0);
     assert_eq!(config.font_family, None);
     assert_eq!(config.font_family_mono, None);
@@ -29,6 +29,7 @@ fn test_ui_config_default() {
     assert_eq!(config.default_height, 768);
     assert_eq!(config.min_width, 800);
     assert_eq!(config.min_height, 600);
+    assert!(!config.prefer_mermaid_cli);
 }
 
 #[test]
@@ -51,6 +52,7 @@ fn test_config_serialization_round_trip() {
             default_height: 768,
             min_width: 800,
             min_height: 600,
+            prefer_mermaid_cli: false,
         },
     };
     let json = serde_json::to_string_pretty(&config).unwrap();
@@ -94,7 +96,8 @@ fn test_get_theme_auto() {
 
 #[test]
 fn test_get_theme_none_falls_back_to_system() {
-    let config = AppConfig::default();
+    let mut config = AppConfig::default();
+    config.ui.theme = None;
     assert!(config.ui.theme.is_none());
     let theme = ConfigManager::get_theme(&config);
     assert!(theme == "Light" || theme == "Dark");
