@@ -324,11 +324,17 @@ fn update_selected_text_from_range(app: &mut KglanceApp) {
         app.state.markdown.selected_text = None;
         return;
     };
-    let Some(PreviewData::Markdown { blocks, .. }) = &app.current_content else {
-        app.state.markdown.selected_text = None;
-        return;
+    let blocks_vec: Vec<Block> = match &app.current_content {
+        Some(PreviewData::Markdown { blocks, .. }) => blocks.clone(),
+        Some(PreviewData::Epub { chapters, .. }) => {
+            chapters.iter().flat_map(|ch| ch.blocks.clone()).collect()
+        }
+        _ => {
+            app.state.markdown.selected_text = None;
+            return;
+        }
     };
-    app.state.markdown.selected_text = build_selected_text(blocks, range);
+    app.state.markdown.selected_text = build_selected_text(&blocks_vec, range);
 }
 
 struct CopyLine {

@@ -110,6 +110,13 @@ pub struct PageCacheEntry {
     pub handle: iced::widget::image::Handle,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PdfSidebarMode {
+    #[default]
+    Thumbnails,
+    Toc,
+}
+
 #[derive(Debug, Clone)]
 pub struct PdfState {
     pub pages: Vec<Option<PageCacheEntry>>,
@@ -121,6 +128,11 @@ pub struct PdfState {
     pub window_start: usize,
     pub window_end: usize,
     pub preload_end: usize,
+    pub sidebar_visible: bool,
+    pub sidebar_mode: PdfSidebarMode,
+    pub sidebar_width: f32,
+    pub sidebar_resizing: bool,
+    pub outline: Vec<crate::parsers::pdf::PdfTocEntry>,
 }
 
 impl Default for PdfState {
@@ -135,6 +147,11 @@ impl Default for PdfState {
             window_start: 0,
             window_end: 0,
             preload_end: 0,
+            sidebar_visible: false,
+            sidebar_mode: PdfSidebarMode::Thumbnails,
+            sidebar_width: 220.0,
+            sidebar_resizing: false,
+            outline: Vec::new(),
         }
     }
 }

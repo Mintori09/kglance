@@ -51,6 +51,45 @@ pub fn render_pdf_page_at_dpi(
         .map_err(|e| ParseError::ParseFailed(e.to_string()))
 }
 
+#[derive(Debug, Clone)]
+pub struct PdfTocEntry {
+    pub title: String,
+    pub page: usize,
+    pub level: u8,
+}
+
+fn extract_outline_nodes(
+    nodes: &[mupdf::Outline],
+    doc: &Document,
+    level: u8,
+    out: &mut Vec<PdfTocEntry>,
+) {
+    for node in nodes {
+        let title = node.title.clone();
+        let page = if let Some(ref uri) = node.uri
+            && let Ok(Some(dest)) = doc.resolve_link(uri)
+        {
+            dest.loc.page_number as usize
+        } else {
+            0
+        };
+        if !title.is_empty() {
+            out.push(PdfTocEntry { title, page, level });
+        }
+        if !node.down.is_empty() {
+            extract_outline_nodes(&node.down, doc, level + 1, out);
+        }
+    }
+}
+
+pub fn extract_pdf_toc(doc: &Document) -> Vec<PdfTocEntry> {
+    let mut toc = Vec::new();
+    if let Ok(outlines) = doc.outlines() {
+        extract_outline_nodes(&outlines, doc, 1, &mut toc);
+    }
+    toc
+}
+
 pub struct PdfParser;
 
 impl PreviewParser for PdfParser {
@@ -63,6 +102,7 @@ impl PreviewParser for PdfParser {
         let page_count = doc
             .page_count()
             .map_err(|e| ParseError::ParseFailed(e.to_string()))? as u32;
+        let outline = extract_pdf_toc(&doc);
         let first_page = if page_count > 0 {
             render_page(&doc, 0).map_err(|e| ParseError::ParseFailed(e.to_string()))?
         } else {
@@ -75,6 +115,7 @@ impl PreviewParser for PdfParser {
         Ok(ParsedContent::Pdf {
             page_count,
             first_page,
+            outline,
         })
     }
 }
@@ -97,6 +138,7 @@ mod tests {
             Ok(ParsedContent::Pdf {
                 page_count,
                 first_page,
+                ..
             }) => {
                 assert_eq!(page_count, 1);
                 assert!(first_page.width > 0);

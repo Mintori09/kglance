@@ -141,7 +141,7 @@ impl KglanceApp {
                     RelativeOffset { x: 0.0, y: 1.0 },
                 ))
             }
-            // g t → toggle TOC / sidebar (markdown or epub)
+            // g t → toggle TOC / sidebar (markdown, epub, pdf, typst)
             Key::Character(c) if c == "t" && self.pending_g => {
                 self.reset_scroll_pending();
                 if matches!(self.current_content, Some(PreviewData::Markdown { .. })) {
@@ -151,6 +151,13 @@ impl KglanceApp {
                 } else if matches!(self.current_content, Some(PreviewData::Epub { .. })) {
                     Some(Task::done(
                         crate::app::messages::EpubMsg::SidebarToggled.into(),
+                    ))
+                } else if matches!(
+                    self.current_content,
+                    Some(PreviewData::Pdf { .. }) | Some(PreviewData::Typst { .. })
+                ) {
+                    Some(Task::done(
+                        crate::app::messages::PdfMsg::SidebarToggled.into(),
                     ))
                 } else {
                     None

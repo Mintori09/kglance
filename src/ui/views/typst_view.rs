@@ -3,18 +3,8 @@ use crate::core::TypstState;
 use crate::ui::components::code_editor::code_editor;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::theme::font::get_code_font;
-use crate::ui::views::pdf_view::view_pdf_pages;
+use iced::Element;
 use iced::widget::text_editor::Action;
-use iced::widget::{button, column, container, row, text};
-use iced::{Element, Length};
-
-use crate::ui::theme::tokens::spacing;
-
-const TOOLBAR_PADDING: f32 = spacing::XS;
-const TOOLBAR_SPACING: f32 = spacing::S;
-const SOURCE_SCROLL_PANE_ID: &str = "typst_source_scroll";
-const PAGES_SCROLL_PANE_ID: &str = "typst_pages_scroll";
-const TOOLBAR_TEXT_SIZE: f32 = 13.0;
 
 fn ignore_editor_action(_: Action) -> Message {
     Message::None
@@ -26,9 +16,7 @@ pub fn view_typst<'a>(
     font_size: f32,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
-    let toolbar = build_toolbar(state.show_source);
-
-    let body: Element<'a, Message> = if state.show_source {
+    if state.show_source || state.error.is_some() {
         let font = get_code_font(font_family_mono);
         let editor = code_editor(
             &state.source_content,
@@ -38,47 +26,60 @@ pub fn view_typst<'a>(
             font,
             ignore_editor_action,
         );
-        scroll_pane(SOURCE_SCROLL_PANE_ID, editor)
-            .container_padding(TOOLBAR_PADDING)
-            .build()
+
+        let editor_pane = scroll_pane("typst_source_scroll", editor)
+            .container_padding(4.0)
+            .build();
+
+        if let Some(err_msg) = &state.error {
+            let banner = iced::widget::container(
+                iced::widget::column![
+                    iced::widget::text("Typst Compilation Warning / Error:")
+                        .size(13.0)
+                        .style(move |_: &iced::Theme| iced::widget::text::Style {
+                            color: Some(if is_dark {
+                                iced::Color::from_rgb(0.95, 0.4, 0.4)
+                            } else {
+                                iced::Color::from_rgb(0.8, 0.2, 0.2)
+                            }),
+                        }),
+                    iced::widget::text(err_msg)
+                        .size(11.0)
+                        .style(move |_: &iced::Theme| iced::widget::text::Style {
+                            color: Some(if is_dark {
+                                iced::Color::from_rgb(0.8, 0.8, 0.8)
+                            } else {
+                                iced::Color::from_rgb(0.3, 0.3, 0.3)
+                            }),
+                        })
+                ]
+                .spacing(4),
+            )
+            .padding(8.0)
+            .width(iced::Length::Fill)
+            .style(move |_: &iced::Theme| iced::widget::container::Style {
+                background: Some(if is_dark {
+                    iced::Background::Color(iced::Color::from_rgba(0.3, 0.1, 0.1, 0.5))
+                } else {
+                    iced::Background::Color(iced::Color::from_rgba(1.0, 0.9, 0.9, 1.0))
+                }),
+                border: iced::Border {
+                    color: if is_dark {
+                        iced::Color::from_rgb(0.6, 0.2, 0.2)
+                    } else {
+                        iced::Color::from_rgb(0.9, 0.6, 0.6)
+                    },
+                    width: 1.0,
+                    radius: 4.0.into(),
+                },
+                ..Default::default()
+            });
+
+            iced::widget::column![banner, editor_pane].spacing(6).into()
+        } else {
+            editor_pane
+        }
     } else {
-        view_pdf_pages(&state.pdf, PAGES_SCROLL_PANE_ID, |vp| {
-            crate::app::messages::TypstMsg::Scrolled(vp).into()
-        })
-    };
-
-    column![toolbar, body].height(Length::Fill).into()
-}
-
-fn build_toolbar(show_source: bool) -> Element<'static, Message> {
-    let rendered_button = button(text("Rendered").size(TOOLBAR_TEXT_SIZE));
-    let source_button = button(text("Source").size(TOOLBAR_TEXT_SIZE));
-
-    let rendered_button = if show_source {
-        rendered_button.on_press(crate::app::messages::TypstMsg::ToggleSource.into())
-    } else {
-        rendered_button
-    };
-    let source_button = if show_source {
-        source_button
-    } else {
-        source_button.on_press(crate::app::messages::TypstMsg::ToggleSource.into())
-    };
-
-    let toolbar = row![]
-        .spacing(TOOLBAR_SPACING)
-        .padding(TOOLBAR_PADDING)
-        .push(rendered_button)
-        .push(source_button)
-        .push(
-            text(if show_source { "Source" } else { "Rendered" })
-                .size(TOOLBAR_TEXT_SIZE)
-                .width(Length::Fill)
-                .center(),
-        );
-
-    container(toolbar)
-        .width(Length::Fill)
-        .padding(TOOLBAR_PADDING)
-        .into()
+        crate::ui::views::pdf_view::view_pdf(&state.pdf, font_size, is_dark)
+    }
 }

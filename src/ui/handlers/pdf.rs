@@ -135,3 +135,91 @@ async fn render_and_send_batch(output: &mut Sender<Message>, file_path: &str, ba
         }
     }
 }
+
+pub fn lazy_load_thumbnails(
+    file_path: String,
+    total_pages: usize,
+    visible_page: Arc<AtomicUsize>,
+) -> Task<Message> {
+    let stream = iced::stream::channel(CHANNEL_BUFFER_SIZE, move |output| {
+        process_pdf_thumb_loading(output, file_path, total_pages, visible_page)
+    });
+
+    Task::run(stream, |message| message)
+}
+
+async fn process_pdf_thumb_loading(
+    mut output: Sender<Message>,
+    file_path: String,
+    total_pages: usize,
+    visible_page: Arc<AtomicUsize>,
+) {
+    let mut rendered_thumbs = vec![false; total_pages];
+
+    loop {
+        let current_page = visible_page.load(Ordering::Relaxed);
+        let window_range = WindowRange::new(current_page, total_pages, PRELOAD_RADIUS);
+
+        let unrendered = find_unrendered_pages(&rendered_thumbs);
+        if unrendered.is_empty() {
+            break;
+        }
+
+        let batch = select_prioritized_batch(unrendered, current_page, &window_range);
+
+        for &page_index in &batch {
+            rendered_thumbs[page_index] = true;
+        }
+
+        render_and_send_thumb_batch(&mut output, &file_path, &batch).await;
+
+        tokio::time::sleep(LOOP_POLL_INTERVAL).await;
+    }
+}
+
+async fn render_and_send_thumb_batch(
+    output: &mut Sender<Message>,
+    file_path: &str,
+    batch: &[usize],
+) {
+    let render_tasks: Vec<_> = batch
+        .iter()
+        .map(|&page_index| {
+            let path_buffer = file_path.to_owned();
+            tokio::task::spawn_blocking(move || {
+                let path = Path::new(&path_buffer);
+                if path_buffer.to_lowercase().ends_with(".typ") {
+                    if let Ok((temp_pdf, _, _, _)) =
+                        crate::parsers::typst::compile_typst_to_pdf(path)
+                    {
+                        crate::parsers::pdf::render_pdf_page_at_dpi(
+                            temp_pdf.path(),
+                            page_index as u32,
+                            36.0,
+                        )
+                        .ok()
+                    } else {
+                        None
+                    }
+                } else {
+                    crate::parsers::pdf::render_pdf_page_at_dpi(path, page_index as u32, 36.0).ok()
+                }
+            })
+        })
+        .collect();
+
+    let render_results = join_all(render_tasks).await;
+
+    for (&page_index, task_result) in batch.iter().zip(render_results) {
+        if let Ok(Some(page_data)) = task_result {
+            let message: Message = crate::app::messages::PdfMsg::ThumbReady(
+                page_index,
+                page_data.data,
+                page_data.width,
+                page_data.height,
+            )
+            .into();
+            let _ = output.send(message).await;
+        }
+    }
+}

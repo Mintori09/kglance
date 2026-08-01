@@ -183,12 +183,14 @@ pub enum ParsedContent {
     Pdf {
         page_count: u32,
         first_page: PageData,
+        outline: Vec<crate::parsers::pdf::PdfTocEntry>,
     },
     Typst {
         source: String,
         page_count: u32,
         first_page: PageData,
         error: Option<String>,
+        outline: Vec<crate::parsers::pdf::PdfTocEntry>,
     },
     Archive {
         entries: Vec<ArchiveEntry>,
@@ -486,18 +488,21 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
             ParsedContent::Pdf {
                 page_count,
                 first_page,
+                outline,
             } => crate::core::preview::PreviewData::Pdf {
                 page_count: page_count as usize,
                 current_page: 0,
                 data: first_page.data,
                 width: first_page.width,
                 height: first_page.height,
+                outline,
             },
             ParsedContent::Typst {
                 source,
                 page_count,
                 first_page,
                 error,
+                outline,
             } => crate::core::preview::PreviewData::Typst {
                 page_count: page_count as usize,
                 current_page: 0,
@@ -506,6 +511,7 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 height: first_page.height,
                 source,
                 error,
+                outline,
             },
             ParsedContent::Spreadsheet { sheets } => {
                 crate::core::preview::PreviewData::Spreadsheet {
