@@ -121,6 +121,7 @@ pub fn render_inlines<'a>(
             font_size,
         )
         .default_text_color(default_text_color)
+        .width(iced::Length::Fill)
         .block_index(ctx.block_index)
         .selection_range(ctx.selection_range)
         .drag_active(ctx.drag_active)

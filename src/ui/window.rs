@@ -102,7 +102,29 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
             .padding([2, 6])
             .into();
 
-    let right_row = row![right_el, Space::new().width(8), settings_btn].align_y(Alignment::Center);
+    let typst_toggle_btn: Option<Element<'a, Message>> =
+        if state.file_name.to_lowercase().ends_with(".typ") {
+            let label = if state.typst.show_source {
+                "👁 Rendered"
+            } else {
+                "</> Source"
+            };
+            Some(
+                iced::widget::button(text(label).size(11).style(metadata_style))
+                    .on_press(crate::app::messages::TypstMsg::ToggleSource.into())
+                    .style(iced::widget::button::secondary)
+                    .padding([2, 8])
+                    .into(),
+            )
+        } else {
+            None
+        };
+
+    let mut right_row = row![right_el].align_y(Alignment::Center);
+    if let Some(btn) = typst_toggle_btn {
+        right_row = right_row.push(Space::new().width(8)).push(btn);
+    }
+    right_row = right_row.push(Space::new().width(8)).push(settings_btn);
 
     let left_row = if let Some(cnt) = counter_el {
         row![cnt, Space::new().width(8), left_el].align_y(Alignment::Center)

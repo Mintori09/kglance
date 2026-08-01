@@ -127,6 +127,15 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::PdfMsg::ThumbReady(idx, d, w, h) => {
                 pdf::handle_thumb_ready(app, idx, d, w, h)
             }
+            crate::app::messages::PdfMsg::SidebarToggled => pdf::handle_sidebar_toggled(app),
+            crate::app::messages::PdfMsg::SetSidebarMode(m) => pdf::handle_set_sidebar_mode(app, m),
+            crate::app::messages::PdfMsg::ThumbnailClicked(idx) => {
+                pdf::handle_thumbnail_clicked(app, idx)
+            }
+            crate::app::messages::PdfMsg::TocItemClicked(idx) => {
+                pdf::handle_toc_item_clicked(app, idx)
+            }
+            crate::app::messages::PdfMsg::SidebarResized(w) => pdf::handle_sidebar_resized(app, w),
         },
         Message::Typst(msg) => match msg {
             crate::app::messages::TypstMsg::Scrolled(vp) => typst::handle_scrolled(app, vp),

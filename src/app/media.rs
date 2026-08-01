@@ -24,15 +24,20 @@ impl super::KglanceApp {
                 Some(PreviewData::Markdown { .. })
                     | Some(PreviewData::Text { .. })
                     | Some(PreviewData::Epub { .. })
+                    | Some(PreviewData::Pdf { .. })
+                    | Some(PreviewData::Typst { .. })
             ) {
                 let delta = if y > 0.0 { 1.0 } else { -1.0 };
-                self.state.font_size = (self.state.font_size + delta).clamp(8.0, 48.0);
-                if let Some(PreviewData::Markdown { ref blocks, .. }) = self.current_content {
-                    self.state.markdown.toc = crate::parsers::markdown::extract_toc(
-                        blocks,
-                        self.state.font_size,
-                        &self.state.markdown.cached_image_sizes,
-                    );
+                let next_font_size = (self.state.font_size + delta).clamp(8.0, 48.0);
+                if (next_font_size - self.state.font_size).abs() > f32::EPSILON {
+                    self.state.font_size = next_font_size;
+                    if let Some(PreviewData::Markdown { ref blocks, .. }) = self.current_content {
+                        self.state.markdown.toc = crate::parsers::markdown::extract_toc(
+                            blocks,
+                            self.state.font_size,
+                            &self.state.markdown.cached_image_sizes,
+                        );
+                    }
                 }
                 Task::none()
             } else {

@@ -136,6 +136,7 @@ pub fn icon_for_entry(name: &str, is_dir: bool) -> &'static str {
         // =========================
         "txt" => "text-plain",
         "md" | "markdown" => "text-x-markdown",
+        "typ" => "text-x-typst",
         "pdf" => "application-pdf",
         "csv" => "text-csv",
         "rtf" => "application-rtf",

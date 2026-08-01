@@ -57,6 +57,17 @@ pub fn handle_toggle_view_mode(app: &mut KglanceApp) -> Task<Message> {
                                         &path_for_task,
                                     ));
                                 }
+                                if lower.ends_with(".typ")
+                                    && let Ok((_temp, _count, first_page, _)) =
+                                        crate::parsers::typst::compile_typst_to_pdf(
+                                            std::path::Path::new(&path_for_task),
+                                        )
+                                    && !first_page.data.is_empty()
+                                {
+                                    return Some(iced::widget::image::Handle::from_bytes(
+                                        first_page.data,
+                                    ));
+                                }
                                 if (lower.ends_with(".mp4")
                                     || lower.ends_with(".mkv")
                                     || lower.ends_with(".avi")

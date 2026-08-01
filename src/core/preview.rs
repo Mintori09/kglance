@@ -27,6 +27,7 @@ pub enum PreviewData {
         data: Vec<u8>,
         width: u32,
         height: u32,
+        outline: Vec<crate::parsers::pdf::PdfTocEntry>,
     },
     Typst {
         page_count: usize,
@@ -36,6 +37,7 @@ pub enum PreviewData {
         height: u32,
         source: String,
         error: Option<String>,
+        outline: Vec<crate::parsers::pdf::PdfTocEntry>,
     },
     Media {
         url: String,
@@ -136,24 +138,51 @@ impl PreviewData {
                 };
                 state.file_type_text.clone_from(format_info);
             }
-            PreviewData::Pdf { page_count, .. } => {
+            PreviewData::Pdf {
+                page_count,
+                outline,
+                ..
+            } => {
+                let old_sidebar_visible = state.pdf.sidebar_visible;
+                let old_sidebar_mode = state.pdf.sidebar_mode;
+                let old_sidebar_width = state.pdf.sidebar_width;
                 state.pdf = crate::core::PdfState::default();
                 state.pdf.page_count = *page_count;
                 state.pdf.pages = vec![None; *page_count];
                 state.pdf.thumbnails = vec![None; *page_count];
+                state.pdf.sidebar_visible = old_sidebar_visible;
+                state.pdf.sidebar_mode = old_sidebar_mode;
+                state.pdf.sidebar_width = if old_sidebar_width > 0.0 {
+                    old_sidebar_width
+                } else {
+                    220.0
+                };
+                state.pdf.outline = outline.clone();
                 state.file_type_text = "PDF Document".to_string();
             }
             PreviewData::Typst {
                 page_count,
                 source,
                 error,
+                outline,
                 ..
             } => {
+                let old_sidebar_visible = state.typst.pdf.sidebar_visible;
+                let old_sidebar_mode = state.typst.pdf.sidebar_mode;
+                let old_sidebar_width = state.typst.pdf.sidebar_width;
                 state.typst = crate::core::TypstState {
                     pdf: crate::core::PdfState {
                         page_count: *page_count,
                         pages: vec![None; *page_count],
                         thumbnails: vec![None; *page_count],
+                        sidebar_visible: old_sidebar_visible,
+                        sidebar_mode: old_sidebar_mode,
+                        sidebar_width: if old_sidebar_width > 0.0 {
+                            old_sidebar_width
+                        } else {
+                            220.0
+                        },
+                        outline: outline.clone(),
                         ..Default::default()
                     },
                     source_content: iced::widget::text_editor::Content::with_text(source),

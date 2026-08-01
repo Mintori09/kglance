@@ -5,9 +5,17 @@ use tempfile::NamedTempFile;
 use crate::parsers::pdf::render_pdf_page;
 use crate::parsers::{PageData, ParseError, ParsedContent, PreviewParser};
 
-/// Compiles a `.typ` file into a temporary PDF using external `typst` binary.
-/// Returns `(temp_pdf_handle, page_count, first_page_data)`.
-pub fn compile_typst_to_pdf(path: &Path) -> Result<(NamedTempFile, u32, PageData), ParseError> {
+pub fn compile_typst_to_pdf(
+    path: &Path,
+) -> Result<
+    (
+        NamedTempFile,
+        u32,
+        PageData,
+        Vec<crate::parsers::pdf::PdfTocEntry>,
+    ),
+    ParseError,
+> {
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     let temp_pdf = tempfile::Builder::new()
         .suffix(".pdf")
@@ -47,6 +55,8 @@ pub fn compile_typst_to_pdf(path: &Path) -> Result<(NamedTempFile, u32, PageData
         .page_count()
         .map_err(|e| ParseError::ParseFailed(e.to_string()))? as u32;
 
+    let outline = crate::parsers::pdf::extract_pdf_toc(&doc);
+
     let first_page = if page_count > 0 {
         render_pdf_page(temp_pdf.path(), 0)?
     } else {
@@ -57,7 +67,7 @@ pub fn compile_typst_to_pdf(path: &Path) -> Result<(NamedTempFile, u32, PageData
         }
     };
 
-    Ok((temp_pdf, page_count, first_page))
+    Ok((temp_pdf, page_count, first_page, outline))
 }
 
 pub struct TypstParser;
@@ -72,11 +82,12 @@ impl PreviewParser for TypstParser {
             std::fs::read_to_string(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
         match compile_typst_to_pdf(path) {
-            Ok((_temp_pdf, page_count, first_page)) => Ok(ParsedContent::Typst {
+            Ok((_temp_pdf, page_count, first_page, outline)) => Ok(ParsedContent::Typst {
                 source,
                 page_count,
                 first_page,
                 error: None,
+                outline,
             }),
             Err(err) => Ok(ParsedContent::Typst {
                 source,
@@ -87,6 +98,7 @@ impl PreviewParser for TypstParser {
                     data: Vec::new(),
                 },
                 error: Some(err.to_string()),
+                outline: Vec::new(),
             }),
         }
     }
@@ -123,6 +135,7 @@ mod tests {
                 page_count,
                 first_page,
                 error,
+                ..
             }) => {
                 assert!(source.contains("Hello, Typst!"));
                 assert_eq!(*page_count, 1);

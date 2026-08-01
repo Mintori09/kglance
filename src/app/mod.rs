@@ -495,7 +495,11 @@ impl KglanceApp {
                 PreviewData::Font { name, metadata, .. } => {
                     crate::ui::views::view_font(name, metadata, self.state.theme_dark)
                 }
-                PreviewData::Pdf { .. } => crate::ui::views::view_pdf(&self.state.pdf),
+                PreviewData::Pdf { .. } => crate::ui::views::view_pdf(
+                    &self.state.pdf,
+                    self.state.font_size,
+                    self.state.theme_dark,
+                ),
                 PreviewData::Typst { .. } => crate::ui::views::view_typst(
                     &self.state.typst,
                     self.state.theme_dark,

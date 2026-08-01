@@ -65,7 +65,7 @@ async fn process_typst_page_loading(
     .ok()
     .flatten();
 
-    let Some((temp_pdf, _, _)) = compiled else {
+    let Some((temp_pdf, _, _, _)) = compiled else {
         let _ = output
             .send(crate::app::messages::TypstMsg::CompileError.into())
             .await;

@@ -28,11 +28,17 @@ pub(crate) fn build_epub_content<'a>(
 
     let elements = chapter_blocks.iter().enumerate().map(|(i, block)| {
         let global_index = chapter_offset + i;
+        let block_ctx = RenderContext {
+            block_index: global_index * 1000,
+            selection_range: state.markdown_state.selection_range,
+            drag_active: state.markdown_state.is_dragging_selection,
+            ..*ctx
+        };
         let inner = crate::ui::views::markdown_view::render_block(
             global_index,
             block,
             &state.markdown_state,
-            ctx,
+            &block_ctx,
         );
         let margin_bottom = crate::ui::views::markdown_view::block_margin(block);
         container(inner)
@@ -46,5 +52,7 @@ pub(crate) fn build_epub_content<'a>(
             .into()
     });
 
-    scrollable_content(elements, max_text_width, CONTENT_SPACING, "content_scroll").build()
+    scrollable_content(elements, max_text_width, CONTENT_SPACING, "content_scroll")
+        .on_scroll(|v| crate::app::messages::MarkdownMsg::Scrolled(v.absolute_offset().y).into())
+        .build()
 }

@@ -109,22 +109,30 @@ impl KglanceApp {
 
     fn handle_zoom_or_font(&mut self, direction: f32) -> Option<Task<Message>> {
         if matches!(self.current_content, Some(PreviewData::Image { .. })) {
-            self.state.image.camera.zoom =
+            let next_zoom =
                 (self.state.image.camera.zoom + direction * ZOOM_STEP).clamp(ZOOM_MIN, ZOOM_MAX);
+            if (next_zoom - self.state.image.camera.zoom).abs() > f32::EPSILON {
+                self.state.image.camera.zoom = next_zoom;
+            }
             Some(Task::none())
         } else if matches!(
             self.current_content,
             Some(PreviewData::Markdown { .. })
                 | Some(PreviewData::Text { .. })
                 | Some(PreviewData::Epub { .. })
+                | Some(PreviewData::Pdf { .. })
+                | Some(PreviewData::Typst { .. })
         ) {
-            self.state.font_size = (self.state.font_size + direction).clamp(FONT_MIN, FONT_MAX);
-            if let Some(PreviewData::Markdown { ref blocks, .. }) = self.current_content {
-                self.state.markdown.toc = extract_toc(
-                    blocks,
-                    self.state.font_size,
-                    &self.state.markdown.cached_image_sizes,
-                );
+            let next_font_size = (self.state.font_size + direction).clamp(FONT_MIN, FONT_MAX);
+            if (next_font_size - self.state.font_size).abs() > f32::EPSILON {
+                self.state.font_size = next_font_size;
+                if let Some(PreviewData::Markdown { ref blocks, .. }) = self.current_content {
+                    self.state.markdown.toc = extract_toc(
+                        blocks,
+                        self.state.font_size,
+                        &self.state.markdown.cached_image_sizes,
+                    );
+                }
             }
             Some(Task::none())
         } else {
