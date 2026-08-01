@@ -100,7 +100,6 @@ impl KglanceApp {
             file_watcher,
         };
 
-        // Daemon starts with no window — window is opened on demand when a preview request arrives.
         let task = if !initial_paths.is_empty() {
             let path_str = initial_paths[0].clone();
             let reg = app.registry.clone();

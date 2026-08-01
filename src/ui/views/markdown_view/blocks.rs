@@ -12,6 +12,7 @@ use iced::Element;
 pub(crate) struct RenderContext<'a> {
     pub(crate) block_index: usize,
     pub(crate) selection_range: Option<crate::core::SelectionRange>,
+    pub(crate) drag_active: bool,
     pub(crate) search_query: &'a str,
     pub(crate) active_match: usize,
     pub(crate) counter: &'a Cell<usize>,

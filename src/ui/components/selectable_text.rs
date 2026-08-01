@@ -25,6 +25,7 @@ where
     on_drag_update: Option<Box<dyn Fn(usize, usize) -> Message + 'a>>,
     on_drag_end: Option<Box<dyn Fn() -> Message + 'a>>,
     on_clear_selection: Option<Box<dyn Fn() -> Message + 'a>>,
+    drag_active: bool,
     width: Length,
     _phantom: std::marker::PhantomData<(Theme, Renderer)>,
 }
@@ -46,6 +47,7 @@ where
             on_drag_update: None,
             on_drag_end: None,
             on_clear_selection: None,
+            drag_active: false,
             width: Length::Fill,
             _phantom: std::marker::PhantomData,
         }
@@ -103,6 +105,11 @@ where
         F: Fn() -> Message + 'a,
     {
         self.on_clear_selection = Some(Box::new(f));
+        self
+    }
+
+    pub fn drag_active(mut self, active: bool) -> Self {
+        self.drag_active = active;
         self
     }
 
@@ -303,62 +310,42 @@ where
                 }
             }
             Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                let Some(cursor_pos) = cursor.position() else {
+                let Some(cursor_pos) = cursor.position_over(bounds) else {
                     return;
                 };
 
-                if state.is_mouse_held || state.is_selecting {
-                    let y_in_bounds =
-                        cursor_pos.y >= bounds.y && cursor_pos.y <= bounds.y + bounds.height;
+                let dragging = state.is_mouse_held || state.is_selecting || self.drag_active;
+                if !dragging {
+                    return;
+                }
 
-                    if y_in_bounds {
-                        let rel_pos = Point::new(
-                            (cursor_pos.x - bounds.x).clamp(0.0, bounds.width),
-                            (cursor_pos.y - bounds.y).clamp(0.0, bounds.height),
-                        );
-                        if let Some(hit) = paragraph.hit_test(rel_pos) {
-                            let offset = hit.cursor();
-                            if state.is_selecting {
-                                if let Some(drag_start) = state.drag_start {
-                                    let start = drag_start.min(offset);
-                                    let end = drag_start.max(offset);
-                                    state.selection = Some((start, end));
-                                }
-                            } else {
-                                state.is_selecting = true;
-                                state.drag_start = Some(offset);
-                                state.selection = Some((offset, offset));
-                            }
-                            if let (Some(blk), Some(on_update)) =
-                                (self.block_index, &self.on_drag_update)
-                            {
-                                shell.publish(on_update(blk, offset));
-                            }
-                            shell.capture_event();
-                        }
-                    } else if state.is_selecting {
-                        let offset = if cursor_pos.y < bounds.y {
-                            0
-                        } else {
-                            state.plain_text.len()
-                        };
+                let rel_pos = Point::new(
+                    (cursor_pos.x - bounds.x).clamp(0.0, bounds.width),
+                    (cursor_pos.y - bounds.y).clamp(0.0, bounds.height),
+                );
+                if let Some(hit) = paragraph.hit_test(rel_pos) {
+                    let offset = hit.cursor();
+                    if state.is_selecting {
                         if let Some(drag_start) = state.drag_start {
                             let start = drag_start.min(offset);
                             let end = drag_start.max(offset);
                             state.selection = Some((start, end));
                         }
-                        if let (Some(blk), Some(on_update)) =
-                            (self.block_index, &self.on_drag_update)
-                        {
-                            shell.publish(on_update(blk, offset));
-                        }
-                        shell.capture_event();
+                    } else if state.is_mouse_held {
+                        state.is_selecting = true;
+                        state.drag_start = Some(offset);
+                        state.selection = Some((offset, offset));
                     }
+                    if let (Some(blk), Some(on_update)) = (self.block_index, &self.on_drag_update) {
+                        shell.publish(on_update(blk, offset));
+                    }
+                    shell.capture_event();
                 }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
+                let was_origin = state.is_mouse_held;
                 state.is_mouse_held = false;
-                if state.is_selecting {
+                if state.is_selecting && was_origin {
                     state.is_selecting = false;
                     if let (Some(selection), Some(on_change)) =
                         (state.selection, &self.on_selection_change)

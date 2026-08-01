@@ -833,6 +833,24 @@ mod tests {
     }
 
     #[test]
+    fn selected_upward_drag_across_paragraphs_full() {
+        let md = "hello\n\nworld";
+        let blocks = parse_to_blocks(md);
+        assert_eq!(blocks.len(), 2);
+        let sel = build_selected_text(&blocks, range(1000, 5, 0, 0));
+        assert_eq!(sel.as_deref(), Some("hello\nworld"));
+    }
+
+    #[test]
+    fn selected_upward_drag_across_paragraphs_partial() {
+        let md = "hello\n\nworld";
+        let blocks = parse_to_blocks(md);
+        assert_eq!(blocks.len(), 2);
+        let sel = build_selected_text(&blocks, range(1000, 5, 0, 2));
+        assert_eq!(sel.as_deref(), Some("llo\nworld"));
+    }
+
+    #[test]
     fn selected_all_markdown() {
         let md = "# Tiêu đề\n\nĐoạn một với **đậm**.\n\n- mục 1\n- mục 2\n\n> quote";
         let blocks = parse_to_blocks(md);
