@@ -78,6 +78,7 @@ dirs = "6.0"
 lru = "0.18.1"
 md5 = "0.7"
 unicode-normalization = "0.1.24"
+quick-xml = { version = "0.41", features = ["escape-html"] }
 mermaid-rs-renderer = { version = "0.3.1", default-features = false }
 [features]
 default = ["7z"]
@@ -147,14 +148,10 @@ path = "src/main.rs"
 [profile.dev]
 opt-level = 0
 debug = 1
-rpath = false
-lto = false
 incremental = true
-overflow-checks = true
 
 [profile.dev.package."*"]
-opt-level = 0
-debug = 0
+opt-level = 3
 
 [profile.release]
 lto = "thin"
