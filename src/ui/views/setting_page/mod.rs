@@ -45,7 +45,7 @@ pub fn settings_page<'a>(
         iced::widget::Space::new().width(iced::Length::Fill),
         button(text("✕").size(13))
             .on_press(crate::app::messages::NavigationMsg::ToggleSettingsClicked.into())
-            .style(move |theme, status| default_button(theme, status))
+            .style(default_button)
             .padding([spacing::XS, spacing::S])
     ]
     .align_y(Alignment::Center);
@@ -104,7 +104,7 @@ pub fn settings_page<'a>(
 
     container(settings_content)
         .padding(spacing::L)
-        .style(move |theme| default_card(theme))
+        .style(default_card)
         .into()
 }
 
@@ -225,6 +225,7 @@ fn build_reader_width_section<'a>(theme: &Theme, config: &'a UiConfig) -> Elemen
 
     column![label, slider_widget].spacing(spacing::XS).into()
 }
+#[allow(clippy::too_many_arguments)]
 fn build_dimension_input_section<'a, FW, FH>(
     theme: &Theme,
     label_text: &'static str,

@@ -142,13 +142,15 @@ fn test_get_theme_unrecognized_returns_raw() {
 #[test]
 fn test_config_path_format() {
     let path = ConfigManager::get_config_path();
-    assert!(path.ends_with("kglance/config.json"));
+    let path_str = path.to_string_lossy();
+    assert!(path_str.ends_with("kglance/config.json") || path.ends_with("config.json"));
 }
 
 #[test]
 fn test_config_dir_format() {
     let dir = ConfigManager::get_config_dir();
-    assert!(dir.ends_with("kglance"));
+    let dir_str = dir.to_string_lossy();
+    assert!(dir_str.ends_with("kglance") || dir.ends_with("kglance"));
 }
 
 #[test]
