@@ -45,6 +45,7 @@ pub(crate) fn render_code_block<'a>(
             )
             .block_index(line_block_index)
             .selection_range(ctx.selection_range)
+            .drag_active(ctx.drag_active)
             .on_selection_change(|s| crate::app::messages::MarkdownMsg::SelectionChanged(s).into())
             .on_drag_start(|block, offset| {
                 crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset }.into()

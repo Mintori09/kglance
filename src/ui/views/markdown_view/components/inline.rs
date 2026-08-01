@@ -46,6 +46,7 @@ fn flush_text_segment<'a>(
         .width(iced::Length::Shrink)
         .block_index(segment_block_index)
         .selection_range(ctx.selection_range)
+        .drag_active(ctx.drag_active)
         .on_selection_change(|s| crate::app::messages::MarkdownMsg::SelectionChanged(s).into())
         .on_drag_start(|block, offset| {
             crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset }.into()
@@ -116,6 +117,7 @@ pub fn render_inlines<'a>(
         )
         .block_index(ctx.block_index)
         .selection_range(ctx.selection_range)
+        .drag_active(ctx.drag_active)
         .on_selection_change(|s| crate::app::messages::MarkdownMsg::SelectionChanged(s).into())
         .on_drag_start(|block, offset| {
             crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset }.into()
