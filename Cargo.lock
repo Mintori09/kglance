@@ -3142,7 +3142,7 @@ dependencies = [
 
 [[package]]
 name = "kglance"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "calamine",
  "chrono",
@@ -3175,6 +3175,7 @@ dependencies = [
  "tar",
  "tempfile",
  "tokio",
+ "unicode-normalization",
  "url",
  "zbus",
  "zip 8.6.0",
@@ -6237,6 +6238,15 @@ name = "unicode-linebreak"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b09c83c3c29d37506a3e260c08c03743a6bb66a9cd432c6934ab501a190571f"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fd4f6878c9cb28d874b009da9e8d183b5abc80117c40bbd187a1fde336be6e8"
+dependencies = [
+ "tinyvec",
+]
 
 [[package]]
 name = "unicode-properties"
