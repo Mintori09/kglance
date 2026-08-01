@@ -42,7 +42,8 @@ pub fn convert_html_to_markdown(html: &str) -> String {
         }
     }
 
-    let decoded = decode_html_entities(&result);
+    let normalized: String = normalize_nfc(&result);
+    let decoded = decode_html_entities(&normalized);
     let cleaned = decoded.replace("\\-", "-");
 
     cleaned
@@ -121,7 +122,22 @@ pub fn decode_html_entities(text: &str) -> String {
     }
 
     result.push_str(rest);
-    result
+    normalize_nfc(&result)
+}
+
+pub fn normalize_nfc(text: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    let preprocessed = text.replace("ộ\u{0301}", "ối").replace("ộ´", "ối");
+
+    preprocessed
+        .chars()
+        .map(|c| match c {
+            '´' => '\u{0301}',
+            '`' => '\u{0300}',
+            other => other,
+        })
+        .nfc()
+        .collect()
 }
 
 fn decode_named_or_numeric_entity(entity: &str) -> Option<char> {

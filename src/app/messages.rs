@@ -92,6 +92,18 @@ pub enum MarkdownMsg {
         png_bytes: Option<Vec<u8>>,
     },
     SidebarResized(f32),
+    SelectionChanged(Option<String>),
+    SelectionDragStart {
+        block: usize,
+        offset: usize,
+    },
+    SelectionDragUpdate {
+        block: usize,
+        offset: usize,
+    },
+    SelectionDragEnd,
+    SelectionClear,
+    AutoScrollTick,
 }
 
 #[derive(Debug, Clone)]
@@ -155,6 +167,7 @@ pub enum SystemMsg {
     OpenLink(String),
     FilePreviewError(String),
     FileChanged(String),
+    WindowResized(f32, f32),
 }
 
 #[derive(Debug, Clone)]

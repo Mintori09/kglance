@@ -18,6 +18,17 @@ fn test_convert_html_to_markdown() {
 }
 
 #[test]
+fn test_normalize_nfc_vietnamese_decomposed() {
+    let nfd_html = "<p>să´p thâ´y Kiê´m tiê´n bô´i bâ´t đă´c dĩ</p>";
+    let md = convert_html_to_markdown(nfd_html);
+    assert_eq!(md, "sắp thấy Kiếm tiến bối bất đắc dĩ");
+
+    let nfd_html_2 = "<p>să´p thâ´y Kiê´m tiê`n bô´i bâ´t đă´c dĩ</p>";
+    let md_2 = convert_html_to_markdown(nfd_html_2);
+    assert_eq!(md_2, "sắp thấy Kiếm tiền bối bất đắc dĩ");
+}
+
+#[test]
 fn test_extract_ncx_navpoints() {
     let ncx_xml = r#"
         <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/">
