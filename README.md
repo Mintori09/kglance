@@ -203,6 +203,12 @@ For a full reference, see [`data/examples/config.example.json`](data/examples/co
 
 ---
 
+## Roadmap
+
+- [ ] implement selection text for epub.
+
+---
+
 ## License
 
 Distributed under the GNU AGPL-3.0-only. See `LICENSE` for more information.
