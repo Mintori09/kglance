@@ -20,6 +20,7 @@ fn build_registry() -> parsers::ParserRegistry {
     r.register(Box::new(parsers::epub::EpubParser));
     r.register(Box::new(parsers::csv::CsvParser));
     r.register(Box::new(parsers::office::OfficeParser));
+    r.register(Box::new(parsers::typst::TypstParser));
     r
 }
 

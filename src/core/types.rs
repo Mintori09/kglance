@@ -140,6 +140,14 @@ impl Default for PdfState {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct TypstState {
+    pub pdf: PdfState,
+    pub source_content: iced::widget::text_editor::Content,
+    pub show_source: bool,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct FolderState {
     pub rows: Vec<FolderRowState>,
     pub sort_state: SortState,
@@ -434,6 +442,7 @@ pub struct KglanceState {
     pub image: ImageState,
     pub text: TextState,
     pub pdf: PdfState,
+    pub typst: TypstState,
     pub folder: FolderState,
     pub spreadsheet: SpreadsheetState,
     pub media: MediaState,
@@ -494,6 +503,7 @@ impl Default for KglanceState {
             image: ImageState::default(),
             text: TextState::default(),
             pdf: PdfState::default(),
+            typst: TypstState::default(),
             folder: FolderState::default(),
             spreadsheet: SpreadsheetState::default(),
             media: MediaState::default(),
