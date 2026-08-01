@@ -29,6 +29,8 @@ pub fn view_markdown<'a>(
 ) -> Element<'a, Message> {
     let search_counter = Cell::new(0);
     let ctx = RenderContext {
+        block_index: 0,
+        selection_range: state.selection_range,
         search_query: &state.search_query,
         active_match: state.search_match_index,
         counter: &search_counter,
@@ -63,7 +65,11 @@ fn build_scrollable_content<'a>(
     max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
     let elements = blocks.iter().enumerate().map(|(index, block)| {
-        let element = render_block(index, block, state, ctx);
+        let block_ctx = RenderContext {
+            block_index: index * 1000,
+            ..*ctx
+        };
+        let element = render_block(index, block, state, &block_ctx);
         let margin = block_margin(block);
         container(element)
             .padding(Padding {

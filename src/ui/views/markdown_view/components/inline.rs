@@ -5,9 +5,8 @@ use crate::ui::theme::default_tooltip;
 use crate::ui::views::markdown_view::blocks::RenderContext;
 use crate::ui::views::markdown_view::components::inline_spans::{SpanCtx, inlines_to_spans};
 use crate::ui::views::markdown_view::components::style::STYLE;
-use iced::widget::text::Rich;
 use iced::widget::{button, tooltip};
-use iced::{Border, Color, Element, Length, Pixels, Shadow};
+use iced::{Border, Color, Element, Shadow};
 
 fn link_button_style(theme: &iced::Theme, _status: button::Status) -> button::Style {
     let link_color = roles::palette(theme).link;
@@ -24,6 +23,7 @@ fn link_button_style(theme: &iced::Theme, _status: button::Status) -> button::St
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn flush_text_segment<'a>(
     elements: &mut Vec<Element<'a, Message>>,
     inlines: &'a [Inline],
@@ -31,15 +31,31 @@ fn flush_text_segment<'a>(
     end: usize,
     font_size: f32,
     span_ctx: &SpanCtx,
+    ctx: &RenderContext<'_>,
+    seg_idx: usize,
 ) {
     if start >= end {
         return;
     }
+    let segment_block_index = ctx.block_index + seg_idx + 1;
     elements.push(
-        Rich::with_spans(inlines_to_spans(&inlines[start..end], span_ctx))
-            .size(Pixels(font_size))
-            .width(Length::Shrink)
-            .into(),
+        crate::ui::components::selectable_text::SelectableText::new(
+            inlines_to_spans(&inlines[start..end], span_ctx),
+            font_size,
+        )
+        .width(iced::Length::Shrink)
+        .block_index(segment_block_index)
+        .selection_range(ctx.selection_range)
+        .on_selection_change(|s| crate::app::messages::MarkdownMsg::SelectionChanged(s).into())
+        .on_drag_start(|block, offset| {
+            crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset }.into()
+        })
+        .on_drag_update(|block, offset| {
+            crate::app::messages::MarkdownMsg::SelectionDragUpdate { block, offset }.into()
+        })
+        .on_drag_end(|| crate::app::messages::MarkdownMsg::SelectionDragEnd.into())
+        .on_clear_selection(|| crate::app::messages::MarkdownMsg::SelectionClear.into())
+        .into(),
     );
 }
 
@@ -94,10 +110,22 @@ pub fn render_inlines<'a>(
     });
 
     if !has_special {
-        return Rich::with_spans(inlines_to_spans(inlines, &span_ctx))
-            .size(Pixels(font_size))
-            .width(Length::Fill)
-            .into();
+        return crate::ui::components::selectable_text::SelectableText::new(
+            inlines_to_spans(inlines, &span_ctx),
+            font_size,
+        )
+        .block_index(ctx.block_index)
+        .selection_range(ctx.selection_range)
+        .on_selection_change(|s| crate::app::messages::MarkdownMsg::SelectionChanged(s).into())
+        .on_drag_start(|block, offset| {
+            crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset }.into()
+        })
+        .on_drag_update(|block, offset| {
+            crate::app::messages::MarkdownMsg::SelectionDragUpdate { block, offset }.into()
+        })
+        .on_drag_end(|| crate::app::messages::MarkdownMsg::SelectionDragEnd.into())
+        .on_clear_selection(|| crate::app::messages::MarkdownMsg::SelectionClear.into())
+        .into();
     }
 
     let mut elements: Vec<Element<'a, Message>> = Vec::new();
@@ -113,7 +141,16 @@ pub fn render_inlines<'a>(
             continue;
         }
 
-        flush_text_segment(&mut elements, inlines, start, i, font_size, &span_ctx);
+        flush_text_segment(
+            &mut elements,
+            inlines,
+            start,
+            i,
+            font_size,
+            &span_ctx,
+            ctx,
+            i,
+        );
 
         match inline {
             Inline::Link {
@@ -141,6 +178,8 @@ pub fn render_inlines<'a>(
         inlines.len(),
         font_size,
         &span_ctx,
+        ctx,
+        inlines.len(),
     );
 
     let mut wrap = iced_aw::Wrap::new()
