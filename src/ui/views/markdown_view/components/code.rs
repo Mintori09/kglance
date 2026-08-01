@@ -20,20 +20,41 @@ pub(crate) fn render_code_block<'a>(
 
     let highlighted = highlight_code(lang, code, is_dark);
 
-    let code_lines: Vec<Element<'a, Message>> = highlighted
+    let line_spans_vector: Vec<Vec<iced::widget::text::Span<'a, (), iced::Font>>> = highlighted
         .iter()
         .map(|line_spans| {
-            let spans: Vec<Element<'a, Message>> = line_spans
+            line_spans
                 .iter()
                 .map(|(color, span_text)| {
-                    text(*span_text)
+                    iced::widget::text::Span::new(*span_text)
                         .font(code_font)
-                        .size(scale_size(STYLE.code.line_font_size, font_size))
                         .color(*color)
-                        .into()
                 })
-                .collect();
-            row(spans).into()
+                .collect()
+        })
+        .collect();
+
+    let code_lines: Vec<Element<'a, Message>> = line_spans_vector
+        .into_iter()
+        .enumerate()
+        .map(|(line_idx, spans)| {
+            let line_block_index = ctx.block_index + line_idx + 1;
+            crate::ui::components::selectable_text::SelectableText::new(
+                spans,
+                scale_size(STYLE.code.line_font_size, font_size),
+            )
+            .block_index(line_block_index)
+            .selection_range(ctx.selection_range)
+            .on_selection_change(|s| crate::app::messages::MarkdownMsg::SelectionChanged(s).into())
+            .on_drag_start(|block, offset| {
+                crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset }.into()
+            })
+            .on_drag_update(|block, offset| {
+                crate::app::messages::MarkdownMsg::SelectionDragUpdate { block, offset }.into()
+            })
+            .on_drag_end(|| crate::app::messages::MarkdownMsg::SelectionDragEnd.into())
+            .on_clear_selection(|| crate::app::messages::MarkdownMsg::SelectionClear.into())
+            .into()
         })
         .collect();
 

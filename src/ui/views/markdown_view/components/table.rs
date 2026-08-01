@@ -60,7 +60,11 @@ pub(crate) fn render_table<'a>(
         .iter()
         .enumerate()
         .map(|(i, header)| {
-            let cell = render_inlines(&header.content, header_size, ctx);
+            let cell_ctx = RenderContext {
+                block_index: ctx.block_index + i + 1,
+                ..*ctx
+            };
+            let cell = render_inlines(&header.content, header_size, &cell_ctx);
             container(cell)
                 .padding(STYLE.table.header_padding)
                 .width(get_column_width(i))
@@ -80,12 +84,23 @@ pub(crate) fn render_table<'a>(
         children.push(separator.into());
     }
 
+    let col_count = if table.headers.is_empty() {
+        table.rows.first().map_or(1, |r| r.len())
+    } else {
+        table.headers.len()
+    };
+    let num_cols = if col_count == 0 { 1 } else { col_count };
+
     for (row_index, row_data) in table.rows.iter().enumerate() {
         let cells: Vec<Element<'a, Message>> = row_data
             .iter()
             .enumerate()
             .map(|(j, cell)| {
-                let cell_content = render_inlines(&cell.content, cell_size, ctx);
+                let cell_ctx = RenderContext {
+                    block_index: ctx.block_index + num_cols + row_index * num_cols + j + 1,
+                    ..*ctx
+                };
+                let cell_content = render_inlines(&cell.content, cell_size, &cell_ctx);
                 container(cell_content)
                     .padding(STYLE.table.cell_padding)
                     .width(get_column_width(j))
