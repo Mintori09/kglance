@@ -71,6 +71,7 @@ impl KglanceApp {
                 config.ui.min_width as f32,
                 config.ui.min_height as f32,
             ),
+
             ..Default::default()
         };
 
@@ -181,8 +182,29 @@ impl KglanceApp {
 
     pub fn handle_file_loaded(&mut self, path: String, content: PreviewData) -> Task<Message> {
         let t0 = Instant::now();
-        let _scan_path = path.clone();
-        self.state.file_name = path.clone();
+
+        self.update_loaded_file_state(&path, &content);
+
+        let mut tasks = self.prepare_markdown_tasks(&content, &path);
+        if let Some(pdf_task) = self.prepare_pdf_task(&content, &path) {
+            tasks.push(pdf_task);
+        }
+        tasks.extend(self.prepare_media_tasks(&path));
+        tasks.extend(self.prepare_window_tasks());
+        if let Some(scan_task) = self.prepare_sibling_scan_task(&path) {
+            tasks.push(scan_task);
+        }
+
+        log_info!(
+            "[PERF] handle_file_loaded state+tasks prepared in {:?}",
+            t0.elapsed()
+        );
+
+        Task::batch(tasks)
+    }
+
+    fn update_loaded_file_state(&mut self, path: &str, content: &PreviewData) {
+        self.state.file_name = path.to_string();
         self.state.content_ready = true;
         self.state.image.camera = crate::preview::image::Camera::new();
 
@@ -190,80 +212,82 @@ impl KglanceApp {
             let _ = watcher
                 .cmd_tx
                 .send(crate::core::file_watcher::WatchCommand::Watch(
-                    std::path::PathBuf::from(&path),
+                    std::path::PathBuf::from(path),
                 ));
         }
 
-        let mut mermaid_tasks: Vec<Task<Message>> = {
-            let mut tasks = Vec::new();
-            if let PreviewData::Markdown { ref blocks } = content {
-                for (i, block) in blocks.iter().enumerate() {
-                    match block {
-                        Block::Mermaid {
-                            lines,
-                            rendered: None,
-                        } => {
-                            log_debug!("Spawning async render for Mermaid block[{}]", i);
-                            let code = lines.join("\n");
-                            tasks.push(Task::perform(
-                                async move {
-                                    let png = tokio::task::spawn_blocking(move || {
-                                        crate::parsers::markdown::render_mermaid_to_png(&code, None)
-                                    })
-                                    .await
-                                    .ok()
-                                    .flatten();
-                                    crate::app::messages::MarkdownMsg::MermaidBlockRendered {
-                                        index: i,
-                                        png_bytes: png,
-                                    }
-                                    .into()
-                                },
-                                |msg| msg,
-                            ));
-                        }
-                        Block::Image { path, .. } => {
-                            log_debug!("Spawning async load for Image block[{}]: {}", i, path);
-                            let path_str = path.clone();
-                            let resolved = if Path::new(&path_str).is_absolute() {
-                                std::path::PathBuf::from(&path_str)
-                            } else {
-                                Path::new(&self.state.file_name)
-                                    .parent()
-                                    .unwrap_or(Path::new("."))
-                                    .join(&path_str)
-                            };
-                            tasks.push(Task::perform(
-                                async move {
-                                    let bytes = tokio::task::spawn_blocking(move || {
-                                        std::fs::read(&resolved).ok()
-                                    })
-                                    .await
-                                    .ok()
-                                    .flatten();
-                                    crate::app::messages::MarkdownMsg::ImageLoaded {
-                                        index: i,
-                                        png_bytes: bytes,
-                                    }
-                                    .into()
-                                },
-                                |msg| msg,
-                            ));
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            tasks
-        };
-
         content.populate_state(&mut self.state);
         self.current_content = Some(content.clone());
+    }
 
+    fn prepare_markdown_tasks(&self, content: &PreviewData, file_path: &str) -> Vec<Task<Message>> {
+        let mut tasks = Vec::new();
+        if let PreviewData::Markdown { blocks } = content {
+            for (i, block) in blocks.iter().enumerate() {
+                match block {
+                    Block::Mermaid {
+                        lines,
+                        rendered: None,
+                    } => {
+                        log_debug!("Spawning async render for Mermaid block[{}]", i);
+                        let code = lines.join("\n");
+                        tasks.push(Task::perform(
+                            async move {
+                                let png = tokio::task::spawn_blocking(move || {
+                                    crate::parsers::markdown::render_mermaid_to_png(&code, None)
+                                })
+                                .await
+                                .ok()
+                                .flatten();
+                                crate::app::messages::MarkdownMsg::MermaidBlockRendered {
+                                    index: i,
+                                    png_bytes: png,
+                                }
+                                .into()
+                            },
+                            |msg| msg,
+                        ));
+                    }
+                    Block::Image { path, .. } => {
+                        log_debug!("Spawning async load for Image block[{}]: {}", i, path);
+                        let path_str = path.clone();
+                        let resolved = if Path::new(&path_str).is_absolute() {
+                            std::path::PathBuf::from(&path_str)
+                        } else {
+                            Path::new(file_path)
+                                .parent()
+                                .unwrap_or(Path::new("."))
+                                .join(&path_str)
+                        };
+                        tasks.push(Task::perform(
+                            async move {
+                                let bytes = tokio::task::spawn_blocking(move || {
+                                    std::fs::read(&resolved).ok()
+                                })
+                                .await
+                                .ok()
+                                .flatten();
+                                crate::app::messages::MarkdownMsg::ImageLoaded {
+                                    index: i,
+                                    png_bytes: bytes,
+                                }
+                                .into()
+                            },
+                            |msg| msg,
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        tasks
+    }
+
+    fn prepare_pdf_task(&mut self, content: &PreviewData, path: &str) -> Option<Task<Message>> {
         let is_pdf = matches!(content, PreviewData::Pdf { .. });
 
         if let PreviewData::Pdf {
-            ref data,
+            data,
             width,
             height,
             ..
@@ -271,19 +295,19 @@ impl KglanceApp {
             && !data.is_empty()
             && !self.state.pdf.pages.is_empty()
         {
-            let handle = iced::widget::image::Handle::from_rgba(width, height, data.clone());
+            let handle = iced::widget::image::Handle::from_rgba(*width, *height, data.clone());
             self.state.pdf.pages[0] = Some(crate::core::PageCacheEntry {
                 data: data.clone(),
-                width,
-                height,
+                width: *width,
+                height: *height,
                 handle,
             });
         }
 
-        let pdf_task: Option<Task<Message>> = if is_pdf && self.state.pdf.page_count > 1 {
+        if is_pdf && self.state.pdf.page_count > 1 {
             self.state.pdf.loading = true;
             let page_count = self.state.pdf.page_count;
-            let pdf_path = path.clone();
+            let pdf_path = path.to_string();
             let visible_page = self.state.pdf.visible_page.clone();
             Some(crate::ui::handlers::pdf::lazy_load_pages(
                 pdf_path,
@@ -292,8 +316,11 @@ impl KglanceApp {
             ))
         } else {
             None
-        };
+        }
+    }
 
+    fn prepare_media_tasks(&mut self, path: &str) -> Vec<Task<Message>> {
+        let mut tasks = Vec::new();
         let path_lower = path.to_lowercase();
         let is_video = path_lower.ends_with(".mp4")
             || path_lower.ends_with(".mkv")
@@ -312,13 +339,11 @@ impl KglanceApp {
 
         self.state.media.has_video = is_video;
 
-        let thumb_path = if is_video { Some(path.clone()) } else { None };
-
         if let Some(tx) = &self.video_tx {
             if is_video || is_audio {
                 let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Stop);
                 let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Load(
-                    path.clone(),
+                    path.to_string(),
                 ));
                 let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Play);
             } else {
@@ -326,8 +351,9 @@ impl KglanceApp {
             }
         }
 
-        if let Some(thumb_path) = thumb_path {
-            mermaid_tasks.push(Task::perform(
+        if is_video {
+            let thumb_path = path.to_string();
+            tasks.push(Task::perform(
                 async move {
                     let data = tokio::task::spawn_blocking(move || {
                         crate::parsers::video::extract_video_thumbnail(std::path::Path::new(
@@ -344,31 +370,27 @@ impl KglanceApp {
             ));
         }
 
-        // Build window management tasks.
-        // In daemon mode with no existing window, open one now alongside content.
-        let window_tasks: Vec<Task<Message>> = if self.is_daemon {
+        tasks
+    }
+
+    fn prepare_window_tasks(&mut self) -> Vec<Task<Message>> {
+        if self.is_daemon {
             if let Some(id) = self.window_id {
-                // Window already exists — un-hide and focus it.
                 vec![
                     iced::window::set_mode(id, iced::window::Mode::Windowed),
                     iced::window::gain_focus(id),
                 ]
             } else {
-                // First preview: open window now. Content is already in self.current_content
-                // so the first rendered frame will show content immediately.
                 vec![self.create_new_window()]
             }
         } else if let Some(id) = self.window_id {
             vec![iced::window::gain_focus(id)]
         } else {
             vec![]
-        };
+        }
+    }
 
-        log_info!(
-            "[PERF] handle_file_loaded state+tasks prepared in {:?}",
-            t0.elapsed()
-        );
-
+    fn prepare_sibling_scan_task(&mut self, path: &str) -> Option<Task<Message>> {
         let is_video_or_epub = {
             let lower = path.to_lowercase();
             lower.ends_with(".epub")
@@ -383,31 +405,22 @@ impl KglanceApp {
             self.state.playlist.clear();
         }
 
-        let scan_task: Option<Task<Message>> =
-            if !is_video_or_epub && self.state.playlist.len() <= 1 {
-                let scan_path = path.clone();
-                Some(Task::perform(
-                    async move {
-                        let files = tokio::task::spawn_blocking(move || {
-                            crate::core::navigation::scan_sibling_files(&scan_path)
-                        })
-                        .await
-                        .unwrap_or_default();
-                        crate::app::messages::NavigationMsg::SiblingFilesLoaded(files).into()
-                    },
-                    |msg| msg,
-                ))
-            } else {
-                None
-            };
-
-        Task::batch(
-            mermaid_tasks
-                .into_iter()
-                .chain(pdf_task)
-                .chain(window_tasks)
-                .chain(scan_task),
-        )
+        if !is_video_or_epub && self.state.playlist.len() <= 1 {
+            let scan_path = path.to_string();
+            Some(Task::perform(
+                async move {
+                    let files = tokio::task::spawn_blocking(move || {
+                        crate::core::navigation::scan_sibling_files(&scan_path)
+                    })
+                    .await
+                    .unwrap_or_default();
+                    crate::app::messages::NavigationMsg::SiblingFilesLoaded(files).into()
+                },
+                |msg| msg,
+            ))
+        } else {
+            None
+        }
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
