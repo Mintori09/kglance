@@ -68,7 +68,20 @@ fn parses_strikethrough() {
     match &blocks[0] {
         Block::Paragraph(inlines) => {
             assert!(matches!(inlines[0], Inline::Strikethrough(_)));
-            assert_eq!(flatten_inlines(&inlines[0..1]), "struck");
+            assert_eq!(flatten_inlines_plain(&inlines[0..1]), "struck");
+            assert_eq!(flatten_inlines(&inlines[0..1]), "~~struck~~");
+        }
+        _ => panic!("expected Paragraph"),
+    }
+}
+
+#[test]
+fn flatten_inlines_visual_matches_rendered_text() {
+    let blocks = parse_to_blocks("**đậm** chữ `code` ![ảnh](u.png)");
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            assert_eq!(flatten_inlines_visual(inlines), "đậm chữ code [ảnh]");
         }
         _ => panic!("expected Paragraph"),
     }
