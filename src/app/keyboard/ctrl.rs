@@ -31,15 +31,7 @@ impl KglanceApp {
             "," => Some(Task::done(
                 crate::app::messages::NavigationMsg::ToggleSettingsClicked.into(),
             )),
-            "a" | "A" => {
-                if matches!(self.current_content, Some(PreviewData::Text { .. })) {
-                    use iced::widget::text_editor::Action;
-                    self.state.text.content.perform(Action::SelectAll);
-                    Some(Task::none())
-                } else {
-                    None
-                }
-            }
+            "a" | "A" => self.handle_ctrl_a(),
             "t" => {
                 self.state.theme_dark = !self.state.theme_dark;
                 Some(Task::none())
@@ -69,13 +61,25 @@ impl KglanceApp {
         }
     }
 
+    fn handle_ctrl_a(&mut self) -> Option<Task<Message>> {
+        if matches!(self.current_content, Some(PreviewData::Text { .. })) {
+            use iced::widget::text_editor::Action;
+            self.state.text.content.perform(Action::SelectAll);
+            Some(Task::none())
+        } else if matches!(self.current_content, Some(PreviewData::Markdown { .. })) {
+            Some(crate::app::update::markdown::handle_select_all(self))
+        } else {
+            None
+        }
+    }
+
     fn handle_ctrl_copy(&mut self) -> Option<Task<Message>> {
         if matches!(self.current_content, Some(PreviewData::Text { .. })) {
             let selection = self.state.text.content.selection().unwrap_or_default();
             if selection.is_empty() {
                 None
             } else {
-                let toast = self.show_toast("Copied!");
+                let toast = self.show_toast("Copied! selected");
                 Some(Task::batch(vec![iced::clipboard::write(selection), toast]))
             }
         } else if matches!(self.current_content, Some(PreviewData::Json { .. }))
@@ -85,11 +89,21 @@ impl KglanceApp {
             if selection.is_empty() {
                 None
             } else {
-                let toast = self.show_toast("Copied!");
+                let toast = self.show_toast("Copied selected!");
                 Some(Task::batch(vec![iced::clipboard::write(selection), toast]))
             }
+        } else if matches!(self.current_content, Some(PreviewData::Markdown { .. })) {
+            let selected_text = self.state.markdown.selected_text.clone();
+            if let Some(text) = selected_text
+                && !text.is_empty()
+            {
+                let toast = self.show_toast("Copied selected!");
+                Some(Task::batch(vec![iced::clipboard::write(text), toast]))
+            } else {
+                None
+            }
         } else {
-            Some(self.handle_copy_path())
+            None
         }
     }
 
@@ -105,7 +119,7 @@ impl KglanceApp {
                 | Some(PreviewData::Epub { .. })
         ) {
             self.state.font_size = (self.state.font_size + direction).clamp(FONT_MIN, FONT_MAX);
-            if let Some(PreviewData::Markdown { ref blocks }) = self.current_content {
+            if let Some(PreviewData::Markdown { ref blocks, .. }) = self.current_content {
                 self.state.markdown.toc = extract_toc(
                     blocks,
                     self.state.font_size,
@@ -166,7 +180,7 @@ impl KglanceApp {
         match key {
             iced::keyboard::Key::Character(c) if (c == "+" || c == "=") && modifiers.shift() => {
                 self.state.font_size = self.state.default_font_size;
-                if let Some(PreviewData::Markdown { ref blocks }) = self.current_content {
+                if let Some(PreviewData::Markdown { ref blocks, .. }) = self.current_content {
                     self.state.markdown.toc = extract_toc(
                         blocks,
                         self.state.font_size,

@@ -7,7 +7,9 @@ pub mod update;
 
 mod window;
 
-use iced::{Element, Subscription, Task, Theme};
+use iced::Subscription;
+use iced::window as iced_window;
+use iced::{Element, Task, Theme};
 use iced_futures::subscription;
 use std::path::Path;
 use std::sync::Arc;
@@ -223,7 +225,7 @@ impl KglanceApp {
 
     fn prepare_markdown_tasks(&self, content: &PreviewData, file_path: &str) -> Vec<Task<Message>> {
         let mut tasks = Vec::new();
-        if let PreviewData::Markdown { blocks } = content {
+        if let PreviewData::Markdown { blocks, .. } = content {
             for (i, block) in blocks.iter().enumerate() {
                 match block {
                     Block::Mermaid {
@@ -441,7 +443,7 @@ impl KglanceApp {
                     self.state.font_size,
                     self.state.font_family_mono.as_deref(),
                 ),
-                PreviewData::Markdown { blocks } => crate::ui::views::view_markdown(
+                PreviewData::Markdown { blocks, .. } => crate::ui::views::view_markdown(
                     blocks,
                     &self.state.markdown,
                     self.state.font_size,
@@ -516,6 +518,10 @@ impl KglanceApp {
         let event_sub = iced::window::events()
             .map(|(id, event)| crate::app::messages::SystemMsg::WindowEvent(id, event).into());
 
+        let resize_sub = iced_window::resize_events().map(|(_id, size)| {
+            crate::app::messages::SystemMsg::WindowResized(size.width, size.height).into()
+        });
+
         let global_event_sub = iced::event::listen_with(|event, _status, _window_id| match event {
             iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, modifiers, .. }) => {
                 Some(crate::app::messages::SystemMsg::KeyPressed(key, modifiers).into())
@@ -547,12 +553,21 @@ impl KglanceApp {
             Subscription::none()
         };
 
+        let auto_scroll_sub = if self.state.markdown.auto_scroll_delta.is_some() {
+            iced::time::every(std::time::Duration::from_millis(16))
+                .map(|_| crate::app::messages::MarkdownMsg::AutoScrollTick.into())
+        } else {
+            Subscription::none()
+        };
+
         Subscription::batch(vec![
             dbus_sub,
             event_sub,
+            resize_sub,
             video_sub,
             global_event_sub,
             file_watcher_sub,
+            auto_scroll_sub,
         ])
     }
 

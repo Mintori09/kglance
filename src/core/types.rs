@@ -302,6 +302,18 @@ pub struct TocEntry {
     pub y_offset: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectionPoint {
+    pub block: usize,
+    pub offset: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectionRange {
+    pub start: SelectionPoint,
+    pub end: SelectionPoint,
+}
+
 #[derive(Debug, Clone)]
 pub struct MarkdownState {
     pub cached_mermaid_handles: std::collections::HashMap<usize, iced::widget::image::Handle>,
@@ -324,6 +336,11 @@ pub struct MarkdownState {
     pub search_match_index: usize,
     pub search_match_blocks: Vec<usize>,
     pub search_info: String,
+    pub selected_text: Option<String>,
+    pub selection_range: Option<SelectionRange>,
+    pub is_dragging_selection: bool,
+    pub auto_scroll_delta: Option<f32>,
+    pub drag_last_y: f32,
 }
 
 impl Default for MarkdownState {
@@ -349,6 +366,11 @@ impl Default for MarkdownState {
             search_match_index: 0,
             search_match_blocks: Vec::new(),
             search_info: String::new(),
+            selected_text: None,
+            selection_range: None,
+            is_dragging_selection: false,
+            auto_scroll_delta: None,
+            drag_last_y: 0.0,
         }
     }
 }
@@ -442,6 +464,7 @@ pub struct KglanceState {
     pub toasts: Vec<ToastInfo>,
     pub next_toast_id: u64,
     pub prefer_mermaid_cli: bool,
+    pub current_window_size: iced::Size,
 }
 
 const CACHE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(7) {
@@ -496,6 +519,7 @@ impl Default for KglanceState {
             toasts: Vec::new(),
             next_toast_id: 0,
             prefer_mermaid_cli: false,
+            current_window_size: iced::Size::new(1024.0, 768.0),
         }
     }
 }

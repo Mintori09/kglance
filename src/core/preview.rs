@@ -19,6 +19,7 @@ pub enum PreviewData {
     },
     Markdown {
         blocks: Vec<crate::parsers::markdown::Block>,
+        raw_text: String,
     },
     Pdf {
         page_count: usize,
@@ -141,7 +142,7 @@ impl PreviewData {
                 state.file_type_text = "Folder / Archive".to_string();
                 state.file_size_text.clear();
             }
-            PreviewData::Markdown { blocks } => {
+            PreviewData::Markdown { blocks, .. } => {
                 let fs = state.font_size;
                 let full_text: String = blocks
                     .iter()
@@ -192,6 +193,11 @@ impl PreviewData {
                     search_match_index: 0,
                     search_match_blocks: Vec::new(),
                     search_info: String::new(),
+                    selected_text: None,
+                    selection_range: None,
+                    is_dragging_selection: false,
+                    auto_scroll_delta: None,
+                    drag_last_y: 0.0,
                 };
                 for (i, block) in blocks.iter().enumerate() {
                     if let Block::Mermaid {
