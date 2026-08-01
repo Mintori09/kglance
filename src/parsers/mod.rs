@@ -549,9 +549,12 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                     .collect();
                 crate::core::preview::PreviewData::Folder { rows, total_size }
             }
-            ParsedContent::Markdown { blocks, .. } => {
-                crate::core::preview::PreviewData::Markdown { blocks }
-            }
+            ParsedContent::Markdown {
+                blocks, content, ..
+            } => crate::core::preview::PreviewData::Markdown {
+                blocks,
+                raw_text: content,
+            },
             ParsedContent::Video {
                 path,
                 duration,
