@@ -1,3 +1,4 @@
+use super::markdown;
 use crate::app::KglanceApp;
 use crate::app::messages::Message;
 use iced::Task;
@@ -56,10 +57,40 @@ pub fn handle_sidebar_drag_started(app: &mut KglanceApp, start_x: f32) -> Task<M
 pub fn handle_sidebar_drag_ended(app: &mut KglanceApp) -> Task<Message> {
     app.state.markdown.sidebar_resizing = false;
     app.state.epub.sidebar_resizing = false;
-    Task::none()
+    app.state.markdown.is_dragging_selection = false;
+    app.state.markdown.auto_scroll_delta = None;
+    markdown::handle_selection_drag_end(app)
 }
 
-pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, _y: f32) -> Task<Message> {
+pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message> {
+    app.state.markdown.drag_last_y = y;
+
+    if app.state.markdown.is_dragging_selection {
+        const HEADER_HEIGHT: f32 = 40.0;
+        const FOOTER_HEIGHT: f32 = 30.0;
+        const MIN_CONTENT_HEIGHT: f32 = 100.0;
+
+        let win_height = app.state.current_window_size.height;
+        let top_bound = HEADER_HEIGHT;
+        let bottom_bound = (win_height - FOOTER_HEIGHT).max(top_bound + MIN_CONTENT_HEIGHT);
+
+        let overflow = if y < top_bound {
+            y - top_bound
+        } else if y > bottom_bound {
+            y - bottom_bound
+        } else {
+            0.0
+        };
+
+        if overflow != 0.0 {
+            let direction = overflow.signum();
+            let speed = (overflow.abs() * 0.8).clamp(5.0, 40.0) * direction;
+            app.state.markdown.auto_scroll_delta = Some(speed);
+        } else {
+            app.state.markdown.auto_scroll_delta = None;
+        }
+    }
+
     if app.state.markdown.sidebar_resizing {
         let delta = x - app.state.markdown.sidebar_drag_start_x;
         let new_w = (app.state.markdown.sidebar_drag_start_width + delta).clamp(140.0, 550.0);
@@ -75,5 +106,11 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, _y: f32) -> Task<Message
 
 pub fn handle_text_scrolled(app: &mut KglanceApp, y: f32) -> Task<Message> {
     app.state.text.scroll_y = y;
+    Task::none()
+}
+
+pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32) -> Task<Message> {
+    app.state.current_window_size.width = width;
+    app.state.current_window_size.height = height;
     Task::none()
 }

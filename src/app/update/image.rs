@@ -68,7 +68,7 @@ pub fn handle_mermaid_rendered(
         index,
         if png_bytes.is_some() { "Some" } else { "None" }
     );
-    if let Some(PreviewData::Markdown { blocks }) = app.current_content.as_mut()
+    if let Some(PreviewData::Markdown { blocks, .. }) = app.current_content.as_mut()
         && let Some(Block::Mermaid { rendered, .. }) = blocks.get_mut(index)
     {
         *rendered = png_bytes.clone();
@@ -108,7 +108,7 @@ pub fn handle_markdown_image_loaded(
                 .cached_image_handles
                 .insert(index, handle);
             app.state.markdown.cached_image_sizes.insert(index, (w, h));
-            if let Some(PreviewData::Markdown { ref blocks }) = app.current_content {
+            if let Some(PreviewData::Markdown { ref blocks, .. }) = app.current_content {
                 app.state.markdown.toc = crate::parsers::markdown::extract_toc(
                     blocks,
                     app.state.font_size,
