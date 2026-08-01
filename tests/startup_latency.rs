@@ -178,7 +178,7 @@ fn mermaid_blocks_are_not_rendered_synchronously() {
 
     let content = FilePreviewer::parse(&*registry, &path).unwrap();
 
-    if let PreviewData::Markdown { blocks } = content {
+    if let PreviewData::Markdown { blocks, .. } = content {
         let mermaid_count = blocks
             .iter()
             .filter(|b| matches!(b, Block::Mermaid { .. }))

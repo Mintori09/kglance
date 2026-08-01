@@ -33,6 +33,8 @@ pub fn view_epub<'a>(
     let search_counter = Cell::new(0);
 
     let ctx = RenderContext {
+        block_index: 0,
+        selection_range: None,
         search_query: &state.markdown_state.search_query,
         active_match: state.markdown_state.search_match_index,
         counter: &search_counter,
