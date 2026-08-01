@@ -193,40 +193,13 @@ The config file is auto-created with defaults on first run. See `data/examples/c
     "font_family": "Noto Sans",
     "font_family_mono": "Fira Code",
     "epub_font_family": "Noto Serif",
-    "max_text_width": 820.0
+    "max_text_width": 820.0,
+    "prefer_mermaid_cli": false
   }
 }
 ```
 
 For a full reference, see [`data/examples/config.example.json`](data/examples/config.example.json).
-
----
-
-## Project Architecture
-
-```text
-src/
-├── app.rs            # Application state, Message handling & Iced event routing
-├── lib.rs            # Core library entrypoint
-├── main.rs           # Entrypoint CLI & Daemon/Standalone dispatcher
-├── logger.rs         # Logging macros
-├── core/             # Business logic (Clean Architecture)
-│   ├── config.rs     # Application configuration
-│   ├── handlers.rs   # Async handlers
-│   ├── preview.rs    # FilePreviewer trait & PreviewData definitions
-│   └── types.rs      # App state definitions (ImageState, TextState, etc.)
-├── dbus/             # DBus service implementation (zbus)
-├── parsers/          # Independent file format parsers
-│   ├── archive.rs    # Zip, Tar, 7z tree parser
-│   ├── audio.rs      # Audio metadata & waveform decoder
-│   ├── image.rs      # Image & EXIF metadata parser
-│   ├── markdown.rs   # Markdown block & syntax parser
-│   ├── office.rs     # Office document extractor
-│   ├── pdf.rs        # MuPDF continuous page renderer
-│   ├── text.rs       # Syntax highlighting code parser
-│   └── video.rs      # Video decoder & frame grabber
-└── ui/               # Iced GUI views, themes, and custom widgets
-```
 
 ---
 

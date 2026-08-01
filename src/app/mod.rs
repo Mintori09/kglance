@@ -71,6 +71,7 @@ impl KglanceApp {
                 config.ui.min_width as f32,
                 config.ui.min_height as f32,
             ),
+            prefer_mermaid_cli: config.ui.prefer_mermaid_cli,
 
             ..Default::default()
         };
@@ -231,10 +232,13 @@ impl KglanceApp {
                     } => {
                         log_debug!("Spawning async render for Mermaid block[{}]", i);
                         let code = lines.join("\n");
+                        let prefer_cli = self.state.prefer_mermaid_cli;
                         tasks.push(Task::perform(
                             async move {
                                 let png = tokio::task::spawn_blocking(move || {
-                                    crate::parsers::markdown::render_mermaid_to_png(&code, None)
+                                    crate::parsers::markdown::render_mermaid_to_png(
+                                        &code, None, prefer_cli,
+                                    )
                                 })
                                 .await
                                 .ok()
