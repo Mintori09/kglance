@@ -191,6 +191,9 @@ impl KglanceApp {
         if let Some(pdf_task) = self.prepare_pdf_task(&content, &path) {
             tasks.push(pdf_task);
         }
+        if let Some(typst_task) = self.prepare_typst_task(&content, &path) {
+            tasks.push(typst_task);
+        }
         tasks.extend(self.prepare_media_tasks(&path));
         tasks.extend(self.prepare_window_tasks());
         if let Some(scan_task) = self.prepare_sibling_scan_task(&path) {
@@ -316,6 +319,44 @@ impl KglanceApp {
             let visible_page = self.state.pdf.visible_page.clone();
             Some(crate::ui::handlers::pdf::lazy_load_pages(
                 pdf_path,
+                page_count,
+                visible_page,
+            ))
+        } else {
+            None
+        }
+    }
+
+    fn prepare_typst_task(&mut self, content: &PreviewData, path: &str) -> Option<Task<Message>> {
+        let is_typst = matches!(content, PreviewData::Typst { .. });
+
+        if let PreviewData::Typst {
+            data,
+            width,
+            height,
+            page_count,
+            ..
+        } = content
+            && !data.is_empty()
+            && !self.state.typst.pdf.pages.is_empty()
+            && *page_count > 0
+        {
+            let handle = iced::widget::image::Handle::from_rgba(*width, *height, data.clone());
+            self.state.typst.pdf.pages[0] = Some(crate::core::PageCacheEntry {
+                data: data.clone(),
+                width: *width,
+                height: *height,
+                handle,
+            });
+        }
+
+        if is_typst && self.state.typst.pdf.page_count > 1 && self.state.typst.error.is_none() {
+            self.state.typst.pdf.loading = true;
+            let page_count = self.state.typst.pdf.page_count;
+            let typst_path = path.to_string();
+            let visible_page = self.state.typst.pdf.visible_page.clone();
+            Some(crate::ui::handlers::typst::lazy_load_typst_pages(
+                typst_path,
                 page_count,
                 visible_page,
             ))
@@ -455,6 +496,12 @@ impl KglanceApp {
                     crate::ui::views::view_font(name, metadata, self.state.theme_dark)
                 }
                 PreviewData::Pdf { .. } => crate::ui::views::view_pdf(&self.state.pdf),
+                PreviewData::Typst { .. } => crate::ui::views::view_typst(
+                    &self.state.typst,
+                    self.state.theme_dark,
+                    self.state.font_size,
+                    self.state.font_family_mono.as_deref(),
+                ),
                 PreviewData::Folder { .. } => {
                     crate::ui::views::view_folder(&self.state.folder, self.state.theme_dark)
                 }

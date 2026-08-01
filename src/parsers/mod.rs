@@ -14,6 +14,7 @@ pub mod office;
 pub mod pdf;
 pub mod svg;
 pub mod text;
+pub mod typst;
 pub mod video;
 
 use crate::parsers::helpers::file_limit::preview_size_limit;
@@ -182,6 +183,12 @@ pub enum ParsedContent {
     Pdf {
         page_count: u32,
         first_page: PageData,
+    },
+    Typst {
+        source: String,
+        page_count: u32,
+        first_page: PageData,
+        error: Option<String>,
     },
     Archive {
         entries: Vec<ArchiveEntry>,
@@ -485,6 +492,20 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 data: first_page.data,
                 width: first_page.width,
                 height: first_page.height,
+            },
+            ParsedContent::Typst {
+                source,
+                page_count,
+                first_page,
+                error,
+            } => crate::core::preview::PreviewData::Typst {
+                page_count: page_count as usize,
+                current_page: 0,
+                data: first_page.data,
+                width: first_page.width,
+                height: first_page.height,
+                source,
+                error,
             },
             ParsedContent::Spreadsheet { sheets } => {
                 crate::core::preview::PreviewData::Spreadsheet {

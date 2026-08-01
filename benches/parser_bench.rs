@@ -165,6 +165,7 @@ fn build_registry() -> kglance::parsers::ParserRegistry {
     r.register(Box::new(kglance::parsers::pdf::PdfParser));
     r.register(Box::new(kglance::parsers::archive::ArchiveParser));
     r.register(Box::new(kglance::parsers::folder::FolderParser));
+    r.register(Box::new(kglance::parsers::typst::TypstParser));
     r
 }
 

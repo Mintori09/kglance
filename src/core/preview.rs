@@ -28,6 +28,15 @@ pub enum PreviewData {
         width: u32,
         height: u32,
     },
+    Typst {
+        page_count: usize,
+        current_page: usize,
+        data: Vec<u8>,
+        width: u32,
+        height: u32,
+        source: String,
+        error: Option<String>,
+    },
     Media {
         url: String,
         metadata: String,
@@ -133,6 +142,25 @@ impl PreviewData {
                 state.pdf.pages = vec![None; *page_count];
                 state.pdf.thumbnails = vec![None; *page_count];
                 state.file_type_text = "PDF Document".to_string();
+            }
+            PreviewData::Typst {
+                page_count,
+                source,
+                error,
+                ..
+            } => {
+                state.typst = crate::core::TypstState {
+                    pdf: crate::core::PdfState {
+                        page_count: *page_count,
+                        pages: vec![None; *page_count],
+                        thumbnails: vec![None; *page_count],
+                        ..Default::default()
+                    },
+                    source_content: iced::widget::text_editor::Content::with_text(source),
+                    show_source: error.is_some(),
+                    error: error.clone(),
+                };
+                state.file_type_text = "Typst Document".to_string();
             }
             PreviewData::Folder { rows, total_size } => {
                 state.folder.rows = rows.clone();

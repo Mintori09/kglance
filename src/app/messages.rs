@@ -59,6 +59,15 @@ pub enum PdfMsg {
 }
 
 #[derive(Debug, Clone)]
+pub enum TypstMsg {
+    PagesLoaded,
+    PageReady(usize, Vec<u8>, u32, u32),
+    Scrolled(iced::widget::scrollable::Viewport),
+    CompileError,
+    ToggleSource,
+}
+
+#[derive(Debug, Clone)]
 pub enum SpreadsheetMsg {
     SheetTabClicked(usize),
     ColumnClicked(usize),
@@ -186,16 +195,17 @@ pub enum SettingsMsg {
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    None,
     // Action & System
     Action(ActionMsg),
     System(SystemMsg),
-
     // Sub-domain messages
     Navigation(NavigationMsg),
     Image(ImageMsg),
     Text(TextMsg),
     Media(MediaMsg),
     Pdf(PdfMsg),
+    Typst(TypstMsg),
     Spreadsheet(SpreadsheetMsg),
     Grid(GridMsg),
     Markdown(MarkdownMsg),
@@ -249,6 +259,11 @@ impl From<MediaMsg> for Message {
 impl From<PdfMsg> for Message {
     fn from(m: PdfMsg) -> Self {
         Message::Pdf(m)
+    }
+}
+impl From<TypstMsg> for Message {
+    fn from(m: TypstMsg) -> Self {
+        Message::Typst(m)
     }
 }
 impl From<SpreadsheetMsg> for Message {

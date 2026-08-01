@@ -54,6 +54,10 @@ impl super::KglanceApp {
             return task;
         }
 
+        if let Some(task) = self.handle_typst_shortcut(&key) {
+            return task;
+        }
+
         if matches!(key, iced::keyboard::Key::Named(Named::Enter)) {
             return self.handle_open_clicked();
         }
@@ -87,6 +91,18 @@ impl super::KglanceApp {
         }
 
         Task::none()
+    }
+
+    fn handle_typst_shortcut(&mut self, key: &iced::keyboard::Key) -> Option<Task<Message>> {
+        if !matches!(self.current_content, Some(PreviewData::Typst { .. })) {
+            return None;
+        }
+        match key {
+            iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("s") => {
+                Some(self.update(crate::app::messages::TypstMsg::ToggleSource.into()))
+            }
+            _ => None,
+        }
     }
 
     fn handle_view_mode_navigation(&mut self, key: &iced::keyboard::Key) -> Option<Task<Message>> {
