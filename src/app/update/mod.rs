@@ -24,6 +24,9 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::ActionMsg::CopyCode(code) => misc::handle_copy_code(app, code),
         },
         Message::System(msg) => match msg {
+            crate::app::messages::SystemMsg::WindowResized(width, height) => {
+                misc::update_current_window_size(app, width, height)
+            }
             crate::app::messages::SystemMsg::ThemeToggled => misc::handle_theme_toggled(app),
             crate::app::messages::SystemMsg::DaemonOpenWindow { path } => {
                 app.handle_daemon_open_window(path)
@@ -169,6 +172,24 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::MarkdownMsg::ImageLoaded { index, png_bytes } => {
                 image::handle_markdown_image_loaded(app, index, png_bytes)
+            }
+            crate::app::messages::MarkdownMsg::SelectionChanged(s) => {
+                markdown::handle_selection_changed(app, s)
+            }
+            crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset } => {
+                markdown::handle_selection_drag_start(app, block, offset)
+            }
+            crate::app::messages::MarkdownMsg::SelectionDragUpdate { block, offset } => {
+                markdown::handle_selection_drag_update(app, block, offset)
+            }
+            crate::app::messages::MarkdownMsg::SelectionDragEnd => {
+                markdown::handle_selection_drag_end(app)
+            }
+            crate::app::messages::MarkdownMsg::SelectionClear => {
+                markdown::handle_selection_clear(app)
+            }
+            crate::app::messages::MarkdownMsg::AutoScrollTick => {
+                markdown::handle_auto_scroll_tick(app)
             }
         },
         Message::Epub(msg) => match msg {
