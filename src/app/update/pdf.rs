@@ -2,6 +2,17 @@ use crate::app::KglanceApp;
 use crate::app::messages::Message;
 use iced::Task;
 
+pub(crate) fn active_pdf_state_mut(app: &mut KglanceApp) -> &mut crate::core::PdfState {
+    if matches!(
+        app.current_content,
+        Some(crate::core::PreviewData::Typst { .. })
+    ) {
+        &mut app.state.typst.pdf
+    } else {
+        &mut app.state.pdf
+    }
+}
+
 pub fn handle_scrolled(
     app: &mut KglanceApp,
     viewport: iced::widget::scrollable::Viewport,
@@ -226,14 +237,38 @@ fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
 }
 
 pub fn handle_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task<Message> {
-    let pdf_state = if matches!(
-        app.current_content,
-        Some(crate::core::PreviewData::Typst { .. })
-    ) {
-        &mut app.state.typst.pdf
-    } else {
-        &mut app.state.pdf
-    };
-    pdf_state.sidebar_width = width.clamp(120.0, 500.0);
+    active_pdf_state_mut(app).sidebar_width = width.clamp(120.0, 500.0);
     Task::none()
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::test_util::test_app;
+    use crate::core::PreviewData;
+
+    #[test]
+    fn active_pdf_state_selects_regular_pdf_by_default() {
+        let mut app = test_app(None);
+        active_pdf_state_mut(&mut app).sidebar_width = 321.0;
+        assert_eq!(app.state.pdf.sidebar_width, 321.0);
+        assert_eq!(app.state.typst.pdf.sidebar_width, 220.0);
+    }
+
+    #[test]
+    fn active_pdf_state_selects_typst_pdf_for_typst_content() {
+        let content = Some(PreviewData::Typst {
+            page_count: 1,
+            current_page: 0,
+            data: Vec::new(),
+            width: 0,
+            height: 0,
+            source: String::new(),
+            error: None,
+            outline: Vec::new(),
+        });
+        let mut app = test_app(content);
+        active_pdf_state_mut(&mut app).sidebar_width = 432.0;
+        assert_eq!(app.state.typst.pdf.sidebar_width, 432.0);
+        assert_eq!(app.state.pdf.sidebar_width, 220.0);
+    }
 }

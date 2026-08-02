@@ -132,6 +132,8 @@ pub struct PdfState {
     pub sidebar_mode: PdfSidebarMode,
     pub sidebar_width: f32,
     pub sidebar_resizing: bool,
+    pub sidebar_drag_start_x: Option<f32>,
+    pub sidebar_drag_start_width: f32,
     pub outline: Vec<crate::parsers::pdf::PdfTocEntry>,
 }
 
@@ -151,6 +153,8 @@ impl Default for PdfState {
             sidebar_mode: PdfSidebarMode::Thumbnails,
             sidebar_width: 220.0,
             sidebar_resizing: false,
+            sidebar_drag_start_x: None,
+            sidebar_drag_start_width: 220.0,
             outline: Vec::new(),
         }
     }
