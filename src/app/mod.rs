@@ -428,21 +428,21 @@ impl KglanceApp {
     }
 
     fn prepare_sibling_scan_task(&mut self, path: &str) -> Option<Task<Message>> {
-        let is_video_or_epub = {
-            let lower = path.to_lowercase();
-            lower.ends_with(".epub")
-                || lower.ends_with(".mp4")
-                || lower.ends_with(".mkv")
-                || lower.ends_with(".avi")
-                || lower.ends_with(".mov")
-                || lower.ends_with(".webm")
-        };
+        // let is_video_or_epub = {
+        //     let lower = path.to_lowercase();
+        //     lower.ends_with(".epub")
+        //         || lower.ends_with(".mp4")
+        //         || lower.ends_with(".mkv")
+        //         || lower.ends_with(".avi")
+        //         || lower.ends_with(".mov")
+        //         || lower.ends_with(".webm")
+        // };
+        //
+        // if is_video_or_epub {
+        //     self.state.playlist.clear();
+        // }
 
-        if is_video_or_epub {
-            self.state.playlist.clear();
-        }
-
-        if !is_video_or_epub && self.state.playlist.len() <= 1 {
+        if self.state.playlist.len() <= 1 {
             let scan_path = path.to_string();
             Some(Task::perform(
                 async move {

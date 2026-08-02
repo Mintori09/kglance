@@ -198,14 +198,15 @@ pub fn render_inlines<'a>(
         let mut prefix: Option<&str> = None;
         let mut text_end_limit = i;
 
-        if matches!(inline, Inline::Link { .. }) && i > start {
-            if let Inline::Text(prev_text) = &inlines[i - 1] {
-                let p_len = trailing_opening_punctuation_len(prev_text);
-                if p_len > 0 && p_len <= prev_text.len() {
-                    prefix = Some(&prev_text[prev_text.len() - p_len..]);
-                    if i - 1 == start {
-                        text_end_limit = i - 1;
-                    }
+        if matches!(inline, Inline::Link { .. })
+            && i > start
+            && let Inline::Text(prev_text) = &inlines[i - 1]
+        {
+            let p_len = trailing_opening_punctuation_len(prev_text);
+            if p_len > 0 && p_len <= prev_text.len() {
+                prefix = Some(&prev_text[prev_text.len() - p_len..]);
+                if i - 1 == start {
+                    text_end_limit = i - 1;
                 }
             }
         }
@@ -230,13 +231,13 @@ pub fn render_inlines<'a>(
                 url,
             } => {
                 let mut suffix: Option<&str> = None;
-                if i + 1 < inlines.len() {
-                    if let Inline::Text(next_text) = &inlines[i + 1] {
-                        let p_len = leading_closing_punctuation_len(next_text);
-                        if p_len > 0 {
-                            suffix = Some(&next_text[..p_len]);
-                            current_start_offset = p_len;
-                        }
+                if i + 1 < inlines.len()
+                    && let Inline::Text(next_text) = &inlines[i + 1]
+                {
+                    let p_len = leading_closing_punctuation_len(next_text);
+                    if p_len > 0 {
+                        suffix = Some(&next_text[..p_len]);
+                        current_start_offset = p_len;
                     }
                 }
                 elements.push(build_link_button(
