@@ -1,4 +1,4 @@
-use kglance::features::folder::grid::get_freedesktop_thumbnail_path;
+use kglance::features::grid::get_freedesktop_thumbnail_path;
 
 #[test]
 fn test_freedesktop_hash() {

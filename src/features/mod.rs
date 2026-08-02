@@ -5,6 +5,8 @@ pub mod csv;
 pub mod epub;
 pub mod folder;
 pub mod font;
+pub mod grid;
+
 pub mod image;
 pub mod json;
 pub mod markdown;
