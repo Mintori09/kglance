@@ -3,3 +3,4 @@ pub mod handlers;
 pub mod theme;
 pub mod views;
 pub mod window;
+pub mod types;

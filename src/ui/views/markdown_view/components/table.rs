@@ -5,7 +5,7 @@ use super::style::{
 use crate::app::Message;
 use crate::parsers::markdown::{TableBlock, TableCell, flatten_inlines};
 use crate::ui::theme::scale_size;
-use crate::ui::views::markdown_view::blocks::RenderContext;
+use crate::ui::types::RenderContext;
 use crate::ui::views::markdown_view::components::render_inlines;
 use iced::widget::{column, container, row, text};
 use iced::{Element, Length};

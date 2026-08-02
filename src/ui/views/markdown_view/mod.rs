@@ -11,11 +11,12 @@ use crate::parsers::markdown::Block;
 use crate::ui::components::content_layout::scrollable_content;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::components::sidebar::drag_handle;
+use crate::ui::types::RenderContext;
 use crate::ui::views::markdown_view::toc::render_toc_sidebar;
 use iced::widget::{column, container, row};
 use iced::{Element, Length, Padding};
 
-pub(crate) use blocks::{RenderContext, block_margin, render_block};
+pub(crate) use blocks::{block_margin, render_block};
 use components::style::STYLE;
 const SCROLL_PANE_ID: &str = "content_scroll";
 
