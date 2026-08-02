@@ -13,6 +13,17 @@ pub(crate) fn active_pdf_state_mut(app: &mut KglanceApp) -> &mut crate::core::Pd
     }
 }
 
+pub(crate) fn active_pdf_state(app: &KglanceApp) -> &crate::core::PdfState {
+    if matches!(
+        app.current_content,
+        Some(crate::core::PreviewData::Typst { .. })
+    ) {
+        &app.state.typst.pdf
+    } else {
+        &app.state.pdf
+    }
+}
+
 pub fn handle_scrolled(
     app: &mut KglanceApp,
     viewport: iced::widget::scrollable::Viewport,
@@ -20,15 +31,7 @@ pub fn handle_scrolled(
     let y = viewport.absolute_offset().y;
     let content_h = viewport.content_bounds().height;
 
-    let is_typst = matches!(
-        app.current_content,
-        Some(crate::core::PreviewData::Typst { .. })
-    );
-    let pdf_state = if is_typst {
-        &mut app.state.typst.pdf
-    } else {
-        &mut app.state.pdf
-    };
+    let pdf_state = active_pdf_state_mut(app);
 
     let count = pdf_state.page_count;
     if count > 0 && content_h > 0.0 {
@@ -74,7 +77,7 @@ pub fn handle_scrolled(
 }
 
 pub fn handle_pages_loaded(app: &mut KglanceApp) -> Task<Message> {
-    app.state.pdf.loading = false;
+    pages_loaded(active_pdf_state_mut(app));
     Task::none()
 }
 
@@ -85,15 +88,21 @@ pub fn handle_page_ready(
     width: u32,
     height: u32,
 ) -> Task<Message> {
-    let pdf_state = if matches!(
-        app.current_content,
-        Some(crate::core::PreviewData::Typst { .. })
-    ) {
-        &mut app.state.typst.pdf
-    } else {
-        &mut app.state.pdf
-    };
+    page_ready(active_pdf_state_mut(app), index, data, width, height);
+    Task::none()
+}
 
+pub(crate) fn pages_loaded(pdf_state: &mut crate::core::PdfState) {
+    pdf_state.loading = false;
+}
+
+pub(crate) fn page_ready(
+    pdf_state: &mut crate::core::PdfState,
+    index: usize,
+    data: Vec<u8>,
+    width: u32,
+    height: u32,
+) {
     if index < pdf_state.pages.len() {
         let handle = iced::widget::image::Handle::from_rgba(width, height, data.clone());
         pdf_state.pages[index] = Some(crate::core::PageCacheEntry {
@@ -107,7 +116,6 @@ pub fn handle_page_ready(
     if all_loaded {
         pdf_state.loading = false;
     }
-    Task::none()
 }
 
 pub fn handle_thumb_ready(
@@ -117,14 +125,7 @@ pub fn handle_thumb_ready(
     width: u32,
     height: u32,
 ) -> Task<Message> {
-    let pdf_state = if matches!(
-        app.current_content,
-        Some(crate::core::PreviewData::Typst { .. })
-    ) {
-        &mut app.state.typst.pdf
-    } else {
-        &mut app.state.pdf
-    };
+    let pdf_state = active_pdf_state_mut(app);
 
     if index < pdf_state.thumbnails.len() {
         let handle = iced::widget::image::Handle::from_rgba(width, height, data.clone());
@@ -139,14 +140,7 @@ pub fn handle_thumb_ready(
 }
 
 pub fn handle_sidebar_toggled(app: &mut KglanceApp) -> Task<Message> {
-    let pdf_state = if matches!(
-        app.current_content,
-        Some(crate::core::PreviewData::Typst { .. })
-    ) {
-        &mut app.state.typst.pdf
-    } else {
-        &mut app.state.pdf
-    };
+    let pdf_state = active_pdf_state_mut(app);
     pdf_state.sidebar_visible = !pdf_state.sidebar_visible;
     if pdf_state.sidebar_visible {
         start_thumbnail_loading_if_needed(app)
@@ -159,14 +153,7 @@ pub fn handle_set_sidebar_mode(
     app: &mut KglanceApp,
     mode: crate::core::PdfSidebarMode,
 ) -> Task<Message> {
-    let pdf_state = if matches!(
-        app.current_content,
-        Some(crate::core::PreviewData::Typst { .. })
-    ) {
-        &mut app.state.typst.pdf
-    } else {
-        &mut app.state.pdf
-    };
+    let pdf_state = active_pdf_state_mut(app);
     pdf_state.sidebar_mode = mode;
     if mode == crate::core::PdfSidebarMode::Thumbnails {
         start_thumbnail_loading_if_needed(app)
@@ -176,24 +163,12 @@ pub fn handle_set_sidebar_mode(
 }
 
 fn start_thumbnail_loading_if_needed(app: &KglanceApp) -> Task<Message> {
-    if matches!(
-        app.current_content,
-        Some(crate::core::PreviewData::Typst { .. })
-    ) {
-        if !app.state.file_name.is_empty() && app.state.typst.pdf.page_count > 0 {
-            crate::ui::handlers::pdf::lazy_load_thumbnails(
-                app.state.file_name.clone(),
-                app.state.typst.pdf.page_count,
-                app.state.typst.pdf.visible_page.clone(),
-            )
-        } else {
-            Task::none()
-        }
-    } else if !app.state.file_name.is_empty() && app.state.pdf.page_count > 0 {
+    let pdf = active_pdf_state(app);
+    if !app.state.file_name.is_empty() && pdf.page_count > 0 {
         crate::ui::handlers::pdf::lazy_load_thumbnails(
             app.state.file_name.clone(),
-            app.state.pdf.page_count,
-            app.state.pdf.visible_page.clone(),
+            pdf.page_count,
+            pdf.visible_page.clone(),
         )
     } else {
         Task::none()
@@ -209,14 +184,7 @@ pub fn handle_toc_item_clicked(app: &mut KglanceApp, page_index: usize) -> Task<
 }
 
 fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
-    let pdf_state = if matches!(
-        app.current_content,
-        Some(crate::core::PreviewData::Typst { .. })
-    ) {
-        &mut app.state.typst.pdf
-    } else {
-        &mut app.state.pdf
-    };
+    let pdf_state = active_pdf_state_mut(app);
 
     let count = pdf_state.page_count;
     if count == 0 {
