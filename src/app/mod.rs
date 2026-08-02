@@ -30,10 +30,11 @@ pub struct KglanceApp {
     pub is_daemon: bool,
     pub window_id: Option<iced::window::Id>,
     pub current_content: Option<PreviewData>,
-    pub video_tx: Option<tokio::sync::mpsc::Sender<crate::ui::handlers::video::PlayerCommand>>,
-    pub video_rx:
-        Arc<Mutex<Option<tokio::sync::mpsc::Receiver<crate::ui::handlers::video::VideoEvent>>>>,
-    pub video_controller: Option<Arc<Mutex<crate::ui::handlers::video::VideoController>>>,
+    pub video_tx: Option<tokio::sync::mpsc::Sender<crate::features::video::handler::PlayerCommand>>,
+    pub video_rx: Arc<
+        Mutex<Option<tokio::sync::mpsc::Receiver<crate::features::video::handler::VideoEvent>>>,
+    >,
+    pub video_controller: Option<Arc<Mutex<crate::features::video::handler::VideoController>>>,
     pub ctrl_held: bool,
     pub shift_held: bool,
     pub pending_g: bool,
@@ -50,7 +51,7 @@ impl KglanceApp {
     ) -> (Self, Task<Message>) {
         let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel(100);
         let (event_tx, event_rx) = tokio::sync::mpsc::channel(100);
-        let vc = crate::ui::handlers::video::spawn_video_player(cmd_rx, event_tx);
+        let vc = crate::features::video::handler::spawn_video_player(cmd_rx, event_tx);
 
         let file_watcher = crate::core::file_watcher::FileWatcher::new().ok();
 
@@ -307,7 +308,7 @@ impl KglanceApp {
             let page_count = self.state.pdf.page_count;
             let pdf_path = path.to_string();
             let visible_page = self.state.pdf.visible_page.clone();
-            Some(crate::ui::handlers::pdf::lazy_load_pages(
+            Some(crate::features::pdf::handler::lazy_load_pages(
                 pdf_path,
                 page_count,
                 visible_page,
@@ -345,7 +346,7 @@ impl KglanceApp {
             let page_count = self.state.typst.pdf.page_count;
             let typst_path = path.to_string();
             let visible_page = self.state.typst.pdf.visible_page.clone();
-            Some(crate::ui::handlers::typst::lazy_load_typst_pages(
+            Some(crate::features::typst::handler::lazy_load_typst_pages(
                 typst_path,
                 page_count,
                 visible_page,
@@ -377,13 +378,13 @@ impl KglanceApp {
 
         if let Some(tx) = &self.video_tx {
             if is_video || is_audio {
-                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Stop);
-                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Load(
+                let _ = tx.try_send(crate::features::video::handler::PlayerCommand::Stop);
+                let _ = tx.try_send(crate::features::video::handler::PlayerCommand::Load(
                     path.to_string(),
                 ));
-                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Play);
+                let _ = tx.try_send(crate::features::video::handler::PlayerCommand::Play);
             } else {
-                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Stop);
+                let _ = tx.try_send(crate::features::video::handler::PlayerCommand::Stop);
             }
         }
 
@@ -551,9 +552,9 @@ impl KglanceApp {
             self.daemon_rx.clone(),
         ));
 
-        let video_sub = subscription::from_recipe(crate::ui::handlers::video::VideoRecipe::new(
-            self.video_rx.clone(),
-        ));
+        let video_sub = subscription::from_recipe(
+            crate::features::video::handler::VideoRecipe::new(self.video_rx.clone()),
+        );
 
         let event_sub = iced::window::events()
             .map(|(id, event)| crate::app::messages::SystemMsg::WindowEvent(id, event).into());

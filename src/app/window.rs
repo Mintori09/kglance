@@ -7,7 +7,7 @@ use super::KglanceApp;
 use super::Message;
 use crate::core::types::{GRID_GAP, GRID_ITEM_WIDTH};
 use crate::core::{PreviewData, ToastInfo};
-use crate::ui::handlers::video::PlayerCommand;
+use crate::features::video::handler::PlayerCommand;
 
 const TOAST_DURATION_SECS: u64 = 2;
 const MIN_GRID_COLUMNS: usize = 1;

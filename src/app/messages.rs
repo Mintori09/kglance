@@ -44,7 +44,8 @@ pub enum MediaMsg {
     PlayPauseClicked,
     SeekClicked(f32),
     SeekRelativeClicked(f32),
-    VideoEventReceived(crate::ui::handlers::video::VideoEvent),
+    VideoEventReceived(crate::features::video::handler::VideoEvent),
+
     MouseEnter,
     MouseLeave,
     VideoThumbnailLoaded { data: Vec<u8> },

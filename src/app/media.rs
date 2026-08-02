@@ -4,7 +4,7 @@ use iced::widget::operation::{self, AbsoluteOffset};
 use super::Message;
 use crate::core::{PreviewData, ViewMode};
 
-use crate::ui::handlers::video::VideoEvent;
+use crate::features::video::handler::VideoEvent;
 
 impl super::KglanceApp {
     pub fn handle_scroll_delta(&mut self, _x: f32, y: f32) -> Task<Message> {
@@ -56,9 +56,9 @@ impl super::KglanceApp {
     pub fn handle_play_pause(&mut self) -> Task<Message> {
         if let Some(tx) = &self.video_tx {
             if self.state.media.playing {
-                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Pause);
+                let _ = tx.try_send(crate::features::video::handler::PlayerCommand::Pause);
             } else {
-                let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Play);
+                let _ = tx.try_send(crate::features::video::handler::PlayerCommand::Play);
             }
         }
         Task::none()
@@ -66,7 +66,7 @@ impl super::KglanceApp {
 
     pub fn handle_seek(&self, percent: f32) -> Task<Message> {
         if let Some(tx) = &self.video_tx {
-            let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::Seek(
+            let _ = tx.try_send(crate::features::video::handler::PlayerCommand::Seek(
                 percent as f64,
             ));
         }
@@ -75,9 +75,9 @@ impl super::KglanceApp {
 
     pub fn handle_seek_relative(&self, secs: f32) -> Task<Message> {
         if let Some(tx) = &self.video_tx {
-            let _ = tx.try_send(crate::ui::handlers::video::PlayerCommand::SeekRelative(
-                secs as f64,
-            ));
+            let _ = tx.try_send(
+                crate::features::video::handler::PlayerCommand::SeekRelative(secs as f64),
+            );
         }
         Task::none()
     }
