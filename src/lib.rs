@@ -1,10 +1,10 @@
 pub mod app;
 pub mod core;
 pub mod dbus;
+pub mod engine;
 pub mod features;
 pub use features as parsers;
 pub mod logger;
-pub mod preview;
 pub mod ui;
 
 pub fn load_app_icon() -> Option<iced::window::Icon> {

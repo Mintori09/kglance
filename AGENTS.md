@@ -84,10 +84,11 @@ Principles:
 
 ```text
 src/
-├── app.rs
+├── app/
 ├── core/
 ├── dbus/
-├── parsers/
+├── engine/
+├── features/
 ├── ui/
 ├── logger.rs
 ├── lib.rs
@@ -332,8 +333,6 @@ Only update when changing:
 Related documentation:
 
 - README.md
-- ARCHITECTURE.md
-- PERFORMANCE.md
 
 ---
 

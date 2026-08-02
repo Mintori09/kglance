@@ -133,7 +133,7 @@ impl PreviewData {
                     height: *height,
                     exif_content: exif_content.clone().unwrap_or_default(),
                     format_info: format_info.clone(),
-                    load_state: crate::preview::image::ImageLoadState::Ready,
+                    load_state: crate::features::image::ImageLoadState::Ready,
                     ..Default::default()
                 };
                 state.file_type_text.clone_from(format_info);
@@ -401,7 +401,7 @@ impl PreviewData {
                     height: *sample_height,
                     format_info: format!("Font — {name}"),
                     exif_content: metadata.clone(),
-                    load_state: crate::preview::image::ImageLoadState::Ready,
+                    load_state: crate::features::image::ImageLoadState::Ready,
                     ..Default::default()
                 };
                 state.file_type_text = "Font".to_string();

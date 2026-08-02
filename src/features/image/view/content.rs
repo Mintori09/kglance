@@ -1,6 +1,6 @@
 use crate::app::Message;
 use crate::core::ImageState;
-use crate::preview::image::ImageCanvas;
+use crate::features::image::ImageCanvas;
 use iced::{Element, Length};
 
 pub fn render_image<'a>(state: &'a ImageState) -> Element<'a, Message> {

@@ -35,7 +35,7 @@ pub struct FolderRowState {
     pub is_dir: bool,
     pub icon: &'static str,
 }
-use crate::preview::image::{Camera, ImageLoadState};
+use crate::features::image::{Camera, ImageLoadState};
 use iced::widget::image;
 
 #[derive(Debug, Clone)]

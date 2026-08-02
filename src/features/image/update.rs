@@ -47,13 +47,13 @@ pub fn handle_zoom(app: &mut KglanceApp, delta: f32) -> Task<Message> {
 }
 
 pub fn handle_pan(app: &mut KglanceApp, dx: f32, dy: f32) -> Task<Message> {
-    use crate::preview::image::ViewerController;
+    use crate::features::image::ViewerController;
     ViewerController::pan(&mut app.state.image.camera, dx, dy);
     Task::none()
 }
 
 pub fn handle_double_click(app: &mut KglanceApp) -> Task<Message> {
-    use crate::preview::image::ViewerController;
+    use crate::features::image::ViewerController;
     ViewerController::reset(&mut app.state.image.camera);
     Task::none()
 }

@@ -9,7 +9,6 @@ pub mod image;
 pub mod json;
 pub mod markdown;
 pub mod office;
-pub mod parser;
 pub mod pdf;
 pub mod svg;
 pub mod text;

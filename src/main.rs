@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use iced::{Font, Size};
 use kglance::app::KglanceApp;
-use kglance::features::parser::build_registry;
+use kglance::engine::build_registry;
 use kglance::{dbus, log_error, log_info};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
