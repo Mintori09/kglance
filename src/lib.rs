@@ -1,8 +1,9 @@
 pub mod app;
 pub mod core;
 pub mod dbus;
+pub mod features;
+pub use features as parsers;
 pub mod logger;
-pub mod parsers;
 pub mod preview;
 pub mod ui;
 

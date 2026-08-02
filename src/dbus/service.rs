@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 use zbus::interface;
 
 use crate::core::preview::FilePreviewer;
-use crate::parsers::{ParseError, ParserRegistry};
+use crate::features::common::parser::traits::{ParseError, ParserRegistry};
 use crate::{log_debug, log_error, log_info};
 
 fn to_fdo_error(e: ParseError) -> zbus::fdo::Error {

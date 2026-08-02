@@ -1,9 +1,9 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
+use kglance::features::parser::build_registry;
 use std::io::Write;
 use std::path::PathBuf;
 
 use image::GenericImageView;
-use kglance::parsers::PreviewParser;
 
 fn create_text_file(lines: usize) -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();
@@ -156,19 +156,6 @@ fn create_pdf_file(page_count: usize) -> (tempfile::TempDir, PathBuf) {
     (dir, path)
 }
 
-fn build_registry() -> kglance::parsers::ParserRegistry {
-    let mut r = kglance::parsers::ParserRegistry::new();
-    r.register(Box::new(kglance::parsers::markdown::MarkdownParser::new()));
-    r.register(Box::new(kglance::parsers::text::TextParser::new()));
-    r.register(Box::new(kglance::parsers::image::ImageParser));
-    r.register(Box::new(kglance::parsers::svg::SvgParser));
-    r.register(Box::new(kglance::parsers::pdf::PdfParser));
-    r.register(Box::new(kglance::parsers::archive::ArchiveParser));
-    r.register(Box::new(kglance::parsers::folder::FolderParser));
-    r.register(Box::new(kglance::parsers::typst::TypstParser));
-    r
-}
-
 fn bench_text_parser(c: &mut Criterion) {
     let mut group = c.benchmark_group("parser/text");
     for lines in [100, 500, 1_000, 5_000, 10_000] {
@@ -270,19 +257,13 @@ fn bench_pdf_parser(c: &mut Criterion) {
 fn bench_registry_dispatch(c: &mut Criterion) {
     let (_dir, path) = create_text_file(100);
     let registry = build_registry();
-    let direct_parser = kglance::parsers::text::TextParser::new();
 
     let mut group = c.benchmark_group("dispatch_overhead");
     group.bench_function("via_registry", |b| {
         b.iter(|| registry.parse(&path).unwrap());
     });
-    group.bench_function("direct_parser", |b| {
-        b.iter(|| direct_parser.parse(&path).unwrap());
-    });
     group.finish();
 }
-
-// ── Image operations benchmarks ─────────────────────────────────────
 
 fn create_image_rgba(width: u32, height: u32) -> image::DynamicImage {
     let mut buf = vec![0u8; (width * height * 4) as usize];
