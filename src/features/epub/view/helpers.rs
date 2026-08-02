@@ -1,11 +1,11 @@
 use iced::Color;
 
 use crate::core::types::EpubState;
-use crate::ui::components::sidebar::INDENT_PER_LEVEL;
-use crate::ui::theme::color::primitive;
-use crate::ui::views::epub_view::constants::{
+use crate::features::epub::view::constants::{
     CHAPTER_TITLE_SIZE_LEVEL_ONE, CHAPTER_TITLE_SIZE_OTHER, MAX_INDENT,
 };
+use crate::ui::components::sidebar::INDENT_PER_LEVEL;
+use crate::ui::theme::color::primitive;
 
 pub fn clamp_active_chapter(state: &EpubState) -> usize {
     state

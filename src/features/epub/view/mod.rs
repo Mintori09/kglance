@@ -11,14 +11,14 @@ use iced::{Element, Length};
 
 use crate::app::Message;
 use crate::core::types::EpubState;
+use crate::features::epub::view::content::build_epub_content;
+use crate::features::epub::view::header::build_epub_header;
+use crate::features::epub::view::helpers::clamp_active_chapter;
+use crate::features::epub::view::sidebar::render_chapter_sidebar;
 use crate::ui::components::sidebar::drag_handle;
 use crate::ui::theme::color::base::BaseColors;
 use crate::ui::theme::font::get_main_font;
 use crate::ui::types::RenderContext;
-use crate::ui::views::epub_view::content::build_epub_content;
-use crate::ui::views::epub_view::header::build_epub_header;
-use crate::ui::views::epub_view::helpers::clamp_active_chapter;
-use crate::ui::views::epub_view::sidebar::render_chapter_sidebar;
 
 pub fn view_epub<'a>(
     state: &'a EpubState,

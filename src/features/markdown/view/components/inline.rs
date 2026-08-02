@@ -1,10 +1,10 @@
 use crate::app::Message;
+use crate::features::markdown::view::components::inline_spans::{SpanCtx, inlines_to_spans};
+use crate::features::markdown::view::components::style::STYLE;
 use crate::parsers::markdown::{Inline, flatten_inlines};
 use crate::ui::theme::color::roles;
 use crate::ui::theme::default_tooltip;
 use crate::ui::types::RenderContext;
-use crate::ui::views::markdown_view::components::inline_spans::{SpanCtx, inlines_to_spans};
-use crate::ui::views::markdown_view::components::style::STYLE;
 use iced::widget::{button, tooltip};
 use iced::{Border, Color, Element, Shadow};
 
@@ -41,7 +41,7 @@ fn flush_text_segment<'a>(
     let default_text_color =
         crate::ui::theme::color::base::BaseColors::palette_for(ctx.is_dark).text;
     elements.push(
-        crate::ui::views::markdown_view::build_selectable(
+        crate::features::markdown::view::build_selectable(
             inlines_to_spans(&inlines[start..end], span_ctx),
             font_size,
             segment_block_index,
@@ -107,7 +107,7 @@ pub fn render_inlines<'a>(
     if !has_special {
         let default_text_color =
             crate::ui::theme::color::base::BaseColors::palette_for(ctx.is_dark).text;
-        return crate::ui::views::markdown_view::build_selectable(
+        return crate::features::markdown::view::build_selectable(
             inlines_to_spans(inlines, &span_ctx),
             font_size,
             ctx.block_index,

@@ -3,6 +3,15 @@ use iced::{Border, Color, Element, Font, Length, Padding, Shadow};
 
 use crate::app::Message;
 use crate::core::types::{EpubChapterInfo, EpubState};
+use crate::features::epub::view::constants::{
+    CHAPTER_ENTRY_SPACING, CHAPTER_LIST_PADDING, ENTRY_PADDING_BOTTOM, ENTRY_PADDING_LEFT_BASE,
+    ENTRY_PADDING_RIGHT, ENTRY_PADDING_TOP, HEADER_SPACING, RESIZE_BUTTON_FONT_SIZE,
+    SIDEBAR_HEADER_PADDING_HORIZONTAL, SIDEBAR_HEADER_PADDING_VERTICAL, SIDEBAR_RESIZE_STEP,
+    SIDEBAR_TOGGLE_FONT_SIZE,
+};
+use crate::features::epub::view::helpers::{
+    calculate_indent, entry_font_size, entry_font_weight, entry_text_color,
+};
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::sidebar::{
     SIDEBAR_BORDER_WIDTH as BORDER_WIDTH, SIDEBAR_ITEM_SPACING as CHAPTER_LIST_SPACING,
@@ -10,15 +19,6 @@ use crate::ui::components::sidebar::{
 };
 use crate::ui::theme::color::base::BaseColors;
 use crate::ui::theme::color::primitive;
-use crate::ui::views::epub_view::constants::{
-    CHAPTER_ENTRY_SPACING, CHAPTER_LIST_PADDING, ENTRY_PADDING_BOTTOM, ENTRY_PADDING_LEFT_BASE,
-    ENTRY_PADDING_RIGHT, ENTRY_PADDING_TOP, HEADER_SPACING, RESIZE_BUTTON_FONT_SIZE,
-    SIDEBAR_HEADER_PADDING_HORIZONTAL, SIDEBAR_HEADER_PADDING_VERTICAL, SIDEBAR_RESIZE_STEP,
-    SIDEBAR_TOGGLE_FONT_SIZE,
-};
-use crate::ui::views::epub_view::helpers::{
-    calculate_indent, entry_font_size, entry_font_weight, entry_text_color,
-};
 
 pub fn render_chapter_sidebar<'a>(state: &'a EpubState, is_dark: bool) -> Element<'a, Message> {
     let palette = *BaseColors::palette_for(is_dark);

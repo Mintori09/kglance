@@ -1,9 +1,9 @@
 use super::style::{STYLE, divider_line_style, heading_layout};
 use crate::app::Message;
+use crate::features::markdown::view::components::render_inlines;
 use crate::parsers::markdown::Inline;
 use crate::ui::theme::scale_size;
 use crate::ui::types::RenderContext;
-use crate::ui::views::markdown_view::components::render_inlines;
 use iced::widget::{column, container, text};
 use iced::{Element, Length, Padding};
 

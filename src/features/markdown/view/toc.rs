@@ -1,9 +1,9 @@
 use crate::app::Message;
 use crate::core::{MarkdownState, TocEntry};
+use crate::features::markdown::view::components::style::STYLE;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::sidebar::{collapse_arrow, sidebar_entry_style};
 use crate::ui::theme::color::base::BaseColors;
-use crate::ui::views::markdown_view::components::style::STYLE;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Padding};
 

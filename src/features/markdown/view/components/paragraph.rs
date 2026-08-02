@@ -1,8 +1,8 @@
 use super::style::STYLE;
 use crate::app::Message;
+use crate::features::markdown::view::components::render_inlines;
 use crate::parsers::markdown::Inline;
 use crate::ui::types::RenderContext;
-use crate::ui::views::markdown_view::components::render_inlines;
 use iced::widget::container;
 use iced::{Element, Length};
 

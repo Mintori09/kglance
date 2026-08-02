@@ -1,10 +1,10 @@
 use super::style::{STYLE, code_block_style, copy_button_style, language_label_style};
 use crate::app::Message;
+use crate::features::markdown::view::build_selectable;
+use crate::features::markdown::view::highlight::highlight_code;
 use crate::ui::theme::font::get_code_font;
 use crate::ui::theme::scale_size;
 use crate::ui::types::RenderContext;
-use crate::ui::views::markdown_view::build_selectable;
-use crate::ui::views::markdown_view::highlight::highlight_code;
 use iced::widget::{button, column, container, row, text};
 use iced::{Element, Length};
 

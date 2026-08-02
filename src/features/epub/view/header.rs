@@ -3,12 +3,12 @@ use iced::{Border, Color, Element, Font, Length};
 
 use crate::app::Message;
 use crate::core::types::EpubState;
-use crate::ui::components::sidebar::SIDEBAR_BORDER_WIDTH as BORDER_WIDTH;
-use crate::ui::views::epub_view::constants::{
+use crate::features::epub::view::constants::{
     AUTHOR_FONT_SCALE, HEADER_FONT_SCALE, HEADER_PADDING_HORIZONTAL, HEADER_PADDING_VERTICAL,
     SIDEBAR_TOGGLE_FONT_SIZE, TITLE_AUTHOR_SPACING, TOGGLE_BUTTON_PADDING_HORIZONTAL,
     TOGGLE_BUTTON_PADDING_VERTICAL,
 };
+use crate::ui::components::sidebar::SIDEBAR_BORDER_WIDTH as BORDER_WIDTH;
 
 pub fn build_epub_header<'a>(
     state: &'a EpubState,
