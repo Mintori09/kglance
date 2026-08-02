@@ -9,9 +9,7 @@ pub mod image;
 pub mod json;
 pub mod misc;
 pub mod navigation;
-pub mod pdf;
 pub mod spreadsheet;
-pub mod typst;
 
 pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
     match message {
@@ -118,32 +116,50 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
         },
         Message::Pdf(msg) => match msg {
-            crate::app::messages::PdfMsg::Scrolled(vp) => pdf::handle_scrolled(app, vp),
-            crate::app::messages::PdfMsg::PagesLoaded(_) => pdf::handle_pages_loaded(app),
+            crate::app::messages::PdfMsg::Scrolled(vp) => {
+                crate::features::pdf::update::handle_scrolled(app, vp)
+            }
+            crate::app::messages::PdfMsg::PagesLoaded(_) => {
+                crate::features::pdf::update::handle_pages_loaded(app)
+            }
             crate::app::messages::PdfMsg::PageReady(idx, d, w, h) => {
-                pdf::handle_page_ready(app, idx, d, w, h)
+                crate::features::pdf::update::handle_page_ready(app, idx, d, w, h)
             }
             crate::app::messages::PdfMsg::ThumbReady(idx, d, w, h) => {
-                pdf::handle_thumb_ready(app, idx, d, w, h)
+                crate::features::pdf::update::handle_thumb_ready(app, idx, d, w, h)
             }
-            crate::app::messages::PdfMsg::SidebarToggled => pdf::handle_sidebar_toggled(app),
-            crate::app::messages::PdfMsg::SetSidebarMode(m) => pdf::handle_set_sidebar_mode(app, m),
+            crate::app::messages::PdfMsg::SidebarToggled => {
+                crate::features::pdf::update::handle_sidebar_toggled(app)
+            }
+            crate::app::messages::PdfMsg::SetSidebarMode(m) => {
+                crate::features::pdf::update::handle_set_sidebar_mode(app, m)
+            }
             crate::app::messages::PdfMsg::ThumbnailClicked(idx) => {
-                pdf::handle_thumbnail_clicked(app, idx)
+                crate::features::pdf::update::handle_thumbnail_clicked(app, idx)
             }
             crate::app::messages::PdfMsg::TocItemClicked(idx) => {
-                pdf::handle_toc_item_clicked(app, idx)
+                crate::features::pdf::update::handle_toc_item_clicked(app, idx)
             }
-            crate::app::messages::PdfMsg::SidebarResized(w) => pdf::handle_sidebar_resized(app, w),
+            crate::app::messages::PdfMsg::SidebarResized(w) => {
+                crate::features::pdf::update::handle_sidebar_resized(app, w)
+            }
         },
         Message::Typst(msg) => match msg {
-            crate::app::messages::TypstMsg::Scrolled(vp) => typst::handle_scrolled(app, vp),
-            crate::app::messages::TypstMsg::PagesLoaded => typst::handle_pages_loaded(app),
-            crate::app::messages::TypstMsg::PageReady(idx, d, w, h) => {
-                typst::handle_page_ready(app, idx, d, w, h)
+            crate::app::messages::TypstMsg::Scrolled(vp) => {
+                crate::features::typst::update::handle_scrolled(app, vp)
             }
-            crate::app::messages::TypstMsg::CompileError => typst::handle_compile_error(app),
-            crate::app::messages::TypstMsg::ToggleSource => typst::handle_toggle_source(app),
+            crate::app::messages::TypstMsg::PagesLoaded => {
+                crate::features::typst::update::handle_pages_loaded(app)
+            }
+            crate::app::messages::TypstMsg::PageReady(idx, d, w, h) => {
+                crate::features::typst::update::handle_page_ready(app, idx, d, w, h)
+            }
+            crate::app::messages::TypstMsg::CompileError => {
+                crate::features::typst::update::handle_compile_error(app)
+            }
+            crate::app::messages::TypstMsg::ToggleSource => {
+                crate::features::typst::update::handle_toggle_source(app)
+            }
         },
         Message::Spreadsheet(msg) => match msg {
             crate::app::messages::SpreadsheetMsg::SheetTabClicked(idx) => {

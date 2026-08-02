@@ -2,7 +2,7 @@ use crate::app::KglanceApp;
 use crate::app::messages::Message;
 use iced::Task;
 
-pub(crate) fn active_pdf_state_mut(app: &mut KglanceApp) -> &mut crate::core::PdfState {
+pub fn active_pdf_state_mut(app: &mut KglanceApp) -> &mut crate::core::PdfState {
     if matches!(
         app.current_content,
         Some(crate::core::PreviewData::Typst { .. })
@@ -13,7 +13,7 @@ pub(crate) fn active_pdf_state_mut(app: &mut KglanceApp) -> &mut crate::core::Pd
     }
 }
 
-pub(crate) fn active_pdf_state(app: &KglanceApp) -> &crate::core::PdfState {
+pub fn active_pdf_state(app: &KglanceApp) -> &crate::core::PdfState {
     if matches!(
         app.current_content,
         Some(crate::core::PreviewData::Typst { .. })
@@ -92,11 +92,11 @@ pub fn handle_page_ready(
     Task::none()
 }
 
-pub(crate) fn pages_loaded(pdf_state: &mut crate::core::PdfState) {
+pub fn pages_loaded(pdf_state: &mut crate::core::PdfState) {
     pdf_state.loading = false;
 }
 
-pub(crate) fn page_ready(
+pub fn page_ready(
     pdf_state: &mut crate::core::PdfState,
     index: usize,
     data: Vec<u8>,
@@ -208,6 +208,7 @@ pub fn handle_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task<Message>
     active_pdf_state_mut(app).sidebar_width = width.clamp(120.0, 500.0);
     Task::none()
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
