@@ -1,5 +1,5 @@
 use crate::features::markdown::update as markdown;
-use super::pdf::active_pdf_state_mut;
+use crate::features::pdf::update::active_pdf_state_mut;
 use crate::app::KglanceApp;
 use crate::app::messages::Message;
 use iced::Task;

@@ -1,6 +1,6 @@
 use crate::app::KglanceApp;
 use crate::app::messages::Message;
-use crate::app::update::pdf;
+use crate::features::pdf::update as pdf;
 use iced::Task;
 
 pub fn handle_scrolled(
