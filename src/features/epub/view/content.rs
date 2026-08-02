@@ -3,9 +3,9 @@ use iced::{Element, Length, Padding};
 
 use crate::app::Message;
 use crate::core::types::EpubState;
+use crate::features::epub::view::constants::CONTENT_SPACING;
 use crate::ui::components::content_layout::scrollable_content;
 use crate::ui::types::RenderContext;
-use crate::ui::views::epub_view::constants::CONTENT_SPACING;
 
 pub(crate) fn build_epub_content<'a>(
     state: &'a EpubState,
@@ -34,13 +34,13 @@ pub(crate) fn build_epub_content<'a>(
             drag_active: state.markdown_state.is_dragging_selection,
             ..*ctx
         };
-        let inner = crate::ui::views::markdown_view::render_block(
+        let inner = crate::features::markdown::view::render_block(
             global_index,
             block,
             &state.markdown_state,
             &block_ctx,
         );
-        let margin_bottom = crate::ui::views::markdown_view::block_margin(block);
+        let margin_bottom = crate::features::markdown::view::block_margin(block);
         container(inner)
             .padding(Padding {
                 top: 0.0,

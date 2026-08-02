@@ -1,11 +1,11 @@
 use crate::app::Message;
-use crate::parsers::markdown::Block;
-use crate::ui::types::RenderContext;
-use crate::ui::views::markdown_view::components::style::STYLE;
-use crate::ui::views::markdown_view::components::{
+use crate::features::markdown::view::components::style::STYLE;
+use crate::features::markdown::view::components::{
     render_code_block, render_heading, render_horizontal_rule, render_html, render_inline_image,
     render_list, render_mermaid, render_paragraph, render_quote, render_table,
 };
+use crate::parsers::markdown::Block;
+use crate::ui::types::RenderContext;
 use iced::Element;
 
 pub(crate) fn render_block<'a>(

@@ -1,12 +1,12 @@
 use super::style::STYLE;
 use crate::app::Message;
+use crate::features::markdown::view::blocks::render_block;
+use crate::features::markdown::view::components::render_inlines;
 use crate::parsers::markdown::ListItem;
 use crate::ui::theme::color::base::BaseColors;
 use crate::ui::theme::color::roles;
 use crate::ui::theme::font::get_code_font;
 use crate::ui::types::RenderContext;
-use crate::ui::views::markdown_view::blocks::render_block;
-use crate::ui::views::markdown_view::components::render_inlines;
 use iced::widget::{column, container, row, text};
 use iced::{Color, Element, Length, Padding};
 
