@@ -1,5 +1,4 @@
 pub mod epub_view;
-pub mod folder_view;
 pub mod grid;
 pub mod image_view;
 pub mod json_view;
@@ -7,18 +6,16 @@ pub mod markdown_view;
 pub mod media_view;
 pub mod pdf_view;
 pub mod setting_page;
-pub mod spreadsheet_view;
-pub mod typst_view;
 
+pub use crate::features::csv::view_spreadsheet;
+pub use crate::features::folder::view_folder;
 pub use crate::features::font::view_font;
 pub use crate::features::text::view_text;
+pub use crate::features::typst::view_typst;
 pub use epub_view::view_epub;
-pub use folder_view::view_folder;
 pub use grid::view_grid;
 pub use image_view::view_image;
 pub use json_view::view_json;
 pub use markdown_view::view_markdown;
 pub use media_view::view_media;
 pub use pdf_view::view_pdf;
-pub use spreadsheet_view::view_spreadsheet;
-pub use typst_view::view_typst;
