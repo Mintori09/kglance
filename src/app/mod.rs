@@ -592,7 +592,7 @@ impl KglanceApp {
             Subscription::none()
         };
 
-        let auto_scroll_sub = if crate::app::update::markdown::active_markdown_state(self)
+        let auto_scroll_sub = if crate::features::markdown::update::active_markdown_state(self)
             .auto_scroll_delta
             .is_some()
         {

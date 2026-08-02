@@ -1,4 +1,4 @@
-use super::markdown;
+use crate::features::markdown::update as markdown;
 use super::pdf::active_pdf_state_mut;
 use crate::app::KglanceApp;
 use crate::app::messages::Message;

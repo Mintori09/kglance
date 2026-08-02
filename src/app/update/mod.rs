@@ -7,7 +7,6 @@ pub mod file;
 pub mod grid;
 pub mod image;
 pub mod json;
-pub mod markdown;
 pub mod misc;
 pub mod navigation;
 pub mod pdf;
@@ -167,23 +166,33 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::GridMsg::SearchClosed => grid::handle_grid_search_closed(app),
         },
         Message::Markdown(msg) => match msg {
-            crate::app::messages::MarkdownMsg::TocToggled => markdown::handle_toc_toggled(app),
+            crate::app::messages::MarkdownMsg::TocToggled => {
+                crate::features::markdown::update::handle_toc_toggled(app)
+            }
             crate::app::messages::MarkdownMsg::TocHeadingClicked(idx) => {
-                markdown::handle_toc_heading_clicked(app, idx)
+                crate::features::markdown::update::handle_toc_heading_clicked(app, idx)
             }
             crate::app::messages::MarkdownMsg::TocToggleCollapse(idx) => {
-                markdown::handle_toc_toggle_collapse(app, idx)
+                crate::features::markdown::update::handle_toc_toggle_collapse(app, idx)
             }
             crate::app::messages::MarkdownMsg::Scrolled(y) => {
-                markdown::handle_markdown_scrolled(app, y)
+                crate::features::markdown::update::handle_markdown_scrolled(app, y)
             }
-            crate::app::messages::MarkdownMsg::SearchToggle => markdown::handle_search_toggle(app),
+            crate::app::messages::MarkdownMsg::SearchToggle => {
+                crate::features::markdown::update::handle_search_toggle(app)
+            }
             crate::app::messages::MarkdownMsg::SearchQueryChanged(q) => {
-                markdown::handle_search_query_changed(app, q)
+                crate::features::markdown::update::handle_search_query_changed(app, q)
             }
-            crate::app::messages::MarkdownMsg::SearchNext => markdown::handle_search_next(app),
-            crate::app::messages::MarkdownMsg::SearchPrev => markdown::handle_search_prev(app),
-            crate::app::messages::MarkdownMsg::SearchClosed => markdown::handle_search_closed(app),
+            crate::app::messages::MarkdownMsg::SearchNext => {
+                crate::features::markdown::update::handle_search_next(app)
+            }
+            crate::app::messages::MarkdownMsg::SearchPrev => {
+                crate::features::markdown::update::handle_search_prev(app)
+            }
+            crate::app::messages::MarkdownMsg::SearchClosed => {
+                crate::features::markdown::update::handle_search_closed(app)
+            }
             crate::app::messages::MarkdownMsg::SidebarResized(w) => {
                 misc::handle_markdown_sidebar_resized(app, w)
             }
@@ -194,22 +203,22 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 image::handle_markdown_image_loaded(app, index, png_bytes)
             }
             crate::app::messages::MarkdownMsg::SelectionChanged(s) => {
-                markdown::handle_selection_changed(app, s)
+                crate::features::markdown::update::handle_selection_changed(app, s)
             }
             crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset } => {
-                markdown::handle_selection_drag_start(app, block, offset)
+                crate::features::markdown::update::handle_selection_drag_start(app, block, offset)
             }
             crate::app::messages::MarkdownMsg::SelectionDragUpdate { block, offset } => {
-                markdown::handle_selection_drag_update(app, block, offset)
+                crate::features::markdown::update::handle_selection_drag_update(app, block, offset)
             }
             crate::app::messages::MarkdownMsg::SelectionDragEnd => {
-                markdown::handle_selection_drag_end(app)
+                crate::features::markdown::update::handle_selection_drag_end(app)
             }
             crate::app::messages::MarkdownMsg::SelectionClear => {
-                markdown::handle_selection_clear(app)
+                crate::features::markdown::update::handle_selection_clear(app)
             }
             crate::app::messages::MarkdownMsg::AutoScrollTick => {
-                markdown::handle_auto_scroll_tick(app)
+                crate::features::markdown::update::handle_auto_scroll_tick(app)
             }
         },
         Message::Epub(msg) => match msg {
