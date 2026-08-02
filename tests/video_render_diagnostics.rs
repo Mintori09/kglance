@@ -49,13 +49,13 @@ fn gst_init_once() {
 #[test]
 fn test_alpha_channel_non_zero_integrity() {
     gst_init_once();
-    use kglance::ui::handlers::video::PlayerCommand;
+    use kglance::features::video::handler::PlayerCommand;
 
     let video = get_test_video();
     let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel(100);
     let (event_tx, _event_rx) = tokio::sync::mpsc::channel(100);
 
-    let controller = kglance::ui::handlers::video::spawn_video_player(cmd_rx, event_tx);
+    let controller = kglance::features::video::handler::spawn_video_player(cmd_rx, event_tx);
 
     cmd_tx
         .try_send(PlayerCommand::Load(video.to_str().unwrap().to_string()))
@@ -156,13 +156,13 @@ fn test_handle_invalidation_flicker_diagnosis() {
 #[test]
 fn test_subsequent_frame_handle_uniqueness_causes_flicker() {
     gst_init_once();
-    use kglance::ui::handlers::video::PlayerCommand;
+    use kglance::features::video::handler::PlayerCommand;
 
     let video = get_test_video();
     let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel(100);
     let (event_tx, _event_rx) = tokio::sync::mpsc::channel(100);
 
-    let controller = kglance::ui::handlers::video::spawn_video_player(cmd_rx, event_tx);
+    let controller = kglance::features::video::handler::spawn_video_player(cmd_rx, event_tx);
 
     cmd_tx
         .try_send(PlayerCommand::Load(video.to_str().unwrap().to_string()))

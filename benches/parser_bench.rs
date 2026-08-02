@@ -1,5 +1,6 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use kglance::features::parser::build_registry;
+use kglance::engine::build_registry;
+
 use std::io::Write;
 use std::path::PathBuf;
 

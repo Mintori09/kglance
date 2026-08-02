@@ -1,4 +1,5 @@
-use kglance::ui::handlers::video::{PlayerCommand, spawn_video_player};
+use kglance::features::video::handler::{PlayerCommand, spawn_video_player};
+
 use std::time::Duration;
 use tokio::sync::mpsc;
 

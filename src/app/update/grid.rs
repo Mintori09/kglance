@@ -37,7 +37,7 @@ pub fn handle_toggle_view_mode(app: &mut KglanceApp) -> Task<Message> {
                         async move {
                             let handle = tokio::task::spawn_blocking(move || {
                                 if let Some(thumb_path) =
-                                    crate::ui::views::grid::get_freedesktop_thumbnail_path(
+                                    crate::features::folder::grid::get_freedesktop_thumbnail_path(
                                         &path_for_task,
                                     )
                                 {
