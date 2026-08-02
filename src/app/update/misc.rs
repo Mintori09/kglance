@@ -15,7 +15,11 @@ pub fn handle_open_link(url: String) -> Task<Message> {
 }
 
 pub fn handle_theme_toggled(app: &mut KglanceApp) -> Task<Message> {
-    app.state.theme_dark = !app.state.theme_dark;
+    app.state.app_theme = match app.state.app_theme {
+        crate::ui::theme::AppTheme::Dark => crate::ui::theme::AppTheme::Light,
+        crate::ui::theme::AppTheme::Light => crate::ui::theme::AppTheme::Nord,
+        _ => crate::ui::theme::AppTheme::Dark,
+    };
     Task::none()
 }
 

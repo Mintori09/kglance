@@ -2,7 +2,6 @@ use super::style::STYLE;
 use crate::app::Message;
 use crate::features::markdown::view::blocks::render_block;
 use crate::parsers::markdown::Block;
-use crate::ui::theme::color::markdown::MarkdownColors;
 use crate::ui::types::RenderContext;
 use iced::widget::{column, container, row, text};
 use iced::{Element, Length};
@@ -23,7 +22,7 @@ pub(crate) fn render_quote<'a>(
     .spacing(STYLE.general.section_spacing)
     .into();
 
-    let mp = MarkdownColors::palette_for(ctx.is_dark);
+    let mp = ctx.theme.palette().markdown;
 
     let content = container(inner)
         .padding(STYLE.quote.content_padding)

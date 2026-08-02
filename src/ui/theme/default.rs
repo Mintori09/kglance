@@ -117,10 +117,10 @@ pub fn default_row_button(
             Some(c.into())
         }
         (false, button::Status::Hovered) => Some(
-            if p.bg.r > 0.5 {
-                primitive::BLACK_006
-            } else {
+            if matches!(theme, Theme::Dark) {
                 primitive::WHITE_006
+            } else {
+                primitive::BLACK_006
             }
             .into(),
         ),
@@ -258,10 +258,10 @@ pub fn default_text_editor(theme: &Theme, _status: text_editor::Status) -> text_
         },
         placeholder: Color::TRANSPARENT,
         value: p.text,
-        selection: if p.bg.r > 0.5 {
-            primitive::BLACK_015
-        } else {
+        selection: if matches!(theme, Theme::Dark) {
             primitive::WHITE_015
+        } else {
+            primitive::BLACK_015
         },
     }
 }
@@ -395,15 +395,16 @@ pub fn default_checkbox(theme: &Theme, status: checkbox::Status) -> checkbox::St
 
 pub fn default_tooltip(theme: &Theme) -> container::Style {
     let p = BaseColors::palette(theme);
-    let bg = if p.bg.r > 0.5 {
-        primitive::LIGHT_TOOLTIP
-    } else {
+    let is_dark = matches!(theme, Theme::Dark);
+    let bg = if is_dark {
         primitive::DARK_TOOLTIP
-    };
-    let border_color = if p.bg.r > 0.5 {
-        primitive::WHITE_012
     } else {
+        primitive::LIGHT_TOOLTIP
+    };
+    let border_color = if is_dark {
         p.border
+    } else {
+        primitive::WHITE_012
     };
     container::Style {
         background: Some(bg.into()),

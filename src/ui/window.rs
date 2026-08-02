@@ -245,11 +245,7 @@ pub fn view_window<'a>(
     if show_settings_modal {
         let dummy_config: &'static crate::core::config::UiConfig =
             Box::leak(Box::new(crate::core::config::UiConfig {
-                theme: if state.theme_dark {
-                    Some("Dark".to_string())
-                } else {
-                    Some("Light".to_string())
-                },
+                theme: Some(state.theme_setting.clone()),
                 font_size: state.font_size,
                 font_family: state.font_family.clone(),
                 font_family_mono: state.font_family_mono.clone(),
@@ -264,7 +260,7 @@ pub fn view_window<'a>(
 
         let static_fonts: &'static [String] =
             Box::leak(crate::ui::views::setting_page::get_system_fonts().into_boxed_slice());
-        let theme = if state.theme_dark {
+        let theme = if state.app_theme.is_dark() {
             iced::Theme::Dark
         } else {
             iced::Theme::Light

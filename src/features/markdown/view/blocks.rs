@@ -27,7 +27,7 @@ pub(crate) fn render_block<'a>(
             items,
         } => render_list(*ordered, *start_number, items, state, ctx),
         Block::Quote(blocks) => render_quote(blocks, state, ctx),
-        Block::HorizontalRule => render_horizontal_rule(ctx.is_dark),
+        Block::HorizontalRule => render_horizontal_rule(ctx.theme),
         Block::Html(html) => render_html(html, ctx),
     }
 }

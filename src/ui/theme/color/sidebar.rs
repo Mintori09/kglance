@@ -36,14 +36,20 @@ impl SidebarColors {
         arrow_text: primitive::SIDEBAR_LIGHT_ARROW_TEXT,
     };
 
+    pub const NORD: SidebarColors = SidebarColors {
+        hover_press: primitive::NORD2,
+        active_bg: primitive::NORD2,
+        active_text: primitive::NORD8,
+        inactive_text: primitive::NORD4,
+        resizing: primitive::NORD8,
+        normal_drag: primitive::NORD1,
+        arrow_text: primitive::NORD9,
+    };
+
     pub fn palette(theme: &Theme) -> &'static SidebarColors {
         match theme {
             Theme::Dark => &Self::DARK,
             _ => &Self::LIGHT,
         }
-    }
-
-    pub fn palette_for(is_dark: bool) -> &'static SidebarColors {
-        if is_dark { &Self::DARK } else { &Self::LIGHT }
     }
 }

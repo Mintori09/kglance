@@ -5,7 +5,6 @@ use iced::widget::{container, row, text, text_editor};
 use iced::{Alignment, Element, Font, Length};
 
 use crate::app::Message;
-use crate::ui::theme::color::base::BaseColors;
 use crate::ui::theme::default_text_editor;
 
 const CHARACTER_WIDTH_RATIO: f32 = 0.65;
@@ -54,8 +53,10 @@ fn select_highlight_syntax(extension: &str) -> String {
     }
 }
 
-fn select_highlight_theme(is_dark: bool) -> HighlightTheme {
-    if is_dark {
+use crate::ui::theme::AppTheme;
+
+fn select_highlight_theme(theme: AppTheme) -> HighlightTheme {
+    if theme.is_dark() {
         HighlightTheme::Base16Mocha
     } else {
         HighlightTheme::InspiredGitHub
@@ -72,17 +73,17 @@ fn generate_line_numbers_text(total_lines: usize) -> String {
 pub fn code_editor<'a>(
     content: &'a Content,
     extension: &str,
-    is_dark: bool,
+    theme: AppTheme,
     font_size: f32,
     font: Font,
     on_action: fn(Action) -> Message,
 ) -> Element<'a, Message> {
-    let highlight_theme = select_highlight_theme(is_dark);
+    let highlight_theme = select_highlight_theme(theme);
     let line_count = content.text().lines().count().max(1);
 
     let line_numbers = generate_line_numbers_text(line_count);
     let gutter_width = line_number_width(line_count, font_size);
-    let gutter_color = BaseColors::palette_for(is_dark).text_dim;
+    let gutter_color = theme.palette().base.text_dim;
 
     let line_numbers_widget = container(
         text(line_numbers)

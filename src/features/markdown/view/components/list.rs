@@ -3,8 +3,6 @@ use crate::app::Message;
 use crate::features::markdown::view::blocks::render_block;
 use crate::features::markdown::view::components::render_inlines;
 use crate::parsers::markdown::ListItem;
-use crate::ui::theme::color::base::BaseColors;
-use crate::ui::theme::color::roles;
 use crate::ui::theme::font::get_code_font;
 use crate::ui::types::RenderContext;
 use iced::widget::{column, container, row, text};
@@ -87,9 +85,9 @@ fn create_list_prefix<'a>(
     if let Some(checked) = item.is_task {
         let symbol = if checked { "[x] " } else { "[ ] " };
         let color: Color = if checked {
-            roles::palette_for(ctx.is_dark).success
+            ctx.theme.palette().roles.success
         } else {
-            BaseColors::palette_for(ctx.is_dark).text_dim
+            ctx.theme.palette().base.text_dim
         };
         text(symbol)
             .font(get_code_font(ctx.font_family_mono))

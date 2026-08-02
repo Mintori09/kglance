@@ -28,9 +28,11 @@ pub fn build_breadcrumbs(nodes: &[JsonNode], index: usize) -> Vec<(usize, String
     crumbs
 }
 
+use crate::ui::theme::AppTheme;
+
 pub fn render_breadcrumbs<'a>(
     state: &'a JsonState,
-    is_dark: bool,
+    theme: AppTheme,
     font_size: f32,
 ) -> Option<Element<'a, Message>> {
     let active = state.active_node?;
@@ -43,21 +45,21 @@ pub fn render_breadcrumbs<'a>(
     for (i, (idx, label)) in crumbs.iter().enumerate() {
         if i > 0 {
             parts.push(Element::from(
-                text(" › ").size(font_size * 0.8).color(dim_color(is_dark)),
+                text(" › ").size(font_size * 0.8).color(dim_color(theme)),
             ));
         }
         if *idx == active {
             parts.push(Element::from(
                 text(label.clone())
                     .size(font_size * 0.8)
-                    .color(text_color(is_dark)),
+                    .color(text_color(theme)),
             ));
         } else {
             parts.push(Element::from(
                 button(
                     text(label.clone())
                         .size(font_size * 0.8)
-                        .color(link_color(is_dark)),
+                        .color(link_color(theme)),
                 )
                 .on_press(crate::app::messages::JsonMsg::BreadcrumbClicked(*idx).into())
                 .padding(0)
@@ -84,7 +86,7 @@ pub fn render_breadcrumbs<'a>(
 
 pub fn render_schema<'a>(
     state: &'a JsonState,
-    is_dark: bool,
+    theme: AppTheme,
     font_size: f32,
 ) -> Option<Element<'a, Message>> {
     if !state.schema_visible || state.nodes.is_empty() {
@@ -109,7 +111,7 @@ pub fn render_schema<'a>(
         parts.push(
             text(format!("L{}: {}", d, summary))
                 .size(font_size * 0.75)
-                .color(dim_color(is_dark))
+                .color(dim_color(theme))
                 .into(),
         );
     }
@@ -133,7 +135,7 @@ pub fn render_schema<'a>(
 
 pub fn render_raw<'a>(
     state: &'a JsonState,
-    is_dark: bool,
+    theme: AppTheme,
     font_size: f32,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
@@ -145,7 +147,7 @@ pub fn render_raw<'a>(
     code_editor(
         &state.raw_editor,
         "json",
-        is_dark,
+        theme,
         font_size,
         mono_font,
         |action| crate::app::messages::JsonMsg::RawEdit(action).into(),

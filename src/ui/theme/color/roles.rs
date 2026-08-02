@@ -36,22 +36,24 @@ impl RoleColors {
         danger: primitive::DANGER,
     };
 
+    pub const NORD: RoleColors = RoleColors {
+        accent: primitive::NORD8,
+        accent_hover: primitive::NORD7,
+        accent_pressed: primitive::NORD9,
+        link: primitive::NORD8,
+        success: primitive::NORD14,
+        warning: primitive::NORD13,
+        danger: primitive::NORD11,
+    };
+
     pub fn palette(theme: &Theme) -> &'static RoleColors {
         match theme {
             Theme::Dark => &Self::DARK,
             _ => &Self::LIGHT,
         }
     }
-
-    pub fn palette_for(is_dark: bool) -> &'static RoleColors {
-        if is_dark { &Self::DARK } else { &Self::LIGHT }
-    }
 }
 
 pub fn palette(theme: &Theme) -> &'static RoleColors {
     RoleColors::palette(theme)
-}
-
-pub fn palette_for(is_dark: bool) -> &'static RoleColors {
-    RoleColors::palette_for(is_dark)
 }

@@ -17,13 +17,14 @@ use crate::ui::components::sidebar::{
     SIDEBAR_BORDER_WIDTH as BORDER_WIDTH, SIDEBAR_ITEM_SPACING as CHAPTER_LIST_SPACING,
     collapse_arrow, sidebar_entry_style,
 };
-use crate::ui::theme::color::base::BaseColors;
 use crate::ui::theme::color::primitive;
 
-pub fn render_chapter_sidebar<'a>(state: &'a EpubState, is_dark: bool) -> Element<'a, Message> {
-    let palette = *BaseColors::palette_for(is_dark);
+use crate::ui::theme::AppTheme;
+
+pub fn render_chapter_sidebar<'a>(state: &'a EpubState, theme: AppTheme) -> Element<'a, Message> {
+    let palette = theme.palette().base;
     let sidebar_header = build_sidebar_header(state, palette.text);
-    let chapter_list = build_sidebar_chapter_list(state, is_dark);
+    let chapter_list = build_sidebar_chapter_list(state, theme);
 
     iced::widget::opaque(
         container(
@@ -91,8 +92,8 @@ fn build_resize_button<'a>(label: &'a str, new_width: f32) -> Element<'a, Messag
     .into()
 }
 
-fn build_sidebar_chapter_list<'a>(state: &'a EpubState, is_dark: bool) -> Element<'a, Message> {
-    let palette = *BaseColors::palette_for(is_dark);
+fn build_sidebar_chapter_list<'a>(state: &'a EpubState, theme: AppTheme) -> Element<'a, Message> {
+    let palette = theme.palette().base;
     let is_light_background = palette.bg.r > 0.5;
 
     let mut entries: Vec<Element<'a, Message>> = Vec::new();
@@ -125,7 +126,7 @@ fn build_sidebar_chapter_list<'a>(state: &'a EpubState, is_dark: bool) -> Elemen
             has_children,
             is_collapsed,
             is_light_background,
-            is_dark,
+            theme,
         );
         entries.push(entry);
     }
@@ -146,7 +147,7 @@ fn build_chapter_entry<'a>(
     has_children: bool,
     is_collapsed: bool,
     is_light_background: bool,
-    is_dark: bool,
+    theme: AppTheme,
 ) -> Element<'a, Message> {
     let indent = calculate_indent(chapter.level);
     let font_weight = entry_font_weight(chapter.level);
@@ -164,7 +165,7 @@ fn build_chapter_entry<'a>(
 
     if has_children {
         let collapse_message = crate::app::messages::EpubMsg::ChapterToggleCollapse(index).into();
-        let arrow = collapse_arrow(is_collapsed, is_dark, collapse_message);
+        let arrow = collapse_arrow(is_collapsed, theme, collapse_message);
         row_content = row_content.push(arrow);
     }
 
@@ -173,8 +174,8 @@ fn build_chapter_entry<'a>(
     let entry_button = button(row_content)
         .on_press(crate::app::messages::EpubMsg::ChapterClicked(index).into())
         .width(Length::Fill)
-        .style(move |theme, status| {
-            let mut style = sidebar_entry_style(theme, status, is_active, is_dark);
+        .style(move |iced_theme, status| {
+            let mut style = sidebar_entry_style(iced_theme, status, is_active, theme);
             if let Some(color) = text_color {
                 style.text_color = color;
             }

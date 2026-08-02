@@ -51,7 +51,7 @@ pub fn view_markdown<'a>(
     blocks: &'a [Block],
     state: &'a MarkdownState,
     font_size: f32,
-    is_dark: bool,
+    theme: crate::ui::theme::AppTheme,
     font_family_mono: Option<&str>,
     max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
@@ -63,7 +63,7 @@ pub fn view_markdown<'a>(
         search_query: &state.search_query,
         active_match: state.search_match_index,
         counter: &search_counter,
-        is_dark,
+        theme,
         font_size,
         font_family: None,
         font_family_mono,
@@ -127,10 +127,10 @@ fn build_content_area<'a>(
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
     if state.toc_visible && !state.toc.is_empty() {
-        let sidebar = render_toc_sidebar(&state.toc, state, state.scroll_y, ctx.is_dark);
+        let sidebar = render_toc_sidebar(&state.toc, state, state.scroll_y, ctx.theme);
         let drag_handle = drag_handle(
             state.sidebar_resizing,
-            ctx.is_dark,
+            ctx.theme,
             Message::SidebarDragStarted,
         );
         row![sidebar, drag_handle, scroll_content]

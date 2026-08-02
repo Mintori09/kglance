@@ -1,12 +1,11 @@
 use super::style::STYLE;
 use crate::app::Message;
-use crate::ui::theme::color::markdown::MarkdownColors;
 use crate::ui::types::RenderContext;
 use iced::widget::{container, text};
 use iced::{Element, Length};
 
 pub(crate) fn render_html<'a>(html: &'a str, ctx: &RenderContext<'_>) -> Element<'a, Message> {
-    let mp = MarkdownColors::palette_for(ctx.is_dark);
+    let mp = ctx.theme.palette().markdown;
     let preview = html
         .chars()
         .take(STYLE.html.preview_truncate)

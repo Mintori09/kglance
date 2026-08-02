@@ -33,7 +33,11 @@ impl KglanceApp {
             )),
             "a" | "A" => self.handle_ctrl_a(),
             "t" => {
-                self.state.theme_dark = !self.state.theme_dark;
+                self.state.app_theme = match self.state.app_theme {
+                    crate::ui::theme::AppTheme::Dark => crate::ui::theme::AppTheme::Light,
+                    crate::ui::theme::AppTheme::Light => crate::ui::theme::AppTheme::Nord,
+                    _ => crate::ui::theme::AppTheme::Dark,
+                };
                 Some(Task::none())
             }
             "+" | "=" => self.handle_zoom_or_font(1.0),

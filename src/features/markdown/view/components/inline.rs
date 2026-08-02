@@ -40,8 +40,7 @@ fn flush_text_segment<'a>(
         return;
     }
     let segment_block_index = ctx.block_index + seg_idx + 1;
-    let default_text_color =
-        crate::ui::theme::color::base::BaseColors::palette_for(ctx.is_dark).text;
+    let default_text_color = ctx.theme.palette().base.text;
 
     let mut spans = inlines_to_spans(&inlines[start..end], span_ctx);
     if start_offset > 0 && !spans.is_empty() {
@@ -149,14 +148,14 @@ pub fn render_inlines<'a>(
     font_size: f32,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
-    let link_color = roles::palette_for(ctx.is_dark).link;
+    let link_color = ctx.theme.palette().roles.link;
     let span_ctx = SpanCtx {
         font_family: ctx.font_family,
         font_family_mono: ctx.font_family_mono,
         search_query: ctx.search_query,
         active_match: ctx.active_match,
         counter: ctx.counter,
-        is_dark: ctx.is_dark,
+        theme: ctx.theme,
     };
     let has_special = inlines.iter().any(|i| {
         matches!(
@@ -166,8 +165,7 @@ pub fn render_inlines<'a>(
     });
 
     if !has_special {
-        let default_text_color =
-            crate::ui::theme::color::base::BaseColors::palette_for(ctx.is_dark).text;
+        let default_text_color = ctx.theme.palette().base.text;
         return crate::features::markdown::view::build_selectable(
             inlines_to_spans(inlines, &span_ctx),
             font_size,

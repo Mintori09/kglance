@@ -42,14 +42,22 @@ impl BaseColors {
         rule: primitive::LIGHT_RULE,
     };
 
+    pub const NORD: BaseColors = BaseColors {
+        bg: primitive::NORD0,
+        surface: primitive::NORD1,
+        surface_raised: primitive::NORD2,
+        border: primitive::NORD3,
+        border_focus: primitive::NORD8,
+        text: primitive::NORD4,
+        text_dim: primitive::NORD3,
+        shadow: primitive::OVERLAY_SHADOW,
+        rule: primitive::NORD3,
+    };
+
     pub fn palette(theme: &Theme) -> &'static BaseColors {
         match theme {
             Theme::Dark => &Self::DARK,
             _ => &Self::LIGHT,
         }
-    }
-
-    pub fn palette_for(is_dark: bool) -> &'static BaseColors {
-        if is_dark { &Self::DARK } else { &Self::LIGHT }
     }
 }

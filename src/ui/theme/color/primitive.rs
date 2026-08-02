@@ -64,9 +64,6 @@ pub(crate) const WHITE_012: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.12);
 pub(crate) const WHITE_015: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.15);
 pub(crate) const WHITE_020: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.20);
 
-pub(crate) const WHITE_003: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.03);
-pub(crate) const BLACK_003: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.03);
-
 pub(crate) const BLACK_005: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.05);
 pub(crate) const BLACK_006: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.06);
 pub(crate) const BLACK_008: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.08);
@@ -166,11 +163,17 @@ pub(crate) const EPUB_CHAPTER_TEXT_L2_LIGHT: Color = Color::from_rgb(0.4, 0.42, 
 
 pub(crate) const OVERLAY_SHADOW: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.25);
 
-// ── Font preview ────────────────────────────────────────────────────────────
+// ── Nord Theme Palette ───────────────────────────────────────────────────────
 
-pub(crate) const FONT_TITLE_DARK: Color = Color::from_rgb(0.90, 0.90, 0.95);
-pub(crate) const FONT_META_DARK: Color = Color::from_rgb(0.65, 0.68, 0.72);
-pub(crate) const FONT_SAMPLE_DARK: Color = Color::from_rgb(0.85, 0.88, 0.92);
-pub(crate) const FONT_TITLE_LIGHT: Color = Color::from_rgb(0.10, 0.10, 0.15);
-pub(crate) const FONT_META_LIGHT: Color = Color::from_rgb(0.35, 0.38, 0.42);
-pub(crate) const FONT_SAMPLE_LIGHT: Color = Color::from_rgb(0.15, 0.18, 0.22);
+pub(crate) const NORD0: Color = Color::from_rgb(0.18, 0.20, 0.25); // #2E3440 Darkest Polar Night
+pub(crate) const NORD1: Color = Color::from_rgb(0.23, 0.26, 0.32); // #3B4252 Surface
+pub(crate) const NORD2: Color = Color::from_rgb(0.26, 0.30, 0.37); // #434C5E Raised Surface
+pub(crate) const NORD3: Color = Color::from_rgb(0.30, 0.34, 0.42); // #4C566A Border / Selection
+pub(crate) const NORD4: Color = Color::from_rgb(0.85, 0.87, 0.91); // #D8DEE9 Text
+pub(crate) const NORD7: Color = Color::from_rgb(0.56, 0.74, 0.73); // #8FBCBB Teal
+pub(crate) const NORD8: Color = Color::from_rgb(0.53, 0.75, 0.82); // #88C0D0 Ice Blue (Primary Accent)
+pub(crate) const NORD9: Color = Color::from_rgb(0.51, 0.63, 0.76); // #81A1C1 Secondary Accent
+pub(crate) const NORD11: Color = Color::from_rgb(0.75, 0.38, 0.42); // #BF616A Red / Danger
+pub(crate) const NORD13: Color = Color::from_rgb(0.92, 0.80, 0.55); // #EBCB8B Yellow
+pub(crate) const NORD14: Color = Color::from_rgb(0.64, 0.75, 0.55); // #A3BE8C Green / Success
+pub(crate) const NORD15: Color = Color::from_rgb(0.71, 0.56, 0.68); // #B48EAD Purple / Constant

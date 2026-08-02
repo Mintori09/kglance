@@ -3,8 +3,6 @@ use crate::core::PdfState;
 use crate::core::types::PdfSidebarMode;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::sidebar::{drag_handle, sidebar_entry_style};
-use crate::ui::theme::color::SidebarColors;
-use crate::ui::theme::color::base::BaseColors;
 use crate::ui::theme::tokens::spacing;
 use iced::widget::{button, column, container, image, row, text};
 use iced::{Alignment, Border, Element, Length, Padding};
@@ -22,14 +20,18 @@ const SCROLL_PANE_ID: &str = "content_scroll";
 const EMPTY_STATE_MESSAGE: &str = "No pages";
 const LOADING_MESSAGE: &str = "Loading…";
 
-pub fn view_pdf<'a>(state: &'a PdfState, font_size: f32, is_dark: bool) -> Element<'a, Message> {
+pub fn view_pdf<'a>(
+    state: &'a PdfState,
+    font_size: f32,
+    theme: crate::ui::theme::AppTheme,
+) -> Element<'a, Message> {
     let pages_view = view_pdf_pages(state, SCROLL_PANE_ID, font_size, |vp| {
         crate::app::messages::PdfMsg::Scrolled(vp).into()
     });
 
     if state.sidebar_visible {
-        let sidebar = render_pdf_sidebar(state, is_dark);
-        let d_handle = drag_handle(state.sidebar_resizing, is_dark, Message::SidebarDragStarted);
+        let sidebar = render_pdf_sidebar(state, theme);
+        let d_handle = drag_handle(state.sidebar_resizing, theme, Message::SidebarDragStarted);
         row![sidebar, d_handle, pages_view]
             .spacing(0)
             .height(Length::Fill)
@@ -73,15 +75,18 @@ pub fn view_pdf_pages<'a>(
         .build()
 }
 
-fn render_pdf_sidebar<'a>(state: &'a PdfState, is_dark: bool) -> Element<'a, Message> {
-    let tabs = render_sidebar_tabs(state.sidebar_mode, is_dark);
+fn render_pdf_sidebar<'a>(
+    state: &'a PdfState,
+    theme: crate::ui::theme::AppTheme,
+) -> Element<'a, Message> {
+    let tabs = render_sidebar_tabs(state.sidebar_mode, theme);
 
     let content: Element<'a, Message> = match state.sidebar_mode {
-        PdfSidebarMode::Thumbnails => render_thumbnails_list(state, is_dark),
-        PdfSidebarMode::Toc => render_toc_list(state, is_dark),
+        PdfSidebarMode::Thumbnails => render_thumbnails_list(state, theme),
+        PdfSidebarMode::Toc => render_toc_list(state, theme),
     };
 
-    let p = BaseColors::palette_for(is_dark);
+    let p = theme.palette().base;
     let sidebar_container = column![tabs, content]
         .width(state.sidebar_width)
         .height(Length::Fill);
@@ -102,7 +107,10 @@ fn render_pdf_sidebar<'a>(state: &'a PdfState, is_dark: bool) -> Element<'a, Mes
     )
 }
 
-fn render_sidebar_tabs<'a>(active_mode: PdfSidebarMode, is_dark: bool) -> Element<'a, Message> {
+fn render_sidebar_tabs<'a>(
+    active_mode: PdfSidebarMode,
+    theme: crate::ui::theme::AppTheme,
+) -> Element<'a, Message> {
     let thumbs_btn = button(
         container(
             row![text("🖼").size(12), text("Thumbs").size(11)]
@@ -113,12 +121,12 @@ fn render_sidebar_tabs<'a>(active_mode: PdfSidebarMode, is_dark: bool) -> Elemen
     )
     .on_press(crate::app::messages::PdfMsg::SetSidebarMode(PdfSidebarMode::Thumbnails).into())
     .width(Length::Fill)
-    .style(move |theme, status| {
+    .style(move |iced_theme, status| {
         sidebar_entry_style(
-            theme,
+            iced_theme,
             status,
             active_mode == PdfSidebarMode::Thumbnails,
-            is_dark,
+            theme,
         )
     })
     .padding([6, 10]);
@@ -133,8 +141,13 @@ fn render_sidebar_tabs<'a>(active_mode: PdfSidebarMode, is_dark: bool) -> Elemen
     )
     .on_press(crate::app::messages::PdfMsg::SetSidebarMode(PdfSidebarMode::Toc).into())
     .width(Length::Fill)
-    .style(move |theme, status| {
-        sidebar_entry_style(theme, status, active_mode == PdfSidebarMode::Toc, is_dark)
+    .style(move |iced_theme, status| {
+        sidebar_entry_style(
+            iced_theme,
+            status,
+            active_mode == PdfSidebarMode::Toc,
+            theme,
+        )
     })
     .padding([6, 10]);
 
@@ -148,7 +161,10 @@ fn render_sidebar_tabs<'a>(active_mode: PdfSidebarMode, is_dark: bool) -> Elemen
     .into()
 }
 
-fn render_thumbnails_list<'a>(state: &'a PdfState, is_dark: bool) -> Element<'a, Message> {
+fn render_thumbnails_list<'a>(
+    state: &'a PdfState,
+    theme: crate::ui::theme::AppTheme,
+) -> Element<'a, Message> {
     let current_page = state
         .visible_page
         .load(std::sync::atomic::Ordering::Relaxed);
@@ -157,7 +173,7 @@ fn render_thumbnails_list<'a>(state: &'a PdfState, is_dark: bool) -> Element<'a,
 
     for page_idx in 0..state.page_count {
         let is_active = page_idx == current_page;
-        let thumb_item = render_thumb_item(state, page_idx, is_active, is_dark);
+        let thumb_item = render_thumb_item(state, page_idx, is_active, theme);
         thumbs_col = thumbs_col.push(thumb_item);
     }
 
@@ -168,7 +184,7 @@ fn render_thumb_item<'a>(
     state: &'a PdfState,
     page_idx: usize,
     is_active: bool,
-    is_dark: bool,
+    theme: crate::ui::theme::AppTheme,
 ) -> Element<'a, Message> {
     let thumb_width = (state.sidebar_width - 24.0).clamp(100.0, 360.0);
 
@@ -192,12 +208,8 @@ fn render_thumb_item<'a>(
             .into()
     };
 
-    let badge_bg = if is_dark {
-        iced::Color::from_rgba(0.0, 0.0, 0.0, 0.65)
-    } else {
-        iced::Color::from_rgba(1.0, 1.0, 1.0, 0.85)
-    };
-    let badge_text_color = BaseColors::palette_for(is_dark).text;
+    let badge_bg = theme.palette().base.surface;
+    let badge_text_color = theme.palette().base.text;
 
     let page_badge = container(text(format!("{}", page_idx + 1)).size(10).style(move |_| {
         iced::widget::text::Style {
@@ -224,7 +236,7 @@ fn render_thumb_item<'a>(
     ];
 
     let border_color = if is_active {
-        SidebarColors::palette_for(is_dark).active_text
+        theme.palette().sidebar.active_text
     } else {
         iced::Color::TRANSPARENT
     };
@@ -233,8 +245,8 @@ fn render_thumb_item<'a>(
     button(card_stack)
         .on_press(crate::app::messages::PdfMsg::ThumbnailClicked(page_idx).into())
         .width(Length::Fill)
-        .style(move |theme, status| {
-            let mut style = sidebar_entry_style(theme, status, is_active, is_dark);
+        .style(move |iced_theme, status| {
+            let mut style = sidebar_entry_style(iced_theme, status, is_active, theme);
             style.border = Border {
                 radius: 6.0.into(),
                 width: border_width,
@@ -246,7 +258,10 @@ fn render_thumb_item<'a>(
         .into()
 }
 
-fn render_toc_list<'a>(state: &'a PdfState, is_dark: bool) -> Element<'a, Message> {
+fn render_toc_list<'a>(
+    state: &'a PdfState,
+    theme: crate::ui::theme::AppTheme,
+) -> Element<'a, Message> {
     if state.outline.is_empty() {
         return container(text("No TOC available").size(12))
             .padding(12)
@@ -273,7 +288,9 @@ fn render_toc_list<'a>(state: &'a PdfState, is_dark: bool) -> Element<'a, Messag
         let btn = button(label)
             .on_press(crate::app::messages::PdfMsg::TocItemClicked(entry.page).into())
             .width(Length::Fill)
-            .style(move |theme, status| sidebar_entry_style(theme, status, is_active, is_dark))
+            .style(move |iced_theme, status| {
+                sidebar_entry_style(iced_theme, status, is_active, theme)
+            })
             .padding([4, 6]);
 
         let row_item = container(btn)

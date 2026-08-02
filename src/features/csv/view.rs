@@ -1,8 +1,9 @@
 use crate::app::Message;
 use crate::core::SpreadsheetState;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
-use crate::ui::theme::color::primitive::{BLACK_003, WHITE_003};
-use crate::ui::theme::{default_button, default_button_primary, default_card, default_scrollable};
+use crate::ui::theme::{
+    AppTheme, default_button, default_button_primary, default_card, default_scrollable,
+};
 use iced::widget::{button, column, container, row, scrollable, text};
 use iced::{Element, Length, Theme};
 
@@ -27,12 +28,12 @@ const DATA_ROW_INNER_PADDING: u16 = 3;
 
 const EMPTY_STATE_MESSAGE: &str = "No data";
 
-pub fn view_spreadsheet<'a>(state: &'a SpreadsheetState) -> Element<'a, Message> {
+pub fn view_spreadsheet<'a>(state: &'a SpreadsheetState, theme: AppTheme) -> Element<'a, Message> {
     let active_sheet = state.sheets.get(state.active_sheet);
 
     let tabs_bar = render_sheet_tabs(&state.sheets, state.active_sheet);
     let content_body = match active_sheet {
-        Some(sheet) => render_spreadsheet_body(state, sheet),
+        Some(sheet) => render_spreadsheet_body(state, sheet, theme),
         None => render_empty_state(),
     };
 
@@ -71,12 +72,13 @@ fn render_sheet_tabs<'a>(
 fn render_spreadsheet_body<'a>(
     state: &'a SpreadsheetState,
     sheet: &'a crate::core::SheetInfo,
+    theme: AppTheme,
 ) -> Element<'a, Message> {
     let filtered_rows = filter_rows(&sheet.rows, &state.search_query);
     let sorted_rows = sort_rows(filtered_rows, state.sort_col, state.sort_ascending);
 
     let header = render_table_header(&sheet.headers, state.sort_col, state.sort_ascending);
-    let rows_list = render_table_rows(&sorted_rows, sheet.headers.len());
+    let rows_list = render_table_rows(&sorted_rows, sheet.headers.len(), theme);
 
     let scrollable_area = scrollable(rows_list)
         .style(default_scrollable)
@@ -123,7 +125,11 @@ fn render_table_header<'a>(
         .into()
 }
 
-fn render_table_rows<'a>(rows: &[&'a Vec<String>], column_count: usize) -> Element<'a, Message> {
+fn render_table_rows<'a>(
+    rows: &[&'a Vec<String>],
+    column_count: usize,
+    theme: AppTheme,
+) -> Element<'a, Message> {
     let mut rows_list = column![].spacing(ROWS_LIST_SPACING);
 
     for (row_index, row_data) in rows.iter().enumerate() {
@@ -146,7 +152,7 @@ fn render_table_rows<'a>(rows: &[&'a Vec<String>], column_count: usize) -> Eleme
         }
 
         let is_even_row = row_index % 2 == 0;
-        let row_container = container(row_widget).style(move |theme: &Theme| {
+        let row_container = container(row_widget).style(move |_: &Theme| {
             if is_even_row {
                 apply_even_row_style(theme)
             } else {
@@ -216,12 +222,9 @@ fn get_sort_indicator(
     }
 }
 
-fn apply_even_row_style(theme: &Theme) -> container::Style {
-    let is_dark_theme = matches!(theme, Theme::Dark);
-    let background_color = if is_dark_theme { WHITE_003 } else { BLACK_003 };
-
+fn apply_even_row_style(theme: AppTheme) -> container::Style {
     container::Style {
-        background: Some(background_color.into()),
+        background: Some(theme.palette().base.surface.into()),
         ..container::Style::default()
     }
 }

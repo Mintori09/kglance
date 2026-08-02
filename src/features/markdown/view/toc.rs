@@ -3,15 +3,16 @@ use crate::core::{MarkdownState, TocEntry};
 use crate::features::markdown::view::components::style::STYLE;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::sidebar::{collapse_arrow, sidebar_entry_style};
-use crate::ui::theme::color::base::BaseColors;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Padding};
+
+use crate::ui::theme::AppTheme;
 
 pub fn render_toc_sidebar<'a>(
     toc: &'a [TocEntry],
     state: &'a MarkdownState,
     scroll_y: f32,
-    is_dark: bool,
+    theme: AppTheme,
 ) -> Element<'a, Message> {
     let active_block_index = find_active_block_index(toc, scroll_y);
     let visible_entries = filter_visible_entries(toc, state);
@@ -23,11 +24,11 @@ pub fn render_toc_sidebar<'a>(
             let has_children = entry_has_children(toc, entry);
             let is_collapsed = state.collapsed_headings.contains(&entry.block_index);
 
-            render_toc_entry(entry, is_active, has_children, is_collapsed, is_dark)
+            render_toc_entry(entry, is_active, has_children, is_collapsed, theme)
         })
         .collect();
 
-    let (background_color, border_color) = get_sidebar_theme_colors(is_dark);
+    let (background_color, border_color) = get_sidebar_theme_colors(theme);
 
     let content = column![
         scroll_pane(
@@ -96,14 +97,14 @@ fn render_toc_entry<'a>(
     is_active: bool,
     has_children: bool,
     is_collapsed: bool,
-    is_dark: bool,
+    theme: AppTheme,
 ) -> Element<'a, Message> {
     let indent_amount = (entry.level as f32 - 1.0) * STYLE.toc.indent_per_level;
 
     let leading_control: Element<'a, Message> = if has_children {
         collapse_arrow(
             is_collapsed,
-            is_dark,
+            theme,
             crate::app::messages::MarkdownMsg::TocToggleCollapse(entry.block_index).into(),
         )
     } else {
@@ -116,7 +117,7 @@ fn render_toc_entry<'a>(
     let heading_button = button(heading_label)
         .on_press(crate::app::messages::MarkdownMsg::TocHeadingClicked(entry.block_index).into())
         .width(Length::Fill)
-        .style(move |theme, status| sidebar_entry_style(theme, status, is_active, is_dark))
+        .style(move |iced_theme, status| sidebar_entry_style(iced_theme, status, is_active, theme))
         .padding(STYLE.toc.entry_padding);
 
     let item_row = row![leading_control, heading_button]
@@ -134,7 +135,7 @@ fn render_toc_entry<'a>(
         .into()
 }
 
-fn get_sidebar_theme_colors(is_dark: bool) -> (iced::Color, iced::Color) {
-    let p = BaseColors::palette_for(is_dark);
+fn get_sidebar_theme_colors(theme: AppTheme) -> (iced::Color, iced::Color) {
+    let p = theme.palette().base;
     (p.bg, p.border)
 }

@@ -27,10 +27,12 @@ fn syntect_to_iced_color(c: syntect::highlighting::Color) -> Color {
     )
 }
 
+use crate::ui::theme::AppTheme;
+
 pub(crate) fn highlight_code<'a>(
     lang: &Option<String>,
     code: &'a str,
-    is_dark: bool,
+    app_theme: AppTheme,
 ) -> Vec<Vec<(Color, &'a str)>> {
     let ss = syntax_set();
     let ts = theme_set();
@@ -40,18 +42,18 @@ pub(crate) fn highlight_code<'a>(
         .and_then(|l| ss.find_syntax_by_token(l))
         .unwrap_or_else(|| ss.find_syntax_plain_text());
 
-    let theme_name = if is_dark {
+    let theme_name = if app_theme.is_dark() {
         "base16-eighties.dark"
     } else {
         "InspiredGitHub"
     };
 
-    let theme = ts
+    let syntect_theme = ts
         .themes
         .get(theme_name)
         .unwrap_or_else(|| &ts.themes["base16-ocean.dark"]);
 
-    let mut highlighter = HighlightLines::new(syntax, theme);
+    let mut highlighter = HighlightLines::new(syntax, syntect_theme);
     let mut result = Vec::new();
 
     for line in LinesWithEndings::from(code) {
@@ -60,12 +62,12 @@ pub(crate) fn highlight_code<'a>(
             .unwrap_or_else(|_| vec![]);
 
         if ranges.is_empty() {
-            let fg = theme
+            let fg = syntect_theme
                 .settings
                 .foreground
                 .map(syntect_to_iced_color)
                 .unwrap_or_else(|| {
-                    if is_dark {
+                    if app_theme.is_dark() {
                         MD_DARK_CODE_FG
                     } else {
                         MD_LIGHT_CODE_FG
