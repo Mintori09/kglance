@@ -634,3 +634,54 @@ impl KglanceApp {
         self.theme()
     }
 }
+
+#[cfg(test)]
+pub(crate) mod test_util {
+    use super::*;
+
+    pub fn test_app(content: Option<PreviewData>) -> KglanceApp {
+        let registry = std::sync::Arc::new(crate::parsers::ParserRegistry::new());
+        KglanceApp {
+            state: KglanceState::default(),
+            registry,
+            daemon_rx: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            is_daemon: false,
+            window_id: None,
+            current_content: content,
+            video_tx: None,
+            video_rx: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            video_controller: None,
+            ctrl_held: false,
+            shift_held: false,
+            pending_g: false,
+            pending_home: false,
+            file_watcher: None,
+        }
+    }
+
+    pub fn markdown_content(md: &str) -> PreviewData {
+        PreviewData::Markdown {
+            blocks: crate::parsers::markdown::parse_to_blocks(md),
+            raw_text: md.to_string(),
+        }
+    }
+
+    pub fn epub_content(chapter_texts: &[&str]) -> PreviewData {
+        let chapters = chapter_texts
+            .iter()
+            .map(|t| crate::core::types::EpubChapterInfo {
+                title: t.to_string(),
+                level: 1,
+                anchor: None,
+                blocks: crate::parsers::markdown::parse_to_blocks(t),
+            })
+            .collect();
+        PreviewData::Epub {
+            title: "Test EPUB".to_string(),
+            author: String::new(),
+            chapters,
+            active_chapter: 0,
+            images: std::collections::HashMap::new(),
+        }
+    }
+}

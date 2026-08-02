@@ -5,6 +5,22 @@ use crate::parsers::markdown::Block;
 use iced::Task;
 use iced::widget::operation;
 
+pub(crate) fn active_markdown_state(app: &KglanceApp) -> &crate::core::MarkdownState {
+    if matches!(app.current_content, Some(PreviewData::Epub { .. })) {
+        &app.state.epub.markdown_state
+    } else {
+        &app.state.markdown
+    }
+}
+
+pub(crate) fn active_markdown_state_mut(app: &mut KglanceApp) -> &mut crate::core::MarkdownState {
+    if matches!(app.current_content, Some(PreviewData::Epub { .. })) {
+        &mut app.state.epub.markdown_state
+    } else {
+        &mut app.state.markdown
+    }
+}
+
 fn markdown_block_y_offset(
     blocks: &[Block],
     target_index: usize,
@@ -206,7 +222,7 @@ pub fn handle_search_closed(app: &mut KglanceApp) -> Task<Message> {
 }
 
 pub fn handle_selection_changed(app: &mut KglanceApp, selected: Option<String>) -> Task<Message> {
-    app.state.markdown.selected_text = selected;
+    active_markdown_state_mut(app).selected_text = selected;
     Task::none()
 }
 
@@ -215,13 +231,14 @@ pub fn handle_selection_drag_start(
     block: usize,
     offset: usize,
 ) -> Task<Message> {
+    let s = active_markdown_state_mut(app);
     let start_pt = crate::core::SelectionPoint { block, offset };
-    app.state.markdown.selection_range = Some(crate::core::SelectionRange {
+    s.selection_range = Some(crate::core::SelectionRange {
         start: start_pt,
         end: start_pt,
     });
-    app.state.markdown.is_dragging_selection = true;
-    app.state.markdown.selected_text = None;
+    s.is_dragging_selection = true;
+    s.selected_text = None;
     Task::none()
 }
 
@@ -231,29 +248,34 @@ pub fn handle_selection_drag_update(
     offset: usize,
 ) -> Task<Message> {
     let pt = crate::core::SelectionPoint { block, offset };
-    if app.state.markdown.selection_range.is_none() {
-        app.state.markdown.selection_range =
-            Some(crate::core::SelectionRange { start: pt, end: pt });
-        app.state.markdown.is_dragging_selection = true;
-    } else if let Some(range) = &mut app.state.markdown.selection_range {
+    let existed = active_markdown_state(app).selection_range.is_some();
+    let s = active_markdown_state_mut(app);
+    if s.selection_range.is_none() {
+        s.selection_range = Some(crate::core::SelectionRange { start: pt, end: pt });
+        s.is_dragging_selection = true;
+    } else if let Some(range) = &mut s.selection_range {
         range.end = pt;
+    }
+    if existed {
         update_selected_text_from_range(app);
     }
     Task::none()
 }
 
 pub fn handle_selection_drag_end(app: &mut KglanceApp) -> Task<Message> {
-    app.state.markdown.is_dragging_selection = false;
-    app.state.markdown.auto_scroll_delta = None;
+    let s = active_markdown_state_mut(app);
+    s.is_dragging_selection = false;
+    s.auto_scroll_delta = None;
     update_selected_text_from_range(app);
     Task::none()
 }
 
 pub fn handle_selection_clear(app: &mut KglanceApp) -> Task<Message> {
-    app.state.markdown.selection_range = None;
-    app.state.markdown.is_dragging_selection = false;
-    app.state.markdown.auto_scroll_delta = None;
-    app.state.markdown.selected_text = None;
+    let s = active_markdown_state_mut(app);
+    s.selection_range = None;
+    s.is_dragging_selection = false;
+    s.auto_scroll_delta = None;
+    s.selected_text = None;
     Task::none()
 }
 
@@ -320,8 +342,9 @@ pub fn handle_auto_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
 }
 
 fn update_selected_text_from_range(app: &mut KglanceApp) {
-    let Some(range) = app.state.markdown.selection_range else {
-        app.state.markdown.selected_text = None;
+    let range = active_markdown_state(app).selection_range;
+    let Some(range) = range else {
+        active_markdown_state_mut(app).selected_text = None;
         return;
     };
     let blocks_vec: Vec<Block> = match &app.current_content {
@@ -330,11 +353,11 @@ fn update_selected_text_from_range(app: &mut KglanceApp) {
             chapters.iter().flat_map(|ch| ch.blocks.clone()).collect()
         }
         _ => {
-            app.state.markdown.selected_text = None;
+            active_markdown_state_mut(app).selected_text = None;
             return;
         }
     };
-    app.state.markdown.selected_text = build_selected_text(&blocks_vec, range);
+    active_markdown_state_mut(app).selected_text = build_selected_text(&blocks_vec, range);
 }
 
 struct CopyLine {
@@ -779,7 +802,11 @@ fn collect_quote_plain_texts(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_selected_text, char_boundary};
+    use super::{
+        build_selected_text, char_boundary, handle_selection_changed, handle_selection_clear,
+        handle_selection_drag_end, handle_selection_drag_start, handle_selection_drag_update,
+    };
+    use crate::app::test_util::{epub_content, markdown_content, test_app};
     use crate::core::{SelectionPoint, SelectionRange};
     use crate::parsers::markdown::parse_to_blocks;
 
@@ -965,5 +992,78 @@ mod tests {
 
         let sel = build_selected_text(&blocks, range(2, 0, 4, 2));
         assert_eq!(sel.as_deref(), Some("a \n b"));
+    }
+
+    #[test]
+    fn markdown_drag_start_uses_markdown_state() {
+        let mut app = test_app(Some(markdown_content("Xin chào")));
+        let _ = handle_selection_drag_start(&mut app, 0, 3);
+        let range = app
+            .state
+            .markdown
+            .selection_range
+            .expect("markdown range set");
+        assert_eq!(
+            range.start,
+            SelectionPoint {
+                block: 0,
+                offset: 3
+            }
+        );
+        assert!(app.state.epub.markdown_state.selection_range.is_none());
+    }
+
+    #[test]
+    fn epub_drag_start_uses_epub_state() {
+        let mut app = test_app(Some(epub_content(&["Xin chào"])));
+        let _ = handle_selection_drag_start(&mut app, 0, 3);
+        assert!(app.state.markdown.selection_range.is_none());
+        let range = app
+            .state
+            .epub
+            .markdown_state
+            .selection_range
+            .expect("epub range set");
+        assert_eq!(
+            range.start,
+            SelectionPoint {
+                block: 0,
+                offset: 3
+            }
+        );
+        assert!(app.state.epub.markdown_state.is_dragging_selection);
+    }
+
+    #[test]
+    fn epub_selection_across_chapters_reconstructs_text() {
+        let mut app = test_app(Some(epub_content(&["dòng một", "dòng hai"])));
+        let _ = handle_selection_drag_start(&mut app, 0, 0);
+        let _ = handle_selection_drag_update(&mut app, 1000, "dòng hai".len());
+        let _ = handle_selection_drag_end(&mut app);
+        assert_eq!(
+            app.state.epub.markdown_state.selected_text.as_deref(),
+            Some("dòng một\ndòng hai")
+        );
+        assert!(app.state.markdown.selected_text.is_none());
+    }
+
+    #[test]
+    fn epub_selection_clear_clears_epub_state() {
+        let mut app = test_app(Some(epub_content(&["hello"])));
+        let _ = handle_selection_drag_start(&mut app, 0, 1);
+        let _ = handle_selection_clear(&mut app);
+        assert!(app.state.epub.markdown_state.selection_range.is_none());
+        assert!(!app.state.epub.markdown_state.is_dragging_selection);
+    }
+
+    #[test]
+    fn epub_selection_changed_routes_to_epub_state() {
+        let mut app = test_app(Some(epub_content(&["hello"])));
+        let _ = handle_selection_changed(&mut app, Some("hello".to_string()));
+        assert_eq!(
+            app.state.epub.markdown_state.selected_text.as_deref(),
+            Some("hello")
+        );
+        assert!(app.state.markdown.selected_text.is_none());
     }
 }
