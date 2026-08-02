@@ -5,4 +5,3 @@ pub mod view;
 pub use parser::*;
 pub use update::*;
 pub use view::view_spreadsheet;
-

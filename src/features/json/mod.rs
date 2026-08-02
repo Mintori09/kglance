@@ -6,4 +6,3 @@ pub use parser::types::*;
 pub use parser::*;
 pub use update::*;
 pub use view::view_json;
-

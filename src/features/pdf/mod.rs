@@ -7,4 +7,3 @@ pub use parser::*;
 pub use types::*;
 pub use update::*;
 pub use view::view_pdf;
-

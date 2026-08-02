@@ -1,7 +1,7 @@
-use crate::features::markdown::update as markdown;
-use crate::features::pdf::update::active_pdf_state_mut;
 use crate::app::KglanceApp;
 use crate::app::messages::Message;
+use crate::features::markdown::update as markdown;
+use crate::features::pdf::update::active_pdf_state_mut;
 use iced::Task;
 
 pub fn handle_copy_code(app: &mut KglanceApp, code: String) -> Task<Message> {
@@ -21,16 +21,6 @@ pub fn handle_theme_toggled(app: &mut KglanceApp) -> Task<Message> {
 
 pub fn handle_toast_dismissed(app: &mut KglanceApp, id: u64) -> Task<Message> {
     app.state.toasts.retain(|t| t.id != id);
-    Task::none()
-}
-
-pub fn handle_text_edit(
-    app: &mut KglanceApp,
-    action: iced::widget::text_editor::Action,
-) -> Task<Message> {
-    if !matches!(action, iced::widget::text_editor::Action::Edit(_)) {
-        app.state.text.content.perform(action);
-    }
     Task::none()
 }
 
@@ -152,11 +142,6 @@ fn apply_sidebar_drag(
     }
 }
 
-pub fn handle_text_scrolled(app: &mut KglanceApp, y: f32) -> Task<Message> {
-    app.state.text.scroll_y = y;
-    Task::none()
-}
-
 pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32) -> Task<Message> {
     app.state.current_window_size.width = width;
     app.state.current_window_size.height = height;
@@ -167,7 +152,7 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
 mod tests {
     use super::*;
     use crate::app::test_util::{epub_content, test_app};
-    use crate::app::update::markdown::handle_selection_drag_start;
+    use crate::features::markdown::update::handle_selection_drag_start;
 
     #[test]
     fn drag_start_sets_resizing_and_clears_anchor() {
