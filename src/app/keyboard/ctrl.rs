@@ -66,7 +66,10 @@ impl KglanceApp {
             use iced::widget::text_editor::Action;
             self.state.text.content.perform(Action::SelectAll);
             Some(Task::none())
-        } else if matches!(self.current_content, Some(PreviewData::Markdown { .. })) {
+        } else if matches!(
+            self.current_content,
+            Some(PreviewData::Markdown { .. }) | Some(PreviewData::Epub { .. })
+        ) {
             Some(crate::app::update::markdown::handle_select_all(self))
         } else {
             None
@@ -92,8 +95,13 @@ impl KglanceApp {
                 let toast = self.show_toast("Copied selected!");
                 Some(Task::batch(vec![iced::clipboard::write(selection), toast]))
             }
-        } else if matches!(self.current_content, Some(PreviewData::Markdown { .. })) {
-            let selected_text = self.state.markdown.selected_text.clone();
+        } else if matches!(
+            self.current_content,
+            Some(PreviewData::Markdown { .. }) | Some(PreviewData::Epub { .. })
+        ) {
+            let selected_text = crate::app::update::markdown::active_markdown_state(self)
+                .selected_text
+                .clone();
             if let Some(text) = selected_text
                 && !text.is_empty()
             {
@@ -199,5 +207,33 @@ impl KglanceApp {
             }
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::app::test_util::{epub_content, test_app};
+
+    #[test]
+    fn ctrl_a_selects_all_for_epub() {
+        let mut app = test_app(Some(epub_content(&["a", "b"])));
+        let task = app.handle_ctrl_a();
+        assert!(task.is_some());
+        assert!(app.state.epub.markdown_state.selection_range.is_some());
+    }
+
+    #[test]
+    fn ctrl_c_copies_epub_selection() {
+        let mut app = test_app(Some(epub_content(&["hello"])));
+        app.state.epub.markdown_state.selected_text = Some("hello".to_string());
+        let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+        let _guard = runtime.enter();
+        assert!(app.handle_ctrl_copy().is_some());
+    }
+
+    #[test]
+    fn ctrl_c_returns_none_without_selection() {
+        let mut app = test_app(Some(epub_content(&["hello"])));
+        assert!(app.handle_ctrl_copy().is_none());
     }
 }

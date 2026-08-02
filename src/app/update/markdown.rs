@@ -280,13 +280,17 @@ pub fn handle_selection_clear(app: &mut KglanceApp) -> Task<Message> {
 }
 
 pub fn handle_select_all(app: &mut KglanceApp) -> Task<Message> {
-    let Some(PreviewData::Markdown { blocks, .. }) = &app.current_content else {
-        return Task::none();
+    let blocks_vec: Vec<Block> = match &app.current_content {
+        Some(PreviewData::Markdown { blocks, .. }) => blocks.clone(),
+        Some(PreviewData::Epub { chapters, .. }) => {
+            chapters.iter().flat_map(|ch| ch.blocks.clone()).collect()
+        }
+        _ => return Task::none(),
     };
-    if blocks.is_empty() {
+    if blocks_vec.is_empty() {
         return Task::none();
     }
-    let lines = collect_indexed_lines(blocks);
+    let lines = collect_indexed_lines(&blocks_vec);
     let Some((&last_block, _)) = lines.last_key_value() else {
         return Task::none();
     };
@@ -300,10 +304,11 @@ pub fn handle_select_all(app: &mut KglanceApp) -> Task<Message> {
             offset: 999_999,
         },
     };
-    app.state.markdown.selection_range = Some(range);
-    app.state.markdown.is_dragging_selection = false;
-    app.state.markdown.auto_scroll_delta = None;
-    app.state.markdown.selected_text = build_selected_text(blocks, range);
+    let s = active_markdown_state_mut(app);
+    s.selection_range = Some(range);
+    s.is_dragging_selection = false;
+    s.auto_scroll_delta = None;
+    s.selected_text = build_selected_text(&blocks_vec, range);
     Task::none()
 }
 
@@ -807,8 +812,8 @@ fn collect_quote_plain_texts(
 mod tests {
     use super::{
         build_selected_text, char_boundary, handle_auto_scroll_tick, handle_markdown_scrolled,
-        handle_selection_changed, handle_selection_clear, handle_selection_drag_end,
-        handle_selection_drag_start, handle_selection_drag_update,
+        handle_select_all, handle_selection_changed, handle_selection_clear,
+        handle_selection_drag_end, handle_selection_drag_start, handle_selection_drag_update,
     };
     use crate::app::test_util::{epub_content, markdown_content, test_app};
     use crate::core::{SelectionPoint, SelectionRange};
@@ -1101,5 +1106,30 @@ mod tests {
         let mut app = test_app(Some(markdown_content("# t")));
         let _ = handle_markdown_scrolled(&mut app, 7.0);
         assert_eq!(app.state.markdown.scroll_y, 7.0);
+    }
+
+    #[test]
+    fn epub_select_all_selects_entire_epub() {
+        let mut app = test_app(Some(epub_content(&["# Tiêu đề", "Đoạn hai"])));
+        let _ = handle_select_all(&mut app);
+        let range = app
+            .state
+            .epub
+            .markdown_state
+            .selection_range
+            .expect("range");
+        assert_eq!(range.start.block, 0);
+        assert_eq!(range.start.offset, 0);
+        assert_eq!(range.end.block, 1000);
+        let text = app
+            .state
+            .epub
+            .markdown_state
+            .selected_text
+            .clone()
+            .expect("text");
+        assert!(text.contains("Tiêu đề"));
+        assert!(text.contains("Đoạn hai"));
+        assert!(app.state.markdown.selected_text.is_none());
     }
 }
