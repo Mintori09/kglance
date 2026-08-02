@@ -35,10 +35,10 @@ impl super::KglanceApp {
         }
 
         if matches!(key, iced::keyboard::Key::Named(Named::Tab)) {
-            let is_video = self.state.media.has_video;
-            if self.is_epub_content() || is_video {
-                return Task::none();
-            }
+            // let is_video = self.state.media.has_video;
+            // if self.is_epub_content() || is_video {
+            //     return Task::none();
+            // }
             return self.update(crate::app::messages::NavigationMsg::ToggleViewMode.into());
         }
 
