@@ -603,7 +603,10 @@ impl KglanceApp {
             Subscription::none()
         };
 
-        let auto_scroll_sub = if self.state.markdown.auto_scroll_delta.is_some() {
+        let auto_scroll_sub = if crate::app::update::markdown::active_markdown_state(self)
+            .auto_scroll_delta
+            .is_some()
+        {
             iced::time::every(std::time::Duration::from_millis(16))
                 .map(|_| crate::app::messages::MarkdownMsg::AutoScrollTick.into())
         } else {
