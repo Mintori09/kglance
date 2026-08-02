@@ -1,7 +1,8 @@
 use crate::app::Message;
 use crate::core::types::GridThumbnail;
-use crate::features::folder::grid::calculate::truncate_middle;
-use crate::features::folder::grid::constants::*;
+use crate::features::grid::calculate::truncate_middle;
+use crate::features::grid::constants::*;
+
 use crate::ui::theme::icon_theme::icon_for_entry;
 use crate::ui::theme::{default_grid_card, icon_theme};
 

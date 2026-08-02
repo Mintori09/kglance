@@ -158,7 +158,6 @@ fn test_config_dir_format() {
     );
 }
 
-
 #[test]
 fn test_save_load_and_create_default() {
     with_temp_config_dir(|_tmp| {

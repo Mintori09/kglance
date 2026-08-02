@@ -1,10 +1,8 @@
 use crate::app::Message;
 use crate::core::types::GridThumbnail;
-use crate::features::folder::grid::calculate::{
-    calculate_column_count, calculate_horizontal_padding,
-};
-use crate::features::folder::grid::card::create_grid_card;
-use crate::features::folder::grid::constants::ScaledDimensions;
+use crate::features::grid::calculate::{calculate_column_count, calculate_horizontal_padding};
+use crate::features::grid::card::create_grid_card;
+use crate::features::grid::constants::ScaledDimensions;
 
 use iced::widget::{column, responsive, row, scrollable};
 use iced::{Element, Length};

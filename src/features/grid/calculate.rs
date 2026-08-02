@@ -1,4 +1,4 @@
-use crate::features::folder::grid::constants::ELLIPSIS;
+use crate::features::grid::constants::ELLIPSIS;
 
 pub fn calculate_column_count(container_width: f32, item_width: f32, gap: f32) -> usize {
     ((container_width - gap) / (item_width + gap))
