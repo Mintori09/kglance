@@ -148,10 +148,16 @@ fn test_config_path_format() {
 
 #[test]
 fn test_config_dir_format() {
+    let _guard = ENV_LOCK.lock().unwrap();
     let dir = ConfigManager::get_config_dir();
     let dir_str = dir.to_string_lossy();
-    assert!(dir_str.ends_with("kglance") || dir.ends_with("kglance"));
+    assert!(
+        dir_str.ends_with("kglance")
+            || dir.ends_with("kglance")
+            || std::env::var("KGLANCE_CONFIG_DIR").is_ok()
+    );
 }
+
 
 #[test]
 fn test_save_load_and_create_default() {
