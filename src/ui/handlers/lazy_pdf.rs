@@ -9,7 +9,7 @@ use iced::futures::channel::mpsc::Sender;
 use iced::futures::future::join_all;
 
 use crate::app::Message;
-use crate::parsers::PageData;
+use crate::features::pdf::types::PageData;
 use crate::parsers::pdf::render_pdf_page;
 
 pub const PRELOAD_RADIUS: usize = 15;

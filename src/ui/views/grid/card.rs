@@ -1,6 +1,6 @@
 use crate::app::Message;
 use crate::core::types::GridThumbnail;
-use crate::parsers::helpers::icon::icon_for_entry;
+use crate::ui::theme::icon_theme::icon_for_entry;
 use crate::ui::theme::{default_grid_card, icon_theme};
 use crate::ui::views::grid::calculate::truncate_middle;
 use crate::ui::views::grid::constants::*;

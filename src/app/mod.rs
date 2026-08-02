@@ -7,6 +7,7 @@ pub mod update;
 
 mod window;
 
+use crate::features::markdown::Block;
 use iced::Subscription;
 use iced::window as iced_window;
 use iced::{Element, Task, Theme};
@@ -19,8 +20,7 @@ use tokio::sync::mpsc;
 
 use crate::core::{FilePreviewer, KglanceState, PreviewData};
 use crate::dbus::DaemonCommand;
-use crate::parsers::ParserRegistry;
-use crate::parsers::markdown::Block;
+use crate::features::common::parser::traits::ParserRegistry;
 use crate::{log_debug, log_info};
 
 pub struct KglanceApp {
@@ -632,7 +632,7 @@ pub(crate) mod test_util {
     use super::*;
 
     pub fn test_app(content: Option<PreviewData>) -> KglanceApp {
-        let registry = std::sync::Arc::new(crate::parsers::ParserRegistry::new());
+        let registry = std::sync::Arc::new(ParserRegistry::new());
         KglanceApp {
             state: KglanceState::default(),
             registry,

@@ -1,24 +1,18 @@
-/// Benchmarks for daemon startup latency.
-///
-/// Measures the critical path from "file path received" to "content ready to render".
-/// Target: full parse + populate_state pipeline MUST stay under 50ms for common files,
-/// leaving 250ms headroom for Iced window scheduling within the 300ms display budget.
 use criterion::{Criterion, criterion_group, criterion_main};
+use kglance::parsers::common::parser::traits::ParserRegistry;
+use kglance::parsers::image::parser::ImageParser;
+use kglance::parsers::text::parser::TextParser;
 use std::io::Write;
 use std::sync::Arc;
 
 use kglance::core::FilePreviewer;
-use kglance::parsers::ParserRegistry;
 use kglance::parsers::markdown::{MarkdownParser, parse_to_blocks};
-use kglance::parsers::text::TextParser;
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 fn build_registry() -> Arc<ParserRegistry> {
     let mut r = ParserRegistry::new();
     r.register(Box::new(MarkdownParser::new()));
     r.register(Box::new(TextParser::new()));
-    r.register(Box::new(kglance::parsers::image::ImageParser));
+    r.register(Box::new(ImageParser));
     Arc::new(r)
 }
 
@@ -59,8 +53,6 @@ fn make_text(lines: usize) -> (tempfile::TempDir, std::path::PathBuf) {
     (dir, path)
 }
 
-// ─── parse_to_blocks micro-benchmark ─────────────────────────────────────────
-
 fn bench_parse_to_blocks(c: &mut Criterion) {
     let small = "# Title\n\nParagraph text.\n\n```rust\nfn main() {}\n```\n";
     let medium = {
@@ -94,8 +86,6 @@ fn bench_parse_to_blocks(c: &mut Criterion) {
 
     group.finish();
 }
-
-// ─── Full FilePreviewer::parse benchmarks ────────────────────────────────────
 
 fn bench_parse_md(c: &mut Criterion) {
     let registry = build_registry();
@@ -141,8 +131,6 @@ fn bench_parse_text(c: &mut Criterion) {
     group.finish();
 }
 
-// ─── State preparation benchmark ─────────────────────────────────────────────
-
 fn bench_populate_state(c: &mut Criterion) {
     use kglance::core::KglanceState;
 
@@ -163,11 +151,6 @@ fn bench_populate_state(c: &mut Criterion) {
     group.finish();
 }
 
-// ─── End-to-end pipeline: the true latency budget ────────────────────────────
-
-/// Full critical path: parse + populate_state.
-/// This is the wall-clock time the daemon adds before the window opens.
-/// Budget constraint: MUST stay under 50ms for the window to appear within 300ms.
 fn bench_e2e_pipeline(c: &mut Criterion) {
     use kglance::core::KglanceState;
 

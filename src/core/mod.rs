@@ -1,10 +1,12 @@
 pub mod config;
 pub mod config_watcher;
 pub mod file_watcher;
+pub mod limit;
 pub mod navigation;
 pub mod preloader;
 pub mod preview;
 pub mod types;
+pub mod utils;
 
 pub use preview::{FilePreviewer, PreviewData};
 pub use types::{

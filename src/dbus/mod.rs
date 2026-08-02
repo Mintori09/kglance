@@ -3,7 +3,7 @@ pub mod service;
 
 pub use service::{DaemonCommand, DaemonService};
 
-use crate::{log_error, log_info};
+use crate::{features::common::parser::traits::ParserRegistry, log_error, log_info};
 use std::sync::Arc;
 
 pub fn send_via_dbus(path: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -61,7 +61,7 @@ pub fn send_multiple_via_dbus(paths: &[String]) -> Result<(), Box<dyn std::error
 }
 
 pub async fn run_zbus(
-    registry: Arc<crate::parsers::ParserRegistry>,
+    registry: Arc<ParserRegistry>,
     tx: tokio::sync::mpsc::Sender<DaemonCommand>,
 ) -> Result<(), String> {
     log_info!("DBus: Starting zbus connection setup for org.mintori.Kglance...");

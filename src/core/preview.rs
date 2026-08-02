@@ -1,5 +1,5 @@
 use crate::core::types::KglanceState;
-use crate::parsers::ParseError;
+use crate::features::common::parser::traits::ParseError;
 use crate::parsers::markdown::{Block, extract_toc};
 use std::path::Path;
 

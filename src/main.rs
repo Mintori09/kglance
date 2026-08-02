@@ -2,27 +2,8 @@ use std::sync::Arc;
 
 use iced::{Font, Size};
 use kglance::app::KglanceApp;
-use kglance::{dbus, log_error, log_info, parsers};
-
-fn build_registry() -> parsers::ParserRegistry {
-    let mut r = parsers::ParserRegistry::new();
-    r.register(Box::new(parsers::markdown::MarkdownParser::new()));
-    r.register(Box::new(parsers::json::JsonParser));
-    r.register(Box::new(parsers::font::FontParser));
-    r.register(Box::new(parsers::text::TextParser::new()));
-    r.register(Box::new(parsers::image::ImageParser));
-    r.register(Box::new(parsers::svg::SvgParser));
-    r.register(Box::new(parsers::pdf::PdfParser));
-    r.register(Box::new(parsers::archive::ArchiveParser));
-    r.register(Box::new(parsers::folder::FolderParser));
-    r.register(Box::new(parsers::audio::AudioParser));
-    r.register(Box::new(parsers::video::VideoParser));
-    r.register(Box::new(parsers::epub::EpubParser));
-    r.register(Box::new(parsers::csv::CsvParser));
-    r.register(Box::new(parsers::office::OfficeParser));
-    r.register(Box::new(parsers::typst::TypstParser));
-    r
-}
+use kglance::features::parser::build_registry;
+use kglance::{dbus, log_error, log_info};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();

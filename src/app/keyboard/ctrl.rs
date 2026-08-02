@@ -2,7 +2,6 @@ use iced::Task;
 
 use super::Message;
 use crate::core::PreviewData;
-use crate::parsers::markdown::extract_toc;
 
 const ZOOM_STEP: f32 = 0.2;
 const ZOOM_MIN: f32 = 0.1;
@@ -11,6 +10,7 @@ const FONT_MIN: f32 = 8.0;
 const FONT_MAX: f32 = 48.0;
 
 use crate::app::KglanceApp;
+use crate::features::markdown::parser::extract_toc;
 
 impl KglanceApp {
     pub(super) fn handle_ctrl_shortcuts(
