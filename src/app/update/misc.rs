@@ -1,4 +1,5 @@
 use super::markdown;
+use super::pdf::active_pdf_state_mut;
 use crate::app::KglanceApp;
 use crate::app::messages::Message;
 use iced::Task;
@@ -51,12 +52,18 @@ pub fn handle_sidebar_drag_started(app: &mut KglanceApp) -> Task<Message> {
     app.state.epub.sidebar_resizing = true;
     app.state.epub.sidebar_drag_start_x = None;
     app.state.epub.sidebar_drag_start_width = app.state.epub.sidebar_width;
+
+    let pdf = active_pdf_state_mut(app);
+    pdf.sidebar_resizing = true;
+    pdf.sidebar_drag_start_x = None;
+    pdf.sidebar_drag_start_width = pdf.sidebar_width;
     Task::none()
 }
 
 pub fn handle_sidebar_drag_ended(app: &mut KglanceApp) -> Task<Message> {
     app.state.markdown.sidebar_resizing = false;
     app.state.epub.sidebar_resizing = false;
+    active_pdf_state_mut(app).sidebar_resizing = false;
     markdown::active_markdown_state_mut(app).is_dragging_selection = false;
     markdown::active_markdown_state_mut(app).auto_scroll_delta = None;
     markdown::handle_selection_drag_end(app)
@@ -112,6 +119,17 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
             550.0,
         );
     }
+    let pdf = active_pdf_state_mut(app);
+    if pdf.sidebar_resizing {
+        apply_sidebar_drag(
+            &mut pdf.sidebar_drag_start_x,
+            &mut pdf.sidebar_drag_start_width,
+            &mut pdf.sidebar_width,
+            x,
+            120.0,
+            500.0,
+        );
+    }
     Task::none()
 }
 
@@ -159,6 +177,8 @@ mod tests {
         assert!(app.state.markdown.sidebar_drag_start_x.is_none());
         assert!(app.state.epub.sidebar_resizing);
         assert!(app.state.epub.sidebar_drag_start_x.is_none());
+        assert!(app.state.pdf.sidebar_resizing);
+        assert!(app.state.pdf.sidebar_drag_start_x.is_none());
     }
 
     #[test]
@@ -200,6 +220,7 @@ mod tests {
         let _ = handle_sidebar_drag_ended(&mut app);
         assert!(!app.state.markdown.sidebar_resizing);
         assert!(!app.state.epub.sidebar_resizing);
+        assert!(!app.state.pdf.sidebar_resizing);
     }
 
     #[test]
@@ -210,5 +231,17 @@ mod tests {
         let _ = handle_mouse_moved(&mut app, 50.0, 9999.0);
         assert!(app.state.epub.markdown_state.auto_scroll_delta.is_some());
         assert!(app.state.markdown.auto_scroll_delta.is_none());
+    }
+
+    #[test]
+    fn mouse_moved_clamps_pdf_width() {
+        let mut app = test_app(None);
+        app.state.pdf.sidebar_width = 300.0;
+        let _ = handle_sidebar_drag_started(&mut app);
+        let _ = handle_mouse_moved(&mut app, 100.0, 100.0);
+        let _ = handle_mouse_moved(&mut app, -1000.0, 100.0);
+        assert_eq!(app.state.pdf.sidebar_width, 120.0);
+        assert!(app.state.pdf.sidebar_resizing);
+        assert!(app.state.pdf.sidebar_drag_start_x.is_some());
     }
 }
