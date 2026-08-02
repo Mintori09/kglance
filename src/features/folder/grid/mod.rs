@@ -8,10 +8,11 @@ pub use thumbnails::get_freedesktop_thumbnail_path;
 
 use crate::app::Message;
 use crate::core::types::GridThumbnail;
+use crate::features::folder::grid::constants::CARD_GRID_SPACING;
+use crate::features::folder::grid::layout::render_grid_layout;
+use crate::features::folder::grid::thumbnails::filter_thumbnails;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
-use crate::ui::views::grid::constants::CARD_GRID_SPACING;
-use crate::ui::views::grid::layout::render_grid_layout;
-use crate::ui::views::grid::thumbnails::filter_thumbnails;
+
 use iced::widget::column;
 use iced::{Element, Length};
 

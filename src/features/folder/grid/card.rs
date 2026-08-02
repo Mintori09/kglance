@@ -1,9 +1,10 @@
 use crate::app::Message;
 use crate::core::types::GridThumbnail;
+use crate::features::folder::grid::calculate::truncate_middle;
+use crate::features::folder::grid::constants::*;
 use crate::ui::theme::icon_theme::icon_for_entry;
 use crate::ui::theme::{default_grid_card, icon_theme};
-use crate::ui::views::grid::calculate::truncate_middle;
-use crate::ui::views::grid::constants::*;
+
 use iced::widget::{button, column, container, image, svg, text};
 use iced::{Alignment, Element, Length, Theme};
 
