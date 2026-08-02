@@ -120,7 +120,7 @@ pub fn handle_edit_save(app: &mut KglanceApp) -> Task<Message> {
         let path_str = app.state.file_name.clone();
         app.state.json.editing_node = None;
         app.state.json.edit_value.clear();
-        return super::navigation::load_file_task(app, path_str, |_| {
+        return crate::app::update::navigation::load_file_task(app, path_str, |_| {
             crate::app::messages::SystemMsg::ToastDismissed(0).into()
         });
     }
