@@ -2,7 +2,8 @@ use super::style::STYLE;
 use crate::app::Message;
 use crate::parsers::markdown::Block;
 use crate::ui::theme::color::markdown::MarkdownColors;
-use crate::ui::views::markdown_view::blocks::{RenderContext, render_block};
+use crate::ui::types::RenderContext;
+use crate::ui::views::markdown_view::blocks::render_block;
 use iced::widget::{column, container, row, text};
 use iced::{Element, Length};
 

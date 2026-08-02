@@ -2,7 +2,7 @@ use crate::app::Message;
 use crate::parsers::markdown::{Inline, flatten_inlines};
 use crate::ui::theme::color::roles;
 use crate::ui::theme::default_tooltip;
-use crate::ui::views::markdown_view::blocks::RenderContext;
+use crate::ui::types::RenderContext;
 use crate::ui::views::markdown_view::components::inline_spans::{SpanCtx, inlines_to_spans};
 use crate::ui::views::markdown_view::components::style::STYLE;
 use iced::widget::{button, tooltip};

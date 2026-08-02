@@ -14,11 +14,11 @@ use crate::core::types::EpubState;
 use crate::ui::components::sidebar::drag_handle;
 use crate::ui::theme::color::base::BaseColors;
 use crate::ui::theme::font::get_main_font;
+use crate::ui::types::RenderContext;
 use crate::ui::views::epub_view::content::build_epub_content;
 use crate::ui::views::epub_view::header::build_epub_header;
 use crate::ui::views::epub_view::helpers::clamp_active_chapter;
 use crate::ui::views::epub_view::sidebar::render_chapter_sidebar;
-use crate::ui::views::markdown_view::blocks::RenderContext;
 
 pub fn view_epub<'a>(
     state: &'a EpubState,

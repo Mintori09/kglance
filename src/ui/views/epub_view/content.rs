@@ -4,8 +4,8 @@ use iced::{Element, Length, Padding};
 use crate::app::Message;
 use crate::core::types::EpubState;
 use crate::ui::components::content_layout::scrollable_content;
+use crate::ui::types::RenderContext;
 use crate::ui::views::epub_view::constants::CONTENT_SPACING;
-use crate::ui::views::markdown_view::blocks::RenderContext;
 
 pub(crate) fn build_epub_content<'a>(
     state: &'a EpubState,
