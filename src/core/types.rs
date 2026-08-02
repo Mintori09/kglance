@@ -489,7 +489,8 @@ pub struct KglanceState {
     pub window_default_size: iced::Size,
     pub window_min_size: iced::Size,
 
-    pub theme_dark: bool,
+    pub app_theme: crate::ui::theme::AppTheme,
+    pub theme_setting: String,
 
     pub toasts: Vec<ToastInfo>,
     pub next_toast_id: u64,
@@ -546,7 +547,8 @@ impl Default for KglanceState {
             max_text_width: None,
             window_default_size: iced::Size::new(1024.0, 768.0),
             window_min_size: iced::Size::new(800.0, 600.0),
-            theme_dark: true,
+            app_theme: crate::ui::theme::AppTheme::Dark,
+            theme_setting: "Auto".to_string(),
             toasts: Vec::new(),
             next_toast_id: 0,
             prefer_mermaid_cli: false,

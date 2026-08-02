@@ -72,15 +72,15 @@ pub(crate) fn render_table<'a>(
         })
         .collect();
 
-    let is_dark = ctx.is_dark;
+    let theme = ctx.theme;
     let header_row = container(row(header_cells).spacing(0))
-        .style(move |_: &iced::Theme| table_header_style(is_dark));
+        .style(move |_: &iced::Theme| table_header_style(theme));
 
     let mut children: Vec<Element<'a, Message>> = vec![header_row.into()];
 
     if !table.rows.is_empty() {
         let separator = container(text(""))
-            .style(move |_: &iced::Theme| table_separator_style(is_dark))
+            .style(move |_: &iced::Theme| table_separator_style(theme))
             .height(STYLE.general.divider_height)
             .width(Length::Fill);
         children.push(separator.into());
@@ -113,7 +113,7 @@ pub(crate) fn render_table<'a>(
         let row_widget = row(cells).spacing(0);
         children.push(
             container(row_widget)
-                .style(move |_: &iced::Theme| table_row_background_style(is_dark, row_index))
+                .style(move |_: &iced::Theme| table_row_background_style(theme, row_index))
                 .into(),
         );
     }
@@ -121,6 +121,6 @@ pub(crate) fn render_table<'a>(
     let table_content = column(children).spacing(0);
     container(table_content)
         .width(Length::Fill)
-        .style(move |_: &iced::Theme| table_border_style(is_dark))
+        .style(move |_: &iced::Theme| table_border_style(theme))
         .into()
 }

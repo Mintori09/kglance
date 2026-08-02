@@ -1,8 +1,4 @@
 use crate::app::Message;
-use crate::ui::theme::color::primitive::{
-    FONT_META_DARK, FONT_META_LIGHT, FONT_SAMPLE_DARK, FONT_SAMPLE_LIGHT, FONT_TITLE_DARK,
-    FONT_TITLE_LIGHT,
-};
 use iced::widget::{column, container, text};
 use iced::{Alignment, Color, Element, Font, Length};
 
@@ -19,6 +15,8 @@ const CARD_PADDING: f32 = font_tokens::CARD_PADDING;
 const SAMPLE_SENTENCE: &str = "The quick brown fox jumps over the lazy dog";
 const SAMPLE_CHARACTERS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n0123456789 !@#$%^&*()_+-=[]{}|;:'\",.<>/?";
 
+use crate::ui::theme::AppTheme;
+
 struct ThemeColors {
     title: Color,
     meta: Color,
@@ -26,25 +24,18 @@ struct ThemeColors {
 }
 
 impl ThemeColors {
-    fn new(is_dark: bool) -> Self {
-        if is_dark {
-            Self {
-                title: FONT_TITLE_DARK,
-                meta: FONT_META_DARK,
-                sample: FONT_SAMPLE_DARK,
-            }
-        } else {
-            Self {
-                title: FONT_TITLE_LIGHT,
-                meta: FONT_META_LIGHT,
-                sample: FONT_SAMPLE_LIGHT,
-            }
+    fn new(theme: AppTheme) -> Self {
+        let p = theme.palette().base;
+        Self {
+            title: p.text,
+            meta: p.text_dim,
+            sample: p.text,
         }
     }
 }
 
-pub fn view_font<'a>(name: &'a str, metadata: &'a str, is_dark: bool) -> Element<'a, Message> {
-    let colors = ThemeColors::new(is_dark);
+pub fn view_font<'a>(name: &'a str, metadata: &'a str, theme: AppTheme) -> Element<'a, Message> {
+    let colors = ThemeColors::new(theme);
     let custom_font = Font::with_name(Box::leak(name.to_string().into_boxed_str()));
 
     let font_title = text(format!("Font: {name}"))

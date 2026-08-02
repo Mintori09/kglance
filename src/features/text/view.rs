@@ -16,7 +16,7 @@ const SCROLL_PANE_ID: &str = "content_scroll";
 
 pub fn view_text<'a>(
     state: &'a TextState,
-    is_dark: bool,
+    theme: crate::ui::theme::AppTheme,
     font_size: f32,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
@@ -34,7 +34,7 @@ pub fn view_text<'a>(
     let editor_element = code_editor(
         &state.content,
         state.extension.as_str(),
-        is_dark,
+        theme,
         font_size,
         font,
         |action| crate::app::messages::TextMsg::Edit(action).into(),

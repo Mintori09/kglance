@@ -1,5 +1,3 @@
-use crate::ui::theme::color::base::BaseColors;
-use crate::ui::theme::color::markdown::MarkdownColors;
 use crate::ui::theme::color::primitive;
 use crate::ui::theme::tokens::{border, radius, spacing, tables};
 use iced::widget::{button, container};
@@ -233,8 +231,8 @@ pub(super) fn heading_layout(level: u8) -> (f32, f32, f32) {
     }
 }
 
-pub(super) fn code_block_style(is_dark: bool) -> container::Style {
-    let p = BaseColors::palette_for(is_dark);
+pub(super) fn code_block_style(theme: AppTheme) -> container::Style {
+    let p = theme.palette().base;
     container::Style {
         background: Some(p.surface.into()),
         text_color: Some(p.text),
@@ -248,8 +246,8 @@ pub(super) fn code_block_style(is_dark: bool) -> container::Style {
     }
 }
 
-pub(super) fn copy_button_style(is_dark: bool, status: button::Status) -> button::Style {
-    let p = BaseColors::palette_for(is_dark);
+pub(super) fn copy_button_style(theme: AppTheme, status: button::Status) -> button::Style {
+    let p = theme.palette().base;
     let bg = p.bg;
     button::Style {
         background: Some(match status {
@@ -272,8 +270,8 @@ pub(super) fn copy_button_style(is_dark: bool, status: button::Status) -> button
     }
 }
 
-pub(super) fn language_label_style(is_dark: bool) -> container::Style {
-    let p = BaseColors::palette_for(is_dark);
+pub(super) fn language_label_style(theme: AppTheme) -> container::Style {
+    let p = theme.palette().base;
     container::Style {
         background: Some(p.bg.into()),
         text_color: Some(p.text_dim),
@@ -281,16 +279,18 @@ pub(super) fn language_label_style(is_dark: bool) -> container::Style {
     }
 }
 
-pub(super) fn divider_line_style(is_dark: bool) -> container::Style {
-    let p = BaseColors::palette_for(is_dark);
+use crate::ui::theme::AppTheme;
+
+pub(super) fn divider_line_style(theme: AppTheme) -> container::Style {
+    let p = theme.palette().base;
     container::Style {
         background: Some(p.border.into()),
         ..Default::default()
     }
 }
 
-pub(super) fn table_header_style(is_dark: bool) -> container::Style {
-    let mp = MarkdownColors::palette_for(is_dark);
+pub(super) fn table_header_style(theme: AppTheme) -> container::Style {
+    let mp = theme.palette().markdown;
     container::Style {
         background: Some(mp.table_header_bg.into()),
         text_color: Some(mp.table_header_text),
@@ -298,16 +298,16 @@ pub(super) fn table_header_style(is_dark: bool) -> container::Style {
     }
 }
 
-pub(super) fn table_separator_style(is_dark: bool) -> container::Style {
-    let mp = MarkdownColors::palette_for(is_dark);
+pub(super) fn table_separator_style(theme: AppTheme) -> container::Style {
+    let mp = theme.palette().markdown;
     container::Style {
         background: Some(mp.table_separator.into()),
         ..Default::default()
     }
 }
 
-pub(super) fn table_row_background_style(is_dark: bool, row_index: usize) -> container::Style {
-    let p = BaseColors::palette_for(is_dark);
+pub(super) fn table_row_background_style(theme: AppTheme, row_index: usize) -> container::Style {
+    let p = theme.palette().base;
     let bg = if row_index.is_multiple_of(2) {
         p.surface
     } else {
@@ -319,8 +319,8 @@ pub(super) fn table_row_background_style(is_dark: bool, row_index: usize) -> con
     }
 }
 
-pub(super) fn table_border_style(is_dark: bool) -> container::Style {
-    let mp = MarkdownColors::palette_for(is_dark);
+pub(super) fn table_border_style(theme: AppTheme) -> container::Style {
+    let mp = theme.palette().markdown;
     container::Style {
         border: Border {
             color: mp.table_border,
@@ -331,8 +331,8 @@ pub(super) fn table_border_style(is_dark: bool) -> container::Style {
     }
 }
 
-pub(super) fn mermaid_badge_style(is_dark: bool) -> container::Style {
-    let p = BaseColors::palette_for(is_dark);
+pub(super) fn mermaid_badge_style(theme: AppTheme) -> container::Style {
+    let p = theme.palette().base;
     container::Style {
         background: Some(p.surface.into()),
         text_color: Some(p.text_dim),

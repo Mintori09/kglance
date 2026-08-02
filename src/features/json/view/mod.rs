@@ -18,7 +18,7 @@ use tree::render_tree;
 pub fn view_json<'a>(
     state: &'a JsonState,
     font_size: f32,
-    is_dark: bool,
+    theme: crate::ui::theme::AppTheme,
     font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     let toggle_label = if state.tree_mode { "Raw" } else { "Tree" };
@@ -70,7 +70,7 @@ pub fn view_json<'a>(
     let mut header_items: Vec<Element<'a, Message>> = vec![
         text(err_text)
             .size(11)
-            .color(style::error_color(is_dark))
+            .color(style::error_color(theme))
             .into(),
         iced::widget::Space::new().width(Length::Fill).into(),
     ];
@@ -120,24 +120,24 @@ pub fn view_json<'a>(
 
     let content: Element<'a, Message> = if state.tree_mode {
         let editing_view = state.editing_node.is_some();
-        let tree = render_tree(state, is_dark, font_size, editing_view);
+        let tree = render_tree(state, theme, font_size, editing_view);
         scroll_pane("json_scroll", tree)
             .container_padding(4)
             .build()
     } else {
-        let raw = render_raw(state, is_dark, font_size, font_family_mono);
+        let raw = render_raw(state, theme, font_size, font_family_mono);
         scroll_pane("json_raw_scroll", raw)
             .container_padding(4)
             .build()
     };
 
     let breadcrumbs = if state.tree_mode {
-        render_breadcrumbs(state, is_dark, font_size)
+        render_breadcrumbs(state, theme, font_size)
     } else {
         None
     };
 
-    let schema_bar = render_schema(state, is_dark, font_size);
+    let schema_bar = render_schema(state, theme, font_size);
 
     let mut col_parts: Vec<Element<'a, Message>> = Vec::new();
     col_parts.push(header.into());

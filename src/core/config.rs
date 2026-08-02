@@ -28,7 +28,26 @@ fn default_min_height() -> u32 {
     600
 }
 
+use crate::ui::theme::AppTheme;
+
 pub fn detect_system_theme() -> String {
+    // 1. KDE Plasma 6 check via kreadconfig6
+    if let Ok(output) = std::process::Command::new("kreadconfig6")
+        .args(["--group", "General", "--key", "ColorScheme"])
+        .output()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout).to_lowercase();
+        if !stdout.trim().is_empty() {
+            if stdout.contains("dark") || stdout.contains("breeze-dark") || stdout.contains("black")
+            {
+                return "Dark".to_string();
+            } else if stdout.contains("light") || stdout.contains("breeze-light") {
+                return "Light".to_string();
+            }
+        }
+    }
+
+    // 2. GNOME / Freedesktop color-scheme check via gsettings
     if let Ok(output) = std::process::Command::new("gsettings")
         .args(["get", "org.gnome.desktop.interface", "color-scheme"])
         .output()
@@ -40,6 +59,7 @@ pub fn detect_system_theme() -> String {
             return "Dark".to_string();
         }
     }
+
     "Dark".to_string()
 }
 
@@ -115,15 +135,27 @@ impl ConfigManager {
         Ok(())
     }
 
-    pub fn get_theme(config: &AppConfig) -> String {
-        if let Some(theme) = &config.ui.theme {
-            if theme == "Auto" || theme == "auto" {
-                detect_system_theme()
-            } else {
-                theme.to_string()
+    pub fn get_theme_setting(config: &AppConfig) -> String {
+        config
+            .ui
+            .theme
+            .clone()
+            .unwrap_or_else(|| "Auto".to_string())
+    }
+
+    pub fn resolve_theme(setting_str: &str) -> AppTheme {
+        match setting_str {
+            "Auto" | "auto" => {
+                let detected = detect_system_theme();
+                if detected == "Light" {
+                    AppTheme::Light
+                } else {
+                    AppTheme::Dark
+                }
             }
-        } else {
-            detect_system_theme()
+            "Light" | "light" => AppTheme::Light,
+            "Nord" | "nord" => AppTheme::Nord,
+            _ => AppTheme::Dark,
         }
     }
 }

@@ -42,14 +42,22 @@ impl MarkdownColors {
         html_fg: primitive::GRAY_500,
     };
 
+    pub const NORD: MarkdownColors = MarkdownColors {
+        search_active_bg: primitive::NORD13,
+        search_inactive_bg: primitive::NORD2,
+        table_header_bg: primitive::NORD2,
+        table_header_text: primitive::NORD4,
+        table_separator: primitive::NORD3,
+        table_border: primitive::NORD3,
+        quote_accent: primitive::NORD9,
+        quote_bg: primitive::NORD1,
+        html_fg: primitive::NORD3,
+    };
+
     pub fn palette(theme: &Theme) -> &'static MarkdownColors {
         match theme {
             Theme::Dark => &Self::DARK,
             _ => &Self::LIGHT,
         }
-    }
-
-    pub fn palette_for(is_dark: bool) -> &'static MarkdownColors {
-        if is_dark { &Self::DARK } else { &Self::LIGHT }
     }
 }

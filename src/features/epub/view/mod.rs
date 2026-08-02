@@ -16,14 +16,13 @@ use crate::features::epub::view::header::build_epub_header;
 use crate::features::epub::view::helpers::clamp_active_chapter;
 use crate::features::epub::view::sidebar::render_chapter_sidebar;
 use crate::ui::components::sidebar::drag_handle;
-use crate::ui::theme::color::base::BaseColors;
 use crate::ui::theme::font::get_main_font;
 use crate::ui::types::RenderContext;
 
 pub fn view_epub<'a>(
     state: &'a EpubState,
     font_size: f32,
-    is_dark: bool,
+    theme: crate::ui::theme::AppTheme,
     font_family: Option<&str>,
     font_family_mono: Option<&str>,
     max_text_width: Option<f32>,
@@ -39,13 +38,13 @@ pub fn view_epub<'a>(
         search_query: &state.markdown_state.search_query,
         active_match: state.markdown_state.search_match_index,
         counter: &search_counter,
-        is_dark,
+        theme,
         font_size,
         font_family,
         font_family_mono,
     };
 
-    let palette = *BaseColors::palette_for(is_dark);
+    let palette = theme.palette().base;
     let header_bar = build_epub_header(
         state,
         main_font,
@@ -59,8 +58,8 @@ pub fn view_epub<'a>(
     let main_view = column![header_bar, main_content].height(Length::Fill);
 
     if state.sidebar_visible && !state.chapters.is_empty() {
-        let sidebar = render_chapter_sidebar(state, is_dark);
-        let drag = drag_handle(state.sidebar_resizing, is_dark, Message::SidebarDragStarted);
+        let sidebar = render_chapter_sidebar(state, theme);
+        let drag = drag_handle(state.sidebar_resizing, theme, Message::SidebarDragStarted);
         row![sidebar, drag, main_view]
             .spacing(0)
             .height(Length::Fill)

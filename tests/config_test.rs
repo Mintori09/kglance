@@ -1,6 +1,7 @@
 use std::sync::Mutex;
 
 use kglance::core::config::{AppConfig, ConfigManager, UiConfig};
+use kglance::ui::theme::AppTheme;
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 
@@ -61,14 +62,15 @@ fn test_config_serialization_round_trip() {
 }
 
 #[test]
-fn test_get_theme_specific() {
+fn test_get_theme_light() {
     let config = AppConfig {
         ui: UiConfig {
             theme: Some("Light".into()),
             ..Default::default()
         },
     };
-    assert_eq!(ConfigManager::get_theme(&config), "Light");
+    assert_eq!(ConfigManager::get_theme_setting(&config), "Light");
+    assert_eq!(ConfigManager::resolve_theme("Light"), AppTheme::Light);
 }
 
 #[test]
@@ -79,7 +81,20 @@ fn test_get_theme_dark() {
             ..Default::default()
         },
     };
-    assert_eq!(ConfigManager::get_theme(&config), "Dark");
+    assert_eq!(ConfigManager::get_theme_setting(&config), "Dark");
+    assert_eq!(ConfigManager::resolve_theme("Dark"), AppTheme::Dark);
+}
+
+#[test]
+fn test_get_theme_nord() {
+    let config = AppConfig {
+        ui: UiConfig {
+            theme: Some("Nord".into()),
+            ..Default::default()
+        },
+    };
+    assert_eq!(ConfigManager::get_theme_setting(&config), "Nord");
+    assert_eq!(ConfigManager::resolve_theme("Nord"), AppTheme::Nord);
 }
 
 #[test]
@@ -90,8 +105,10 @@ fn test_get_theme_auto() {
             ..Default::default()
         },
     };
-    let theme = ConfigManager::get_theme(&config);
-    assert!(theme == "Light" || theme == "Dark");
+    let theme_setting = ConfigManager::get_theme_setting(&config);
+    assert_eq!(theme_setting, "auto");
+    let resolved = ConfigManager::resolve_theme(&theme_setting);
+    assert!(resolved == AppTheme::Light || resolved == AppTheme::Dark);
 }
 
 #[test]
@@ -99,44 +116,9 @@ fn test_get_theme_none_falls_back_to_system() {
     let mut config = AppConfig::default();
     config.ui.theme = None;
     assert!(config.ui.theme.is_none());
-    let theme = ConfigManager::get_theme(&config);
-    assert!(theme == "Light" || theme == "Dark");
-}
-
-#[test]
-fn test_get_theme_custom_value_passthrough() {
-    for theme in &["Blue", "invalid_theme", "custom-dark-theme"] {
-        let config = AppConfig {
-            ui: UiConfig {
-                theme: Some((*theme).into()),
-                ..Default::default()
-            },
-        };
-        assert_eq!(ConfigManager::get_theme(&config), *theme);
-    }
-}
-
-#[test]
-fn test_get_theme_case_sensitive_auto() {
-    let config = AppConfig {
-        ui: UiConfig {
-            theme: Some("Auto".into()),
-            ..Default::default()
-        },
-    };
-    let theme = ConfigManager::get_theme(&config);
-    assert!(theme == "Light" || theme == "Dark");
-}
-
-#[test]
-fn test_get_theme_unrecognized_returns_raw() {
-    let config = AppConfig {
-        ui: UiConfig {
-            theme: Some("AUTO".into()),
-            ..Default::default()
-        },
-    };
-    assert_eq!(ConfigManager::get_theme(&config), "AUTO");
+    let theme_setting = ConfigManager::get_theme_setting(&config);
+    let resolved = ConfigManager::resolve_theme(&theme_setting);
+    assert!(resolved == AppTheme::Light || resolved == AppTheme::Dark);
 }
 
 #[test]

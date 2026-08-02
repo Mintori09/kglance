@@ -27,7 +27,7 @@ const FALLBACK_DEFAULT_HEIGHT: u32 = 768;
 const FALLBACK_MIN_WIDTH: u32 = 800;
 const FALLBACK_MIN_HEIGHT: u32 = 600;
 
-const AVAILABLE_THEMES: [&str; 3] = ["Auto", "Dark", "Light"];
+const AVAILABLE_THEMES: [&str; 4] = ["Auto", "Dark", "Light", "Nord"];
 
 pub fn settings_page<'a>(
     theme: &Theme,

@@ -2,12 +2,12 @@ use std::cell::Cell;
 
 use crate::features::markdown::view::components::style::STYLE;
 use crate::parsers::markdown::Inline;
-use crate::ui::theme::color::markdown::MarkdownColors;
-use crate::ui::theme::color::roles;
 use crate::ui::theme::font::{get_code_font, get_main_font};
 use iced::font::Weight;
 use iced::widget::text::Span;
 use iced::{Color, Font};
+
+use crate::ui::theme::AppTheme;
 
 pub(crate) struct SpanCtx<'a> {
     pub font_family: Option<&'a str>,
@@ -15,11 +15,11 @@ pub(crate) struct SpanCtx<'a> {
     pub search_query: &'a str,
     pub active_match: usize,
     pub counter: &'a Cell<usize>,
-    pub is_dark: bool,
+    pub theme: AppTheme,
 }
 
-fn search_highlight_color(is_active: bool, is_dark: bool) -> Color {
-    let mp = MarkdownColors::palette_for(is_dark);
+fn search_highlight_color(is_active: bool, theme: AppTheme) -> Color {
+    let mp = theme.palette().markdown;
     if is_active {
         mp.search_active_bg
     } else {
@@ -52,7 +52,7 @@ fn highlight_search_in_text<'a>(
 
         let bg = search_highlight_color(
             span_ctx.counter.get() == span_ctx.active_match,
-            span_ctx.is_dark,
+            span_ctx.theme,
         );
         spans.push(Span::new(&text[abs_pos..end_pos]).font(font).background(bg));
 
@@ -135,7 +135,7 @@ fn inlines_to_spans_core<'a>(
             Inline::Link {
                 text: link_text, ..
             } => {
-                let link_color = roles::palette_for(span_ctx.is_dark).link;
+                let link_color = span_ctx.theme.palette().roles.link;
                 for s in inlines_to_spans_core(link_text, span_ctx) {
                     spans.push(s.color(link_color).underline(true));
                 }

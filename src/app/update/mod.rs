@@ -323,7 +323,8 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
         },
         Message::Settings(msg) => match msg {
             crate::app::messages::SettingsMsg::ThemeChanged(t) => {
-                app.state.theme_dark = t != "Light";
+                app.state.theme_setting = t.clone();
+                app.state.app_theme = crate::core::config::ConfigManager::resolve_theme(&t);
                 let mut config = crate::core::config::ConfigManager::load_or_create();
                 config.ui.theme = Some(t);
                 let _ = crate::core::config::ConfigManager::save(&config);

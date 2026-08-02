@@ -68,11 +68,13 @@ pub fn visible_node_indices(state: &JsonState) -> Vec<usize> {
     visible
 }
 
+use crate::ui::theme::AppTheme;
+
 pub fn render_tree_node<'a>(
     index: usize,
     node: &'a JsonNode,
     is_expanded: bool,
-    is_dark: bool,
+    theme: AppTheme,
     font_size: f32,
     indent: f32,
     is_active: bool,
@@ -85,7 +87,7 @@ pub fn render_tree_node<'a>(
 
     let arrow_text = text(arrow)
         .size(font_size * 0.8)
-        .color(dim_color(is_dark))
+        .color(dim_color(theme))
         .font(iced::Font {
             weight: iced::font::Weight::Bold,
             ..iced::Font::MONOSPACE
@@ -94,7 +96,7 @@ pub fn render_tree_node<'a>(
     let key_part: Element<'a, Message> = if let Some(ref k) = node.key {
         text(format!("{}: ", k))
             .size(font_size)
-            .color(text_color(is_dark))
+            .color(text_color(theme))
             .into()
     } else {
         text("").into()
@@ -102,7 +104,7 @@ pub fn render_tree_node<'a>(
 
     let type_tag = text(format!("{} ", node.value_type))
         .size(font_size * 0.85)
-        .color(type_color(node.value_type, is_dark))
+        .color(type_color(node.value_type, theme))
         .font(iced::Font {
             weight: iced::font::Weight::Bold,
             ..iced::Font::MONOSPACE
@@ -111,16 +113,16 @@ pub fn render_tree_node<'a>(
     let value_text = text(&node.value_preview)
         .size(font_size)
         .color(if node.value_type == "String" {
-            string_color(is_dark)
+            string_color(theme)
         } else {
-            text_color(is_dark)
+            text_color(theme)
         })
         .font(iced::Font::MONOSPACE);
 
     let children_badge: Element<'a, Message> = if node.children_count > 0 {
         text(format!(" [{}]", node.children_count))
             .size(font_size * 0.75)
-            .color(dim_color(is_dark))
+            .color(dim_color(theme))
             .into()
     } else {
         text("").into()
@@ -132,7 +134,7 @@ pub fn render_tree_node<'a>(
         .style(ui_btn::breeze_tool);
 
     let active_bg = if is_active {
-        Some(selection_color(is_dark).into())
+        Some(selection_color(theme).into())
     } else {
         None
     };
@@ -175,7 +177,7 @@ pub fn render_tree_node<'a>(
 
 pub fn render_tree<'a>(
     state: &'a JsonState,
-    is_dark: bool,
+    theme: AppTheme,
     font_size: f32,
     editing_view: bool,
 ) -> Element<'a, Message> {
@@ -190,7 +192,7 @@ pub fn render_tree<'a>(
             let is_editing = state.editing_node == Some(i);
 
             let row_elem: Element<'a, Message> =
-                render_tree_node(i, node, expanded, is_dark, font_size, 0.0, is_active);
+                render_tree_node(i, node, expanded, theme, font_size, 0.0, is_active);
 
             if is_editing && editing_view {
                 let edit_input: Element<'a, Message> =

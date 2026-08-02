@@ -1,7 +1,7 @@
 use iced::widget::{button, container, mouse_area, text};
 use iced::{Background, Border, Color, Element, Length, Shadow, mouse};
 
-use crate::ui::theme::color::sidebar::SidebarColors;
+use crate::ui::theme::AppTheme;
 
 const BORDER_RADIUS: f32 = 4.0;
 const ARROW_FONT_SIZE: f32 = 9.0;
@@ -20,11 +20,11 @@ pub fn sidebar_entry_style(
     _theme: &iced::Theme,
     status: button::Status,
     is_active: bool,
-    is_dark: bool,
+    app_theme: AppTheme,
 ) -> button::Style {
     button::Style {
-        background: determine_sidebar_entry_background(status, is_active, is_dark),
-        text_color: determine_sidebar_entry_text_color(is_active, is_dark),
+        background: determine_sidebar_entry_background(status, is_active, app_theme),
+        text_color: determine_sidebar_entry_text_color(is_active, app_theme),
         border: Border {
             width: 0.0,
             color: Color::TRANSPARENT,
@@ -37,10 +37,10 @@ pub fn sidebar_entry_style(
 
 pub fn drag_handle<'a, Message: 'static + Clone>(
     is_resizing: bool,
-    is_dark: bool,
+    app_theme: AppTheme,
     on_press: Message,
 ) -> Element<'a, Message> {
-    let background_color = determine_drag_handle_color(is_resizing, is_dark);
+    let background_color = determine_drag_handle_color(is_resizing, app_theme);
 
     mouse_area(
         container(text(""))
@@ -58,7 +58,7 @@ pub fn drag_handle<'a, Message: 'static + Clone>(
 
 pub fn collapse_arrow<'a, Message: 'static + Clone>(
     is_collapsed: bool,
-    is_dark: bool,
+    app_theme: AppTheme,
     on_press: Message,
 ) -> Element<'a, Message> {
     let arrow_icon = if is_collapsed {
@@ -66,7 +66,7 @@ pub fn collapse_arrow<'a, Message: 'static + Clone>(
     } else {
         ICON_EXPANDED
     };
-    let text_color = SidebarColors::palette_for(is_dark).arrow_text;
+    let text_color = app_theme.palette().sidebar.arrow_text;
 
     button(text(arrow_icon).size(ARROW_FONT_SIZE))
         .on_press(on_press)
@@ -84,9 +84,9 @@ pub fn collapse_arrow<'a, Message: 'static + Clone>(
 fn determine_sidebar_entry_background(
     status: button::Status,
     is_active: bool,
-    is_dark: bool,
+    app_theme: AppTheme,
 ) -> Option<Background> {
-    let c = SidebarColors::palette_for(is_dark);
+    let c = &app_theme.palette().sidebar;
     match status {
         button::Status::Hovered | button::Status::Pressed => Some(c.hover_press.into()),
         _ if is_active => Some(c.active_bg.into()),
@@ -94,8 +94,8 @@ fn determine_sidebar_entry_background(
     }
 }
 
-fn determine_sidebar_entry_text_color(is_active: bool, is_dark: bool) -> Color {
-    let c = SidebarColors::palette_for(is_dark);
+fn determine_sidebar_entry_text_color(is_active: bool, app_theme: AppTheme) -> Color {
+    let c = &app_theme.palette().sidebar;
     if is_active {
         c.active_text
     } else {
@@ -103,8 +103,8 @@ fn determine_sidebar_entry_text_color(is_active: bool, is_dark: bool) -> Color {
     }
 }
 
-fn determine_drag_handle_color(is_resizing: bool, is_dark: bool) -> Color {
-    let c = SidebarColors::palette_for(is_dark);
+fn determine_drag_handle_color(is_resizing: bool, app_theme: AppTheme) -> Color {
+    let c = &app_theme.palette().sidebar;
     if is_resizing {
         c.resizing
     } else {

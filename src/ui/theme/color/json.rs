@@ -13,6 +13,9 @@ pub struct JsonColors {
     pub object: Color,
     pub text: Color,
     pub dim: Color,
+    pub link: Color,
+    pub error: Color,
+    pub selection: Color,
 }
 
 impl JsonColors {
@@ -24,6 +27,9 @@ impl JsonColors {
         object: primitive::JSON_DARK_OBJECT,
         text: primitive::JSON_DARK_TEXT,
         dim: primitive::JSON_DARK_DIM,
+        link: primitive::JSON_DARK_LINK,
+        error: primitive::JSON_DARK_ERROR,
+        selection: primitive::JSON_DARK_SELECTION,
     };
 
     pub const LIGHT: JsonColors = JsonColors {
@@ -34,6 +40,22 @@ impl JsonColors {
         object: primitive::JSON_LIGHT_OBJECT,
         text: primitive::JSON_LIGHT_TEXT,
         dim: primitive::JSON_LIGHT_DIM,
+        link: primitive::JSON_LIGHT_LINK,
+        error: primitive::JSON_LIGHT_ERROR,
+        selection: primitive::JSON_LIGHT_SELECTION,
+    };
+
+    pub const NORD: JsonColors = JsonColors {
+        string: primitive::NORD14,
+        number: primitive::NORD15,
+        boolean: primitive::NORD9,
+        null: primitive::NORD11,
+        object: primitive::NORD7,
+        text: primitive::NORD4,
+        dim: primitive::NORD3,
+        link: primitive::NORD8,
+        error: primitive::NORD11,
+        selection: primitive::NORD2,
     };
 
     pub fn palette(theme: &Theme) -> &'static JsonColors {
@@ -41,9 +63,5 @@ impl JsonColors {
             Theme::Dark => &Self::DARK,
             _ => &Self::LIGHT,
         }
-    }
-
-    pub fn palette_for(is_dark: bool) -> &'static JsonColors {
-        if is_dark { &Self::DARK } else { &Self::LIGHT }
     }
 }

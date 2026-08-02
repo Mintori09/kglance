@@ -62,8 +62,10 @@ const HEADER_CONTAINER_PADDING: [u16; 2] = [spacing::XXS as u16, spacing::XS as 
 const HEADER_ROW_PADDING: u16 = spacing::XS as u16;
 const ROW_CONTENT_PADDING: [u16; 2] = [spacing::XS as u16, spacing::S as u16];
 
-pub fn view_folder<'a>(state: &'a FolderState, theme_dark: bool) -> Element<'a, Message> {
-    let (text_color, dim_color, sub_dim_color) = resolve_theme_colors(theme_dark);
+use crate::ui::theme::AppTheme;
+
+pub fn view_folder<'a>(state: &'a FolderState, theme: AppTheme) -> Element<'a, Message> {
+    let (text_color, dim_color, sub_dim_color) = resolve_theme_colors(theme);
 
     let summary_block = create_summary_block(state, dim_color, sub_dim_color);
     let folder_header = create_folder_header(&state.sort_state);
@@ -80,8 +82,8 @@ pub fn view_folder<'a>(state: &'a FolderState, theme_dark: bool) -> Element<'a, 
     .into()
 }
 
-fn resolve_theme_colors(theme_dark: bool) -> (Color, Color, Color) {
-    let base_color = BaseColors::palette_for(theme_dark).text;
+fn resolve_theme_colors(theme: AppTheme) -> (Color, Color, Color) {
+    let base_color = theme.palette().base.text;
 
     let text_color = base_color;
     let dim_color = Color {

@@ -1,11 +1,11 @@
 use super::style::STYLE;
 use crate::app::Message;
-use crate::ui::theme::color::base::BaseColors;
+use crate::ui::theme::AppTheme;
 use iced::widget::{container, text};
 use iced::{Element, Length};
 
-pub(crate) fn render_horizontal_rule(is_dark: bool) -> Element<'static, Message> {
-    let p = BaseColors::palette_for(is_dark);
+pub(crate) fn render_horizontal_rule(theme: AppTheme) -> Element<'static, Message> {
+    let p = theme.palette().base;
     container(
         container(text("").size(1))
             .style(move |_: &iced::Theme| container::Style {

@@ -56,10 +56,12 @@ impl KglanceApp {
         let file_watcher = crate::core::file_watcher::FileWatcher::new().ok();
 
         let config = crate::core::config::ConfigManager::load_or_create();
-        let theme_dark = crate::core::config::ConfigManager::get_theme(&config) != "Light";
+        let theme_setting = crate::core::config::ConfigManager::get_theme_setting(&config);
+        let app_theme = crate::core::config::ConfigManager::resolve_theme(&theme_setting);
 
         let mut state = KglanceState {
-            theme_dark,
+            app_theme,
+            theme_setting,
             font_size: config.ui.font_size,
             default_font_size: config.ui.font_size,
             font_family: config.ui.font_family,
@@ -470,7 +472,7 @@ impl KglanceApp {
             let body: Element<'_, Message> = match content {
                 PreviewData::Text { .. } => crate::ui::views::view_text(
                     &self.state.text,
-                    self.state.theme_dark,
+                    self.state.app_theme,
                     self.state.font_size,
                     self.state.font_family_mono.as_deref(),
                 ),
@@ -478,41 +480,42 @@ impl KglanceApp {
                     blocks,
                     &self.state.markdown,
                     self.state.font_size,
-                    self.state.theme_dark,
+                    self.state.app_theme,
                     self.state.font_family_mono.as_deref(),
                     self.state.max_text_width,
                 ),
                 PreviewData::Image { .. } => crate::ui::views::view_image(&self.state.image),
                 PreviewData::Font { name, metadata, .. } => {
-                    crate::ui::views::view_font(name, metadata, self.state.theme_dark)
+                    crate::ui::views::view_font(name, metadata, self.state.app_theme)
                 }
                 PreviewData::Pdf { .. } => crate::ui::views::view_pdf(
                     &self.state.pdf,
                     self.state.font_size,
-                    self.state.theme_dark,
+                    self.state.app_theme,
                 ),
                 PreviewData::Typst { .. } => crate::ui::views::view_typst(
                     &self.state.typst,
-                    self.state.theme_dark,
+                    self.state.app_theme,
                     self.state.font_size,
                     self.state.font_family_mono.as_deref(),
                 ),
                 PreviewData::Folder { .. } => {
-                    crate::ui::views::view_folder(&self.state.folder, self.state.theme_dark)
+                    crate::ui::views::view_folder(&self.state.folder, self.state.app_theme)
                 }
-                PreviewData::Spreadsheet { .. } => {
-                    crate::ui::views::view_spreadsheet(&self.state.spreadsheet)
-                }
+                PreviewData::Spreadsheet { .. } => crate::ui::views::view_spreadsheet(
+                    &self.state.spreadsheet,
+                    self.state.app_theme,
+                ),
                 PreviewData::Json { .. } => crate::ui::views::view_json(
                     &self.state.json,
                     self.state.font_size,
-                    self.state.theme_dark,
+                    self.state.app_theme,
                     self.state.font_family_mono.as_deref(),
                 ),
                 PreviewData::Epub { .. } => crate::ui::views::view_epub(
                     &self.state.epub,
                     self.state.font_size,
-                    self.state.theme_dark,
+                    self.state.app_theme,
                     self.state
                         .epub_font_family
                         .as_deref()
@@ -616,7 +619,7 @@ impl KglanceApp {
     }
 
     pub fn theme(&self) -> Theme {
-        if self.state.theme_dark {
+        if self.state.app_theme.is_dark() {
             Theme::Dark
         } else {
             Theme::Light

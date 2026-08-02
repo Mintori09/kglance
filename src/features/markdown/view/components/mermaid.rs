@@ -13,12 +13,12 @@ pub(crate) fn render_mermaid<'a>(
     state: &'a crate::core::MarkdownState,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
-    let is_dark = ctx.is_dark;
+    let theme = ctx.theme;
     let badge = container(
         text("Mermaid Diagram").size(scale_size(STYLE.mermaid.badge_font_size, ctx.font_size)),
     )
     .padding(STYLE.mermaid.badge_padding)
-    .style(move |_: &iced::Theme| mermaid_badge_style(is_dark));
+    .style(move |_: &iced::Theme| mermaid_badge_style(theme));
 
     if let Some(handle) = state.cached_mermaid_handles.get(&index) {
         log_debug!("render_mermaid[{}]: handle found, showing image", index);
@@ -30,7 +30,7 @@ pub(crate) fn render_mermaid<'a>(
         .center_x(Length::Fill)
         .width(Length::Fill)
         .padding(STYLE.mermaid.image_padding)
-        .style(move |_: &iced::Theme| code_block_style(is_dark));
+        .style(move |_: &iced::Theme| code_block_style(theme));
 
         column![badge, image_container]
             .spacing(STYLE.general.section_spacing)
@@ -60,7 +60,7 @@ pub(crate) fn render_mermaid<'a>(
         let content = container(column(line_widgets).spacing(STYLE.general.item_spacing_small))
             .padding(STYLE.code.padding)
             .width(Length::Fill)
-            .style(move |_: &iced::Theme| code_block_style(is_dark));
+            .style(move |_: &iced::Theme| code_block_style(theme));
 
         column![badge, content].spacing(0).into()
     }

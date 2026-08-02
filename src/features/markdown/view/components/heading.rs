@@ -26,9 +26,9 @@ pub(crate) fn render_heading<'a>(
         .width(Length::Fill);
 
     if level == 1 || level == 2 {
-        let is_dark = ctx.is_dark;
+        let theme = ctx.theme;
         let divider = container(text(""))
-            .style(move |_: &iced::Theme| divider_line_style(is_dark))
+            .style(move |_: &iced::Theme| divider_line_style(theme))
             .height(STYLE.general.divider_height)
             .width(Length::Fill);
         column![heading, divider]
