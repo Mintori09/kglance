@@ -2,7 +2,8 @@ use std::sync::{Arc, Mutex};
 
 use crate::app::Message;
 use crate::core::MediaState;
-use crate::ui::handlers::video::VideoController;
+use crate::features::video::handler::VideoController;
+
 use crate::ui::theme::{default_button, default_card, default_slider};
 use iced::widget::{Space, button, column, container, image, mouse_area, row, slider, stack, text};
 use iced::{Alignment, Element, Length};

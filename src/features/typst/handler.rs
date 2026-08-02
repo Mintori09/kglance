@@ -15,7 +15,7 @@ pub fn lazy_load_typst_pages(
     visible_page: Arc<AtomicUsize>,
 ) -> Task<Message> {
     let stream = iced::stream::channel(
-        crate::ui::handlers::lazy_pdf::CHANNEL_BUFFER_SIZE,
+        crate::features::pdf::lazy_handler::CHANNEL_BUFFER_SIZE,
         move |output| process_typst_page_loading(output, file_path, total_pages, visible_page),
     );
 
@@ -45,7 +45,7 @@ async fn process_typst_page_loading(
 
     let pdf_path = temp_pdf.path().to_path_buf();
 
-    crate::ui::handlers::lazy_pdf::process_page_loading(
+    crate::features::pdf::lazy_handler::process_page_loading(
         output,
         pdf_path.to_string_lossy().into_owned(),
         total_pages,

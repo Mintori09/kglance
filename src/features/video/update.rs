@@ -16,7 +16,7 @@ pub fn handle_seek_relative(app: &mut KglanceApp, secs: f32) -> Task<Message> {
 
 pub fn handle_video_event(
     app: &mut KglanceApp,
-    event: crate::ui::handlers::video::VideoEvent,
+    event: crate::features::video::handler::VideoEvent,
 ) -> Task<Message> {
     app.handle_video_event(event)
 }

@@ -165,7 +165,7 @@ pub fn handle_set_sidebar_mode(
 fn start_thumbnail_loading_if_needed(app: &KglanceApp) -> Task<Message> {
     let pdf = active_pdf_state(app);
     if !app.state.file_name.is_empty() && pdf.page_count > 0 {
-        crate::ui::handlers::pdf::lazy_load_thumbnails(
+        crate::features::pdf::lazy_load_thumbnails(
             app.state.file_name.clone(),
             pdf.page_count,
             pdf.visible_page.clone(),

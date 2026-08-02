@@ -8,7 +8,7 @@ use iced::futures::channel::mpsc::Sender;
 use iced::futures::future::join_all;
 
 use crate::app::Message;
-use crate::ui::handlers::lazy_pdf::{
+use crate::features::pdf::lazy_handler::{
     BATCH_SIZE, CHANNEL_BUFFER_SIZE, LOOP_POLL_INTERVAL, PRELOAD_RADIUS, WindowRange,
 };
 
@@ -17,7 +17,7 @@ pub fn lazy_load_pages(
     total_pages: usize,
     visible_page: Arc<AtomicUsize>,
 ) -> Task<Message> {
-    crate::ui::handlers::lazy_pdf::lazy_load_pages(
+    crate::features::pdf::lazy_handler::lazy_load_pages(
         file_path,
         total_pages,
         visible_page,
