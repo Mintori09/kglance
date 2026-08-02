@@ -64,7 +64,7 @@ pub fn handle_toc_heading_clicked(app: &mut KglanceApp, idx: usize) -> Task<Mess
 }
 
 pub fn handle_markdown_scrolled(app: &mut KglanceApp, y: f32) -> Task<Message> {
-    app.state.markdown.scroll_y = y;
+    active_markdown_state_mut(app).scroll_y = y;
     let toc = &app.state.markdown.toc;
     if let Some(active_pos) = toc.iter().rposition(|e| e.y_offset <= y + 50.0) {
         let target_y = (active_pos as f32 * 28.0 - 100.0).max(0.0);
@@ -308,30 +308,38 @@ pub fn handle_select_all(app: &mut KglanceApp) -> Task<Message> {
 }
 
 pub fn handle_auto_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
-    let Some(delta) = app.state.markdown.auto_scroll_delta else {
+    let Some(delta) = active_markdown_state(app).auto_scroll_delta else {
         return Task::none();
     };
 
-    let new_y = (app.state.markdown.scroll_y + delta).max(0.0);
-    app.state.markdown.scroll_y = new_y;
+    let new_y = (active_markdown_state(app).scroll_y + delta).max(0.0);
+    active_markdown_state_mut(app).scroll_y = new_y;
 
-    if let Some(PreviewData::Markdown { blocks, .. }) = &app.current_content {
-        let total_blocks = blocks.len();
-        if total_blocks > 0 {
-            let target_block = if delta > 0.0 {
-                (total_blocks - 1) * 1000
-            } else {
-                0
+    let blocks_vec: Option<Vec<Block>> = match &app.current_content {
+        Some(PreviewData::Markdown { blocks, .. }) => Some(blocks.clone()),
+        Some(PreviewData::Epub { chapters, .. }) => {
+            Some(chapters.iter().flat_map(|ch| ch.blocks.clone()).collect())
+        }
+        _ => None,
+    };
+    if let Some(blocks_vec) = blocks_vec
+        && !blocks_vec.is_empty()
+    {
+        let total_blocks = blocks_vec.len();
+        let target_block = if delta > 0.0 {
+            (total_blocks - 1) * 1000
+        } else {
+            0
+        };
+        let target_offset = if delta > 0.0 { 999_999 } else { 0 };
+
+        let s = active_markdown_state_mut(app);
+        if let Some(range) = &mut s.selection_range {
+            range.end = crate::core::SelectionPoint {
+                block: target_block,
+                offset: target_offset,
             };
-            let target_offset = if delta > 0.0 { 999999 } else { 0 };
-
-            if let Some(range) = &mut app.state.markdown.selection_range {
-                range.end = crate::core::SelectionPoint {
-                    block: target_block,
-                    offset: target_offset,
-                };
-                update_selected_text_from_range(app);
-            }
+            update_selected_text_from_range(app);
         }
     }
 
@@ -803,8 +811,9 @@ fn collect_quote_plain_texts(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_selected_text, char_boundary, handle_selection_changed, handle_selection_clear,
-        handle_selection_drag_end, handle_selection_drag_start, handle_selection_drag_update,
+        build_selected_text, char_boundary, handle_auto_scroll_tick, handle_markdown_scrolled,
+        handle_selection_changed, handle_selection_clear, handle_selection_drag_end,
+        handle_selection_drag_start, handle_selection_drag_update,
     };
     use crate::app::test_util::{epub_content, markdown_content, test_app};
     use crate::core::{SelectionPoint, SelectionRange};
@@ -1065,5 +1074,37 @@ mod tests {
             Some("hello")
         );
         assert!(app.state.markdown.selected_text.is_none());
+    }
+
+    #[test]
+    fn epub_auto_scroll_tick_extends_selection_to_last_block() {
+        let mut app = test_app(Some(epub_content(&["a", "b", "c"])));
+        let _ = handle_selection_drag_start(&mut app, 0, 0);
+        app.state.epub.markdown_state.auto_scroll_delta = Some(10.0);
+        let _ = handle_auto_scroll_tick(&mut app);
+        let range = app
+            .state
+            .epub
+            .markdown_state
+            .selection_range
+            .expect("range");
+        assert_eq!(range.end.block, 2 * 1000);
+        assert_eq!(range.end.offset, 999_999);
+        assert!(app.state.epub.markdown_state.selected_text.is_some());
+    }
+
+    #[test]
+    fn epub_scrolled_tracks_in_epub_state() {
+        let mut app = test_app(Some(epub_content(&["hello"])));
+        let _ = handle_markdown_scrolled(&mut app, 42.0);
+        assert_eq!(app.state.epub.markdown_state.scroll_y, 42.0);
+        assert_eq!(app.state.markdown.scroll_y, 0.0);
+    }
+
+    #[test]
+    fn markdown_scrolled_tracks_in_markdown_state() {
+        let mut app = test_app(Some(markdown_content("# t")));
+        let _ = handle_markdown_scrolled(&mut app, 7.0);
+        assert_eq!(app.state.markdown.scroll_y, 7.0);
     }
 }

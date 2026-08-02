@@ -57,15 +57,15 @@ pub fn handle_sidebar_drag_started(app: &mut KglanceApp, start_x: f32) -> Task<M
 pub fn handle_sidebar_drag_ended(app: &mut KglanceApp) -> Task<Message> {
     app.state.markdown.sidebar_resizing = false;
     app.state.epub.sidebar_resizing = false;
-    app.state.markdown.is_dragging_selection = false;
-    app.state.markdown.auto_scroll_delta = None;
+    markdown::active_markdown_state_mut(app).is_dragging_selection = false;
+    markdown::active_markdown_state_mut(app).auto_scroll_delta = None;
     markdown::handle_selection_drag_end(app)
 }
 
 pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message> {
-    app.state.markdown.drag_last_y = y;
+    markdown::active_markdown_state_mut(app).drag_last_y = y;
 
-    if app.state.markdown.is_dragging_selection {
+    if markdown::active_markdown_state(app).is_dragging_selection {
         const HEADER_HEIGHT: f32 = 40.0;
         const FOOTER_HEIGHT: f32 = 30.0;
         const MIN_CONTENT_HEIGHT: f32 = 100.0;
@@ -82,12 +82,13 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
             0.0
         };
 
+        let s = markdown::active_markdown_state_mut(app);
         if overflow != 0.0 {
             let direction = overflow.signum();
             let speed = (overflow.abs() * 0.8).clamp(5.0, 40.0) * direction;
-            app.state.markdown.auto_scroll_delta = Some(speed);
+            s.auto_scroll_delta = Some(speed);
         } else {
-            app.state.markdown.auto_scroll_delta = None;
+            s.auto_scroll_delta = None;
         }
     }
 
@@ -113,4 +114,21 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
     app.state.current_window_size.width = width;
     app.state.current_window_size.height = height;
     Task::none()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::test_util::{epub_content, test_app};
+    use crate::app::update::markdown::handle_selection_drag_start;
+
+    #[test]
+    fn epub_mouse_moved_sets_auto_scroll_on_epub_state() {
+        let mut app = test_app(Some(epub_content(&["hello"])));
+        let _ = handle_selection_drag_start(&mut app, 0, 0);
+        app.state.current_window_size.height = 200.0;
+        let _ = handle_mouse_moved(&mut app, 50.0, 9999.0);
+        assert!(app.state.epub.markdown_state.auto_scroll_delta.is_some());
+        assert!(app.state.markdown.auto_scroll_delta.is_none());
+    }
 }
