@@ -80,6 +80,6 @@ pub fn view_typst<'a>(
             editor_pane
         }
     } else {
-        crate::ui::views::pdf_view::view_pdf(&state.pdf, font_size, is_dark)
+        crate::ui::views::view_pdf(&state.pdf, font_size, is_dark)
     }
 }
