@@ -234,7 +234,7 @@ impl PreviewData {
                         220.0
                     },
                     sidebar_resizing: false,
-                    sidebar_drag_start_x: 0.0,
+                    sidebar_drag_start_x: None,
                     sidebar_drag_start_width: 220.0,
                     collapsed_headings: old_collapsed,
                     scroll_y: old_scroll_y,
@@ -333,7 +333,7 @@ impl PreviewData {
                         240.0
                     },
                     sidebar_resizing: false,
-                    sidebar_drag_start_x: 0.0,
+                    sidebar_drag_start_x: None,
                     sidebar_drag_start_width: 240.0,
                     scroll_y: old_scroll,
                     collapsed_chapters: old_collapsed,
