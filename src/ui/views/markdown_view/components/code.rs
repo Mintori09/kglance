@@ -3,6 +3,7 @@ use crate::app::Message;
 use crate::ui::theme::font::get_code_font;
 use crate::ui::theme::scale_size;
 use crate::ui::types::RenderContext;
+use crate::ui::views::markdown_view::build_selectable;
 use crate::ui::views::markdown_view::highlight::highlight_code;
 use iced::widget::{button, column, container, row, text};
 use iced::{Element, Length};
@@ -41,23 +42,15 @@ pub(crate) fn render_code_block<'a>(
             let line_block_index = ctx.block_index + line_idx + 1;
             let default_text_color =
                 crate::ui::theme::color::base::BaseColors::palette_for(is_dark).text;
-            crate::ui::components::selectable_text::SelectableText::new(
+            build_selectable(
                 spans,
                 scale_size(STYLE.code.line_font_size, font_size),
+                line_block_index,
+                Length::Fill,
+                default_text_color,
+                ctx.selection_range,
+                ctx.drag_active,
             )
-            .default_text_color(default_text_color)
-            .block_index(line_block_index)
-            .selection_range(ctx.selection_range)
-            .drag_active(ctx.drag_active)
-            .on_selection_change(|s| crate::app::messages::MarkdownMsg::SelectionChanged(s).into())
-            .on_drag_start(|block, offset| {
-                crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset }.into()
-            })
-            .on_drag_update(|block, offset| {
-                crate::app::messages::MarkdownMsg::SelectionDragUpdate { block, offset }.into()
-            })
-            .on_drag_end(|| crate::app::messages::MarkdownMsg::SelectionDragEnd.into())
-            .on_clear_selection(|| crate::app::messages::MarkdownMsg::SelectionClear.into())
             .into()
         })
         .collect();

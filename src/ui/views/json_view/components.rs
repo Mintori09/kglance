@@ -4,7 +4,7 @@ use crate::parsers::json::JsonNode;
 use crate::ui::components::code_editor::code_editor;
 use crate::ui::theme::tokens::spacing;
 use iced::widget::{button, container, row, text};
-use iced::{Color, Element, Length, Padding};
+use iced::{Element, Length, Padding};
 use std::collections::HashMap;
 
 use super::style::{dim_color, link_color, text_color};
@@ -61,17 +61,7 @@ pub fn render_breadcrumbs<'a>(
                 )
                 .on_press(crate::app::messages::JsonMsg::BreadcrumbClicked(*idx).into())
                 .padding(0)
-                .style(|_theme, _status| button::Style {
-                    background: None,
-                    text_color: Color::TRANSPARENT,
-                    border: iced::Border {
-                        width: 0.0,
-                        color: Color::TRANSPARENT,
-                        radius: 0.0.into(),
-                    },
-                    shadow: iced::Shadow::default(),
-                    snap: false,
-                }),
+                .style(crate::ui::components::button::transparent),
             ));
         }
     }

@@ -67,26 +67,10 @@ impl KglanceApp {
                 let row = self.state.folder.rows.get(idx)?;
                 let full_path = Path::new(&self.state.file_name).join(&row.path);
                 let path_str = full_path.to_string_lossy().to_string();
-                let registry = self.registry.clone();
-                let path_for_err = path_str.clone();
-                Some(Task::perform(
-                    async move {
-                        let content =
-                            FilePreviewer::parse(&*registry, Path::new(&path_str)).ok()?;
-                        Some(
-                            crate::app::messages::SystemMsg::FileLoaded {
-                                path: path_str,
-                                content,
-                            }
-                            .into(),
-                        )
-                    },
-                    move |msg| {
-                        msg.unwrap_or(
-                            crate::app::messages::SystemMsg::FilePreviewError(path_for_err.clone())
-                                .into(),
-                        )
-                    },
+                Some(crate::app::update::navigation::load_file_task(
+                    self,
+                    path_str,
+                    |path| crate::app::messages::SystemMsg::FilePreviewError(path).into(),
                 ))
             }
             iced::keyboard::Key::Named(Named::Home) => {

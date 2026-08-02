@@ -10,11 +10,38 @@ use crate::core::MarkdownState;
 use crate::parsers::markdown::Block;
 use crate::ui::components::content_layout::scrollable_content;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
+use crate::ui::components::selectable_text::SelectableText;
 use crate::ui::components::sidebar::drag_handle;
 use crate::ui::types::RenderContext;
 use crate::ui::views::markdown_view::toc::render_toc_sidebar;
 use iced::widget::{column, container, row};
 use iced::{Element, Length, Padding};
+
+pub(crate) fn build_selectable<'a>(
+    spans: Vec<iced::widget::text::Span<'a, (), iced::Font>>,
+    font_size: f32,
+    block_index: usize,
+    width: Length,
+    default_text_color: iced::Color,
+    selection_range: Option<crate::core::SelectionRange>,
+    drag_active: bool,
+) -> SelectableText<'a, Message> {
+    SelectableText::new(spans, font_size)
+        .default_text_color(default_text_color)
+        .width(width)
+        .block_index(block_index)
+        .selection_range(selection_range)
+        .drag_active(drag_active)
+        .on_selection_change(|s| crate::app::messages::MarkdownMsg::SelectionChanged(s).into())
+        .on_drag_start(|block, offset| {
+            crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset }.into()
+        })
+        .on_drag_update(|block, offset| {
+            crate::app::messages::MarkdownMsg::SelectionDragUpdate { block, offset }.into()
+        })
+        .on_drag_end(|| crate::app::messages::MarkdownMsg::SelectionDragEnd.into())
+        .on_clear_selection(|| crate::app::messages::MarkdownMsg::SelectionClear.into())
+}
 
 pub(crate) use blocks::{block_margin, render_block};
 use components::style::STYLE;

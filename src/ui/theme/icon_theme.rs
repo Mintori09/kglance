@@ -84,13 +84,8 @@ fn find_icon_in_dir(theme_dir: &Path, icon_name: &str) -> Option<PathBuf> {
     None
 }
 
-fn available_themes() -> Vec<String> {
-    let mut themes = Vec::new();
-
-    let detected = detect_current_theme();
-    themes.push(detected.clone());
-
-    let base_dirs = [
+fn icon_base_dirs() -> [PathBuf; 4] {
+    [
         dirs::home_dir()
             .map(|h| h.join(".icons"))
             .unwrap_or_default(),
@@ -99,7 +94,16 @@ fn available_themes() -> Vec<String> {
             .unwrap_or_default(),
         PathBuf::from("/usr/share/icons"),
         PathBuf::from("/usr/local/share/icons"),
-    ];
+    ]
+}
+
+fn available_themes() -> Vec<String> {
+    let mut themes = Vec::new();
+
+    let detected = detect_current_theme();
+    themes.push(detected.clone());
+
+    let base_dirs = icon_base_dirs();
 
     let mut candidates = Vec::new();
 
@@ -141,16 +145,7 @@ fn available_themes() -> Vec<String> {
 fn resolve_icon_path(icon_name: &str) -> Option<PathBuf> {
     let themes = available_themes();
 
-    let base_dirs = [
-        dirs::home_dir()
-            .map(|h| h.join(".icons"))
-            .unwrap_or_default(),
-        dirs::data_dir()
-            .map(|d| d.join("icons"))
-            .unwrap_or_default(),
-        PathBuf::from("/usr/share/icons"),
-        PathBuf::from("/usr/local/share/icons"),
-    ];
+    let base_dirs = icon_base_dirs();
 
     for theme in &themes {
         for base in &base_dirs {

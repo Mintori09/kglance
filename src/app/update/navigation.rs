@@ -4,6 +4,22 @@ use crate::core::FilePreviewer;
 use iced::Task;
 use std::path::Path;
 
+pub(crate) fn load_file_task(
+    app: &KglanceApp,
+    path: String,
+    on_error: fn(String) -> Message,
+) -> Task<Message> {
+    let reg = app.registry.clone();
+    let path_for_err = path.clone();
+    Task::perform(
+        async move {
+            let content = FilePreviewer::parse(&*reg, Path::new(&path)).ok()?;
+            Some(crate::app::messages::SystemMsg::FileLoaded { path, content }.into())
+        },
+        move |msg| msg.unwrap_or(on_error(path_for_err.clone())),
+    )
+}
+
 pub fn handle_sibling_files_loaded(app: &mut KglanceApp, files: Vec<String>) -> Task<Message> {
     if !files.is_empty() && app.state.playlist.len() <= 1 {
         let current = app.state.file_name.clone();
@@ -54,25 +70,9 @@ pub fn handle_next_file(app: &mut KglanceApp) -> Task<Message> {
             );
         }
 
-        let reg = app.registry.clone();
-        let path_for_err = next_path.clone();
-        return Task::perform(
-            async move {
-                let content = FilePreviewer::parse(&*reg, Path::new(&next_path)).ok()?;
-                Some(
-                    crate::app::messages::SystemMsg::FileLoaded {
-                        path: next_path,
-                        content,
-                    }
-                    .into(),
-                )
-            },
-            move |msg| {
-                msg.unwrap_or(
-                    crate::app::messages::SystemMsg::FilePreviewError(path_for_err.clone()).into(),
-                )
-            },
-        );
+        return load_file_task(app, next_path, |path| {
+            crate::app::messages::SystemMsg::FilePreviewError(path).into()
+        });
     }
     Task::none()
 }
@@ -97,25 +97,9 @@ pub fn handle_prev_file(app: &mut KglanceApp) -> Task<Message> {
             );
         }
 
-        let reg = app.registry.clone();
-        let path_for_err = prev_path.clone();
-        return Task::perform(
-            async move {
-                let content = FilePreviewer::parse(&*reg, Path::new(&prev_path)).ok()?;
-                Some(
-                    crate::app::messages::SystemMsg::FileLoaded {
-                        path: prev_path,
-                        content,
-                    }
-                    .into(),
-                )
-            },
-            move |msg| {
-                msg.unwrap_or(
-                    crate::app::messages::SystemMsg::FilePreviewError(path_for_err.clone()).into(),
-                )
-            },
-        );
+        return load_file_task(app, prev_path, |path| {
+            crate::app::messages::SystemMsg::FilePreviewError(path).into()
+        });
     }
     Task::none()
 }
@@ -128,25 +112,9 @@ pub fn handle_file_clicked_in_grid(app: &mut KglanceApp, idx: usize) -> Task<Mes
     if let Some(target_path) = target_path {
         app.state.current_index = idx;
         app.state.view_mode = crate::core::ViewMode::Detail;
-        let reg = app.registry.clone();
-        let path_for_err = target_path.clone();
-        return Task::perform(
-            async move {
-                let content = FilePreviewer::parse(&*reg, Path::new(&target_path)).ok()?;
-                Some(
-                    crate::app::messages::SystemMsg::FileLoaded {
-                        path: target_path,
-                        content,
-                    }
-                    .into(),
-                )
-            },
-            move |msg| {
-                msg.unwrap_or(
-                    crate::app::messages::SystemMsg::FilePreviewError(path_for_err.clone()).into(),
-                )
-            },
-        );
+        return load_file_task(app, target_path, |path| {
+            crate::app::messages::SystemMsg::FilePreviewError(path).into()
+        });
     }
     Task::none()
 }

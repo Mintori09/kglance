@@ -5,7 +5,7 @@ use crate::ui::components::button as ui_btn;
 use crate::ui::theme::default_text_input;
 use crate::ui::theme::tokens::spacing;
 use iced::widget::{button, column, container, row, text, text_input};
-use iced::{Color, Element, Length, Padding};
+use iced::{Element, Length, Padding};
 use std::collections::HashSet;
 
 use super::style::{dim_color, selection_color, string_color, text_color, type_color};
@@ -164,19 +164,7 @@ pub fn render_tree_node<'a>(
     if node.children_count > 0 {
         button(padded)
             .on_press(crate::app::messages::JsonMsg::ToggleNode(index).into())
-            .style(
-                |_theme: &iced::Theme, _status: button::Status| button::Style {
-                    background: None,
-                    text_color: Color::TRANSPARENT,
-                    border: iced::Border {
-                        width: 0.0,
-                        color: Color::TRANSPARENT,
-                        radius: 0.0.into(),
-                    },
-                    shadow: iced::Shadow::default(),
-                    snap: false,
-                },
-            )
+            .style(ui_btn::transparent)
             .padding(0)
             .width(Length::Fill)
             .into()
@@ -217,17 +205,7 @@ pub fn render_tree<'a>(
             } else if is_active && !editing_view {
                 button(row_elem)
                     .on_press(crate::app::messages::JsonMsg::EditStart(i).into())
-                    .style(|_theme, _status| button::Style {
-                        background: None,
-                        text_color: Color::TRANSPARENT,
-                        border: iced::Border {
-                            width: 0.0,
-                            color: Color::TRANSPARENT,
-                            radius: 0.0.into(),
-                        },
-                        shadow: iced::Shadow::default(),
-                        snap: false,
-                    })
+                    .style(ui_btn::transparent)
                     .padding(0)
                     .width(Length::Fill)
                     .into()

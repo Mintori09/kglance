@@ -84,6 +84,20 @@ pub fn breeze_tool(theme: &Theme, status: Status) -> Style {
     }
 }
 
+pub fn transparent(_theme: &Theme, _status: Status) -> Style {
+    Style {
+        background: None,
+        text_color: Color::TRANSPARENT,
+        border: Border {
+            width: 0.0,
+            color: Color::TRANSPARENT,
+            radius: 0.0.into(),
+        },
+        shadow: Shadow::default(),
+        snap: false,
+    }
+}
+
 pub fn breeze_close(theme: &Theme, status: Status) -> Style {
     let p = BaseColors::palette(theme);
     match status {
