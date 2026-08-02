@@ -1,4 +1,5 @@
-/target
+target
 source.txt
 docs/superpowers/**
 .worktrees
+docs/**
