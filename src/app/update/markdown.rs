@@ -315,17 +315,12 @@ pub fn handle_auto_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
     let new_y = (active_markdown_state(app).scroll_y + delta).max(0.0);
     active_markdown_state_mut(app).scroll_y = new_y;
 
-    let blocks_vec: Option<Vec<Block>> = match &app.current_content {
-        Some(PreviewData::Markdown { blocks, .. }) => Some(blocks.clone()),
-        Some(PreviewData::Epub { chapters, .. }) => {
-            Some(chapters.iter().flat_map(|ch| ch.blocks.clone()).collect())
-        }
-        _ => None,
+    let total_blocks = match &app.current_content {
+        Some(PreviewData::Markdown { blocks, .. }) => blocks.len(),
+        Some(PreviewData::Epub { chapters, .. }) => chapters.iter().map(|ch| ch.blocks.len()).sum(),
+        _ => 0,
     };
-    if let Some(blocks_vec) = blocks_vec
-        && !blocks_vec.is_empty()
-    {
-        let total_blocks = blocks_vec.len();
+    if total_blocks > 0 {
         let target_block = if delta > 0.0 {
             (total_blocks - 1) * 1000
         } else {
