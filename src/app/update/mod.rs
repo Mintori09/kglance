@@ -2,14 +2,10 @@ use crate::app::KglanceApp;
 use crate::app::messages::Message;
 use iced::Task;
 
-pub mod epub;
 pub mod file;
 pub mod grid;
-pub mod image;
-pub mod json;
 pub mod misc;
 pub mod navigation;
-pub mod spreadsheet;
 
 pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
     match message {
@@ -87,9 +83,15 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
         },
         Message::Image(msg) => match msg {
-            crate::app::messages::ImageMsg::Zoom(delta) => image::handle_zoom(app, delta),
-            crate::app::messages::ImageMsg::PanDelta(dx, dy) => image::handle_pan(app, dx, dy),
-            crate::app::messages::ImageMsg::DoubleClick => image::handle_double_click(app),
+            crate::app::messages::ImageMsg::Zoom(delta) => {
+                crate::features::image::update::handle_zoom(app, delta)
+            }
+            crate::app::messages::ImageMsg::PanDelta(dx, dy) => {
+                crate::features::image::update::handle_pan(app, dx, dy)
+            }
+            crate::app::messages::ImageMsg::DoubleClick => {
+                crate::features::image::update::handle_double_click(app)
+            }
         },
         Message::Text(msg) => match msg {
             crate::app::messages::TextMsg::Edit(action) => misc::handle_text_edit(app, action),
@@ -112,7 +114,7 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::MediaMsg::MouseEnter => app.handle_media_mouse_enter(),
             crate::app::messages::MediaMsg::MouseLeave => app.handle_media_mouse_leave(),
             crate::app::messages::MediaMsg::VideoThumbnailLoaded { data } => {
-                image::handle_video_thumbnail_loaded(app, data)
+                crate::features::image::update::handle_video_thumbnail_loaded(app, data)
             }
         },
         Message::Pdf(msg) => match msg {
@@ -163,16 +165,16 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
         },
         Message::Spreadsheet(msg) => match msg {
             crate::app::messages::SpreadsheetMsg::SheetTabClicked(idx) => {
-                spreadsheet::handle_sheet_tab_clicked(app, idx)
+                crate::features::csv::update::handle_sheet_tab_clicked(app, idx)
             }
             crate::app::messages::SpreadsheetMsg::ColumnClicked(col) => {
-                spreadsheet::handle_column_clicked(app, col)
+                crate::features::csv::update::handle_column_clicked(app, col)
             }
             crate::app::messages::SpreadsheetMsg::SearchQueryChanged(q) => {
-                spreadsheet::handle_search_query_changed(app, q)
+                crate::features::csv::update::handle_search_query_changed(app, q)
             }
             crate::app::messages::SpreadsheetMsg::SearchClosed => {
-                spreadsheet::handle_search_closed(app)
+                crate::features::csv::update::handle_search_closed(app)
             }
         },
         Message::Grid(msg) => match msg {
@@ -213,10 +215,12 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 misc::handle_markdown_sidebar_resized(app, w)
             }
             crate::app::messages::MarkdownMsg::MermaidBlockRendered { index, png_bytes } => {
-                image::handle_mermaid_rendered(app, index, png_bytes)
+                crate::features::image::update::handle_mermaid_rendered(app, index, png_bytes)
             }
             crate::app::messages::MarkdownMsg::ImageLoaded { index, png_bytes } => {
-                image::handle_markdown_image_loaded(app, index, png_bytes)
+                crate::features::image::update::handle_markdown_image_loaded(
+                    app, index, png_bytes,
+                )
             }
             crate::app::messages::MarkdownMsg::SelectionChanged(s) => {
                 crate::features::markdown::update::handle_selection_changed(app, s)
@@ -238,40 +242,74 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
         },
         Message::Epub(msg) => match msg {
-            crate::app::messages::EpubMsg::SidebarToggled => epub::handle_sidebar_toggled(app),
+            crate::app::messages::EpubMsg::SidebarToggled => {
+                crate::features::epub::update::handle_sidebar_toggled(app)
+            }
             crate::app::messages::EpubMsg::ChapterClicked(idx) => {
-                epub::handle_chapter_clicked(app, idx)
+                crate::features::epub::update::handle_chapter_clicked(app, idx)
             }
             crate::app::messages::EpubMsg::ChapterToggleCollapse(idx) => {
-                epub::handle_chapter_toggle_collapse(app, idx)
+                crate::features::epub::update::handle_chapter_toggle_collapse(app, idx)
             }
             crate::app::messages::EpubMsg::SidebarResized(w) => {
                 misc::handle_epub_sidebar_resized(app, w)
             }
         },
         Message::Json(msg) => match msg {
-            crate::app::messages::JsonMsg::ToggleMode => json::handle_toggle_mode(app),
-            crate::app::messages::JsonMsg::ToggleNode(idx) => json::handle_toggle_node(app, idx),
-            crate::app::messages::JsonMsg::Scrolled(y) => json::handle_scrolled(app, y),
-            crate::app::messages::JsonMsg::RawEdit(act) => json::handle_raw_edit(app, act),
-            crate::app::messages::JsonMsg::SearchToggle => json::handle_search_toggle(app),
+            crate::app::messages::JsonMsg::ToggleMode => {
+                crate::features::json::update::handle_toggle_mode(app)
+            }
+            crate::app::messages::JsonMsg::ToggleNode(idx) => {
+                crate::features::json::update::handle_toggle_node(app, idx)
+            }
+            crate::app::messages::JsonMsg::Scrolled(y) => {
+                crate::features::json::update::handle_scrolled(app, y)
+            }
+            crate::app::messages::JsonMsg::RawEdit(act) => {
+                crate::features::json::update::handle_raw_edit(app, act)
+            }
+            crate::app::messages::JsonMsg::SearchToggle => {
+                crate::features::json::update::handle_search_toggle(app)
+            }
             crate::app::messages::JsonMsg::SearchQueryChanged(q) => {
-                json::handle_search_query_changed(app, q)
+                crate::features::json::update::handle_search_query_changed(app, q)
             }
-            crate::app::messages::JsonMsg::SearchClosed => json::handle_search_closed(app),
-            crate::app::messages::JsonMsg::ExpandAll => json::handle_expand_all(app),
-            crate::app::messages::JsonMsg::CollapseAll => json::handle_collapse_all(app),
-            crate::app::messages::JsonMsg::CopyPath(idx) => json::handle_copy_path(app, idx),
-            crate::app::messages::JsonMsg::NodeClicked(idx) => json::handle_node_clicked(app, idx),
+            crate::app::messages::JsonMsg::SearchClosed => {
+                crate::features::json::update::handle_search_closed(app)
+            }
+            crate::app::messages::JsonMsg::ExpandAll => {
+                crate::features::json::update::handle_expand_all(app)
+            }
+            crate::app::messages::JsonMsg::CollapseAll => {
+                crate::features::json::update::handle_collapse_all(app)
+            }
+            crate::app::messages::JsonMsg::CopyPath(idx) => {
+                crate::features::json::update::handle_copy_path(app, idx)
+            }
+            crate::app::messages::JsonMsg::NodeClicked(idx) => {
+                crate::features::json::update::handle_node_clicked(app, idx)
+            }
             crate::app::messages::JsonMsg::BreadcrumbClicked(idx) => {
-                json::handle_breadcrumb_clicked(app, idx)
+                crate::features::json::update::handle_breadcrumb_clicked(app, idx)
             }
-            crate::app::messages::JsonMsg::ToggleFormat => json::handle_toggle_format(app),
-            crate::app::messages::JsonMsg::EditStart(idx) => json::handle_edit_start(app, idx),
-            crate::app::messages::JsonMsg::EditValue(v) => json::handle_edit_value(app, v),
-            crate::app::messages::JsonMsg::EditSave => json::handle_edit_save(app),
-            crate::app::messages::JsonMsg::EditCancel => json::handle_edit_cancel(app),
-            crate::app::messages::JsonMsg::SchemaToggle => json::handle_schema_toggle(app),
+            crate::app::messages::JsonMsg::ToggleFormat => {
+                crate::features::json::update::handle_toggle_format(app)
+            }
+            crate::app::messages::JsonMsg::EditStart(idx) => {
+                crate::features::json::update::handle_edit_start(app, idx)
+            }
+            crate::app::messages::JsonMsg::EditValue(v) => {
+                crate::features::json::update::handle_edit_value(app, v)
+            }
+            crate::app::messages::JsonMsg::EditSave => {
+                crate::features::json::update::handle_edit_save(app)
+            }
+            crate::app::messages::JsonMsg::EditCancel => {
+                crate::features::json::update::handle_edit_cancel(app)
+            }
+            crate::app::messages::JsonMsg::SchemaToggle => {
+                crate::features::json::update::handle_schema_toggle(app)
+            }
         },
         Message::Settings(msg) => match msg {
             crate::app::messages::SettingsMsg::ThemeChanged(t) => {
