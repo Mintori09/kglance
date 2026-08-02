@@ -2,7 +2,7 @@ use iced::Rectangle;
 use iced::advanced::image;
 
 use crate::core::ImageState;
-use crate::preview::image::camera::Camera;
+use crate::features::image::camera::Camera;
 
 pub trait ImageRenderer {
     fn draw(

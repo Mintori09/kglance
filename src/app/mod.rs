@@ -198,9 +198,10 @@ impl KglanceApp {
     }
 
     fn update_loaded_file_state(&mut self, path: &str, content: &PreviewData) {
+        use crate::features::image::Camera;
         self.state.file_name = path.to_string();
         self.state.content_ready = true;
-        self.state.image.camera = crate::preview::image::Camera::new();
+        self.state.image.camera = Camera::new();
 
         if let Some(ref watcher) = self.file_watcher {
             let _ = watcher

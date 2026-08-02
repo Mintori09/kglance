@@ -1,6 +1,6 @@
 use iced::{Point, Size};
 
-use crate::preview::image::camera::Camera;
+use crate::features::image::camera::Camera;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ViewerAction {
