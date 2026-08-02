@@ -43,7 +43,7 @@ pub fn handle_epub_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task<Mes
     Task::none()
 }
 
-pub fn handle_sidebar_drag_started(app: &mut KglanceApp, _start_x: f32) -> Task<Message> {
+pub fn handle_sidebar_drag_started(app: &mut KglanceApp) -> Task<Message> {
     app.state.markdown.sidebar_resizing = true;
     app.state.markdown.sidebar_drag_start_x = None;
     app.state.markdown.sidebar_drag_start_width = app.state.markdown.sidebar_width;
@@ -154,7 +154,7 @@ mod tests {
     #[test]
     fn drag_start_sets_resizing_and_clears_anchor() {
         let mut app = test_app(None);
-        let _ = handle_sidebar_drag_started(&mut app, 0.0);
+        let _ = handle_sidebar_drag_started(&mut app);
         assert!(app.state.markdown.sidebar_resizing);
         assert!(app.state.markdown.sidebar_drag_start_x.is_none());
         assert!(app.state.epub.sidebar_resizing);
@@ -165,7 +165,7 @@ mod tests {
     fn mouse_moved_anchors_on_first_move_without_resizing() {
         let mut app = test_app(None);
         app.state.epub.sidebar_width = 200.0;
-        let _ = handle_sidebar_drag_started(&mut app, 0.0);
+        let _ = handle_sidebar_drag_started(&mut app);
         let _ = handle_mouse_moved(&mut app, 250.0, 100.0);
         assert_eq!(app.state.epub.sidebar_drag_start_x, Some(250.0));
         assert_eq!(app.state.epub.sidebar_drag_start_width, 200.0);
@@ -176,7 +176,7 @@ mod tests {
     fn mouse_moved_applies_delta_after_anchor() {
         let mut app = test_app(None);
         app.state.epub.sidebar_width = 200.0;
-        let _ = handle_sidebar_drag_started(&mut app, 0.0);
+        let _ = handle_sidebar_drag_started(&mut app);
         let _ = handle_mouse_moved(&mut app, 250.0, 100.0);
         let _ = handle_mouse_moved(&mut app, 270.0, 100.0);
         assert_eq!(app.state.epub.sidebar_width, 220.0);
@@ -187,7 +187,7 @@ mod tests {
     fn mouse_moved_clamps_epub_width() {
         let mut app = test_app(None);
         app.state.epub.sidebar_width = 200.0;
-        let _ = handle_sidebar_drag_started(&mut app, 0.0);
+        let _ = handle_sidebar_drag_started(&mut app);
         let _ = handle_mouse_moved(&mut app, 0.0, 100.0);
         let _ = handle_mouse_moved(&mut app, -1000.0, 100.0);
         assert_eq!(app.state.epub.sidebar_width, 140.0);
@@ -196,7 +196,7 @@ mod tests {
     #[test]
     fn drag_end_clears_resizing() {
         let mut app = test_app(None);
-        let _ = handle_sidebar_drag_started(&mut app, 0.0);
+        let _ = handle_sidebar_drag_started(&mut app);
         let _ = handle_sidebar_drag_ended(&mut app);
         assert!(!app.state.markdown.sidebar_resizing);
         assert!(!app.state.epub.sidebar_resizing);

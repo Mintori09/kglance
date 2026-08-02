@@ -1,12 +1,11 @@
-use iced::widget::{button, container, text};
-use iced::{Background, Border, Color, Element, Length, Shadow};
+use iced::widget::{button, container, mouse_area, text};
+use iced::{Background, Border, Color, Element, Length, Shadow, mouse};
 
 use crate::ui::theme::color::sidebar::SidebarColors;
 
 const BORDER_RADIUS: f32 = 4.0;
 const ARROW_FONT_SIZE: f32 = 9.0;
-const DRAG_HANDLE_CONTAINER_WIDTH: f32 = 4.0;
-const DRAG_HANDLE_BUTTON_WIDTH: f32 = 6.0;
+const DRAG_HANDLE_WIDTH: f32 = 6.0;
 
 pub const INDENT_PER_LEVEL: f32 = 12.0;
 pub const SIDEBAR_BORDER_WIDTH: f32 = 1.0;
@@ -43,26 +42,17 @@ pub fn drag_handle<'a, Message: 'static + Clone>(
 ) -> Element<'a, Message> {
     let background_color = determine_drag_handle_color(is_resizing, is_dark);
 
-    button(
+    mouse_area(
         container(text(""))
-            .width(DRAG_HANDLE_CONTAINER_WIDTH)
+            .width(DRAG_HANDLE_WIDTH)
             .height(Length::Fill)
             .style(move |_| container::Style {
                 background: Some(background_color.into()),
                 ..Default::default()
             }),
     )
-    .padding(0)
-    .width(DRAG_HANDLE_BUTTON_WIDTH)
-    .height(Length::Fill)
     .on_press(on_press)
-    .style(|_, _| button::Style {
-        background: None,
-        border: Border::default(),
-        shadow: Shadow::default(),
-        text_color: Color::TRANSPARENT,
-        snap: false,
-    })
+    .interaction(mouse::Interaction::ResizingHorizontally)
     .into()
 }
 

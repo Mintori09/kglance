@@ -327,7 +327,7 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
         Message::ModifiersUpdated(modifiers) => app.handle_modifiers_changed(modifiers),
         Message::ScrollDelta { x, y } => app.handle_scroll_delta(x, y),
         Message::SortByFieldClicked(field) => navigation::handle_sort_by_field(app, field),
-        Message::SidebarDragStarted(start_x) => misc::handle_sidebar_drag_started(app, start_x),
+        Message::SidebarDragStarted => misc::handle_sidebar_drag_started(app),
         Message::SidebarDragEnded => misc::handle_sidebar_drag_ended(app),
         Message::MouseMoved(x, y) => misc::handle_mouse_moved(app, x, y),
     }
