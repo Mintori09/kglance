@@ -21,15 +21,27 @@ fn subtle_shadow(shadow_color: Color) -> Shadow {
     }
 }
 
-pub fn default_root(theme: &Theme) -> container::Style {
+fn container_border(color: Color, radius: f32) -> Border {
+    Border {
+        color,
+        width: 1.0,
+        radius: radius.into(),
+    }
+}
+
+fn default_bg_container(theme: &Theme, border: Border) -> container::Style {
     let p = BaseColors::palette(theme);
     container::Style {
         background: Some(p.bg.into()),
         text_color: Some(p.text),
-        border: Border::default(),
+        border,
         shadow: Shadow::default(),
         snap: false,
     }
+}
+
+pub fn default_root(theme: &Theme) -> container::Style {
+    default_bg_container(theme, Border::default())
 }
 
 pub fn default_card(theme: &Theme) -> container::Style {
@@ -37,11 +49,7 @@ pub fn default_card(theme: &Theme) -> container::Style {
     container::Style {
         background: Some(p.surface.into()),
         text_color: Some(p.text),
-        border: Border {
-            color: p.border,
-            width: 1.0,
-            radius: 12.0.into(),
-        },
+        border: container_border(p.border, 12.0),
         shadow: card_shadow(p.shadow),
         snap: false,
     }
@@ -52,29 +60,17 @@ pub fn default_raised(theme: &Theme) -> container::Style {
     container::Style {
         background: Some(p.surface_raised.into()),
         text_color: Some(p.text),
-        border: Border {
-            color: p.border,
-            width: 1.0,
-            radius: 0.0.into(),
-        },
+        border: container_border(p.border, 0.0),
         shadow: subtle_shadow(p.shadow),
         snap: false,
     }
 }
 
 pub fn default_inset(theme: &Theme) -> container::Style {
-    let p = BaseColors::palette(theme);
-    container::Style {
-        background: Some(p.bg.into()),
-        text_color: Some(p.text),
-        border: Border {
-            color: p.border,
-            width: 1.0,
-            radius: 6.0.into(),
-        },
-        shadow: Shadow::default(),
-        snap: false,
-    }
+    default_bg_container(
+        theme,
+        container_border(BaseColors::palette(theme).border, 6.0),
+    )
 }
 
 pub fn default_button(theme: &Theme, status: button::Status) -> button::Style {

@@ -102,20 +102,9 @@ impl KglanceApp {
 
         let task = if !initial_paths.is_empty() {
             let path_str = initial_paths[0].clone();
-            let reg = app.registry.clone();
-            Task::perform(
-                async move {
-                    let content = FilePreviewer::parse(&*reg, Path::new(&path_str)).ok()?;
-                    Some(
-                        crate::app::messages::SystemMsg::FileLoaded {
-                            path: path_str,
-                            content,
-                        }
-                        .into(),
-                    )
-                },
-                |msg| msg.unwrap_or(crate::app::messages::ActionMsg::CloseRequested.into()),
-            )
+            crate::app::update::navigation::load_file_task(&app, path_str, |_| {
+                crate::app::messages::ActionMsg::CloseRequested.into()
+            })
         } else {
             Task::none()
         };

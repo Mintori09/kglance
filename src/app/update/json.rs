@@ -1,9 +1,7 @@
 use crate::app::KglanceApp;
 use crate::app::messages::Message;
-use crate::core::FilePreviewer;
 use iced::Task;
 use iced::widget::operation;
-use std::path::Path;
 
 pub fn handle_toggle_mode(app: &mut KglanceApp) -> Task<Message> {
     app.state.json.tree_mode = !app.state.json.tree_mode;
@@ -120,22 +118,11 @@ pub fn handle_edit_value(app: &mut KglanceApp, val: String) -> Task<Message> {
 pub fn handle_edit_save(app: &mut KglanceApp) -> Task<Message> {
     if let Some(_idx) = app.state.json.editing_node {
         let path_str = app.state.file_name.clone();
-        let reg = app.registry.clone();
         app.state.json.editing_node = None;
         app.state.json.edit_value.clear();
-        return Task::perform(
-            async move {
-                let content = FilePreviewer::parse(&*reg, Path::new(&path_str)).ok()?;
-                Some(
-                    crate::app::messages::SystemMsg::FileLoaded {
-                        path: path_str,
-                        content,
-                    }
-                    .into(),
-                )
-            },
-            |msg| msg.unwrap_or(crate::app::messages::SystemMsg::ToastDismissed(0).into()),
-        );
+        return super::navigation::load_file_task(app, path_str, |_| {
+            crate::app::messages::SystemMsg::ToastDismissed(0).into()
+        });
     }
     Task::none()
 }

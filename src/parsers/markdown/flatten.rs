@@ -1,79 +1,73 @@
 use super::Inline;
 
+#[derive(Clone, Copy)]
+enum FlattenMode {
+    Markdown,
+    Visual,
+    Plain,
+    Toc,
+}
+
 pub fn flatten_inlines(inlines: &[Inline]) -> String {
-    let mut s = String::new();
-    for inline in inlines {
-        match inline {
-            Inline::Text(t) => s.push_str(t),
-            Inline::Bold(c) => {
-                s.push_str("**");
-                s.push_str(&flatten_inlines(c));
-                s.push_str("**");
-            }
-            Inline::Italic(c) => {
-                s.push('_');
-                s.push_str(&flatten_inlines(c));
-                s.push('_');
-            }
-            Inline::Strikethrough(c) => {
-                s.push_str("~~");
-                s.push_str(&flatten_inlines(c));
-                s.push_str("~~");
-            }
-            Inline::Code(t) => {
-                s.push('`');
-                s.push_str(t);
-                s.push('`');
-            }
-            Inline::Link { text, url } => {
-                s.push_str(&format!("[{}]({url})", flatten_inlines(text)));
-            }
-            Inline::Image { alt, url } => {
-                s.push_str(&format!("![{alt}]({url})"));
-            }
-            Inline::InlineMath(latex) => s.push_str(latex),
-            Inline::DisplayMath(latex) => s.push_str(latex),
-            Inline::SoftBreak => s.push(' '),
-        }
-    }
-    s
+    flatten_inlines_with(inlines, FlattenMode::Markdown)
 }
 
 pub fn flatten_inlines_visual(inlines: &[Inline]) -> String {
-    let mut s = String::new();
-    for inline in inlines {
-        match inline {
-            Inline::Text(t) => s.push_str(t),
-            Inline::Bold(c) => s.push_str(&flatten_inlines_visual(c)),
-            Inline::Italic(c) => s.push_str(&flatten_inlines_visual(c)),
-            Inline::Strikethrough(c) => s.push_str(&flatten_inlines_visual(c)),
-            Inline::Code(t) => s.push_str(t),
-            Inline::Link { text, .. } => s.push_str(&flatten_inlines_visual(text)),
-            Inline::Image { alt, .. } => {
-                s.push('[');
-                s.push_str(alt);
-                s.push(']');
-            }
-            Inline::InlineMath(latex) => s.push_str(latex),
-            Inline::DisplayMath(latex) => s.push_str(latex),
-            Inline::SoftBreak => s.push(' '),
-        }
-    }
-    s
+    flatten_inlines_with(inlines, FlattenMode::Visual)
 }
 
 #[allow(dead_code)]
 pub fn flatten_inlines_plain(inlines: &[Inline]) -> String {
+    flatten_inlines_with(inlines, FlattenMode::Plain)
+}
+
+pub fn flatten_inlines_toc(inlines: &[Inline]) -> String {
+    flatten_inlines_with(inlines, FlattenMode::Toc)
+}
+
+fn flatten_inlines_with(inlines: &[Inline], mode: FlattenMode) -> String {
     let mut s = String::new();
     for inline in inlines {
         match inline {
             Inline::Text(t) => s.push_str(t),
-            Inline::Bold(c) => s.push_str(&flatten_inlines_plain(c)),
-            Inline::Italic(c) => s.push_str(&flatten_inlines_plain(c)),
-            Inline::Strikethrough(c) => s.push_str(&flatten_inlines_plain(c)),
-            Inline::Code(t) => s.push_str(t),
-            Inline::Link { text, .. } => s.push_str(&flatten_inlines_plain(text)),
-            Inline::Image { alt, .. } => s.push_str(alt),
+            Inline::Bold(c) => flatten_emphasis(&mut s, c, "**", mode),
+            Inline::Italic(c) => flatten_emphasis(&mut s, c, "_", mode),
+            Inline::Strikethrough(c) => flatten_emphasis(&mut s, c, "~~", mode),
+            Inline::Code(t) => {
+                if matches!(mode, FlattenMode::Markdown | FlattenMode::Toc) {
+                    s.push('`');
+                    s.push_str(t);
+                    s.push('`');
+                } else {
+                    s.push_str(t);
+                }
+            }
+            Inline::Link { text, url } => {
+                if matches!(mode, FlattenMode::Markdown) {
+                    s.push_str(&format!(
+                        "[{}]({url})",
+                        flatten_inlines_with(text, FlattenMode::Markdown)
+                    ));
+                } else {
+                    s.push_str(&flatten_inlines_with(
+                        text,
+                        if matches!(mode, FlattenMode::Toc) {
+                            FlattenMode::Markdown
+                        } else {
+                            mode
+                        },
+                    ));
+                }
+            }
+            Inline::Image { alt, url } => match mode {
+                FlattenMode::Markdown => s.push_str(&format!("![{alt}]({url})")),
+                FlattenMode::Visual => {
+                    s.push('[');
+                    s.push_str(alt);
+                    s.push(']');
+                }
+                FlattenMode::Plain | FlattenMode::Toc => s.push_str(alt),
+            },
             Inline::InlineMath(latex) => s.push_str(latex),
             Inline::DisplayMath(latex) => s.push_str(latex),
             Inline::SoftBreak => s.push(' '),
@@ -82,27 +76,20 @@ pub fn flatten_inlines_plain(inlines: &[Inline]) -> String {
     s
 }
 
-pub fn flatten_inlines_toc(inlines: &[Inline]) -> String {
-    let mut s = String::new();
-    for inline in inlines {
-        match inline {
-            Inline::Text(t) => s.push_str(t),
-            Inline::Bold(c) => s.push_str(&flatten_inlines(c)),
-            Inline::Italic(c) => s.push_str(&flatten_inlines(c)),
-            Inline::Strikethrough(c) => s.push_str(&flatten_inlines(c)),
-            Inline::Code(t) => {
-                s.push('`');
-                s.push_str(t);
-                s.push('`');
-            }
-            Inline::Link { text, .. } => {
-                s.push_str(&flatten_inlines(text));
-            }
-            Inline::Image { alt, .. } => s.push_str(alt),
-            Inline::InlineMath(latex) => s.push_str(latex),
-            Inline::DisplayMath(latex) => s.push_str(latex),
-            Inline::SoftBreak => s.push(' '),
-        }
+fn flatten_emphasis(s: &mut String, content: &[Inline], marker: &str, mode: FlattenMode) {
+    let inner = flatten_inlines_with(
+        content,
+        if matches!(mode, FlattenMode::Markdown | FlattenMode::Toc) {
+            FlattenMode::Markdown
+        } else {
+            mode
+        },
+    );
+    if matches!(mode, FlattenMode::Markdown) {
+        s.push_str(marker);
+        s.push_str(&inner);
+        s.push_str(marker);
+    } else {
+        s.push_str(&inner);
     }
-    s
 }

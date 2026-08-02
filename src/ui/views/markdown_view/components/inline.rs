@@ -41,24 +41,15 @@ fn flush_text_segment<'a>(
     let default_text_color =
         crate::ui::theme::color::base::BaseColors::palette_for(ctx.is_dark).text;
     elements.push(
-        crate::ui::components::selectable_text::SelectableText::new(
+        crate::ui::views::markdown_view::build_selectable(
             inlines_to_spans(&inlines[start..end], span_ctx),
             font_size,
+            segment_block_index,
+            iced::Length::Shrink,
+            default_text_color,
+            ctx.selection_range,
+            ctx.drag_active,
         )
-        .default_text_color(default_text_color)
-        .width(iced::Length::Shrink)
-        .block_index(segment_block_index)
-        .selection_range(ctx.selection_range)
-        .drag_active(ctx.drag_active)
-        .on_selection_change(|s| crate::app::messages::MarkdownMsg::SelectionChanged(s).into())
-        .on_drag_start(|block, offset| {
-            crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset }.into()
-        })
-        .on_drag_update(|block, offset| {
-            crate::app::messages::MarkdownMsg::SelectionDragUpdate { block, offset }.into()
-        })
-        .on_drag_end(|| crate::app::messages::MarkdownMsg::SelectionDragEnd.into())
-        .on_clear_selection(|| crate::app::messages::MarkdownMsg::SelectionClear.into())
         .into(),
     );
 }
@@ -116,24 +107,15 @@ pub fn render_inlines<'a>(
     if !has_special {
         let default_text_color =
             crate::ui::theme::color::base::BaseColors::palette_for(ctx.is_dark).text;
-        return crate::ui::components::selectable_text::SelectableText::new(
+        return crate::ui::views::markdown_view::build_selectable(
             inlines_to_spans(inlines, &span_ctx),
             font_size,
+            ctx.block_index,
+            iced::Length::Fill,
+            default_text_color,
+            ctx.selection_range,
+            ctx.drag_active,
         )
-        .default_text_color(default_text_color)
-        .width(iced::Length::Fill)
-        .block_index(ctx.block_index)
-        .selection_range(ctx.selection_range)
-        .drag_active(ctx.drag_active)
-        .on_selection_change(|s| crate::app::messages::MarkdownMsg::SelectionChanged(s).into())
-        .on_drag_start(|block, offset| {
-            crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset }.into()
-        })
-        .on_drag_update(|block, offset| {
-            crate::app::messages::MarkdownMsg::SelectionDragUpdate { block, offset }.into()
-        })
-        .on_drag_end(|| crate::app::messages::MarkdownMsg::SelectionDragEnd.into())
-        .on_clear_selection(|| crate::app::messages::MarkdownMsg::SelectionClear.into())
         .into();
     }
 

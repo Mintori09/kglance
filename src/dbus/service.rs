@@ -8,6 +8,16 @@ use crate::core::preview::FilePreviewer;
 use crate::parsers::{ParseError, ParserRegistry};
 use crate::{log_debug, log_error, log_info};
 
+fn to_fdo_error(e: ParseError) -> zbus::fdo::Error {
+    match e {
+        ParseError::FileNotFound => zbus::fdo::Error::Failed("File not found".into()),
+        ParseError::PermissionDenied => zbus::fdo::Error::Failed("Permission denied".into()),
+        ParseError::UnsupportedFormat => zbus::fdo::Error::Failed("Unsupported file format".into()),
+        ParseError::TooLarge => zbus::fdo::Error::Failed("File too large".into()),
+        ParseError::ParseFailed(msg) => zbus::fdo::Error::Failed(msg),
+    }
+}
+
 /// Commands sent from the DBus service thread to the Iced event loop.
 pub enum DaemonCommand {
     /// Instructs the UI to open (or un-hide) the window with content already parsed.
@@ -61,17 +71,7 @@ impl DaemonService {
         // instead of two (OpenWindow + ShowPreview).
         let content = FilePreviewer::parse(&*self.parser_registry, p).map_err(|e| {
             log_error!("DaemonService: Failed to parse path {}: {:?}", path, e);
-            match e {
-                ParseError::FileNotFound => zbus::fdo::Error::Failed("File not found".into()),
-                ParseError::PermissionDenied => {
-                    zbus::fdo::Error::Failed("Permission denied".into())
-                }
-                ParseError::UnsupportedFormat => {
-                    zbus::fdo::Error::Failed("Unsupported file format".into())
-                }
-                ParseError::TooLarge => zbus::fdo::Error::Failed("File too large".into()),
-                ParseError::ParseFailed(msg) => zbus::fdo::Error::Failed(msg),
-            }
+            to_fdo_error(e)
         })?;
 
         log_debug!(
@@ -113,17 +113,7 @@ impl DaemonService {
         let p = std::path::Path::new(primary);
         let content = FilePreviewer::parse(&*self.parser_registry, p).map_err(|e| {
             log_error!("DaemonService: Failed to parse path {}: {:?}", primary, e);
-            match e {
-                ParseError::FileNotFound => zbus::fdo::Error::Failed("File not found".into()),
-                ParseError::PermissionDenied => {
-                    zbus::fdo::Error::Failed("Permission denied".into())
-                }
-                ParseError::UnsupportedFormat => {
-                    zbus::fdo::Error::Failed("Unsupported file format".into())
-                }
-                ParseError::TooLarge => zbus::fdo::Error::Failed("File too large".into()),
-                ParseError::ParseFailed(msg) => zbus::fdo::Error::Failed(msg),
-            }
+            to_fdo_error(e)
         })?;
 
         let path = primary.clone();
