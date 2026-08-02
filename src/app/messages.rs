@@ -226,7 +226,7 @@ pub enum Message {
     SortByFieldClicked(crate::core::SortField),
 
     // Sidebar resize / Mouse drag (shared by Markdown & Epub)
-    SidebarDragStarted(f32),
+    SidebarDragStarted,
     SidebarDragEnded,
     MouseMoved(f32, f32),
 }

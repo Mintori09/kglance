@@ -104,7 +104,7 @@ fn build_content_area<'a>(
         let drag_handle = drag_handle(
             state.sidebar_resizing,
             ctx.is_dark,
-            Message::SidebarDragStarted(0.0),
+            Message::SidebarDragStarted,
         );
         row![sidebar, drag_handle, scroll_content]
             .spacing(0)

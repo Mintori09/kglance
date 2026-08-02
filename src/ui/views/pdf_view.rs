@@ -29,11 +29,7 @@ pub fn view_pdf<'a>(state: &'a PdfState, font_size: f32, is_dark: bool) -> Eleme
 
     if state.sidebar_visible {
         let sidebar = render_pdf_sidebar(state, is_dark);
-        let d_handle = drag_handle(
-            state.sidebar_resizing,
-            is_dark,
-            Message::SidebarDragStarted(0.0),
-        );
+        let d_handle = drag_handle(state.sidebar_resizing, is_dark, Message::SidebarDragStarted);
         row![sidebar, d_handle, pages_view]
             .spacing(0)
             .height(Length::Fill)

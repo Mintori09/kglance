@@ -60,11 +60,7 @@ pub fn view_epub<'a>(
 
     if state.sidebar_visible && !state.chapters.is_empty() {
         let sidebar = render_chapter_sidebar(state, is_dark);
-        let drag = drag_handle(
-            state.sidebar_resizing,
-            is_dark,
-            Message::SidebarDragStarted(0.0),
-        );
+        let drag = drag_handle(state.sidebar_resizing, is_dark, Message::SidebarDragStarted);
         row![sidebar, drag, main_view]
             .spacing(0)
             .height(Length::Fill)
