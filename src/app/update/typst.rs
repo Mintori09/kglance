@@ -1,30 +1,17 @@
 use crate::app::KglanceApp;
 use crate::app::messages::Message;
+use crate::app::update::pdf;
 use iced::Task;
 
 pub fn handle_scrolled(
     app: &mut KglanceApp,
     viewport: iced::widget::scrollable::Viewport,
 ) -> Task<Message> {
-    let y = viewport.absolute_offset().y;
-    let content_h = viewport.content_bounds().height;
-    let count = app.state.typst.pdf.page_count;
-    if count > 0 && content_h > 0.0 {
-        let mut page_index = ((y / content_h) * count as f32) as usize;
-        if page_index >= count {
-            page_index = count - 1;
-        }
-        app.state
-            .typst
-            .pdf
-            .visible_page
-            .store(page_index, std::sync::atomic::Ordering::Relaxed);
-    }
-    Task::none()
+    pdf::handle_scrolled(app, viewport)
 }
 
 pub fn handle_pages_loaded(app: &mut KglanceApp) -> Task<Message> {
-    app.state.typst.pdf.loading = false;
+    pdf::pages_loaded(&mut app.state.typst.pdf);
     Task::none()
 }
 
@@ -35,19 +22,7 @@ pub fn handle_page_ready(
     width: u32,
     height: u32,
 ) -> Task<Message> {
-    if index < app.state.typst.pdf.pages.len() {
-        let handle = iced::widget::image::Handle::from_rgba(width, height, data.clone());
-        app.state.typst.pdf.pages[index] = Some(crate::core::PageCacheEntry {
-            data,
-            width,
-            height,
-            handle,
-        });
-    }
-    let all_loaded = app.state.typst.pdf.pages.iter().all(|p| p.is_some());
-    if all_loaded {
-        app.state.typst.pdf.loading = false;
-    }
+    pdf::page_ready(&mut app.state.typst.pdf, index, data, width, height);
     Task::none()
 }
 

@@ -116,57 +116,16 @@ impl<'a> EventStream<'a> {
         loop {
             match self.iter.next() {
                 None => break,
-                Some(Event::Start(Tag::Paragraph)) => {
-                    let content = self.parse_inlines();
-                    let _ = self.iter.next();
-                    blocks.push(Block::Paragraph(content));
-                }
-                Some(Event::Start(Tag::Heading { level, .. })) => {
-                    let lvl = match level {
-                        HeadingLevel::H1 => 1,
-                        HeadingLevel::H2 => 2,
-                        HeadingLevel::H3 => 3,
-                        HeadingLevel::H4 => 4,
-                        HeadingLevel::H5 => 5,
-                        HeadingLevel::H6 => 6,
-                    };
-                    let content = self.parse_inlines();
-                    let _ = self.iter.next();
-                    blocks.push(Block::Heading {
-                        level: lvl,
-                        content,
-                    });
-                }
-                Some(Event::Start(Tag::CodeBlock(kind))) => {
-                    let block = self.parse_code_block(kind);
-                    blocks.push(block);
-                }
-                Some(Event::Start(Tag::List(first_num))) => {
-                    let ordered = first_num.is_some();
-                    let start_number = first_num.unwrap_or(1);
-                    let items = self.parse_list_items();
-                    blocks.push(Block::List {
-                        ordered,
-                        start_number,
-                        items,
-                    });
-                }
-                Some(Event::Start(Tag::BlockQuote(kind))) => {
-                    let quotes = self.parse_blocks_until(TagEnd::BlockQuote(kind));
-                    blocks.push(Block::Quote(quotes));
-                }
-                Some(Event::Rule) => {
-                    blocks.push(Block::HorizontalRule);
-                }
                 Some(Event::Start(Tag::Table(alignments))) => {
                     if let Some(table) = self.parse_table(alignments) {
                         blocks.push(Block::Table(table));
                     }
                 }
-                Some(Event::Html(text)) | Some(Event::InlineHtml(text)) => {
-                    blocks.push(Block::Html(text.to_string()));
+                Some(event) => {
+                    if let Some(block) = self.parse_one_block(event) {
+                        blocks.push(block);
+                    }
                 }
-                _ => {}
             }
         }
         blocks
@@ -185,55 +144,61 @@ impl<'a> EventStream<'a> {
             }
             match self.iter.next() {
                 None => break,
-                Some(Event::Start(Tag::Paragraph)) => {
-                    let content = self.parse_inlines();
-                    let _ = self.iter.next();
-                    blocks.push(Block::Paragraph(content));
+                Some(event) => {
+                    if let Some(block) = self.parse_one_block(event) {
+                        blocks.push(block);
+                    }
                 }
-                Some(Event::Start(Tag::Heading { level, .. })) => {
-                    let lvl = match level {
-                        HeadingLevel::H1 => 1,
-                        HeadingLevel::H2 => 2,
-                        HeadingLevel::H3 => 3,
-                        HeadingLevel::H4 => 4,
-                        HeadingLevel::H5 => 5,
-                        HeadingLevel::H6 => 6,
-                    };
-                    let content = self.parse_inlines();
-                    let _ = self.iter.next();
-                    blocks.push(Block::Heading {
-                        level: lvl,
-                        content,
-                    });
-                }
-                Some(Event::Start(Tag::List(first_num))) => {
-                    let ordered = first_num.is_some();
-                    let start_number = first_num.unwrap_or(1);
-                    let items = self.parse_list_items();
-                    blocks.push(Block::List {
-                        ordered,
-                        start_number,
-                        items,
-                    });
-                }
-                Some(Event::Start(Tag::BlockQuote(kind))) => {
-                    let quotes = self.parse_blocks_until(TagEnd::BlockQuote(kind));
-                    blocks.push(Block::Quote(quotes));
-                }
-                Some(Event::Rule) => {
-                    blocks.push(Block::HorizontalRule);
-                }
-                Some(Event::Start(Tag::CodeBlock(kind))) => {
-                    let block = self.parse_code_block(kind);
-                    blocks.push(block);
-                }
-                Some(Event::Html(text)) | Some(Event::InlineHtml(text)) => {
-                    blocks.push(Block::Html(text.to_string()));
-                }
-                _ => {}
             }
         }
         blocks
+    }
+
+    fn parse_one_block(&mut self, event: Event) -> Option<Block> {
+        match event {
+            Event::Start(Tag::Paragraph) => {
+                let content = self.parse_inlines();
+                let _ = self.iter.next();
+                Some(Block::Paragraph(content))
+            }
+            Event::Start(Tag::Heading { level, .. }) => {
+                let lvl = match level {
+                    HeadingLevel::H1 => 1,
+                    HeadingLevel::H2 => 2,
+                    HeadingLevel::H3 => 3,
+                    HeadingLevel::H4 => 4,
+                    HeadingLevel::H5 => 5,
+                    HeadingLevel::H6 => 6,
+                };
+                let content = self.parse_inlines();
+                let _ = self.iter.next();
+                Some(Block::Heading {
+                    level: lvl,
+                    content,
+                })
+            }
+            Event::Start(Tag::CodeBlock(kind)) => {
+                let block = self.parse_code_block(kind);
+                Some(block)
+            }
+            Event::Start(Tag::List(first_num)) => {
+                let ordered = first_num.is_some();
+                let start_number = first_num.unwrap_or(1);
+                let items = self.parse_list_items();
+                Some(Block::List {
+                    ordered,
+                    start_number,
+                    items,
+                })
+            }
+            Event::Start(Tag::BlockQuote(kind)) => {
+                let quotes = self.parse_blocks_until(TagEnd::BlockQuote(kind));
+                Some(Block::Quote(quotes))
+            }
+            Event::Rule => Some(Block::HorizontalRule),
+            Event::Html(text) | Event::InlineHtml(text) => Some(Block::Html(text.to_string())),
+            _ => None,
+        }
     }
 
     fn parse_code_block(&mut self, kind: CodeBlockKind) -> Block {
