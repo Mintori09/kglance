@@ -94,25 +94,37 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
         },
         Message::Text(msg) => match msg {
-            crate::app::messages::TextMsg::Edit(action) => misc::handle_text_edit(app, action),
+            crate::app::messages::TextMsg::Edit(action) => {
+                crate::features::text::update::handle_text_edit(app, action)
+            }
             crate::app::messages::TextMsg::SearchQueryChanged(_) => Task::none(),
             crate::app::messages::TextMsg::SearchNext => Task::none(),
             crate::app::messages::TextMsg::SearchPrev => Task::none(),
             crate::app::messages::TextMsg::SearchClosed => Task::none(),
             crate::app::messages::TextMsg::WrapToggled => Task::none(),
-            crate::app::messages::TextMsg::Scrolled(y) => misc::handle_text_scrolled(app, y),
+            crate::app::messages::TextMsg::Scrolled(y) => {
+                crate::features::text::update::handle_text_scrolled(app, y)
+            }
         },
         Message::Media(msg) => match msg {
-            crate::app::messages::MediaMsg::PlayPauseClicked => app.handle_play_pause(),
-            crate::app::messages::MediaMsg::SeekClicked(pct) => app.handle_seek(pct),
+            crate::app::messages::MediaMsg::PlayPauseClicked => {
+                crate::features::video::update::handle_play_pause(app)
+            }
+            crate::app::messages::MediaMsg::SeekClicked(pct) => {
+                crate::features::video::update::handle_seek(app, pct)
+            }
             crate::app::messages::MediaMsg::SeekRelativeClicked(secs) => {
-                app.handle_seek_relative(secs)
+                crate::features::video::update::handle_seek_relative(app, secs)
             }
             crate::app::messages::MediaMsg::VideoEventReceived(event) => {
-                app.handle_video_event(event)
+                crate::features::video::update::handle_video_event(app, event)
             }
-            crate::app::messages::MediaMsg::MouseEnter => app.handle_media_mouse_enter(),
-            crate::app::messages::MediaMsg::MouseLeave => app.handle_media_mouse_leave(),
+            crate::app::messages::MediaMsg::MouseEnter => {
+                crate::features::video::update::handle_media_mouse_enter(app)
+            }
+            crate::app::messages::MediaMsg::MouseLeave => {
+                crate::features::video::update::handle_media_mouse_leave(app)
+            }
             crate::app::messages::MediaMsg::VideoThumbnailLoaded { data } => {
                 crate::features::image::update::handle_video_thumbnail_loaded(app, data)
             }
@@ -218,9 +230,7 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 crate::features::image::update::handle_mermaid_rendered(app, index, png_bytes)
             }
             crate::app::messages::MarkdownMsg::ImageLoaded { index, png_bytes } => {
-                crate::features::image::update::handle_markdown_image_loaded(
-                    app, index, png_bytes,
-                )
+                crate::features::image::update::handle_markdown_image_loaded(app, index, png_bytes)
             }
             crate::app::messages::MarkdownMsg::SelectionChanged(s) => {
                 crate::features::markdown::update::handle_selection_changed(app, s)

@@ -651,6 +651,7 @@ pub(crate) mod test_util {
         }
     }
 
+    #[allow(dead_code)]
     pub fn markdown_content(md: &str) -> PreviewData {
         PreviewData::Markdown {
             blocks: crate::parsers::markdown::parse_to_blocks(md),
