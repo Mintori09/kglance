@@ -3,7 +3,7 @@ name: Release Kglance
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 env:
   BINARY: kglance
@@ -70,6 +70,11 @@ jobs:
             file \
             patchelf \
             ffmpeg
+
+      - name: Install Typst CLI
+        uses: typst-community/setup-typst@v5
+        with:
+          typst-version: ^0.14.0
 
       # ── Rust toolchain ────────────────────────────────────────────────────
       # dtolnay/rust-toolchain is the de-facto standard (fd, bat, zoxide, starship).
@@ -199,16 +204,16 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-# ─────────────────────────────────────────────────────────────────────────────
-# JOB 2 — Publish release (runs once, after ALL build matrix jobs succeed)
-# Pattern: fd, bat, alacritty, zoxide
-# ─────────────────────────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 2 — Publish release (runs once, after ALL build matrix jobs succeed)
+  # Pattern: fd, bat, alacritty, zoxide
+  # ─────────────────────────────────────────────────────────────────────────────
   publish:
     name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # Required to create/update the GitHub Release
+      contents: write # Required to create/update the GitHub Release
 
     steps:
       # Download ALL artifacts from every matrix build in one step.
