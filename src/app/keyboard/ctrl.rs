@@ -70,7 +70,7 @@ impl KglanceApp {
             self.current_content,
             Some(PreviewData::Markdown { .. }) | Some(PreviewData::Epub { .. })
         ) {
-            Some(crate::app::update::markdown::handle_select_all(self))
+            Some(crate::features::markdown::update::handle_select_all(self))
         } else {
             None
         }
@@ -99,7 +99,7 @@ impl KglanceApp {
             self.current_content,
             Some(PreviewData::Markdown { .. }) | Some(PreviewData::Epub { .. })
         ) {
-            let selected_text = crate::app::update::markdown::active_markdown_state(self)
+            let selected_text = crate::features::markdown::update::active_markdown_state(self)
                 .selected_text
                 .clone();
             if let Some(text) = selected_text
