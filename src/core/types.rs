@@ -370,6 +370,13 @@ pub struct MarkdownState {
     pub is_dragging_selection: bool,
     pub auto_scroll_delta: Option<f32>,
     pub drag_last_y: f32,
+    /// Cumulative Y offset for each block index, computed once on load.
+    /// `block_y_offsets[i]` is the pixel Y where block `i` starts.
+    pub block_y_offsets: Vec<f32>,
+    /// Total estimated height of all content (sum of all block heights).
+    pub total_content_height: f32,
+    /// Height of the visible scroll viewport; updated on scroll events.
+    pub viewport_height: f32,
 }
 
 impl Default for MarkdownState {
@@ -400,6 +407,9 @@ impl Default for MarkdownState {
             is_dragging_selection: false,
             auto_scroll_delta: None,
             drag_last_y: 0.0,
+            block_y_offsets: Vec::new(),
+            total_content_height: 0.0,
+            viewport_height: 800.0,
         }
     }
 }

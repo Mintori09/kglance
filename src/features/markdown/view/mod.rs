@@ -52,7 +52,8 @@ pub fn view_markdown<'a>(
     state: &'a MarkdownState,
     font_size: f32,
     theme: crate::ui::theme::AppTheme,
-    font_family_mono: Option<&str>,
+    font_family: Option<&'a str>,
+    font_family_mono: Option<&'a str>,
     max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
     let search_counter = Cell::new(0);
@@ -65,7 +66,7 @@ pub fn view_markdown<'a>(
         counter: &search_counter,
         theme,
         font_size,
-        font_family: None,
+        font_family,
         font_family_mono,
     };
     let scroll = build_scrollable_content(blocks, state, &ctx, max_text_width);
@@ -93,23 +94,122 @@ fn build_scrollable_content<'a>(
     ctx: &RenderContext<'_>,
     max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
-    let elements = blocks.iter().enumerate().map(|(index, block)| {
-        let block_ctx = RenderContext {
-            block_index: index * 1000,
-            ..*ctx
+    // Overscan: render blocks within viewport +/- BUFFER pixels for smooth scrolling.
+    const BUFFER: f32 = 800.0;
+
+    let offsets = &state.block_y_offsets;
+    let use_virtual = !offsets.is_empty() && offsets.len() == blocks.len();
+
+    let elements: Vec<Element<'a, Message>> = if use_virtual {
+        let view_top = (state.scroll_y - BUFFER).max(0.0);
+        let view_bottom = state.scroll_y + state.viewport_height + BUFFER;
+
+        // Binary search for first and last visible block.
+        let first_visible = offsets.partition_point(|&y| y < view_top).saturating_sub(1);
+        let last_visible = offsets
+            .partition_point(|&y| y <= view_bottom)
+            .min(blocks.len());
+
+        // Edge guards: when near the start or end of the document, snap to the boundary.
+        // This prevents the spacer from flickering as estimated vs. actual rendered heights
+        // cause the total column height to oscillate slightly around the edge.
+        const EDGE_GUARD: usize = 8;
+        let first_visible = if first_visible <= EDGE_GUARD {
+            0
+        } else {
+            first_visible
         };
-        let element = render_block(index, block, state, &block_ctx);
-        let margin = block_margin(block);
-        container(element)
-            .padding(Padding {
-                top: 0.0,
-                right: 0.0,
-                bottom: margin,
-                left: 0.0,
+        let last_visible = if last_visible + EDGE_GUARD >= blocks.len() {
+            blocks.len()
+        } else {
+            last_visible
+        };
+
+        // Top spacer: accumulated height of all off-screen blocks above viewport.
+        let top_height = if first_visible > 0 {
+            offsets[first_visible] - offsets[0]
+        } else {
+            0.0
+        };
+
+        // Bottom spacer: remaining height below the last visible block.
+        let bottom_height = if last_visible < blocks.len() {
+            state.total_content_height - offsets[last_visible]
+        } else {
+            0.0
+        };
+
+        let visible_count = last_visible.saturating_sub(first_visible);
+        let mut els: Vec<Element<'a, Message>> = Vec::with_capacity(visible_count + 2);
+
+        if top_height > 0.0 {
+            els.push(
+                iced::widget::Space::new()
+                    .width(Length::Fill)
+                    .height(top_height)
+                    .into(),
+            );
+        }
+
+        for (i, block) in blocks
+            .iter()
+            .enumerate()
+            .skip(first_visible)
+            .take(last_visible - first_visible)
+        {
+            let block_ctx = RenderContext {
+                block_index: i * 1000,
+                ..*ctx
+            };
+            let element = render_block(i, block, state, &block_ctx);
+            let margin = block_margin(block);
+            els.push(
+                container(element)
+                    .padding(Padding {
+                        top: 0.0,
+                        right: 0.0,
+                        bottom: margin,
+                        left: 0.0,
+                    })
+                    .width(Length::Fill)
+                    .into(),
+            );
+        }
+
+        if bottom_height > 0.0 {
+            els.push(
+                iced::widget::Space::new()
+                    .width(Length::Fill)
+                    .height(bottom_height)
+                    .into(),
+            );
+        }
+
+        els
+    } else {
+        // Fallback: render all blocks (used when offsets are not yet computed).
+        blocks
+            .iter()
+            .enumerate()
+            .map(|(index, block)| {
+                let block_ctx = RenderContext {
+                    block_index: index * 1000,
+                    ..*ctx
+                };
+                let element = render_block(index, block, state, &block_ctx);
+                let margin = block_margin(block);
+                container(element)
+                    .padding(Padding {
+                        top: 0.0,
+                        right: 0.0,
+                        bottom: margin,
+                        left: 0.0,
+                    })
+                    .width(Length::Fill)
+                    .into()
             })
-            .width(Length::Fill)
-            .into()
-    });
+            .collect()
+    };
 
     scrollable_content(
         elements,
@@ -117,7 +217,13 @@ fn build_scrollable_content<'a>(
         STYLE.general.content_padding,
         SCROLL_PANE_ID,
     )
-    .on_scroll(|v| crate::app::messages::MarkdownMsg::Scrolled(v.absolute_offset().y).into())
+    .on_scroll(|v| {
+        crate::app::messages::MarkdownMsg::Scrolled {
+            y: v.absolute_offset().y,
+            viewport_height: v.bounds().height,
+        }
+        .into()
+    })
     .build()
 }
 

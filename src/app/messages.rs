@@ -92,7 +92,10 @@ pub enum MarkdownMsg {
     TocToggled,
     TocHeadingClicked(usize),
     TocToggleCollapse(usize),
-    Scrolled(f32),
+    Scrolled {
+        y: f32,
+        viewport_height: f32,
+    },
     SearchToggle,
     SearchQueryChanged(String),
     SearchNext,

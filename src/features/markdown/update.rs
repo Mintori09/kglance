@@ -39,7 +39,8 @@ fn markdown_block_y_offset(
 
 pub fn handle_toc_toggled(app: &mut KglanceApp) -> Task<Message> {
     app.state.markdown.toc_visible = !app.state.markdown.toc_visible;
-    Task::none()
+    let y = app.state.markdown.scroll_y;
+    operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y })
 }
 
 pub fn handle_toc_toggle_collapse(app: &mut KglanceApp, idx: usize) -> Task<Message> {
@@ -63,8 +64,14 @@ pub fn handle_toc_heading_clicked(app: &mut KglanceApp, idx: usize) -> Task<Mess
     operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y })
 }
 
-pub fn handle_markdown_scrolled(app: &mut KglanceApp, y: f32) -> Task<Message> {
-    active_markdown_state_mut(app).scroll_y = y;
+pub fn handle_markdown_scrolled(
+    app: &mut KglanceApp,
+    y: f32,
+    viewport_height: f32,
+) -> Task<Message> {
+    let state = active_markdown_state_mut(app);
+    state.scroll_y = y;
+    state.viewport_height = viewport_height;
     let toc = &app.state.markdown.toc;
     if let Some(active_pos) = toc.iter().rposition(|e| e.y_offset <= y + 50.0) {
         let target_y = (active_pos as f32 * 28.0 - 100.0).max(0.0);
