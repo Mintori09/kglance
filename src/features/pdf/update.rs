@@ -39,6 +39,7 @@ pub fn handle_scrolled(
         if page_index >= count {
             page_index = count - 1;
         }
+        pdf_state.scroll_y = y;
         pdf_state
             .visible_page
             .store(page_index, std::sync::atomic::Ordering::Relaxed);
@@ -142,11 +143,20 @@ pub fn handle_thumb_ready(
 pub fn handle_sidebar_toggled(app: &mut KglanceApp) -> Task<Message> {
     let pdf_state = active_pdf_state_mut(app);
     pdf_state.sidebar_visible = !pdf_state.sidebar_visible;
-    if pdf_state.sidebar_visible {
+    let scroll_y = pdf_state.scroll_y;
+    let load_task = if pdf_state.sidebar_visible {
         start_thumbnail_loading_if_needed(app)
     } else {
         Task::none()
-    }
+    };
+    let restore_scroll = iced::widget::operation::scroll_to(
+        "content_scroll",
+        iced::widget::operation::AbsoluteOffset {
+            x: 0.0,
+            y: scroll_y,
+        },
+    );
+    Task::batch([load_task, restore_scroll])
 }
 
 pub fn handle_set_sidebar_mode(
