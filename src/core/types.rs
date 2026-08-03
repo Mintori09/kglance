@@ -135,6 +135,7 @@ pub struct PdfState {
     pub sidebar_drag_start_x: Option<f32>,
     pub sidebar_drag_start_width: f32,
     pub outline: Vec<crate::parsers::pdf::PdfTocEntry>,
+    pub scroll_y: f32,
 }
 
 impl Default for PdfState {
@@ -156,6 +157,7 @@ impl Default for PdfState {
             sidebar_drag_start_x: None,
             sidebar_drag_start_width: 220.0,
             outline: Vec::new(),
+            scroll_y: 0.0,
         }
     }
 }
