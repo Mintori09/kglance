@@ -18,6 +18,8 @@ pub struct UiConfig {
     pub min_height: u32,
     #[serde(default)]
     pub prefer_mermaid_cli: bool,
+    #[serde(default)]
+    pub word_wrap: bool,
 }
 
 fn default_min_width() -> u32 {
@@ -77,6 +79,7 @@ impl Default for UiConfig {
             min_width: default_min_width(),
             min_height: default_min_height(),
             prefer_mermaid_cli: false,
+            word_wrap: false,
         }
     }
 }
@@ -112,11 +115,19 @@ impl ConfigManager {
 
     pub fn load_or_create() -> AppConfig {
         let path = Self::get_config_path();
-        let loaded = fs::read_to_string(&path)
-            .ok()
-            .and_then(|content| serde_json::from_str::<AppConfig>(&content).ok());
+        let raw = fs::read_to_string(&path).ok();
+
+        let loaded = raw
+            .as_deref()
+            .and_then(|content| serde_json::from_str::<AppConfig>(content).ok());
 
         if let Some(config) = loaded {
+            let reserialized = serde_json::to_string_pretty(&config).unwrap_or_default();
+            if raw.as_deref() != Some(reserialized.as_str()) {
+                if let Err(e) = Self::save(&config) {
+                    eprintln!("[kglance] failed to update config: {e}");
+                }
+            }
             return config;
         }
 

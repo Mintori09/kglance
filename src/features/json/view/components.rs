@@ -138,6 +138,7 @@ pub fn render_raw<'a>(
     theme: AppTheme,
     font_size: f32,
     font_family_mono: Option<&str>,
+    word_wrap: bool,
 ) -> Element<'a, Message> {
     let mono_font = match font_family_mono {
         Some(name) => iced::Font::with_name(Box::leak(name.to_string().into_boxed_str())),
@@ -150,6 +151,7 @@ pub fn render_raw<'a>(
         theme,
         font_size,
         mono_font,
+        word_wrap,
         |action| crate::app::messages::JsonMsg::RawEdit(action).into(),
     )
 }
