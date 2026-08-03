@@ -11,14 +11,9 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
 
-# Minimal permissions at workflow level; jobs that need write override locally.
 permissions:
   contents: read
 
-# ─────────────────────────────────────────────────────────────────────────────
-# JOB 1 — Build & package per architecture
-# Pattern from: fd, bat, zoxide, hyperfine
-# ─────────────────────────────────────────────────────────────────────────────
 jobs:
   build:
     name: Build (${{ matrix.arch }})
@@ -46,9 +41,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ── System dependencies ───────────────────────────────────────────────
-      # Cache apt archives keyed on the workflow file so it invalidates when
-      # the dep list changes. Pattern: alacritty, bat.
       - name: Cache APT packages
         uses: actions/cache@v4
         with:
@@ -76,20 +68,14 @@ jobs:
         with:
           typst-version: ^0.14.0
 
-      # ── Rust toolchain ────────────────────────────────────────────────────
-      # dtolnay/rust-toolchain is the de-facto standard (fd, bat, zoxide, starship).
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # Swatinem/rust-cache is the industry standard for Rust CI caching.
-      # Scoped per target triple automatically.
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
           sharedKey: kglance-release
 
-      # taiki-e/install-action handles caching internally — no need for
-      # extra actions/cache wrappers. Pattern: fd, bat, zoxide.
       - name: Install cargo-deb
         uses: taiki-e/install-action@v2
         with:
@@ -100,9 +86,6 @@ jobs:
         with:
           tool: cargo-generate-rpm
 
-      # ── AppImage tools ────────────────────────────────────────────────────
-      # Tools are kept in .tools/ so *.AppImage upload glob doesn't capture them.
-      # Cache is keyed with a static version suffix — bump "v1" to invalidate.
       - name: Cache AppImage tools
         uses: actions/cache@v4
         id: cache-appimage-tools
@@ -119,42 +102,34 @@ jobs:
           curl -fsSL -o .tools/linuxdeploy.AppImage "${{ matrix.linuxdeploy_url }}"
           curl -fsSL -o .tools/appimagetool.AppImage "${{ matrix.appimagetool_url }}"
 
-      # Cached files lose the executable bit — restore it unconditionally.
       - name: Make AppImage tools executable
         run: chmod +x .tools/linuxdeploy.AppImage .tools/appimagetool.AppImage
 
-      # ── Tests ─────────────────────────────────────────────────────────────
       - name: Run tests
-        run: cargo test --release --locked
+        run: cargo test --release
 
-      # ── Build ─────────────────────────────────────────────────────────────
       - name: Build release binary
-        run: cargo build --release --locked
+        run: cargo build --release
 
-      # Strip debug symbols once, reuse for all package formats.
-      # Pattern: bat, fd, hyperfine — strip before packaging, not just for RPM.
       - name: Strip binary
         run: strip "target/release/${BINARY}"
 
-      # ── Package: .deb ─────────────────────────────────────────────────────
       - name: Build .deb package
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${GITHUB_REF_NAME
           cargo deb --no-build --deb-version "${VERSION}-1" \
             -o "${BINARY}_${VERSION}-1_${{ matrix.deb_arch }}.deb"
 
-      # ── Package: .rpm ─────────────────────────────────────────────────────
       - name: Build .rpm package
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${GITHUB_REF_NAME
           cargo generate-rpm
           mv target/generate-rpm/*.rpm \
             "${BINARY}-${VERSION}-1.${{ matrix.rpm_arch }}.rpm"
 
-      # ── Package: .AppImage ────────────────────────────────────────────────
       - name: Build AppImage
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${GITHUB_REF_NAME
           APPDIR=AppDir
           rm -rf "$APPDIR"
 
@@ -173,25 +148,17 @@ jobs:
             --icon-file "data/${APP_ID}.svg" \
             --output appimage
 
-          # linuxdeploy names the output: <AppName>-<VERSION>-<arch>.AppImage
+
           mv "${APP_ID}-${VERSION}-${{ matrix.appimg_arch }}.AppImage" \
              "${BINARY}-${VERSION}-${{ matrix.appimg_arch }}.AppImage" 2>/dev/null \
           || mv ./*.AppImage "${BINARY}-${VERSION}-${{ matrix.appimg_arch }}.AppImage"
 
-      # ── Per-artifact checksums ────────────────────────────────────────────
-      # Generate individual sidecar .sha256 files per artifact.
-      # Pattern: ripgrep, fd, bat — each artifact gets a companion checksum.
       - name: Generate per-artifact checksums
         run: |
           for f in *.deb *.rpm *.AppImage; do
             sha256sum "$f" > "${f}.sha256"
           done
 
-      # ── Upload to artifact store ──────────────────────────────────────────
-      # Two-stage pattern (fd, bat, zoxide, alacritty):
-      #   build jobs → upload-artifact
-      #   publish job → download-artifact + release
-      # This guarantees no partial releases if one arch fails.
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -204,19 +171,14 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 2 — Publish release (runs once, after ALL build matrix jobs succeed)
-  # Pattern: fd, bat, alacritty, zoxide
-  # ─────────────────────────────────────────────────────────────────────────────
   publish:
     name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Required to create/update the GitHub Release
+      contents: write
 
     steps:
-      # Download ALL artifacts from every matrix build in one step.
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -224,16 +186,11 @@ jobs:
           merge-multiple: true
           path: dist/
 
-      # Consolidated SHA256SUMS file — single source of truth for users.
-      # Pattern: starship, cargo-binstall — unified manifest alongside sidecars.
       - name: Generate unified SHA256SUMS
         working-directory: dist
         run: |
           sha256sum *.deb *.rpm *.AppImage | tee SHA256SUMS
 
-      # Publish to GitHub Releases.
-      # - generate_release_notes: auto-generates changelog from commits (pattern: zoxide).
-      # - fail_on_unmatched_files: ensures all expected artifacts are present.
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
