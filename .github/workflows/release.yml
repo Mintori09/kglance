@@ -116,20 +116,20 @@ jobs:
 
       - name: Build .deb package
         run: |
-          VERSION="${GITHUB_REF_NAME
+          VERSION="${GITHUB_REF_NAME#v}"
           cargo deb --no-build --deb-version "${VERSION}-1" \
             -o "${BINARY}_${VERSION}-1_${{ matrix.deb_arch }}.deb"
 
       - name: Build .rpm package
         run: |
-          VERSION="${GITHUB_REF_NAME
+          VERSION="${GITHUB_REF_NAME#v}"
           cargo generate-rpm
           mv target/generate-rpm/*.rpm \
             "${BINARY}-${VERSION}-1.${{ matrix.rpm_arch }}.rpm"
 
       - name: Build AppImage
         run: |
-          VERSION="${GITHUB_REF_NAME
+          VERSION="${GITHUB_REF_NAME#v}"
           APPDIR=AppDir
           rm -rf "$APPDIR"
 
