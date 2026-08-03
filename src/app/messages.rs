@@ -200,6 +200,7 @@ pub enum SettingsMsg {
     DefaultHeightChanged(u32),
     MinWidthChanged(u32),
     MinHeightChanged(u32),
+    WordWrapChanged(bool),
 }
 
 #[derive(Debug, Clone)]
