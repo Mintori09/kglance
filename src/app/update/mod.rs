@@ -393,6 +393,13 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 let _ = crate::core::config::ConfigManager::save(&config);
                 Task::none()
             }
+            crate::app::messages::SettingsMsg::WordWrapChanged(enabled) => {
+                app.state.word_wrap = enabled;
+                let mut config = crate::core::config::ConfigManager::load_or_create();
+                config.ui.word_wrap = enabled;
+                let _ = crate::core::config::ConfigManager::save(&config);
+                Task::none()
+            }
         },
 
         // Global Layout / Input Events
