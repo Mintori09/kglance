@@ -507,6 +507,7 @@ pub struct KglanceState {
     pub toasts: Vec<ToastInfo>,
     pub next_toast_id: u64,
     pub prefer_mermaid_cli: bool,
+    pub word_wrap: bool,
     pub current_window_size: iced::Size,
 }
 
@@ -564,6 +565,7 @@ impl Default for KglanceState {
             toasts: Vec::new(),
             next_toast_id: 0,
             prefer_mermaid_cli: false,
+            word_wrap: false,
             current_window_size: iced::Size::new(1024.0, 768.0),
         }
     }

@@ -7,7 +7,8 @@ use crate::core::config::UiConfig;
 use crate::ui::theme::color::BaseColors;
 use crate::ui::theme::tokens::spacing;
 use crate::ui::theme::{
-    default_button, default_card, default_pick_list, default_slider, default_text_input,
+    default_button, default_card, default_checkbox, default_pick_list, default_slider,
+    default_text_input,
 };
 
 const TITLE_FONT_SIZE: f32 = 18.0;
@@ -79,6 +80,7 @@ pub fn settings_page<'a>(
             |font| Message::Settings(SettingsMsg::EpubFontFamilySelected(font))
         ),
         build_reader_width_section(theme, config),
+        build_word_wrap_section(theme, config),
         build_dimension_input_section(
             theme,
             "Default Window Size (Width × Height)",
@@ -225,6 +227,19 @@ fn build_reader_width_section<'a>(theme: &Theme, config: &'a UiConfig) -> Elemen
 
     column![label, slider_widget].spacing(spacing::XS).into()
 }
+fn build_word_wrap_section<'a>(theme: &Theme, config: &'a UiConfig) -> Element<'a, Message> {
+    let theme_clone = theme.clone();
+    let checkbox_widget = iced::widget::checkbox(config.word_wrap)
+        .label("Word Wrap in Code Previews (Ctrl+W)")
+        .on_toggle(|enabled| Message::Settings(SettingsMsg::WordWrapChanged(enabled)))
+        .text_size(SECTION_FONT_SIZE)
+        .style(move |_, status| default_checkbox(&theme_clone, status));
+
+    column![checkbox_widget]
+        .spacing(spacing::XS)
+        .into()
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_dimension_input_section<'a, FW, FH>(
     theme: &Theme,
