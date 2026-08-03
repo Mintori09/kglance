@@ -53,6 +53,12 @@ pub(crate) fn build_epub_content<'a>(
     });
 
     scrollable_content(elements, max_text_width, CONTENT_SPACING, "content_scroll")
-        .on_scroll(|v| crate::app::messages::MarkdownMsg::Scrolled(v.absolute_offset().y).into())
+        .on_scroll(|v| {
+            crate::app::messages::MarkdownMsg::Scrolled {
+                y: v.absolute_offset().y,
+                viewport_height: v.bounds().height,
+            }
+            .into()
+        })
         .build()
 }

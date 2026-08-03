@@ -481,6 +481,7 @@ impl KglanceApp {
                     &self.state.markdown,
                     self.state.font_size,
                     self.state.app_theme,
+                    self.state.font_family.as_deref(),
                     self.state.font_family_mono.as_deref(),
                     self.state.max_text_width,
                 ),

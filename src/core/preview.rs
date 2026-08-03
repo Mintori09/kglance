@@ -1,7 +1,24 @@
 use crate::core::types::KglanceState;
 use crate::features::common::parser::traits::ParseError;
-use crate::parsers::markdown::{Block, extract_toc};
+use crate::parsers::markdown::{Block, estimated_block_height, extract_toc};
+use std::collections::HashMap;
 use std::path::Path;
+
+/// Compute cumulative Y offsets for each block in a single linear pass.
+/// Returns `(offsets, total_height)` where `offsets[i]` is the Y start of block `i`.
+fn compute_block_y_offsets(
+    blocks: &[Block],
+    font_size: f32,
+    image_sizes: &HashMap<usize, (u32, u32)>,
+) -> (Vec<f32>, f32) {
+    let mut offsets = Vec::with_capacity(blocks.len());
+    let mut y: f32 = 15.0;
+    for (i, block) in blocks.iter().enumerate() {
+        offsets.push(y);
+        y += estimated_block_height(block, font_size, i, image_sizes);
+    }
+    (offsets, y)
+}
 
 #[derive(Debug, Clone)]
 pub enum PreviewData {
@@ -225,6 +242,11 @@ impl PreviewData {
                 let old_image_s = std::mem::take(&mut state.markdown.cached_image_sizes);
 
                 let old_sidebar_w = state.markdown.sidebar_width;
+
+                // Compute cumulative Y offsets for virtual rendering (one pass over blocks).
+                let (block_y_offsets, total_content_height) =
+                    compute_block_y_offsets(blocks, fs, &old_image_s);
+
                 state.markdown = crate::core::types::MarkdownState {
                     toc: extract_toc(blocks, fs, &old_image_s),
                     toc_visible: old_toc_visible,
@@ -244,6 +266,9 @@ impl PreviewData {
                     word_count: words,
                     char_count: chars,
                     reading_time_mins: mins,
+                    block_y_offsets,
+                    total_content_height,
+                    viewport_height: 800.0,
                     search_visible: false,
                     search_query: String::new(),
                     search_match_count: 0,

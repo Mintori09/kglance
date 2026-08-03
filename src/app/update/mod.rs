@@ -205,8 +205,8 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::MarkdownMsg::TocToggleCollapse(idx) => {
                 crate::features::markdown::update::handle_toc_toggle_collapse(app, idx)
             }
-            crate::app::messages::MarkdownMsg::Scrolled(y) => {
-                crate::features::markdown::update::handle_markdown_scrolled(app, y)
+            crate::app::messages::MarkdownMsg::Scrolled { y, viewport_height } => {
+                crate::features::markdown::update::handle_markdown_scrolled(app, y, viewport_height)
             }
             crate::app::messages::MarkdownMsg::SearchToggle => {
                 crate::features::markdown::update::handle_search_toggle(app)
