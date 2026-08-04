@@ -78,11 +78,13 @@ impl KglanceApp {
             ),
             prefer_mermaid_cli: config.ui.prefer_mermaid_cli,
             word_wrap: config.ui.word_wrap,
+            json_tree_view: config.ui.json_tree_view,
 
             ..Default::default()
         };
 
         state.read_positions = crate::core::ReadPositions::load();
+        state.json.tree_mode = config.ui.json_tree_view;
 
         if !initial_paths.is_empty() {
             state.playlist = initial_paths.to_vec();

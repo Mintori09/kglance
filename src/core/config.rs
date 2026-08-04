@@ -20,6 +20,12 @@ pub struct UiConfig {
     pub prefer_mermaid_cli: bool,
     #[serde(default)]
     pub word_wrap: bool,
+    #[serde(default = "default_json_tree_view")]
+    pub json_tree_view: bool,
+}
+
+fn default_json_tree_view() -> bool {
+    false
 }
 
 fn default_min_width() -> u32 {
@@ -80,6 +86,7 @@ impl Default for UiConfig {
             min_height: default_min_height(),
             prefer_mermaid_cli: false,
             word_wrap: false,
+            json_tree_view: false,
         }
     }
 }

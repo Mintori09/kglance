@@ -81,6 +81,7 @@ pub fn settings_page<'a>(
         ),
         build_reader_width_section(theme, config),
         build_word_wrap_section(theme, config),
+        build_json_tree_view_section(theme, config),
         build_dimension_input_section(
             theme,
             "Default Window Size (Width × Height)",
@@ -236,6 +237,19 @@ fn build_word_wrap_section<'a>(theme: &Theme, config: &'a UiConfig) -> Element<'
         .style(move |_, status| default_checkbox(&theme_clone, status));
 
     column![checkbox_widget].spacing(spacing::XS).into()
+}
+
+fn build_json_tree_view_section<'a>(theme: &Theme, config: &'a UiConfig) -> Element<'a, Message> {
+    let theme_clone = theme.clone();
+    let checkbox_widget = iced::widget::checkbox(config.json_tree_view)
+        .label("JSON Tree View by Default")
+        .on_toggle(|enabled| Message::Settings(SettingsMsg::JsonTreeViewChanged(enabled)))
+        .text_size(SECTION_FONT_SIZE)
+        .style(move |_, status| default_checkbox(&theme_clone, status));
+
+    column![checkbox_widget]
+        .spacing(spacing::XS)
+        .into()
 }
 
 #[allow(clippy::too_many_arguments)]

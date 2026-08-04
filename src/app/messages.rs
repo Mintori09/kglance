@@ -213,6 +213,7 @@ pub enum SettingsMsg {
     MinWidthChanged(u32),
     MinHeightChanged(u32),
     WordWrapChanged(bool),
+    JsonTreeViewChanged(bool),
 }
 
 #[derive(Debug, Clone)]
