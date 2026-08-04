@@ -81,6 +81,8 @@ impl KglanceApp {
             ..Default::default()
         };
 
+        state.read_positions = crate::core::ReadPositions::load();
+
         if !initial_paths.is_empty() {
             state.playlist = initial_paths.to_vec();
             state.current_index = 0;
@@ -682,5 +684,12 @@ pub(crate) mod test_util {
             active_chapter: 0,
             images: std::collections::HashMap::new(),
         }
+    }
+
+    #[test]
+    fn state_has_read_positions_fields() {
+        let st = KglanceState::default();
+        assert!(!st.read_positions_dirty);
+        assert_eq!(st.read_positions.get("/x").map(|p| p.scroll_y), None);
     }
 }
