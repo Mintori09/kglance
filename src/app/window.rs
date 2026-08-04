@@ -48,7 +48,8 @@ impl KglanceApp {
             self.current_content = None;
             self.window_id.take().map_or_else(Task::none, window::close)
         } else {
-            iced::exit()
+            let _ = std::io::Write::flush(&mut std::io::stdout());
+            std::process::exit(0);
         }
     }
 
@@ -168,7 +169,7 @@ impl KglanceApp {
             self.window_id = None;
             window::close(window_id)
         } else {
-            iced::exit()
+            self.close_current()
         }
     }
 }
