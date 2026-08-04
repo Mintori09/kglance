@@ -508,6 +508,9 @@ pub struct KglanceState {
     pub next_toast_id: u64,
     pub prefer_mermaid_cli: bool,
     pub current_window_size: iced::Size,
+
+    pub read_positions: crate::core::ReadPositions,
+    pub read_positions_dirty: bool,
 }
 
 const CACHE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(7) {
@@ -565,6 +568,9 @@ impl Default for KglanceState {
             next_toast_id: 0,
             prefer_mermaid_cli: false,
             current_window_size: iced::Size::new(1024.0, 768.0),
+
+            read_positions: crate::core::ReadPositions::default(),
+            read_positions_dirty: false,
         }
     }
 }
