@@ -14,5 +14,6 @@ pub fn handle_text_edit(
 
 pub fn handle_text_scrolled(app: &mut KglanceApp, y: f32) -> Task<Message> {
     app.state.text.scroll_y = y;
+    app.record_read_position();
     Task::none()
 }
