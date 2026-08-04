@@ -186,6 +186,7 @@ pub enum SystemMsg {
     FilePreviewError(String),
     FileChanged(String),
     WindowResized(f32, f32),
+    ReadPositionsTick,
 }
 
 #[derive(Debug, Clone)]
