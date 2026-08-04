@@ -196,7 +196,8 @@ The config file is auto-created with defaults on first run. See `data/examples/c
     "epub_font_family": "Noto Serif",
     "max_text_width": 820.0,
     "prefer_mermaid_cli": false,
-    "word_wrap": false
+    "word_wrap": false,
+    "json_tree_view": false
   }
 }
 ```

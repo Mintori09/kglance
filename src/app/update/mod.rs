@@ -421,6 +421,14 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 let _ = crate::core::config::ConfigManager::save(&config);
                 Task::none()
             }
+            crate::app::messages::SettingsMsg::JsonTreeViewChanged(enabled) => {
+                app.state.json_tree_view = enabled;
+                app.state.json.tree_mode = enabled;
+                let mut config = crate::core::config::ConfigManager::load_or_create();
+                config.ui.json_tree_view = enabled;
+                let _ = crate::core::config::ConfigManager::save(&config);
+                Task::none()
+            }
         },
 
         // Global Layout / Input Events
