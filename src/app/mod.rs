@@ -141,6 +141,38 @@ impl KglanceApp {
         self.state.read_positions_dirty = true;
     }
 
+    pub(crate) fn restore_read_position_for(&mut self, path: &str) -> Task<Message> {
+        let Some(pos) = self.state.read_positions.get(path) else {
+            return Task::none();
+        };
+        let scroll_y = pos.scroll_y;
+        match &self.current_content {
+            Some(crate::core::PreviewData::Text { .. }) => {
+                self.state.text.scroll_y = scroll_y;
+            }
+            Some(crate::core::PreviewData::Markdown { .. }) => {
+                self.state.markdown.scroll_y = scroll_y;
+            }
+            Some(crate::core::PreviewData::Epub { .. }) => {
+                let max = self.state.epub.chapters.len().max(1);
+                self.state.epub.active_chapter = pos.chapter.min(max - 1);
+                self.state.epub.markdown_state.scroll_y = scroll_y;
+            }
+            _ => return Task::none(),
+        }
+        if scroll_y > 0.0 {
+            iced::widget::operation::scroll_to(
+                "content_scroll",
+                iced::widget::operation::AbsoluteOffset {
+                    x: 0.0,
+                    y: scroll_y,
+                },
+            )
+        } else {
+            Task::none()
+        }
+    }
+
     pub fn trigger_preload(&mut self) -> Task<Message> {
         let indices = crate::core::preloader::calculate_preload_window(
             self.state.current_index,
@@ -210,6 +242,7 @@ impl KglanceApp {
         }
 
         self.update_loaded_file_state(&path, &content);
+        self.state.read_positions_dirty = true;
 
         let mut tasks = self.prepare_markdown_tasks(&content, &path);
         if let Some(pdf_task) = self.prepare_pdf_task(&content, &path) {
@@ -228,6 +261,9 @@ impl KglanceApp {
             "[PERF] handle_file_loaded state+tasks prepared in {:?}",
             t0.elapsed()
         );
+
+        let restore = self.restore_read_position_for(&path);
+        tasks.push(restore);
 
         Task::batch(tasks)
     }
@@ -729,5 +765,20 @@ pub(crate) mod test_util {
         let st = KglanceState::default();
         assert!(!st.read_positions_dirty);
         assert_eq!(st.read_positions.get("/x").map(|p| p.scroll_y), None);
+    }
+
+    #[test]
+    fn restore_restores_markdown_scroll() {
+        let mut app = test_app(Some(markdown_content("# hi")));
+        app.state.file_name = "/tmp/x.md".into();
+        app.state.read_positions.insert(
+            "/tmp/x.md".into(),
+            crate::core::ReadPosition {
+                scroll_y: 42.5,
+                chapter: 0,
+            },
+        );
+        let _task = app.restore_read_position_for("/tmp/x.md");
+        assert_eq!(app.state.markdown.scroll_y, 42.5);
     }
 }
