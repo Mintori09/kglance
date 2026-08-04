@@ -72,6 +72,7 @@ pub fn handle_markdown_scrolled(
     let state = active_markdown_state_mut(app);
     state.scroll_y = y;
     state.viewport_height = viewport_height;
+    app.record_read_position();
     let toc = &app.state.markdown.toc;
     if let Some(active_pos) = toc.iter().rposition(|e| e.y_offset <= y + 50.0) {
         let target_y = (active_pos as f32 * 28.0 - 100.0).max(0.0);

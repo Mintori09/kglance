@@ -11,6 +11,7 @@ pub fn handle_sidebar_toggled(app: &mut KglanceApp) -> Task<Message> {
 pub fn handle_chapter_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message> {
     if idx < app.state.epub.chapters.len() {
         app.state.epub.active_chapter = idx;
+        app.record_read_position();
         let chapter = &app.state.epub.chapters[idx];
         let font_size = app.state.font_size;
         let mut target_y: f32 = 0.0;
