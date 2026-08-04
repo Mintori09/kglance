@@ -50,6 +50,13 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::SystemMsg::FileChanged(path) => {
                 file::handle_file_changed(app, path)
             }
+            crate::app::messages::SystemMsg::ReadPositionsTick => {
+                if app.state.read_positions_dirty {
+                    let _ = app.state.read_positions.save();
+                    app.state.read_positions_dirty = false;
+                }
+                iced::Task::none()
+            }
         },
         Message::Navigation(msg) => match msg {
             crate::app::messages::NavigationMsg::PrevFileClicked => {

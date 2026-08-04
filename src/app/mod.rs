@@ -117,6 +117,30 @@ impl KglanceApp {
         (app, task)
     }
 
+    pub(crate) fn record_read_position(&mut self) {
+        let path = self.state.file_name.clone();
+        if path.is_empty() {
+            return;
+        }
+        let pos = match &self.current_content {
+            Some(crate::core::PreviewData::Text { .. }) => crate::core::ReadPosition {
+                scroll_y: self.state.text.scroll_y,
+                chapter: 0,
+            },
+            Some(crate::core::PreviewData::Markdown { .. }) => crate::core::ReadPosition {
+                scroll_y: self.state.markdown.scroll_y,
+                chapter: 0,
+            },
+            Some(crate::core::PreviewData::Epub { .. }) => crate::core::ReadPosition {
+                scroll_y: self.state.epub.markdown_state.scroll_y,
+                chapter: self.state.epub.active_chapter,
+            },
+            _ => return,
+        };
+        self.state.read_positions.insert(path, pos);
+        self.state.read_positions_dirty = true;
+    }
+
     pub fn trigger_preload(&mut self) -> Task<Message> {
         let indices = crate::core::preloader::calculate_preload_window(
             self.state.current_index,
