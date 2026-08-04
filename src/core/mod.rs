@@ -5,10 +5,12 @@ pub mod limit;
 pub mod navigation;
 pub mod preloader;
 pub mod preview;
+pub mod read_positions;
 pub mod types;
 pub mod utils;
 
 pub use preview::{FilePreviewer, PreviewData};
+pub use read_positions::{ReadPosition, ReadPositions};
 pub use types::{
     DirState, FolderRowState, FolderState, GridThumbnail, HistoryState, ImageState, KglanceState,
     MarkdownState, MediaState, PageCacheEntry, PdfSidebarMode, PdfState, SelectionPoint,
