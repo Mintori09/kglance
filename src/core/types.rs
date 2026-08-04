@@ -261,7 +261,7 @@ impl Default for JsonState {
             expanded: std::collections::HashSet::new(),
             raw_content: String::new(),
             pretty_content: String::new(),
-            tree_mode: true,
+            tree_mode: false,
             scroll_y: 0.0,
             has_parse_error: false,
             raw_editor: iced::widget::text_editor::Content::new(),
@@ -514,6 +514,7 @@ pub struct KglanceState {
     pub next_toast_id: u64,
     pub prefer_mermaid_cli: bool,
     pub word_wrap: bool,
+    pub json_tree_view: bool,
     pub current_window_size: iced::Size,
 
     pub read_positions: crate::core::ReadPositions,
@@ -575,6 +576,7 @@ impl Default for KglanceState {
             next_toast_id: 0,
             prefer_mermaid_cli: false,
             word_wrap: false,
+            json_tree_view: false,
             current_window_size: iced::Size::new(1024.0, 768.0),
 
             read_positions: crate::core::ReadPositions::default(),
