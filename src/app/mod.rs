@@ -203,6 +203,12 @@ impl KglanceApp {
     pub fn handle_file_loaded(&mut self, path: String, content: PreviewData) -> Task<Message> {
         let t0 = Instant::now();
 
+        self.record_read_position();
+        if self.state.read_positions_dirty {
+            let _ = self.state.read_positions.save();
+            self.state.read_positions_dirty = false;
+        }
+
         self.update_loaded_file_state(&path, &content);
 
         let mut tasks = self.prepare_markdown_tasks(&content, &path);
@@ -634,6 +640,13 @@ impl KglanceApp {
             Subscription::none()
         };
 
+        let read_positions_sub = if self.state.read_positions_dirty {
+            iced::time::every(std::time::Duration::from_secs(1))
+                .map(|_| crate::app::messages::SystemMsg::ReadPositionsTick.into())
+        } else {
+            Subscription::none()
+        };
+
         Subscription::batch(vec![
             dbus_sub,
             event_sub,
@@ -642,6 +655,7 @@ impl KglanceApp {
             global_event_sub,
             file_watcher_sub,
             auto_scroll_sub,
+            read_positions_sub,
         ])
     }
 

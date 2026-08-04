@@ -36,6 +36,12 @@ impl KglanceApp {
     }
 
     fn close_current(&mut self) -> Task<Message> {
+        self.record_read_position();
+        if self.state.read_positions_dirty {
+            let _ = self.state.read_positions.save();
+            self.state.read_positions_dirty = false;
+        }
+
         self.stop_video_player();
 
         if self.is_daemon {
