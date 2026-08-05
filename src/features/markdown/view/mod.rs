@@ -94,45 +94,33 @@ fn build_scrollable_content<'a>(
     ctx: &RenderContext<'_>,
     max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
-    // Overscan: render blocks within viewport +/- BUFFER pixels for smooth scrolling.
-    const BUFFER: f32 = 800.0;
+    const VIRTUAL_THRESHOLD: usize = 80;
 
     let offsets = &state.block_y_offsets;
-    let use_virtual = !offsets.is_empty() && offsets.len() == blocks.len();
+    let use_virtual = blocks.len() > VIRTUAL_THRESHOLD && offsets.len() == blocks.len();
 
     let elements: Vec<Element<'a, Message>> = if use_virtual {
+        const BUFFER: f32 = 1800.0;
+        const CHUNK_SIZE: usize = 16;
+
         let view_top = (state.scroll_y - BUFFER).max(0.0);
         let view_bottom = state.scroll_y + state.viewport_height + BUFFER;
 
-        // Binary search for first and last visible block.
-        let first_visible = offsets.partition_point(|&y| y < view_top).saturating_sub(1);
-        let last_visible = offsets
+        let raw_first = offsets.partition_point(|&y| y < view_top).saturating_sub(1);
+        let raw_last = offsets
             .partition_point(|&y| y <= view_bottom)
             .min(blocks.len());
 
-        // Edge guards: when near the start or end of the document, snap to the boundary.
-        // This prevents the spacer from flickering as estimated vs. actual rendered heights
-        // cause the total column height to oscillate slightly around the edge.
-        const EDGE_GUARD: usize = 8;
-        let first_visible = if first_visible <= EDGE_GUARD {
-            0
-        } else {
-            first_visible
-        };
-        let last_visible = if last_visible + EDGE_GUARD >= blocks.len() {
-            blocks.len()
-        } else {
-            last_visible
-        };
+        let first_visible = (raw_first / CHUNK_SIZE) * CHUNK_SIZE;
+        let last_visible = raw_last.div_ceil(CHUNK_SIZE) * CHUNK_SIZE;
+        let last_visible = last_visible.min(blocks.len());
 
-        // Top spacer: accumulated height of all off-screen blocks above viewport.
         let top_height = if first_visible > 0 {
             offsets[first_visible] - offsets[0]
         } else {
             0.0
         };
 
-        // Bottom spacer: remaining height below the last visible block.
         let bottom_height = if last_visible < blocks.len() {
             state.total_content_height - offsets[last_visible]
         } else {
@@ -187,7 +175,6 @@ fn build_scrollable_content<'a>(
 
         els
     } else {
-        // Fallback: render all blocks (used when offsets are not yet computed).
         blocks
             .iter()
             .enumerate()

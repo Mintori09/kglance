@@ -12,8 +12,10 @@ pub fn preview_size_limit(ext: &str) -> u64 {
         "zip" | "tar" | "gz" | "bz2" | "xz" | "7z" | "rar" => 2 * GB,
 
         // PDF / Office: 500 MB
-        "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "ods" | "odp"
-        | "epub" => 500 * MB,
+        "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "ods" | "odp" => {
+            500 * MB
+        }
+        "epub" => 2500 * MB,
 
         // Images / Fonts: 100 MB
         "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg" | "ico" | "ttf" | "otf"
