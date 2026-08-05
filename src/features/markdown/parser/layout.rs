@@ -29,20 +29,70 @@ pub fn estimated_block_height(
             };
             pt + h + pb + div + margin
         }
-        Block::Paragraph(_) => line * 1.8 + margin,
+        Block::Paragraph(inlines) => {
+            let text_len = flatten_inlines_toc(inlines).len();
+            let estimated_lines = (text_len / 70 + 1) as f32;
+            estimated_lines * line + margin
+        }
         Block::CodeBlock { code, .. } => {
             let n = code.lines().count().max(1) as f32;
             scale(16.0) + n * scale(13.0) * 1.3 + margin
         }
         Block::Table(t) => {
-            let rows = t.rows.len().max(1) as f32;
-            scale(24.0) * (rows + 1.0) + margin
+            let num_cols = if t.headers.is_empty() {
+                t.rows.first().map_or(1, |r| r.len())
+            } else {
+                t.headers.len()
+            }
+            .max(1);
+            let approx_col_chars = (75 / num_cols).max(12);
+
+            let row_height = scale(24.0);
+            let mut total_lines = 0.0;
+
+            if !t.headers.is_empty() {
+                let header_lines = t
+                    .headers
+                    .iter()
+                    .map(|cell| {
+                        let len = flatten_inlines_toc(&cell.content).len();
+                        (len / approx_col_chars + 1) as f32
+                    })
+                    .fold(1.0, f32::max);
+                total_lines += header_lines;
+            }
+
+            for row in &t.rows {
+                let row_lines = row
+                    .iter()
+                    .map(|cell| {
+                        let len = flatten_inlines_toc(&cell.content).len();
+                        (len / approx_col_chars + 1) as f32
+                    })
+                    .fold(1.0, f32::max);
+                total_lines += row_lines;
+            }
+
+            if total_lines == 0.0 {
+                total_lines = 1.0;
+            }
+
+            total_lines * row_height + margin
         }
-        Block::List { items, .. } => items.len().max(1) as f32 * line + margin,
+        Block::List { items, .. } => {
+            let total_item_lines: f32 = items
+                .iter()
+                .map(|item| {
+                    let len = flatten_inlines_toc(&item.content).len();
+                    (len / 70 + 1) as f32
+                })
+                .sum();
+            total_item_lines.max(1.0) * line + margin
+        }
         Block::Quote(b) => {
             let h: f32 = b
                 .iter()
-                .map(|b| estimated_block_height(b, font_size, block_index, image_sizes) * 0.6)
+                .map(|b| estimated_block_height(b, font_size, block_index, image_sizes) * 0.8)
                 .sum();
             h + margin
         }
