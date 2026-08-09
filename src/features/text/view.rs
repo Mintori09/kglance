@@ -19,6 +19,7 @@ pub fn view_text<'a>(
     theme: crate::ui::theme::AppTheme,
     font_size: f32,
     font_family_mono: Option<&str>,
+    word_wrap: bool,
 ) -> Element<'a, Message> {
     let font = get_code_font(font_family_mono);
     let mut main_content = column![].spacing(MAIN_CONTENT_SPACING);
@@ -37,6 +38,7 @@ pub fn view_text<'a>(
         theme,
         font_size,
         font,
+        word_wrap,
         |action| crate::app::messages::TextMsg::Edit(action).into(),
     );
 
