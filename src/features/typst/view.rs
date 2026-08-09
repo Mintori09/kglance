@@ -15,6 +15,7 @@ pub fn view_typst<'a>(
     theme: crate::ui::theme::AppTheme,
     font_size: f32,
     font_family_mono: Option<&str>,
+    word_wrap: bool,
 ) -> Element<'a, Message> {
     if state.show_source || state.error.is_some() {
         let font = get_code_font(font_family_mono);
@@ -24,6 +25,7 @@ pub fn view_typst<'a>(
             theme,
             font_size,
             font,
+            word_wrap,
             ignore_editor_action,
         );
 

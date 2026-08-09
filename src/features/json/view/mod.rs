@@ -20,6 +20,7 @@ pub fn view_json<'a>(
     font_size: f32,
     theme: crate::ui::theme::AppTheme,
     font_family_mono: Option<&str>,
+    word_wrap: bool,
 ) -> Element<'a, Message> {
     let toggle_label = if state.tree_mode { "Raw" } else { "Tree" };
 
@@ -125,7 +126,7 @@ pub fn view_json<'a>(
             .container_padding(4)
             .build()
     } else {
-        let raw = render_raw(state, theme, font_size, font_family_mono);
+        let raw = render_raw(state, theme, font_size, font_family_mono, word_wrap);
         scroll_pane("json_raw_scroll", raw)
             .container_padding(4)
             .build()

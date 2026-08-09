@@ -86,7 +86,7 @@ Kglance offers rich keyboard navigation for navigating files, zooming images, sc
 | `Ctrl` + `C`                  | Copy file path / Copy selected text            | Global / Text preview        |
 | `Ctrl` + `A`                  | Select all text                                | Text / Code preview          |
 | `Ctrl` + `F`                  | Open text search bar                           | Text / Code preview          |
-| `Ctrl` + `W`                  | Toggle line word wrap                          | Text / Code preview          |
+| `Ctrl` + `W`                  | Toggle word wrap                               | Text / Code / JSON preview   |
 | `Ctrl` + `+` / `Ctrl` + `=`   | Zoom in / Increase font size                   | Image / PDF / Text preview   |
 | `Ctrl` + `-`                  | Zoom out / Decrease font size                  | Image / PDF / Text preview   |
 | `Ctrl` + `0`                  | Reset zoom to 100%                             | Image preview                |
@@ -195,7 +195,8 @@ The config file is auto-created with defaults on first run. See `data/examples/c
     "font_family_mono": "Fira Code",
     "epub_font_family": "Noto Serif",
     "max_text_width": 820.0,
-    "prefer_mermaid_cli": false
+    "prefer_mermaid_cli": false,
+    "word_wrap": false
   }
 }
 ```

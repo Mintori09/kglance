@@ -54,6 +54,7 @@ fn test_config_serialization_round_trip() {
             min_width: 800,
             min_height: 600,
             prefer_mermaid_cli: false,
+            word_wrap: false,
         },
     };
     let json = serde_json::to_string_pretty(&config).unwrap();

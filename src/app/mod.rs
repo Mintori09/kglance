@@ -77,6 +77,7 @@ impl KglanceApp {
                 config.ui.min_height as f32,
             ),
             prefer_mermaid_cli: config.ui.prefer_mermaid_cli,
+            word_wrap: config.ui.word_wrap,
 
             ..Default::default()
         };
@@ -543,6 +544,7 @@ impl KglanceApp {
                     self.state.app_theme,
                     self.state.font_size,
                     self.state.font_family_mono.as_deref(),
+                    self.state.word_wrap,
                 ),
                 PreviewData::Markdown { blocks, .. } => crate::ui::views::view_markdown(
                     blocks,
@@ -567,6 +569,7 @@ impl KglanceApp {
                     self.state.app_theme,
                     self.state.font_size,
                     self.state.font_family_mono.as_deref(),
+                    self.state.word_wrap,
                 ),
                 PreviewData::Folder { .. } => {
                     crate::ui::views::view_folder(&self.state.folder, self.state.app_theme)
@@ -580,6 +583,7 @@ impl KglanceApp {
                     self.state.font_size,
                     self.state.app_theme,
                     self.state.font_family_mono.as_deref(),
+                    self.state.word_wrap,
                 ),
                 PreviewData::Epub { .. } => crate::ui::views::view_epub(
                     &self.state.epub,

@@ -76,6 +76,7 @@ pub fn code_editor<'a>(
     theme: AppTheme,
     font_size: f32,
     font: Font,
+    word_wrap: bool,
     on_action: fn(Action) -> Message,
 ) -> Element<'a, Message> {
     let highlight_theme = select_highlight_theme(theme);
@@ -106,17 +107,27 @@ pub fn code_editor<'a>(
         .highlight(&syntax, highlight_theme)
         .font(font)
         .size(font_size)
-        .wrapping(iced::widget::text::Wrapping::None)
+        .wrapping(if word_wrap {
+            iced::widget::text::Wrapping::Word
+        } else {
+            iced::widget::text::Wrapping::None
+        })
         .on_action(on_action)
         .style(default_text_editor);
 
-    row![
-        container(line_numbers_widget).align_y(Vertical::Top),
-        editor_widget
-    ]
-    .spacing(GUTTER_SPACING)
-    .align_y(Alignment::Start)
-    .into()
+    if word_wrap {
+        row![editor_widget]
+            .align_y(Alignment::Start)
+            .into()
+    } else {
+        row![
+            container(line_numbers_widget).align_y(Vertical::Top),
+            editor_widget
+        ]
+        .spacing(GUTTER_SPACING)
+        .align_y(Alignment::Start)
+        .into()
+    }
 }
 
 #[cfg(test)]
