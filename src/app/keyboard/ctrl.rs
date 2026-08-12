@@ -258,9 +258,9 @@ mod tests {
     #[test]
     fn ctrl_w_toggles_word_wrap() {
         let mut app = test_app(Some(crate::core::PreviewData::Text {
-            content: iced::widget::text_editor::Content::with_text("hello"),
-            total_lines: 1,
-            is_large: false,
+            content: "hello".to_string(),
+            line_numbers: "1".to_string(),
+            language: "plaintext".to_string(),
         }));
         let initial_wrap = app.state.word_wrap;
         let key = iced::keyboard::Key::Character("w".into());
