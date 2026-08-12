@@ -20,6 +20,28 @@ pub struct FileWatcher {
     pub events: Arc<Mutex<Option<Receiver<PathBuf>>>>,
 }
 
+fn is_ignored_path(path: &std::path::Path) -> bool {
+    for component in path.components() {
+        if let std::path::Component::Normal(name) = component {
+            let s = name.to_string_lossy();
+            if s == ".git"
+                || s == ".svn"
+                || s == ".hg"
+                || s == "node_modules"
+                || s == "target"
+                || s == "build"
+                || s == "dist"
+                || s == "__pycache__"
+                || s == ".venv"
+                || s == "venv"
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 impl FileWatcher {
     pub fn new() -> Result<Self, String> {
         let (tx_notify, rx_notify) = mpsc::channel();
@@ -53,7 +75,7 @@ impl FileWatcher {
                                 let _ = watcher.unwatch(parent);
                             }
                             if let Some(parent) = path.parent()
-                                && let Err(e) = watcher.watch(parent, RecursiveMode::NonRecursive)
+                                && let Err(e) = watcher.watch(parent, RecursiveMode::Recursive)
                             {
                                 log_error!(
                                     "FileWatcher: failed to watch {}: {}",
@@ -78,18 +100,33 @@ impl FileWatcher {
 
                 match rx_notify.recv_timeout(Duration::from_millis(100)) {
                     Ok(event) => {
-                        if let Some(ref watched) = current_path {
-                            let is_change =
-                                matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_))
-                                    && event.paths.iter().any(|p| p == watched);
-
-                            let is_remove = matches!(event.kind, EventKind::Remove(_))
+                        if let Some(ref watched) = current_path
+                            && let Some(parent) = watched.parent()
+                        {
+                            let is_remove_main = matches!(event.kind, EventKind::Remove(_))
                                 && event.paths.iter().any(|p| p == watched);
 
-                            if is_remove {
+                            if is_remove_main {
                                 let _ = tx_result.send(watched.clone());
                                 last_change = None;
-                            } else if is_change {
+                                continue;
+                            }
+
+                            let has_valid_child_event = event
+                                .paths
+                                .iter()
+                                .any(|p| p.starts_with(parent) && !is_ignored_path(p));
+
+                            if !has_valid_child_event {
+                                continue;
+                            }
+
+                            let is_change = matches!(
+                                event.kind,
+                                EventKind::Modify(_) | EventKind::Create(_) | EventKind::Remove(_)
+                            );
+
+                            if is_change {
                                 last_change = Some(Instant::now());
                             }
                         }

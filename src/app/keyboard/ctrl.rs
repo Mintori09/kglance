@@ -61,12 +61,14 @@ impl KglanceApp {
             "P" if matches!(self.current_content, Some(PreviewData::Json { .. })) => Some(
                 Task::done(crate::app::messages::JsonMsg::ToggleFormat.into()),
             ),
-            "w" | "W" if matches!(
-                self.current_content,
-                Some(PreviewData::Text { .. })
-                    | Some(PreviewData::Json { .. })
-                    | Some(PreviewData::Typst { .. })
-            ) => {
+            "w" | "W"
+                if matches!(
+                    self.current_content,
+                    Some(PreviewData::Text { .. })
+                        | Some(PreviewData::Json { .. })
+                        | Some(PreviewData::Typst { .. })
+                ) =>
+            {
                 self.state.word_wrap = !self.state.word_wrap;
                 let mut config = crate::core::config::ConfigManager::load_or_create();
                 config.ui.word_wrap = self.state.word_wrap;

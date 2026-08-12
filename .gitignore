@@ -4,3 +4,4 @@ docs/superpowers/**
 .worktrees
 docs/**
 roadmap.md
+.envrc

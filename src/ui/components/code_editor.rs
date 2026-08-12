@@ -116,9 +116,7 @@ pub fn code_editor<'a>(
         .style(default_text_editor);
 
     if word_wrap {
-        row![editor_widget]
-            .align_y(Alignment::Start)
-            .into()
+        row![editor_widget].align_y(Alignment::Start).into()
     } else {
         row![
             container(line_numbers_widget).align_y(Vertical::Top),
