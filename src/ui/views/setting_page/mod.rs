@@ -235,9 +235,7 @@ fn build_word_wrap_section<'a>(theme: &Theme, config: &'a UiConfig) -> Element<'
         .text_size(SECTION_FONT_SIZE)
         .style(move |_, status| default_checkbox(&theme_clone, status));
 
-    column![checkbox_widget]
-        .spacing(spacing::XS)
-        .into()
+    column![checkbox_widget].spacing(spacing::XS).into()
 }
 
 #[allow(clippy::too_many_arguments)]
