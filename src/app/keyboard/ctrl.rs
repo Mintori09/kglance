@@ -254,4 +254,20 @@ mod tests {
         let mut app = test_app(Some(epub_content(&["hello"])));
         assert!(app.handle_ctrl_copy().is_none());
     }
+
+    #[test]
+    fn ctrl_w_toggles_word_wrap() {
+        let mut app = test_app(Some(crate::core::PreviewData::Text {
+            content: iced::widget::text_editor::Content::with_text("hello"),
+            total_lines: 1,
+            is_large: false,
+        }));
+        let initial_wrap = app.state.word_wrap;
+        let key = iced::keyboard::Key::Character("w".into());
+        let modifiers = iced::keyboard::Modifiers::CTRL;
+
+        let task = app.handle_ctrl_shortcuts(&key, modifiers);
+        assert!(task.is_some());
+        assert_eq!(app.state.word_wrap, !initial_wrap);
+    }
 }
