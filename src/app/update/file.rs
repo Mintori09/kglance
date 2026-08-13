@@ -51,6 +51,10 @@ pub fn handle_file_preview_error(app: &mut KglanceApp, path: String) -> Task<Mes
 }
 
 pub fn handle_file_changed(app: &mut KglanceApp, path: String) -> Task<Message> {
+    if app.is_daemon && app.window_id.is_none() {
+        return Task::none();
+    }
+
     if path == app.state.file_name {
         let path_obj = Path::new(&path);
         if !path_obj.exists() {
@@ -95,4 +99,22 @@ pub fn handle_file_changed(app: &mut KglanceApp, path: String) -> Task<Message> 
         }
     }
     Task::none()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::test_util::test_app;
+
+    #[test]
+    fn test_file_changed_ignored_when_daemon_window_closed() {
+        let mut app = test_app(None);
+        app.is_daemon = true;
+        app.window_id = None;
+        app.state.file_name = "/tmp/test.md".to_string();
+
+        let _task = handle_file_changed(&mut app, "/tmp/test.md".to_string());
+        assert!(app.window_id.is_none());
+        assert!(app.current_content.is_none());
+    }
 }
