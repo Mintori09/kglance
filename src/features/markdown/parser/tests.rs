@@ -27,6 +27,17 @@ fn parses_basic_markdown() {
 }
 
 #[test]
+fn test_inline_math_in_spans() {
+    let inlines = vec![
+        text("Result: "),
+        Inline::InlineMath("\\Rightarrow".to_string()),
+        text(" done"),
+    ];
+    let flat = flatten_inlines_visual(&inlines);
+    assert_eq!(flat, "Result: \\Rightarrow done");
+}
+
+#[test]
 fn parses_inline_bold_and_code_in_paragraph() {
     let blocks = parse_to_blocks("This is **bold** and `code`");
     assert_eq!(blocks.len(), 1);
