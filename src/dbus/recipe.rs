@@ -66,6 +66,33 @@ impl Recipe for DaemonRecipe {
                                     )
                                     .await;
                             }
+                            DaemonCommand::UpdateWindowWithContent { path, content } => {
+                                let _ = output
+                                    .send(
+                                        crate::app::messages::SystemMsg::DaemonUpdateWindow {
+                                            path,
+                                            content,
+                                        }
+                                        .into(),
+                                    )
+                                    .await;
+                            }
+                            DaemonCommand::UpdateWindowWithPlaylist {
+                                path,
+                                content,
+                                playlist,
+                            } => {
+                                let _ = output
+                                    .send(
+                                        crate::app::messages::SystemMsg::DaemonUpdateWithPlaylist {
+                                            path,
+                                            content,
+                                            playlist,
+                                        }
+                                        .into(),
+                                    )
+                                    .await;
+                            }
                             // Kept for future use (e.g. reloading without window re-open).
                             DaemonCommand::ShowPreviewExisting { path, content } => {
                                 let _ = output
