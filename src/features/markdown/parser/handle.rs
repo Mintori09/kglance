@@ -1,7 +1,7 @@
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
 
-use crate::features::image::types::ImageRef;
+use crate::{features::image::types::ImageRef, log_debug};
 
 use super::{Block, Inline, ListItem, TableBlock, TableCell};
 
@@ -25,6 +25,7 @@ pub(super) fn extract_images(raw: &str, parent: &Path) -> Vec<ImageRef> {
                 } else {
                     parent.join(&image_url).to_string_lossy().to_string()
                 };
+                log_debug!("{}", resolved.to_string().to_string());
                 images.push(ImageRef {
                     alt_text: image_alt.clone(),
                     path: resolved,
@@ -160,7 +161,16 @@ impl<'a> EventStream<'a> {
             Event::Start(Tag::Paragraph) => {
                 let content = self.parse_inlines();
                 let _ = self.iter.next();
-                Some(Block::Paragraph(content))
+                if content.len() == 1
+                    && let Inline::Image { ref alt, ref url } = content[0]
+                {
+                    Some(Block::Image {
+                        alt: alt.clone(),
+                        path: url.clone(),
+                    })
+                } else {
+                    Some(Block::Paragraph(content))
+                }
             }
             Event::Start(Tag::Heading { level, .. }) => {
                 let lvl = match level {
