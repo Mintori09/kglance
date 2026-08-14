@@ -31,6 +31,14 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 content,
                 playlist,
             } => file::handle_daemon_open_with_playlist(app, path, content, playlist),
+            crate::app::messages::SystemMsg::DaemonUpdateWindow { path, content } => {
+                file::handle_daemon_update_window(app, path, content)
+            }
+            crate::app::messages::SystemMsg::DaemonUpdateWithPlaylist {
+                path,
+                content,
+                playlist,
+            } => file::handle_daemon_update_with_playlist(app, path, content, playlist),
             crate::app::messages::SystemMsg::FileLoaded { path, content } => {
                 file::handle_file_loaded_msg(app, path, content)
             }

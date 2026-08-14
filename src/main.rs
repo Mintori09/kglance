@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_paths: Vec<String> = args
         .iter()
         .skip(1)
-        .filter(|s| !s.starts_with('-') && s.as_str() != "daemon")
+        .filter(|s| !s.starts_with('-') && s.as_str() != "daemon" && s.as_str() != "update")
         .filter_map(|s| std::fs::canonicalize(s).ok())
         .map(|p| p.to_string_lossy().to_string())
         .collect();
@@ -22,11 +22,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             log_info!("Running in daemon mode");
             run_daemon()
         }
+        Some("update") => {
+            if file_paths.is_empty() {
+                log_error!("No valid file paths provided for update");
+                eprintln!("Usage: kglance update <file-path> [...]");
+                std::process::exit(1);
+            }
+
+            log_info!("Attempting to update preview via DBus: {:?}", file_paths);
+            if let Err(e) = dbus::send_multiple_update_via_dbus(&file_paths) {
+                log_error!("Daemon update via DBus failed: {:?}", e);
+                eprintln!(
+                    "Failed to update preview via DBus (daemon not running or not responding): {}",
+                    e
+                );
+                std::process::exit(1);
+            }
+            log_info!("Successfully requested update via DBus");
+            Ok(())
+        }
         Some(path) if !path.starts_with('-') => {
             if file_paths.is_empty() {
                 log_error!("No valid file paths provided: {:?}", path);
                 eprintln!("Usage:");
                 eprintln!("  kglance daemon                  Start preview daemon (autostart)");
+                eprintln!(
+                    "  kglance update <file-path> [...] Update currently open preview (daemon mode only)"
+                );
                 eprintln!("  kglance <file-path> [...]       Preview file(s)");
                 std::process::exit(1);
             }
@@ -44,6 +66,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => {
             eprintln!("Usage:");
             eprintln!("  kglance daemon                  Start preview daemon (autostart)");
+            eprintln!(
+                "  kglance update <file-path> [...] Update currently open preview (daemon mode only)"
+            );
             eprintln!("  kglance <file-path> [...]       Preview file(s)");
             std::process::exit(1);
         }

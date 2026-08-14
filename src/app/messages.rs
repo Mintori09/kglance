@@ -175,6 +175,15 @@ pub enum SystemMsg {
         content: PreviewData,
         playlist: Vec<String>,
     },
+    DaemonUpdateWindow {
+        path: String,
+        content: PreviewData,
+    },
+    DaemonUpdateWithPlaylist {
+        path: String,
+        content: PreviewData,
+        playlist: Vec<String>,
+    },
     FileLoaded {
         path: String,
         content: PreviewData,

@@ -32,6 +32,17 @@ pub enum DaemonCommand {
         content: crate::core::preview::PreviewData,
         playlist: Vec<String>,
     },
+    /// Instructs the UI to update the active window ONLY if it is currently visible.
+    UpdateWindowWithContent {
+        path: String,
+        content: crate::core::preview::PreviewData,
+    },
+    /// Instructs the UI to update content and playlist ONLY if it is currently visible.
+    UpdateWindowWithPlaylist {
+        path: String,
+        content: crate::core::preview::PreviewData,
+        playlist: Vec<String>,
+    },
     /// Re-show an already-open window for the same content path without re-parsing.
     ShowPreviewExisting {
         path: String,
@@ -136,6 +147,83 @@ impl DaemonService {
 
         log_info!(
             "[PERF] show_multiple_previews total daemon-side latency: {:?}",
+            t0.elapsed()
+        );
+        Ok(())
+    }
+
+    async fn update_preview(&mut self, file_path: &str) -> zbus::fdo::Result<()> {
+        let t0 = Instant::now();
+        log_info!(
+            "DaemonService: update_preview request received for path: {}",
+            file_path
+        );
+
+        let path = file_path.to_string();
+        let p = std::path::Path::new(file_path);
+
+        let content = FilePreviewer::parse(&*self.parser_registry, p).map_err(|e| {
+            log_error!("DaemonService: Failed to parse path {}: {:?}", path, e);
+            to_fdo_error(e)
+        })?;
+
+        self.tx
+            .send(DaemonCommand::UpdateWindowWithContent { path, content })
+            .await
+            .map_err(|err| {
+                log_error!(
+                    "DaemonService: Failed to send UpdateWindowWithContent: {:?}",
+                    err
+                );
+                zbus::fdo::Error::Failed("Internal error".into())
+            })?;
+
+        log_info!(
+            "[PERF] update_preview total daemon-side latency: {:?}",
+            t0.elapsed()
+        );
+        Ok(())
+    }
+
+    async fn update_multiple_previews(&mut self, file_paths: Vec<String>) -> zbus::fdo::Result<()> {
+        if file_paths.is_empty() {
+            return Err(zbus::fdo::Error::Failed("No files provided".into()));
+        }
+
+        let primary = &file_paths[0];
+        let t0 = Instant::now();
+        log_info!(
+            "DaemonService: update_multiple_previews for {} files, primary: {}",
+            file_paths.len(),
+            primary
+        );
+
+        let p = std::path::Path::new(primary);
+        let content = FilePreviewer::parse(&*self.parser_registry, p).map_err(|e| {
+            log_error!("DaemonService: Failed to parse path {}: {:?}", primary, e);
+            to_fdo_error(e)
+        })?;
+
+        let path = primary.clone();
+        let playlist: Vec<String> = file_paths;
+
+        self.tx
+            .send(DaemonCommand::UpdateWindowWithPlaylist {
+                path,
+                content,
+                playlist,
+            })
+            .await
+            .map_err(|err| {
+                log_error!(
+                    "DaemonService: Failed to send UpdateWindowWithPlaylist: {:?}",
+                    err
+                );
+                zbus::fdo::Error::Failed("Internal error".into())
+            })?;
+
+        log_info!(
+            "[PERF] update_multiple_previews total daemon-side latency: {:?}",
             t0.elapsed()
         );
         Ok(())
