@@ -101,6 +101,19 @@ fn parses_image_block_from_markdown() {
 }
 
 #[test]
+fn parses_image_with_remote_url() {
+    let blocks = parse_to_blocks("![remote](https://example.com/image.png)");
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Image { alt, path } => {
+            assert_eq!(alt, "remote");
+            assert_eq!(path, "https://example.com/image.png");
+        }
+        _ => panic!("expected Block::Image, got {:?}", blocks[0]),
+    }
+}
+
+#[test]
 fn parses_code_block() {
     let mut tmp = tempfile::Builder::new().suffix(".md").tempfile().unwrap();
     write!(tmp, "```rust\nfn main() {{}}\n```").unwrap();
