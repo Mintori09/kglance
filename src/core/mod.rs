@@ -3,6 +3,7 @@ pub mod config_watcher;
 pub mod file_watcher;
 pub mod limit;
 pub mod navigation;
+pub mod net;
 pub mod preloader;
 pub mod preview;
 pub mod read_positions;
