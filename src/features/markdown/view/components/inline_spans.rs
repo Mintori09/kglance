@@ -151,8 +151,9 @@ fn inlines_to_spans_core<'a>(
                 );
             }
             Inline::InlineMath(latex) | Inline::DisplayMath(latex) => {
+                let display_text = render_latex_to_text(latex);
                 spans.push(
-                    Span::new(latex.as_str())
+                    Span::new(display_text)
                         .font(main_font)
                         .color(STYLE.inline.math_color),
                 );
@@ -180,4 +181,62 @@ pub(crate) fn inlines_to_spans<'a>(
     span_ctx: &SpanCtx,
 ) -> Vec<Span<'a, (), Font>> {
     inlines_to_spans_core(children, span_ctx)
+}
+
+fn render_latex_to_text(latex: &str) -> String {
+    let trimmed = latex.trim();
+    match trimmed {
+        "\\Rightarrow" => "⇒".to_string(),
+        "\\Leftarrow" => "⇐".to_string(),
+        "\\Leftrightarrow" => "⇔".to_string(),
+        "\\rightarrow" | "\\to" => "→".to_string(),
+        "\\leftarrow" => "←".to_string(),
+        "\\leftrightarrow" => "↔".to_string(),
+        "\\le" | "\\leq" => "≤".to_string(),
+        "\\ge" | "\\geq" => "≥".to_string(),
+        "\\neq" | "\\ne" => "≠".to_string(),
+        "\\approx" => "≈".to_string(),
+        "\\in" => "∈".to_string(),
+        "\\notin" => "∉".to_string(),
+        "\\times" => "×".to_string(),
+        "\\div" => "÷".to_string(),
+        "\\pm" => "±".to_string(),
+        "\\infty" => "∞".to_string(),
+        "\\alpha" => "α".to_string(),
+        "\\beta" => "β".to_string(),
+        "\\gamma" => "γ".to_string(),
+        "\\delta" => "δ".to_string(),
+        "\\theta" => "θ".to_string(),
+        "\\lambda" => "λ".to_string(),
+        "\\mu" => "μ".to_string(),
+        "\\pi" => "π".to_string(),
+        "\\sigma" => "σ".to_string(),
+        "\\omega" => "ω".to_string(),
+        "\\Delta" => "Δ".to_string(),
+        "\\Sigma" => "Σ".to_string(),
+        "\\Omega" => "Ω".to_string(),
+        _ => {
+            if latex.starts_with('\\') {
+                latex
+                    .replace("\\Rightarrow", "⇒")
+                    .replace("\\Leftarrow", "⇐")
+                    .replace("\\Leftrightarrow", "⇔")
+                    .replace("\\rightarrow", "→")
+                    .replace("\\leftarrow", "←")
+                    .replace("\\leftrightarrow", "↔")
+                    .replace("\\le", "≤")
+                    .replace("\\leq", "≤")
+                    .replace("\\ge", "≥")
+                    .replace("\\geq", "≥")
+                    .replace("\\ne", "≠")
+                    .replace("\\neq", "≠")
+                    .replace("\\approx", "≈")
+                    .replace("\\in", "∈")
+                    .replace("\\times", "×")
+                    .replace("\\pm", "±")
+            } else {
+                latex.to_string()
+            }
+        }
+    }
 }
