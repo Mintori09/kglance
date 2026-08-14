@@ -123,10 +123,8 @@ impl ConfigManager {
 
         if let Some(config) = loaded {
             let reserialized = serde_json::to_string_pretty(&config).unwrap_or_default();
-            if raw.as_deref() != Some(reserialized.as_str()) {
-                if let Err(e) = Self::save(&config) {
-                    eprintln!("[kglance] failed to update config: {e}");
-                }
+            if raw.as_deref() != Some(reserialized.as_str()) && Self::save(&config).is_err() {
+                eprintln!("[kglance] failed to update config");
             }
             return config;
         }
