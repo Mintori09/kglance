@@ -321,30 +321,45 @@ impl KglanceApp {
                     Block::Image { path, .. } => {
                         log_debug!("Spawning async load for Image block[{}]: {}", i, path);
                         let path_str = path.clone();
-                        let resolved = if Path::new(&path_str).is_absolute() {
-                            std::path::PathBuf::from(&path_str)
+                        if crate::core::net::is_remote_url(&path_str) {
+                            tasks.push(Task::perform(
+                                async move {
+                                    let bytes =
+                                        crate::core::net::fetch_remote_image(&path_str).await;
+                                    crate::app::messages::MarkdownMsg::ImageLoaded {
+                                        index: i,
+                                        png_bytes: bytes,
+                                    }
+                                    .into()
+                                },
+                                |msg| msg,
+                            ));
                         } else {
-                            Path::new(file_path)
-                                .parent()
-                                .unwrap_or(Path::new("."))
-                                .join(&path_str)
-                        };
-                        tasks.push(Task::perform(
-                            async move {
-                                let bytes = tokio::task::spawn_blocking(move || {
-                                    std::fs::read(&resolved).ok()
-                                })
-                                .await
-                                .ok()
-                                .flatten();
-                                crate::app::messages::MarkdownMsg::ImageLoaded {
-                                    index: i,
-                                    png_bytes: bytes,
-                                }
-                                .into()
-                            },
-                            |msg| msg,
-                        ));
+                            let resolved = if Path::new(&path_str).is_absolute() {
+                                std::path::PathBuf::from(&path_str)
+                            } else {
+                                Path::new(file_path)
+                                    .parent()
+                                    .unwrap_or(Path::new("."))
+                                    .join(&path_str)
+                            };
+                            tasks.push(Task::perform(
+                                async move {
+                                    let bytes = tokio::task::spawn_blocking(move || {
+                                        std::fs::read(&resolved).ok()
+                                    })
+                                    .await
+                                    .ok()
+                                    .flatten();
+                                    crate::app::messages::MarkdownMsg::ImageLoaded {
+                                        index: i,
+                                        png_bytes: bytes,
+                                    }
+                                    .into()
+                                },
+                                |msg| msg,
+                            ));
+                        }
                     }
                     _ => {}
                 }
