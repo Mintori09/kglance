@@ -157,12 +157,7 @@ pub fn render_inlines<'a>(
         counter: ctx.counter,
         theme: ctx.theme,
     };
-    let has_special = inlines.iter().any(|i| {
-        matches!(
-            i,
-            Inline::Link { .. } | Inline::InlineMath(_) | Inline::DisplayMath(_)
-        )
-    });
+    let has_special = inlines.iter().any(|i| matches!(i, Inline::Link { .. }));
 
     if !has_special {
         let default_text_color = ctx.theme.palette().base.text;
