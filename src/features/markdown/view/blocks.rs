@@ -2,7 +2,7 @@ use crate::app::Message;
 use crate::features::markdown::view::components::style::STYLE;
 use crate::features::markdown::view::components::{
     render_code_block, render_heading, render_horizontal_rule, render_html, render_inline_image,
-    render_list, render_mermaid, render_paragraph, render_quote, render_table,
+    render_list, render_math_block, render_mermaid, render_paragraph, render_quote, render_table,
 };
 use crate::parsers::markdown::Block;
 use crate::ui::types::RenderContext;
@@ -29,6 +29,7 @@ pub(crate) fn render_block<'a>(
         Block::Quote(blocks) => render_quote(blocks, state, ctx),
         Block::HorizontalRule => render_horizontal_rule(ctx.theme),
         Block::Html(html) => render_html(html, ctx),
+        Block::Math(latex) => render_math_block(latex, ctx),
     }
 }
 
@@ -46,5 +47,6 @@ pub(crate) fn block_margin(block: &Block) -> f32 {
         Block::List { .. } => STYLE.block.list,
         Block::Paragraph(_) => STYLE.block.paragraph,
         Block::Html(_) => STYLE.block.html,
+        Block::Math(_) => STYLE.block.code,
     }
 }

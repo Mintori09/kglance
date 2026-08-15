@@ -68,8 +68,12 @@ fn flatten_inlines_with(inlines: &[Inline], mode: FlattenMode) -> String {
                 }
                 FlattenMode::Plain | FlattenMode::Toc => s.push_str(alt),
             },
-            Inline::InlineMath(latex) => s.push_str(latex),
-            Inline::DisplayMath(latex) => s.push_str(latex),
+            Inline::InlineMath(latex) | Inline::DisplayMath(latex) => match mode {
+                FlattenMode::Visual | FlattenMode::Plain => {
+                    s.push_str(&crate::features::markdown::view::components::inline_spans::render_latex_to_text(latex));
+                }
+                _ => s.push_str(latex),
+            },
             Inline::SoftBreak => s.push(' '),
         }
     }

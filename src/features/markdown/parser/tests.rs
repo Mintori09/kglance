@@ -34,7 +34,7 @@ fn test_inline_math_in_spans() {
         text(" done"),
     ];
     let flat = flatten_inlines_visual(&inlines);
-    assert_eq!(flat, "Result: \\Rightarrow done");
+    assert_eq!(flat, "Result: ⇒ done");
 }
 
 #[test]
@@ -738,16 +738,11 @@ $$
 
 After";
     let blocks = parse_to_blocks(src);
-    assert_eq!(blocks.len(), 3, "three paragraphs");
-    if let Block::Paragraph(inlines) = &blocks[1] {
-        let math = inlines.iter().find(|i| matches!(i, Inline::DisplayMath(_)));
-        assert!(
-            math.is_some(),
-            "should find DisplayMath in second paragraph"
-        );
-    } else {
-        panic!("expected Paragraph");
-    }
+    assert_eq!(blocks.len(), 3, "three blocks");
+    assert!(
+        matches!(&blocks[1], Block::Math(_)),
+        "should find Block::Math as second block"
+    );
 }
 
 #[test]
@@ -796,5 +791,122 @@ fn parses_greek_latex_in_list_items() {
         );
     } else {
         panic!("expected List block, got {:?}", blocks[0]);
+    }
+}
+
+#[test]
+fn test_standalone_taylor_series_display_math() {
+    let src = "$$f(x) = \\sum_{n=0}^{\\infty} \\frac{f^{(n)}(x_0)}{n!} (x - x_0)^n = f(x_0) + f'(x_0)(x - x_0) + \\frac{f''(x_0)}{2!}(x - x_0)^2 + \\cdots + R_n(x)$$";
+    let blocks = parse_to_blocks(src);
+    assert_eq!(blocks.len(), 1, "should parse into 1 block");
+    if let Block::Math(s) = &blocks[0] {
+        let rendered =
+            crate::features::markdown::view::components::inline_spans::render_latex_to_text(s);
+        assert!(rendered.contains("∑"));
+        assert!(rendered.contains("∞"));
+        assert!(
+            !rendered.contains("∈fty"),
+            "Must not corrupt \\infty into ∈fty"
+        );
+        assert!(rendered.contains("⋯"));
+        assert!(!rendered.contains("·s"), "Must not corrupt \\cdots into ·s");
+        assert!(rendered.contains("(f⁽ⁿ⁾(x₀))/(n!)"));
+    } else {
+        panic!("expected Block::Math");
+    }
+}
+
+#[test]
+fn test_gauss_theorem_and_greek_math() {
+    let src = "$$\\oiint_{S} F \\cdot n \\, dS = \\iiint_{V} (\\nabla \\cdot F) \\, dV$$";
+    let blocks = parse_to_blocks(src);
+    assert_eq!(blocks.len(), 1);
+    if let Block::Math(s) = &blocks[0] {
+        let rendered =
+            crate::features::markdown::view::components::inline_spans::render_latex_to_text(s);
+        assert!(rendered.contains("∯"));
+        assert!(rendered.contains("∭"));
+        assert!(rendered.contains("∇"));
+        assert!(rendered.contains("·"));
+    } else {
+        panic!("expected Block::Math");
+    }
+
+    let xi_src = "$\\xi \\in (x_0, x)$";
+    let blocks = parse_to_blocks(xi_src);
+    if let Block::Paragraph(inlines) = &blocks[0] {
+        let rendered =
+            crate::features::markdown::view::components::inline_spans::render_latex_to_text(
+                if let Inline::InlineMath(s) = &inlines[0] {
+                    s
+                } else {
+                    ""
+                },
+            );
+        assert_eq!(rendered, "ξ ∈ (x₀, x)");
+    }
+}
+
+#[test]
+fn test_matrix_math_in_list_item() {
+    let src = "* Item:\n$$\\Sigma = \\begin{bmatrix} 1 & 0 \\\\ 0 & 1 \\end{bmatrix}$$";
+    let blocks = parse_to_blocks(src);
+    assert_eq!(blocks.len(), 1);
+    if let Block::List { items, .. } = &blocks[0] {
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].sub_blocks.len(), 1);
+        assert!(matches!(&items[0].sub_blocks[0], Block::Math(_)));
+    } else {
+        panic!("expected Block::List");
+    }
+}
+
+#[test]
+fn test_adjacent_text_and_display_math() {
+    let src = "Hàm Log-Likelihood và công thức tối ưu MLE:\n$$\\hat{\\theta}_{\\text{MLE}} = \\arg\\max_{\\theta} \\ell(\\theta; \\mathcal{D})$$";
+    let blocks = parse_to_blocks(src);
+    assert_eq!(
+        blocks.len(),
+        2,
+        "should split into Paragraph and Math block"
+    );
+    assert!(matches!(&blocks[0], Block::Paragraph(_)));
+    assert!(matches!(&blocks[1], Block::Math(_)));
+}
+
+#[test]
+fn test_cong_thuc_toan_va_khoa_hoc_latex_file() {
+    let path = "/home/mintori/Downloads/cong_thuc_toan_va_khoa_hoc_latex.md";
+    if let Ok(content) = std::fs::read_to_string(path) {
+        let blocks = parse_to_blocks(&content);
+        assert!(!blocks.is_empty(), "Should parse blocks from document");
+
+        // Verify that math inlines and display blocks are extracted properly
+        let mut total_math = 0;
+        for block in &blocks {
+            match block {
+                Block::Math(latex) => {
+                    total_math += 1;
+                    let text = crate::features::markdown::view::components::inline_spans::render_latex_to_text(latex);
+                    assert!(!text.contains("∈fty"), "Must not contain corrupted ∈fty");
+                    assert!(!text.contains("·s"), "Must not contain corrupted ·s");
+                }
+                Block::Paragraph(inlines) => {
+                    for inline in inlines {
+                        if let Inline::InlineMath(latex) | Inline::DisplayMath(latex) = inline {
+                            total_math += 1;
+                            let text = crate::features::markdown::view::components::inline_spans::render_latex_to_text(latex);
+                            assert!(!text.contains("∈fty"), "Must not contain corrupted ∈fty");
+                            assert!(!text.contains("·s"), "Must not contain corrupted ·s");
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert!(
+            total_math > 10,
+            "Document should contain multiple math equations"
+        );
     }
 }

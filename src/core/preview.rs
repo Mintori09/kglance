@@ -225,6 +225,7 @@ impl PreviewData {
                             crate::parsers::markdown::flatten_inlines(content)
                         }
                         Block::CodeBlock { code, .. } => code.clone(),
+                        Block::Math(code) => code.clone(),
                         _ => String::new(),
                     })
                     .collect::<Vec<_>>()

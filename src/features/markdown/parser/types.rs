@@ -52,6 +52,7 @@ pub enum Block {
     Quote(Vec<Block>),
     HorizontalRule,
     Html(String),
+    Math(String),
 }
 
 #[derive(Debug, Clone)]
