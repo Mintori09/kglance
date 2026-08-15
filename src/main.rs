@@ -7,7 +7,8 @@ use kglance::{dbus, log_error, log_info};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
-    log_info!("Starting kglance with arguments: {:?}", args);
+
+    // log_info!("Starting kglance with arguments: {:?}", args);
 
     let file_paths: Vec<String> = args
         .iter()
@@ -18,6 +19,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     match args.get(1).map(|s| s.as_str()) {
+        Some("version" | "-v" | "--version") => {
+            const VERSION: &str = env!("CARGO_PKG_VERSION");
+            println!("Kglance: v{}", VERSION);
+            Ok(())
+        }
         Some("daemon") => {
             log_info!("Running in daemon mode");
             run_daemon()
