@@ -18,6 +18,7 @@ const OUTLINE_PADDING: Padding = Padding {
 const BADGE_FONT_SIZE: f32 = 10.0;
 const NAME_FONT_SIZE: f32 = 12.0;
 const LINE_FONT_SIZE: f32 = 11.0;
+const SCROLL_OFFSET_MARGIN: f32 = 40.0;
 
 fn symbol_badge_color(kind: SymbolKind, theme: AppTheme) -> Color {
     let p = theme.palette().base;
@@ -37,13 +38,20 @@ pub fn render_outline_sidebar<'a>(
     symbols: &'a [CodeSymbol],
     theme: AppTheme,
     width: f32,
+    scroll_y: f32,
+    font_size: f32,
 ) -> Element<'a, Message> {
     let bg_color = theme.palette().base.bg;
     let border_color = theme.palette().base.border;
 
+    let active_symbol_line = find_active_symbol_line(symbols, scroll_y, font_size);
+
     let entries: Vec<Element<'a, Message>> = symbols
         .iter()
-        .map(|sym| render_symbol_entry(sym, theme))
+        .map(|sym| {
+            let is_active = active_symbol_line == Some(sym.line_number);
+            render_symbol_entry(sym, is_active, theme)
+        })
         .collect();
 
     let content = column![
@@ -74,7 +82,22 @@ pub fn render_outline_sidebar<'a>(
     )
 }
 
-fn render_symbol_entry<'a>(sym: &'a CodeSymbol, theme: AppTheme) -> Element<'a, Message> {
+fn find_active_symbol_line(symbols: &[CodeSymbol], scroll_y: f32, font_size: f32) -> Option<usize> {
+    let line_height = font_size * 1.35;
+    symbols
+        .iter()
+        .rposition(|sym| {
+            let sym_y = (sym.line_number.saturating_sub(1) as f32) * line_height;
+            sym_y <= scroll_y + SCROLL_OFFSET_MARGIN
+        })
+        .map(|idx| symbols[idx].line_number)
+}
+
+fn render_symbol_entry<'a>(
+    sym: &'a CodeSymbol,
+    is_active: bool,
+    theme: AppTheme,
+) -> Element<'a, Message> {
     let badge_color = symbol_badge_color(sym.kind, theme);
     let line_color = theme.palette().base.text_dim;
 
@@ -131,6 +154,6 @@ fn render_symbol_entry<'a>(sym: &'a CodeSymbol, theme: AppTheme) -> Element<'a, 
             bottom: 4.0,
             left: 6.0,
         })
-        .style(move |iced_theme, status| sidebar_entry_style(iced_theme, status, false, theme))
+        .style(move |iced_theme, status| sidebar_entry_style(iced_theme, status, is_active, theme))
         .into()
 }
