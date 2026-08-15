@@ -14,7 +14,6 @@ pub enum ParsedContent {
         content: String,
         language: String,
         line_count: usize,
-        highlighted_html: Option<String>,
     },
     Image {
         data: Vec<u8>,

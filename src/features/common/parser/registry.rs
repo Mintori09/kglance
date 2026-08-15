@@ -119,7 +119,6 @@ impl ParserRegistry {
                 content,
                 language: "Plain Text".into(),
                 line_count,
-                highlighted_html: None,
             });
         }
 
@@ -389,7 +388,6 @@ mod tests {
                 content: "mock".into(),
                 language: "plaintext".into(),
                 line_count: 1,
-                highlighted_html: None,
             })
         }
     }
