@@ -207,7 +207,7 @@ For a full reference, see [`data/examples/config.example.json`](data/examples/co
 
 ## Roadmap
 
-- [ ] implement selection text for epub.
+- [x] implement selection text for epub. (without virtual loading)
 
 ---
 
