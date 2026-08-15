@@ -96,7 +96,7 @@ fn copy_button_inline<'a>(
 ) -> Element<'a, Message> {
     container(
         button(
-            text("Copy")
+            text("⎘")
                 .font(code_font)
                 .size(scale_size(STYLE.code.label_button_font_size, font_size)),
         )
