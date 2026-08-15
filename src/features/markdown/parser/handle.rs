@@ -44,6 +44,47 @@ struct EventStream<'a> {
     iter: std::iter::Peekable<Parser<'a>>,
 }
 
+fn split_inlines_by_display_math(inlines: Vec<Inline>) -> Vec<Block> {
+    let mut blocks = Vec::new();
+    let mut current = Vec::new();
+
+    for inline in inlines {
+        match inline {
+            Inline::DisplayMath(latex) => {
+                if !current.is_empty() {
+                    let has_text = current.iter().any(|i| match i {
+                        Inline::Text(t) => !t.trim().is_empty(),
+                        Inline::SoftBreak => false,
+                        _ => true,
+                    });
+                    if has_text {
+                        blocks.push(Block::Paragraph(std::mem::take(&mut current)));
+                    } else {
+                        current.clear();
+                    }
+                }
+                blocks.push(Block::Math(latex));
+            }
+            _ => {
+                current.push(inline);
+            }
+        }
+    }
+
+    if !current.is_empty() {
+        let has_text = current.iter().any(|i| match i {
+            Inline::Text(t) => !t.trim().is_empty(),
+            Inline::SoftBreak => false,
+            _ => true,
+        });
+        if has_text {
+            blocks.push(Block::Paragraph(current));
+        }
+    }
+
+    blocks
+}
+
 impl<'a> EventStream<'a> {
     fn new(content: &'a str) -> Self {
         Self {
@@ -124,9 +165,7 @@ impl<'a> EventStream<'a> {
                     }
                 }
                 Some(event) => {
-                    if let Some(block) = self.parse_one_block(event) {
-                        blocks.push(block);
-                    }
+                    blocks.extend(self.parse_event_blocks(event));
                 }
             }
         }
@@ -147,16 +186,14 @@ impl<'a> EventStream<'a> {
             match self.iter.next() {
                 None => break,
                 Some(event) => {
-                    if let Some(block) = self.parse_one_block(event) {
-                        blocks.push(block);
-                    }
+                    blocks.extend(self.parse_event_blocks(event));
                 }
             }
         }
         blocks
     }
 
-    fn parse_one_block(&mut self, event: Event) -> Option<Block> {
+    fn parse_event_blocks(&mut self, event: Event) -> Vec<Block> {
         match event {
             Event::Start(Tag::Paragraph) => {
                 let content = self.parse_inlines();
@@ -164,12 +201,12 @@ impl<'a> EventStream<'a> {
                 if content.len() == 1
                     && let Inline::Image { ref alt, ref url } = content[0]
                 {
-                    Some(Block::Image {
+                    vec![Block::Image {
                         alt: alt.clone(),
                         path: url.clone(),
-                    })
+                    }]
                 } else {
-                    Some(Block::Paragraph(content))
+                    split_inlines_by_display_math(content)
                 }
             }
             Event::Start(Tag::Heading { level, .. }) => {
@@ -183,32 +220,36 @@ impl<'a> EventStream<'a> {
                 };
                 let content = self.parse_inlines();
                 let _ = self.iter.next();
-                Some(Block::Heading {
+                vec![Block::Heading {
                     level: lvl,
                     content,
-                })
+                }]
             }
             Event::Start(Tag::CodeBlock(kind)) => {
                 let block = self.parse_code_block(kind);
-                Some(block)
+                vec![block]
             }
             Event::Start(Tag::List(first_num)) => {
                 let ordered = first_num.is_some();
                 let start_number = first_num.unwrap_or(1);
                 let items = self.parse_list_items();
-                Some(Block::List {
+                vec![Block::List {
                     ordered,
                     start_number,
                     items,
-                })
+                }]
             }
             Event::Start(Tag::BlockQuote(kind)) => {
                 let quotes = self.parse_blocks_until(TagEnd::BlockQuote(kind));
-                Some(Block::Quote(quotes))
+                vec![Block::Quote(quotes)]
             }
-            Event::Rule => Some(Block::HorizontalRule),
-            Event::Html(text) | Event::InlineHtml(text) => Some(Block::Html(text.to_string())),
-            _ => None,
+            Event::Rule => vec![Block::HorizontalRule],
+            Event::Html(text) | Event::InlineHtml(text) => vec![Block::Html(text.to_string())],
+            Event::DisplayMath(t) => vec![Block::Math(t.to_string())],
+            Event::InlineMath(t) => {
+                vec![Block::Paragraph(vec![Inline::InlineMath(t.to_string())])]
+            }
+            _ => Vec::new(),
         }
     }
 
@@ -283,6 +324,11 @@ impl<'a> EventStream<'a> {
                 lines: code.lines().map(|l| l.trim().to_string()).collect(),
                 rendered: None,
             }
+        } else if lang.as_deref() == Some("math")
+            || lang.as_deref() == Some("latex")
+            || lang.as_deref() == Some("katex")
+        {
+            Block::Math(code)
         } else {
             Block::CodeBlock { lang, title, code }
         }
@@ -325,9 +371,23 @@ impl<'a> EventStream<'a> {
                     is_task = Some(checked);
                 }
                 Some(Event::Start(Tag::Paragraph)) => {
-                    let mut inlines = self.parse_inlines();
+                    let inlines = self.parse_inlines();
                     let _ = self.iter.next();
-                    content.append(&mut inlines);
+                    let item_blocks = split_inlines_by_display_math(inlines);
+                    for b in item_blocks {
+                        match b {
+                            Block::Paragraph(p_inlines) => {
+                                if content.is_empty() {
+                                    content = p_inlines;
+                                } else {
+                                    sub_blocks.push(Block::Paragraph(p_inlines));
+                                }
+                            }
+                            other => {
+                                sub_blocks.push(other);
+                            }
+                        }
+                    }
                 }
                 Some(Event::Start(Tag::List(first_num))) => {
                     let ordered = first_num.is_some();
@@ -390,7 +450,7 @@ impl<'a> EventStream<'a> {
                     content.push(Inline::InlineMath(t.to_string()));
                 }
                 Some(Event::DisplayMath(t)) => {
-                    content.push(Inline::DisplayMath(t.to_string()));
+                    sub_blocks.push(Block::Math(t.to_string()));
                 }
                 _ => {}
             }

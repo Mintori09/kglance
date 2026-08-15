@@ -120,7 +120,7 @@ pub fn handle_search_query_changed(app: &mut KglanceApp, query: String) -> Task<
                 Block::Heading { content, .. } | Block::Paragraph(content) => {
                     crate::parsers::markdown::flatten_inlines(content)
                 }
-                Block::CodeBlock { code, .. } => code.clone(),
+                Block::CodeBlock { code, .. } | Block::Math(code) => code.clone(),
                 Block::Quote(inner) => inner
                     .iter()
                     .map(|ib| match ib {
@@ -357,10 +357,9 @@ pub fn handle_auto_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
     )
 }
 
-fn update_selected_text_from_range(app: &mut KglanceApp) {
+pub(crate) fn update_selected_text_from_range(app: &mut KglanceApp) {
     let range = active_markdown_state(app).selection_range;
     let Some(range) = range else {
-        active_markdown_state_mut(app).selected_text = None;
         return;
     };
     let blocks_vec: Vec<Block> = match &app.current_content {
@@ -499,12 +498,7 @@ fn index_block_base(index: usize) -> usize {
 }
 
 fn is_special_inline(inline: &crate::parsers::markdown::Inline) -> bool {
-    matches!(
-        inline,
-        crate::parsers::markdown::Inline::Link { .. }
-            | crate::parsers::markdown::Inline::InlineMath(_)
-            | crate::parsers::markdown::Inline::DisplayMath(_)
-    )
+    matches!(inline, crate::parsers::markdown::Inline::Link { .. })
 }
 
 fn collect_indexed_plain_texts(
@@ -667,6 +661,22 @@ fn collect_indexed_plain_texts(
                 }
             }
         }
+        crate::parsers::markdown::Block::Math(latex) => {
+            let rendered_text =
+                crate::features::markdown::view::components::inline_spans::render_latex_to_text(
+                    latex,
+                );
+            map.insert(
+                base_idx,
+                CopyLine {
+                    prefix: None,
+                    text: format!("$$\n{rendered_text}\n$$"),
+                    suffix: None,
+                    blank_before: true,
+                    table_separator: None,
+                },
+            );
+        }
         _ => {}
     }
 }
@@ -805,5 +815,138 @@ fn collect_quote_plain_texts(
                 });
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::{SelectionPoint, SelectionRange};
+    use crate::parsers::markdown::{Block, parse_to_blocks};
+
+    #[test]
+    fn test_selected_text_extraction_with_inline_math() {
+        let src = ". $\\Rightarrow$ **cấu trúc thuật toán ANN, nhu cầu can thiệp của con người thấp hơn và yêu cầu dữ liệu lớn hơn.**";
+        let blocks = parse_to_blocks(src);
+
+        let range = SelectionRange {
+            start: SelectionPoint {
+                block: 0,
+                offset: 0,
+            },
+            end: SelectionPoint {
+                block: 0,
+                offset: 500,
+            },
+        };
+
+        let selected = build_selected_text(&blocks, range);
+        assert!(selected.is_some(), "selected text should not be None");
+        let text = selected.unwrap();
+        assert_eq!(
+            text,
+            ". ⇒ cấu trúc thuật toán ANN, nhu cầu can thiệp của con người thấp hơn và yêu cầu dữ liệu lớn hơn."
+        );
+    }
+
+    #[test]
+    fn test_user_bullet_item_copy_with_inline_math() {
+        let src = "- $\\Rightarrow$ **cấu trúc thuật toán ANN, nhu cầu can thiệp của con người thấp hơn và yêu cầu dữ liệu lớn hơn.**";
+        let blocks = parse_to_blocks(src);
+        assert_eq!(blocks.len(), 1);
+        assert!(matches!(blocks[0], Block::List { .. }));
+
+        // Test clicking & selecting the list item which has block_index = 1 (since list is at base_idx 0)
+        let range = SelectionRange {
+            start: SelectionPoint {
+                block: 1,
+                offset: 0,
+            },
+            end: SelectionPoint {
+                block: 1,
+                offset: 500,
+            },
+        };
+
+        let selected = build_selected_text(&blocks, range);
+        assert!(
+            selected.is_some(),
+            "selected text should not be None for list item"
+        );
+        let text = selected.unwrap();
+        assert!(text.contains("cấu trúc thuật toán ANN"));
+    }
+
+    #[test]
+    fn test_partial_selection_phrase_thuat_toan_ann() {
+        let src = "- $\\Rightarrow$ **cấu trúc thuật toán ANN, nhu cầu can thiệp của con người thấp hơn và yêu cầu dữ liệu lớn hơn.**";
+        let blocks = parse_to_blocks(src);
+        assert_eq!(blocks.len(), 1);
+
+        let visual_text = crate::parsers::markdown::flatten_inlines_visual(
+            if let Block::List { items, .. } = &blocks[0] {
+                &items[0].content
+            } else {
+                panic!("Expected List block");
+            },
+        );
+
+        let target = "thuật toán ANN";
+        let start_offset = visual_text
+            .find(target)
+            .expect("Must find 'thuật toán ANN'");
+        let end_offset = start_offset + target.len();
+
+        let range = SelectionRange {
+            start: SelectionPoint {
+                block: 1,
+                offset: start_offset,
+            },
+            end: SelectionPoint {
+                block: 1,
+                offset: end_offset,
+            },
+        };
+
+        let selected = build_selected_text(&blocks, range);
+        assert!(
+            selected.is_some(),
+            "selected_text should not be None when partial text is selected"
+        );
+
+        let text = selected.unwrap();
+        assert_eq!(
+            text, "thuật toán ANN",
+            "Extracted text must match exactly the selected substring"
+        );
+    }
+
+    #[test]
+    fn test_nested_bullet_item_copy_with_inline_math() {
+        let src = "- Mục cha\n  - $\\Rightarrow$ **cấu trúc thuật toán ANN, nhu cầu can thiệp của con người thấp hơn và yêu cầu dữ liệu lớn hơn.**";
+        let blocks = parse_to_blocks(src);
+        assert_eq!(blocks.len(), 1);
+        assert!(matches!(blocks[0], Block::List { .. }));
+
+        // Item 0 is at block 1, its sub-list items are at block 3 (base_idx 2 + 1)
+        let range = SelectionRange {
+            start: SelectionPoint {
+                block: 3,
+                offset: 0,
+            },
+            end: SelectionPoint {
+                block: 3,
+                offset: 500,
+            },
+        };
+
+        let selected = build_selected_text(&blocks, range);
+        assert!(
+            selected.is_some(),
+            "selected text should not be None for nested list item"
+        );
+        let text = selected.unwrap();
+        assert!(text.contains("cấu trúc thuật toán ANN"));
+        assert!(text.contains("⇒"));
     }
 }

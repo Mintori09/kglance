@@ -112,6 +112,10 @@ pub fn estimated_block_height(
         }
         Block::Mermaid { .. } => 250.0 + margin,
         Block::Html(_) => 50.0 + margin,
+        Block::Math(latex) => {
+            let n = latex.lines().count().max(1) as f32;
+            scale(20.0) + n * scale(16.0) * 1.5 + margin
+        }
     }
 }
 
@@ -127,6 +131,7 @@ fn block_margin(block: &Block) -> f32 {
         Block::Quote(_) => 16.0,
         Block::Image { .. } => 16.0,
         Block::Mermaid { .. } => 16.0,
+        Block::Math(_) => 16.0,
         Block::Paragraph(_) | Block::Html(_) => 8.0,
     }
 }
