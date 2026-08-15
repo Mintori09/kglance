@@ -117,9 +117,14 @@ impl KglanceApp {
             self.current_content,
             Some(PreviewData::Markdown { .. }) | Some(PreviewData::Epub { .. })
         ) {
-            let selected_text = crate::features::markdown::update::active_markdown_state(self)
+            let previous_selected = crate::features::markdown::update::active_markdown_state(self)
                 .selected_text
                 .clone();
+            crate::features::markdown::update::update_selected_text_from_range(self);
+            let selected_text = crate::features::markdown::update::active_markdown_state(self)
+                .selected_text
+                .clone()
+                .or(previous_selected);
             if let Some(text) = selected_text
                 && !text.is_empty()
             {
@@ -247,6 +252,62 @@ mod tests {
         let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
         let _guard = runtime.enter();
         assert!(app.handle_ctrl_copy().is_some());
+    }
+
+    #[test]
+    fn ctrl_c_copies_markdown_selection_with_inline_math() {
+        use crate::app::test_util::markdown_content;
+        use crate::core::{SelectionPoint, SelectionRange};
+
+        let src = "- $\\Rightarrow$ **cấu trúc thuật toán ANN, nhu cầu can thiệp của con người thấp hơn và yêu cầu dữ liệu lớn hơn.**";
+        let mut app = test_app(Some(markdown_content(src)));
+
+        // Simulating selection on the markdown state
+        app.state.markdown.selection_range = Some(SelectionRange {
+            start: SelectionPoint {
+                block: 1,
+                offset: 0,
+            },
+            end: SelectionPoint {
+                block: 1,
+                offset: 500,
+            },
+        });
+
+        let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+        let _guard = runtime.enter();
+
+        let task = app.handle_ctrl_copy();
+        assert!(
+            task.is_some(),
+            "handle_ctrl_copy should return Task with clipboard write"
+        );
+        assert!(
+            app.state
+                .markdown
+                .selected_text
+                .as_ref()
+                .unwrap()
+                .contains("cấu trúc thuật toán ANN")
+        );
+    }
+
+    #[test]
+    fn ctrl_c_preserves_existing_selected_text_fallback() {
+        use crate::app::test_util::markdown_content;
+
+        let mut app = test_app(Some(markdown_content("- item")));
+        app.state.markdown.selected_text = Some("thuật toán ANN".to_string());
+
+        let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+        let _guard = runtime.enter();
+
+        let task = app.handle_ctrl_copy();
+        assert!(task.is_some());
+        assert_eq!(
+            app.state.markdown.selected_text.as_deref(),
+            Some("thuật toán ANN")
+        );
     }
 
     #[test]
