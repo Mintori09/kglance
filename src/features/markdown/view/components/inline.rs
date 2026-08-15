@@ -179,10 +179,7 @@ pub fn render_inlines<'a>(
 
     for i in 0..inlines.len() {
         let inline = &inlines[i];
-        let is_special = matches!(
-            inline,
-            Inline::Link { .. } | Inline::InlineMath(_) | Inline::DisplayMath(_)
-        );
+        let is_special = matches!(inline, Inline::Link { .. });
 
         if !is_special {
             continue;
@@ -218,32 +215,24 @@ pub fn render_inlines<'a>(
         );
         current_start_offset = 0;
 
-        match inline {
-            Inline::Link {
-                text: link_text,
-                url,
-            } => {
-                let mut suffix: Option<&str> = None;
-                if i + 1 < inlines.len()
-                    && let Inline::Text(next_text) = &inlines[i + 1]
-                {
-                    let p_len = leading_closing_punctuation_len(next_text);
-                    if p_len > 0 {
-                        suffix = Some(&next_text[..p_len]);
-                        current_start_offset = p_len;
-                    }
+        if let Inline::Link {
+            text: link_text,
+            url,
+        } = inline
+        {
+            let mut suffix: Option<&str> = None;
+            if i + 1 < inlines.len()
+                && let Inline::Text(next_text) = &inlines[i + 1]
+            {
+                let p_len = leading_closing_punctuation_len(next_text);
+                if p_len > 0 {
+                    suffix = Some(&next_text[..p_len]);
+                    current_start_offset = p_len;
                 }
-                elements.push(build_link_button(
-                    prefix, link_text, url, suffix, font_size, link_color,
-                ));
             }
-            Inline::InlineMath(latex) => {
-                elements.push(iced_math::inline(latex.as_str()));
-            }
-            Inline::DisplayMath(latex) => {
-                elements.push(iced_math::block(latex.as_str()));
-            }
-            _ => {}
+            elements.push(build_link_button(
+                prefix, link_text, url, suffix, font_size, link_color,
+            ));
         }
 
         start = i + 1;
