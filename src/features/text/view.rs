@@ -1,11 +1,14 @@
+pub mod outline;
+
 use crate::app::Message;
 use crate::core::TextState;
+use crate::features::text::view::outline::render_outline_sidebar;
 use crate::ui::components::code_editor::code_editor;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::theme::font::get_code_font;
 use iced::Element;
-use iced::widget::column;
+use iced::widget::{column, row};
 
 use crate::ui::theme::tokens::spacing;
 
@@ -49,5 +52,12 @@ pub fn view_text<'a>(
         })
         .build();
 
-    main_content.push(scrollable_editor).into()
+    main_content = main_content.push(scrollable_editor);
+
+    if state.outline_visible && !state.symbols.is_empty() {
+        let sidebar = render_outline_sidebar(&state.symbols, theme, state.sidebar_width);
+        row![sidebar, main_content].into()
+    } else {
+        main_content.into()
+    }
 }

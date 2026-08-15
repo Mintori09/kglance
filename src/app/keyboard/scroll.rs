@@ -159,6 +159,10 @@ impl KglanceApp {
                     Some(Task::done(
                         crate::app::messages::PdfMsg::SidebarToggled.into(),
                     ))
+                } else if matches!(self.current_content, Some(PreviewData::Text { .. })) {
+                    Some(Task::done(
+                        crate::app::messages::TextMsg::ToggleOutline.into(),
+                    ))
                 } else {
                     None
                 }
