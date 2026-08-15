@@ -55,7 +55,13 @@ pub fn view_text<'a>(
     main_content = main_content.push(scrollable_editor);
 
     if state.outline_visible && !state.symbols.is_empty() {
-        let sidebar = render_outline_sidebar(&state.symbols, theme, state.sidebar_width);
+        let sidebar = render_outline_sidebar(
+            &state.symbols,
+            theme,
+            state.sidebar_width,
+            state.scroll_y,
+            font_size,
+        );
         row![sidebar, main_content].into()
     } else {
         main_content.into()
