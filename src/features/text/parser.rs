@@ -1,31 +1,66 @@
 use std::path::Path;
-use syntect::easy::HighlightLines;
-use syntect::highlighting::ThemeSet;
-use syntect::parsing::SyntaxSet;
-use syntect::util::LinesWithEndings;
 
 use crate::features::common::parser::traits::{ParseError, PreviewParser};
 use crate::features::common::parser::types::ParsedContent;
 
-const MAX_HIGHLIGHT_LINES: usize = 200;
-
-pub struct TextParser {
-    syntax_set: SyntaxSet,
-    theme_set: ThemeSet,
-}
+pub struct TextParser;
 
 impl TextParser {
     pub fn new() -> Self {
-        Self {
-            syntax_set: SyntaxSet::load_defaults_newlines(),
-            theme_set: ThemeSet::load_defaults(),
-        }
+        Self
     }
 }
 
 impl Default for TextParser {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn extension_to_language(ext: &str) -> &'static str {
+    match ext.to_ascii_lowercase().as_str() {
+        "rs" => "Rust",
+        "py" | "pyw" => "Python",
+        "js" | "mjs" | "cjs" => "JavaScript",
+        "ts" | "mts" | "cts" => "TypeScript",
+        "jsx" => "JSX",
+        "tsx" => "TSX",
+        "html" | "htm" => "HTML",
+        "css" => "CSS",
+        "scss" | "sass" => "SCSS",
+        "json" | "jsonc" => "JSON",
+        "md" | "markdown" => "Markdown",
+        "toml" => "TOML",
+        "yml" | "yaml" => "YAML",
+        "xml" | "svg" => "XML",
+        "sh" | "bash" | "zsh" | "fish" => "Shell",
+        "c" | "h" => "C",
+        "cpp" | "hpp" | "cc" | "cxx" => "C++",
+        "java" => "Java",
+        "kt" => "Kotlin",
+        "swift" => "Swift",
+        "go" => "Go",
+        "rb" => "Ruby",
+        "php" => "PHP",
+        "pl" | "pm" => "Perl",
+        "lua" => "Lua",
+        "r" => "R",
+        "sql" => "SQL",
+        "graphql" => "GraphQL",
+        "proto" => "Protobuf",
+        "tex" | "bib" => "TeX",
+        "dockerfile" => "Dockerfile",
+        "makefile" => "Makefile",
+        "cmake" => "CMake",
+        "gradle" => "Gradle",
+        "cfg" | "ini" | "conf" => "Config",
+        "log" => "Log",
+        "diff" | "patch" => "Diff",
+        "vim" => "VimL",
+        "ps1" => "PowerShell",
+        "bat" => "Batch",
+        "txt" => "Plain Text",
+        _ => "Plain Text",
     }
 }
 
@@ -97,58 +132,19 @@ impl PreviewParser for TextParser {
         let content =
             std::fs::read_to_string(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
-        let syntax = self
-            .syntax_set
-            .find_syntax_for_file(path)
-            .ok()
-            .flatten()
-            .unwrap_or_else(|| self.syntax_set.find_syntax_plain_text());
+        let language = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(extension_to_language)
+            .unwrap_or("Plain Text")
+            .to_string();
 
-        let language = syntax.name.clone();
         let line_count = content.lines().count();
-
-        if line_count > MAX_HIGHLIGHT_LINES {
-            return Ok(ParsedContent::Text {
-                content,
-                language,
-                line_count,
-                highlighted_html: None,
-            });
-        }
-
-        let theme = self
-            .theme_set
-            .themes
-            .get("InspiredGitHub")
-            .unwrap_or_else(|| &self.theme_set.themes["base16-ocean.dark"]);
-
-        let mut highlighter = HighlightLines::new(syntax, theme);
-        let mut highlighted_html = String::new();
-
-        for line in LinesWithEndings::from(&content) {
-            let ranges = highlighter
-                .highlight_line(line, &self.syntax_set)
-                .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-            for (style, text) in &ranges {
-                let color = style.foreground;
-                let hex = if color.a == 0 {
-                    String::from("inherit")
-                } else {
-                    format!("#{:02x}{:02x}{:02x}", color.r, color.g, color.b)
-                };
-                if hex != "inherit" {
-                    highlighted_html.push_str(&format!("<font color='{}'>{}</font>", hex, text));
-                } else {
-                    highlighted_html.push_str(text);
-                }
-            }
-        }
 
         Ok(ParsedContent::Text {
             content,
             language,
             line_count,
-            highlighted_html: Some(highlighted_html),
         })
     }
 }
@@ -161,7 +157,7 @@ mod tests {
     #[test]
     fn parses_rust_file() {
         let mut tmp = tempfile::Builder::new().suffix(".rs").tempfile().unwrap();
-        write!(tmp, "fn main() {{ println!(\"hello\"); }}").unwrap();
+        write!(tmp, "fn main() {{\n    println!(\"hello\");\n}}").unwrap();
         let parser = TextParser::new();
         let result = parser.parse(tmp.path()).unwrap();
         match result {
@@ -169,13 +165,10 @@ mod tests {
                 content,
                 language,
                 line_count,
-                highlighted_html,
             } => {
                 assert_eq!(language, "Rust");
-                assert_eq!(line_count, 1);
+                assert_eq!(line_count, 3);
                 assert!(content.contains("fn main"));
-                assert!(highlighted_html.is_some());
-                assert!(highlighted_html.unwrap().contains("<font color="));
             }
             _ => panic!("expected Text variant"),
         }
