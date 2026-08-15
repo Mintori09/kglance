@@ -37,6 +37,8 @@ pub enum TextMsg {
     SearchClosed,
     WrapToggled,
     Scrolled(f32),
+    ToggleOutline,
+    SymbolClicked(usize),
 }
 
 #[derive(Debug, Clone)]

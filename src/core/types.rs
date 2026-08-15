@@ -80,6 +80,9 @@ pub struct TextState {
     pub word_count: usize,
     pub char_count: usize,
     pub reading_time_mins: usize,
+    pub symbols: Vec<crate::features::text::CodeSymbol>,
+    pub outline_visible: bool,
+    pub sidebar_width: f32,
 }
 
 impl Default for TextState {
@@ -98,6 +101,9 @@ impl Default for TextState {
             word_count: 0,
             char_count: 0,
             reading_time_mins: 0,
+            symbols: Vec::new(),
+            outline_visible: false,
+            sidebar_width: 220.0,
         }
     }
 }

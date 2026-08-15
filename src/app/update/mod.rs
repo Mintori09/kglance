@@ -120,6 +120,12 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::TextMsg::Scrolled(y) => {
                 crate::features::text::update::handle_text_scrolled(app, y)
             }
+            crate::app::messages::TextMsg::ToggleOutline => {
+                crate::features::text::update::handle_toggle_outline(app)
+            }
+            crate::app::messages::TextMsg::SymbolClicked(line) => {
+                crate::features::text::update::handle_symbol_clicked(app, line)
+            }
         },
         Message::Media(msg) => match msg {
             crate::app::messages::MediaMsg::PlayPauseClicked => {

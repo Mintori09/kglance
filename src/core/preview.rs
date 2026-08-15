@@ -134,6 +134,7 @@ impl PreviewData {
                 state.text.word_count = words;
                 state.text.char_count = chars;
                 state.text.reading_time_mins = mins;
+                state.text.symbols = crate::features::text::extract_symbols(content, path_ext);
                 state.file_type_text = language.clone();
             }
             PreviewData::Image {
