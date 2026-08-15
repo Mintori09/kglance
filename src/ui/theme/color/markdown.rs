@@ -15,6 +15,7 @@ pub struct MarkdownColors {
     pub quote_accent: Color,
     pub quote_bg: Color,
     pub html_fg: Color,
+    pub math: Color,
 }
 
 impl MarkdownColors {
@@ -28,6 +29,7 @@ impl MarkdownColors {
         quote_accent: primitive::MD_DARK_QUOTE_ACCENT,
         quote_bg: primitive::MD_DARK_QUOTE_BG,
         html_fg: primitive::GRAY_500,
+        math: primitive::DARK_TEXT,
     };
 
     pub const LIGHT: MarkdownColors = MarkdownColors {
@@ -40,6 +42,7 @@ impl MarkdownColors {
         quote_accent: primitive::MD_LIGHT_QUOTE_ACCENT,
         quote_bg: primitive::MD_LIGHT_QUOTE_BG,
         html_fg: primitive::GRAY_500,
+        math: primitive::LIGHT_TEXT,
     };
 
     pub const NORD: MarkdownColors = MarkdownColors {
@@ -52,6 +55,7 @@ impl MarkdownColors {
         quote_accent: primitive::NORD9,
         quote_bg: primitive::NORD1,
         html_fg: primitive::NORD3,
+        math: primitive::NORD4,
     };
 
     pub fn palette(theme: &Theme) -> &'static MarkdownColors {

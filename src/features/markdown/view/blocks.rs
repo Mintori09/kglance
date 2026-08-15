@@ -47,6 +47,6 @@ pub(crate) fn block_margin(block: &Block) -> f32 {
         Block::List { .. } => STYLE.block.list,
         Block::Paragraph(_) => STYLE.block.paragraph,
         Block::Html(_) => STYLE.block.html,
-        Block::Math(_) => STYLE.block.code,
+        Block::Math(_) => STYLE.block.math,
     }
 }

@@ -72,7 +72,6 @@ pub(crate) const BLACK_015: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.15);
 // ── Markdown: inline syntax (theme-independent) ────────────────────────────
 
 pub(crate) const MD_INLINE_CODE: Color = Color::from_rgb(0.8, 0.35, 0.35);
-pub(crate) const MD_MATH: Color = Color::from_rgb(0.30, 0.34, 0.40);
 
 // ── Markdown: link & task (shared via `roles`) ─────────────────────────────
 

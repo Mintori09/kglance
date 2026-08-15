@@ -152,11 +152,8 @@ fn inlines_to_spans_core<'a>(
             }
             Inline::InlineMath(latex) | Inline::DisplayMath(latex) => {
                 let display_text = render_latex_to_text(latex);
-                spans.push(
-                    Span::new(display_text)
-                        .font(main_font)
-                        .color(STYLE.inline.math_color),
-                );
+                let math_color = span_ctx.theme.palette().markdown.math;
+                spans.push(Span::new(display_text).font(main_font).color(math_color));
             }
         }
     }

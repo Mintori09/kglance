@@ -15,7 +15,6 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
     inline: InlineStyle {
         inline_code_color: primitive::MD_INLINE_CODE,
         image_alt_color: primitive::GRAY_500,
-        math_color: primitive::MD_MATH,
         link_button_border_width: 0.0,
         wrap_spacing: spacing::XS,
         wrap_line_spacing: spacing::XS,
@@ -63,6 +62,11 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
         preview_truncate: 80,
     },
     hr: HrStyle { padding: [8, 0] },
+    math: MathStyle {
+        font_scale: 1.0,
+        stroke_width: 0.35,
+        padding: 8,
+    },
     block: BlockMarginStyle {
         heading_h1: spacing::XL,
         heading_h2: spacing::L,
@@ -76,6 +80,7 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
         list: spacing::M,
         paragraph: spacing::S,
         html: spacing::S,
+        math: spacing::L,
     },
     toc: TocStyle {
         scroll_offset_margin: 50.0,
@@ -105,6 +110,7 @@ pub(crate) struct MarkdownStyle {
     pub mermaid: MermaidStyle,
     pub html: HtmlStyle,
     pub hr: HrStyle,
+    pub math: MathStyle,
     pub block: BlockMarginStyle,
     pub toc: TocStyle,
 }
@@ -127,7 +133,6 @@ pub(crate) struct ParagraphStyle {
 pub(crate) struct InlineStyle {
     pub inline_code_color: Color,
     pub image_alt_color: Color,
-    pub math_color: Color,
     pub link_button_border_width: f32,
     pub wrap_spacing: f32,
     pub wrap_line_spacing: f32,
@@ -195,6 +200,13 @@ pub(crate) struct HrStyle {
 }
 
 #[derive(Clone, Copy)]
+pub(crate) struct MathStyle {
+    pub font_scale: f32,
+    pub stroke_width: f32,
+    pub padding: u16,
+}
+
+#[derive(Clone, Copy)]
 pub(crate) struct BlockMarginStyle {
     pub heading_h1: f32,
     pub heading_h2: f32,
@@ -208,6 +220,7 @@ pub(crate) struct BlockMarginStyle {
     pub list: f32,
     pub paragraph: f32,
     pub html: f32,
+    pub math: f32,
 }
 
 #[derive(Clone, Copy)]
