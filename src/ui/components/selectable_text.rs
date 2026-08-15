@@ -264,8 +264,8 @@ where
 
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                state.is_mouse_held = true;
                 if let Some(cursor_pos) = cursor.position_over(bounds) {
+                    state.is_mouse_held = true;
                     let rel_pos = Point::new(cursor_pos.x - bounds.x, cursor_pos.y - bounds.y);
                     if let Some(hit) = paragraph.hit_test(rel_pos) {
                         let offset = hit.cursor();
@@ -311,49 +311,44 @@ where
                     }
                 } else {
                     state.selection = None;
-                    if let Some(on_clear) = &self.on_clear_selection {
-                        shell.publish(on_clear());
-                    }
+                    state.is_selecting = false;
+                    state.is_mouse_held = false;
                 }
             }
             Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                let Some(cursor_pos) = cursor.position_over(bounds) else {
-                    return;
-                };
-
                 let dragging = state.is_mouse_held || state.is_selecting || self.drag_active;
                 if !dragging {
                     return;
                 }
-
-                let rel_pos = Point::new(
-                    (cursor_pos.x - bounds.x).clamp(0.0, bounds.width),
-                    (cursor_pos.y - bounds.y).clamp(0.0, bounds.height),
-                );
-                if let Some(hit) = paragraph.hit_test(rel_pos) {
-                    let offset = hit.cursor();
-                    if state.is_selecting {
-                        if let Some(drag_start) = state.drag_start {
-                            let start = drag_start.min(offset);
-                            let end = drag_start.max(offset);
-                            state.selection = Some((start, end));
+                if let Some(cursor_pos) = cursor.position_over(bounds) {
+                    let rel_pos = Point::new(cursor_pos.x - bounds.x, cursor_pos.y - bounds.y);
+                    if let Some(hit) = paragraph.hit_test(rel_pos) {
+                        let offset = hit.cursor();
+                        if state.is_selecting {
+                            if let Some(drag_start) = state.drag_start {
+                                let start = drag_start.min(offset);
+                                let end = drag_start.max(offset);
+                                state.selection = Some((start, end));
+                            }
+                        } else if state.is_mouse_held {
+                            state.is_selecting = true;
+                            state.drag_start = Some(offset);
+                            state.selection = Some((offset, offset));
                         }
-                    } else if state.is_mouse_held {
-                        state.is_selecting = true;
-                        state.drag_start = Some(offset);
-                        state.selection = Some((offset, offset));
+                        if let (Some(blk), Some(on_update)) =
+                            (self.block_index, &self.on_drag_update)
+                        {
+                            shell.publish(on_update(blk, offset));
+                        }
+                        shell.capture_event();
                     }
-                    if let (Some(blk), Some(on_update)) = (self.block_index, &self.on_drag_update) {
-                        shell.publish(on_update(blk, offset));
-                    }
-                    shell.capture_event();
                 }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                let was_origin = state.is_mouse_held;
+                let was_selecting = state.is_selecting || state.is_mouse_held;
                 state.is_mouse_held = false;
-                if state.is_selecting && was_origin {
-                    state.is_selecting = false;
+                state.is_selecting = false;
+                if was_selecting || self.drag_active {
                     if let (Some(selection), Some(on_change)) =
                         (state.selection, &self.on_selection_change)
                     {
@@ -367,7 +362,7 @@ where
                         };
                         shell.publish(on_change(selected_str));
                     }
-                    if let Some(on_end) = &self.on_drag_end {
+                    if was_selecting && let Some(on_end) = &self.on_drag_end {
                         shell.publish(on_end());
                     }
                 }
@@ -438,7 +433,7 @@ where
                 let mut text_max_x: Option<f32> = None;
 
                 for glyph in run.glyphs {
-                    if glyph.start >= start && glyph.end <= end {
+                    if glyph.end > start && glyph.start < end {
                         let glyph_str = text.get(glyph.start..glyph.end).unwrap_or("");
 
                         if !glyph_str.chars().all(|c| c.is_whitespace()) {
