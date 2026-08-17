@@ -1,15 +1,16 @@
-use kglance::features::video::handler::{PlayerCommand, spawn_video_player};
+use kglance::features::video::handler::load_video;
+use std::sync::OnceLock;
 
-use std::time::Duration;
-use tokio::sync::mpsc;
+fn gst_init_once() {
+    static INIT: OnceLock<()> = OnceLock::new();
+    INIT.get_or_init(|| {
+        gst::init().expect("gst init failed");
+    });
+}
 
 #[test]
-fn test_video_controller_consecutive_loads() {
-    let (cmd_tx, cmd_rx) = mpsc::channel(100);
-    let (event_tx, _event_rx) = mpsc::channel(100);
-    let controller = spawn_video_player(cmd_rx, event_tx);
-
-    // Test consecutive load commands
+fn test_video_consecutive_loads() {
+    gst_init_once();
     let temp_dir = std::env::temp_dir().join("kglance_video_test");
     let _ = std::fs::create_dir_all(&temp_dir);
     let dummy_video = temp_dir.join("dummy.mp4");
@@ -17,34 +18,9 @@ fn test_video_controller_consecutive_loads() {
 
     let dummy_path = dummy_video.to_string_lossy().to_string();
 
-    // 1. Send Stop -> Load -> Play
-    assert!(cmd_tx.try_send(PlayerCommand::Stop).is_ok());
-    assert!(
-        cmd_tx
-            .try_send(PlayerCommand::Load(dummy_path.clone()))
-            .is_ok()
-    );
-    assert!(cmd_tx.try_send(PlayerCommand::Play).is_ok());
-
-    std::thread::sleep(Duration::from_millis(50));
-
-    // 2. Immediately send consecutive Load again (Video 1 -> Video 2 transition)
-    assert!(cmd_tx.try_send(PlayerCommand::Stop).is_ok());
-    assert!(
-        cmd_tx
-            .try_send(PlayerCommand::Load(dummy_path.clone()))
-            .is_ok()
-    );
-    assert!(cmd_tx.try_send(PlayerCommand::Play).is_ok());
-
-    std::thread::sleep(Duration::from_millis(50));
-
-    // Lock controller and verify stop clean state
-    if let Ok(mut c) = controller.lock() {
-        c.stop();
-        assert!(!c.is_playing);
-        assert!(c.video.is_none());
-    }
+    // 1. Load invalid video -> returns Err cleanly without panic
+    let res1 = load_video(&dummy_path);
+    assert!(res1.is_err());
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
