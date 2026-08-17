@@ -46,7 +46,8 @@ pub enum MediaMsg {
     PlayPauseClicked,
     SeekClicked(f32),
     SeekRelativeClicked(f32),
-    VideoEventReceived(crate::features::video::handler::VideoEvent),
+    VideoNewFrame,
+    VideoEndOfStream,
 
     MouseEnter,
     MouseLeave,
