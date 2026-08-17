@@ -7,7 +7,6 @@ use super::KglanceApp;
 use super::Message;
 use crate::core::types::{GRID_GAP, GRID_ITEM_WIDTH};
 use crate::core::{PreviewData, ToastInfo};
-use crate::features::video::handler::PlayerCommand;
 
 const TOAST_DURATION_SECS: u64 = 2;
 const MIN_GRID_COLUMNS: usize = 1;
@@ -42,7 +41,7 @@ impl KglanceApp {
             self.state.read_positions_dirty = false;
         }
 
-        self.stop_video_player();
+        self.video = None;
 
         if self.is_daemon {
             self.current_content = None;
@@ -50,12 +49,6 @@ impl KglanceApp {
         } else {
             let _ = std::io::Write::flush(&mut std::io::stdout());
             std::process::exit(0);
-        }
-    }
-
-    fn stop_video_player(&mut self) {
-        if let Some(video_sender) = &self.video_tx {
-            let _ = video_sender.try_send(PlayerCommand::Stop);
         }
     }
 
@@ -164,6 +157,7 @@ impl KglanceApp {
     }
 
     fn handle_window_close_requested(&mut self, window_id: window::Id) -> Task<Message> {
+        self.video = None;
         if self.is_daemon {
             self.current_content = None;
             self.window_id = None;
