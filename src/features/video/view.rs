@@ -1,9 +1,5 @@
-use std::sync::{Arc, Mutex};
-
 use crate::app::Message;
 use crate::core::MediaState;
-use crate::features::video::handler::VideoController;
-
 use crate::ui::theme::{default_button, default_card, default_slider};
 use iced::widget::{Space, button, column, container, image, mouse_area, row, slider, stack, text};
 use iced::{Alignment, Element, Length};
@@ -31,11 +27,11 @@ const CARD_PADDING: [u16; 2] = [8, 12];
 pub fn view_media<'a>(
     state: &'a MediaState,
     data: &'a [u8],
-    controller: &'a Arc<Mutex<VideoController>>,
+    video: Option<&'a iced_video_player::Video>,
     _wf_width: u32,
     _wf_height: u32,
 ) -> Element<'a, Message> {
-    let media_display = render_media_display(state, data, controller);
+    let media_display = render_media_display(state, data, video);
     let mut layers: Vec<Element<'a, Message>> = vec![media_display];
 
     if state.show_controls {
@@ -56,10 +52,10 @@ pub fn view_media<'a>(
 fn render_media_display<'a>(
     state: &'a MediaState,
     data: &'a [u8],
-    controller: &'a Arc<Mutex<VideoController>>,
+    video: Option<&'a iced_video_player::Video>,
 ) -> Element<'a, Message> {
     let content: Element<'a, Message> = if state.has_video {
-        render_video_player(controller)
+        render_video_player(video)
     } else if !data.is_empty() {
         render_image_preview(data)
     } else {
@@ -74,24 +70,17 @@ fn render_media_display<'a>(
         .into()
 }
 
-fn render_video_player<'a>(controller: &'a Arc<Mutex<VideoController>>) -> Element<'a, Message> {
-    let Ok(lock) = controller.lock() else {
-        return text("Video unavailable").size(STATUS_TEXT_SIZE).into();
-    };
-
-    let Some(video) = &lock.video else {
+fn render_video_player<'a>(video: Option<&'a iced_video_player::Video>) -> Element<'a, Message> {
+    let Some(video) = video else {
         return text("Loading video...").size(STATUS_TEXT_SIZE).into();
     };
 
-    let video_reference = unsafe {
-        let video_pointer = video as *const iced_video_player::Video;
-        &*video_pointer
-    };
-
-    VideoPlayer::new(video_reference)
+    VideoPlayer::new(video)
         .width(Length::Fill)
         .height(Length::Fill)
         .content_fit(iced::ContentFit::Contain)
+        .on_end_of_stream(crate::app::messages::MediaMsg::VideoEndOfStream.into())
+        .on_new_frame(crate::app::messages::MediaMsg::VideoNewFrame.into())
         .into()
 }
 

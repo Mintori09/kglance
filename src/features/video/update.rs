@@ -14,11 +14,12 @@ pub fn handle_seek_relative(app: &mut KglanceApp, secs: f32) -> Task<Message> {
     app.handle_seek_relative(secs)
 }
 
-pub fn handle_video_event(
-    app: &mut KglanceApp,
-    event: crate::features::video::handler::VideoEvent,
-) -> Task<Message> {
-    app.handle_video_event(event)
+pub fn handle_video_new_frame(app: &mut KglanceApp) -> Task<Message> {
+    app.handle_video_new_frame()
+}
+
+pub fn handle_video_end_of_stream(app: &mut KglanceApp) -> Task<Message> {
+    app.handle_video_end_of_stream()
 }
 
 pub fn handle_media_mouse_enter(app: &mut KglanceApp) -> Task<Message> {
