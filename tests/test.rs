@@ -10,7 +10,8 @@ async fn setup_mock_daemon() -> tokio::sync::mpsc::Receiver<kglance::dbus::Daemo
     let registry = Arc::new(ParserRegistry::new());
 
     tokio::spawn(async move {
-        let _ = run_zbus(registry, tx).await;
+        let is_gui_open = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let _ = run_zbus(registry, tx, is_gui_open).await;
     });
 
     tokio::time::sleep(Duration::from_millis(200)).await;
