@@ -54,19 +54,29 @@ pub enum DaemonCommand {
 pub struct DaemonService {
     parser_registry: Arc<ParserRegistry>,
     tx: mpsc::Sender<DaemonCommand>,
+    is_gui_open: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl DaemonService {
-    pub fn new(parser_registry: Arc<ParserRegistry>, tx: mpsc::Sender<DaemonCommand>) -> Self {
+    pub fn new(
+        parser_registry: Arc<ParserRegistry>,
+        tx: mpsc::Sender<DaemonCommand>,
+        is_gui_open: Arc<std::sync::atomic::AtomicBool>,
+    ) -> Self {
         Self {
             parser_registry,
             tx,
+            is_gui_open,
         }
     }
 }
 
 #[interface(name = "org.mintori.Kglance")]
 impl DaemonService {
+    async fn is_gui_open(&self) -> zbus::fdo::Result<bool> {
+        Ok(self.is_gui_open.load(std::sync::atomic::Ordering::Acquire))
+    }
+
     async fn show_preview(&mut self, file_path: &str) -> zbus::fdo::Result<()> {
         let t0 = Instant::now();
         log_info!(
@@ -153,6 +163,14 @@ impl DaemonService {
     }
 
     async fn update_preview(&mut self, file_path: &str) -> zbus::fdo::Result<()> {
+        if !self.is_gui_open.load(std::sync::atomic::Ordering::Acquire) {
+            log_info!(
+                "DaemonService: GUI is not open/initialized, skipping update for {}",
+                file_path
+            );
+            return Ok(());
+        }
+
         let t0 = Instant::now();
         log_info!(
             "DaemonService: update_preview request received for path: {}",
@@ -188,6 +206,14 @@ impl DaemonService {
     async fn update_multiple_previews(&mut self, file_paths: Vec<String>) -> zbus::fdo::Result<()> {
         if file_paths.is_empty() {
             return Err(zbus::fdo::Error::Failed("No files provided".into()));
+        }
+
+        if !self.is_gui_open.load(std::sync::atomic::Ordering::Acquire) {
+            log_info!(
+                "DaemonService: GUI is not open/initialized, skipping update for {} files",
+                file_paths.len()
+            );
+            return Ok(());
         }
 
         let primary = &file_paths[0];
@@ -242,5 +268,35 @@ impl DaemonService {
                 zbus::fdo::Error::Failed("Internal error".into())
             })?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    #[tokio::test]
+    async fn test_is_gui_open_method() {
+        let registry = Arc::new(ParserRegistry::new());
+        let (tx, _rx) = mpsc::channel(10);
+        let is_gui_open = Arc::new(AtomicBool::new(false));
+        let service = DaemonService::new(registry, tx, is_gui_open.clone());
+
+        assert!(!service.is_gui_open().await.unwrap());
+        is_gui_open.store(true, Ordering::Release);
+        assert!(service.is_gui_open().await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_update_preview_skipped_when_gui_not_open() {
+        let registry = Arc::new(ParserRegistry::new());
+        let (tx, mut rx) = mpsc::channel(10);
+        let is_gui_open = Arc::new(AtomicBool::new(false));
+        let mut service = DaemonService::new(registry, tx, is_gui_open);
+
+        let result = service.update_preview("/nonexistent/file.txt").await;
+        assert!(result.is_ok());
+        assert!(rx.try_recv().is_err());
     }
 }

@@ -46,6 +46,8 @@ impl KglanceApp {
 
         if self.is_daemon {
             self.current_content = None;
+            self.is_gui_open
+                .store(false, std::sync::atomic::Ordering::Release);
             self.window_id.take().map_or_else(Task::none, window::close)
         } else {
             let _ = std::io::Write::flush(&mut std::io::stdout());
@@ -150,6 +152,8 @@ impl KglanceApp {
 
     fn handle_window_opened(&mut self, window_id: window::Id, size: Size) -> Task<Message> {
         self.window_id = Some(window_id);
+        self.is_gui_open
+            .store(true, std::sync::atomic::Ordering::Release);
         self.update_grid_cols(size.width);
 
         if let Some(content) = self
@@ -167,6 +171,8 @@ impl KglanceApp {
         if self.is_daemon {
             self.current_content = None;
             self.window_id = None;
+            self.is_gui_open
+                .store(false, std::sync::atomic::Ordering::Release);
             window::close(window_id)
         } else {
             self.close_current()
@@ -180,5 +186,27 @@ impl PreviewData {
             self,
             PreviewData::Image { .. } | PreviewData::Font { .. } | PreviewData::Media { .. }
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::app::test_util::test_app;
+
+    #[test]
+    fn test_gui_open_state_synced_on_window_lifecycle() {
+        let mut app = test_app(None);
+        app.is_daemon = true;
+        assert!(!app.is_gui_open.load(std::sync::atomic::Ordering::Acquire));
+
+        let window_id = iced::window::Id::unique();
+
+        // Window opened
+        let _task = app.handle_window_opened(window_id, iced::Size::new(800.0, 600.0));
+        assert!(app.is_gui_open.load(std::sync::atomic::Ordering::Acquire));
+
+        // Window close requested
+        let _task = app.handle_window_close_requested(window_id);
+        assert!(!app.is_gui_open.load(std::sync::atomic::Ordering::Acquire));
     }
 }
