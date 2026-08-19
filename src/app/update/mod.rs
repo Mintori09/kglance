@@ -137,8 +137,11 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::MediaMsg::SeekRelativeClicked(secs) => {
                 crate::features::video::update::handle_seek_relative(app, secs)
             }
-            crate::app::messages::MediaMsg::VideoEventReceived(event) => {
-                crate::features::video::update::handle_video_event(app, event)
+            crate::app::messages::MediaMsg::VideoNewFrame => {
+                crate::features::video::update::handle_video_new_frame(app)
+            }
+            crate::app::messages::MediaMsg::VideoEndOfStream => {
+                crate::features::video::update::handle_video_end_of_stream(app)
             }
             crate::app::messages::MediaMsg::MouseEnter => {
                 crate::features::video::update::handle_media_mouse_enter(app)

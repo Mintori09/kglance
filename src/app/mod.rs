@@ -31,11 +31,7 @@ pub struct KglanceApp {
     pub is_gui_open: Arc<std::sync::atomic::AtomicBool>,
     pub window_id: Option<iced::window::Id>,
     pub current_content: Option<PreviewData>,
-    pub video_tx: Option<tokio::sync::mpsc::Sender<crate::features::video::handler::PlayerCommand>>,
-    pub video_rx: Arc<
-        Mutex<Option<tokio::sync::mpsc::Receiver<crate::features::video::handler::VideoEvent>>>,
-    >,
-    pub video_controller: Option<Arc<Mutex<crate::features::video::handler::VideoController>>>,
+    pub video: Option<iced_video_player::Video>,
     pub ctrl_held: bool,
     pub shift_held: bool,
     pub pending_g: bool,
@@ -51,10 +47,6 @@ impl KglanceApp {
         is_daemon: bool,
         is_gui_open: Arc<std::sync::atomic::AtomicBool>,
     ) -> (Self, Task<Message>) {
-        let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel(100);
-        let (event_tx, event_rx) = tokio::sync::mpsc::channel(100);
-        let vc = crate::features::video::handler::spawn_video_player(cmd_rx, event_tx);
-
         let file_watcher = crate::core::file_watcher::FileWatcher::new().ok();
 
         let config = crate::core::config::ConfigManager::load_or_create();
@@ -101,9 +93,7 @@ impl KglanceApp {
             is_gui_open,
             window_id: None,
             current_content: None,
-            video_tx: Some(cmd_tx),
-            video_rx: Arc::new(Mutex::new(Some(event_rx))),
-            video_controller: Some(vc),
+            video: None,
             ctrl_held: false,
             shift_held: false,
             pending_g: false,
@@ -467,16 +457,19 @@ impl KglanceApp {
 
         self.state.media.has_video = is_video;
 
-        if let Some(tx) = &self.video_tx {
-            if is_video || is_audio {
-                let _ = tx.try_send(crate::features::video::handler::PlayerCommand::Stop);
-                let _ = tx.try_send(crate::features::video::handler::PlayerCommand::Load(
-                    path.to_string(),
-                ));
-                let _ = tx.try_send(crate::features::video::handler::PlayerCommand::Play);
-            } else {
-                let _ = tx.try_send(crate::features::video::handler::PlayerCommand::Stop);
+        if is_video || is_audio {
+            match crate::features::video::handler::load_video(path) {
+                Ok(video) => {
+                    self.state.media.playing = true;
+                    self.video = Some(video);
+                }
+                Err(e) => {
+                    crate::log_error!("Failed to load video: {e}");
+                    self.video = None;
+                }
             }
+        } else {
+            self.video = None;
         }
 
         if is_video {
@@ -624,7 +617,7 @@ impl KglanceApp {
                 } => crate::ui::views::view_media(
                     &self.state.media,
                     thumbnail_or_waveform,
-                    self.video_controller.as_ref().unwrap(),
+                    self.video.as_ref(),
                     *width,
                     *height,
                 ),
@@ -647,10 +640,6 @@ impl KglanceApp {
         let dbus_sub = subscription::from_recipe(crate::dbus::recipe::DaemonRecipe::new(
             self.daemon_rx.clone(),
         ));
-
-        let video_sub = subscription::from_recipe(
-            crate::features::video::handler::VideoRecipe::new(self.video_rx.clone()),
-        );
 
         let event_sub = iced::window::events()
             .map(|(id, event)| crate::app::messages::SystemMsg::WindowEvent(id, event).into());
@@ -711,7 +700,6 @@ impl KglanceApp {
             dbus_sub,
             event_sub,
             resize_sub,
-            video_sub,
             global_event_sub,
             file_watcher_sub,
             auto_scroll_sub,
@@ -747,9 +735,7 @@ pub(crate) mod test_util {
             is_gui_open: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             window_id: None,
             current_content: content,
-            video_tx: None,
-            video_rx: std::sync::Arc::new(std::sync::Mutex::new(None)),
-            video_controller: None,
+            video: None,
             ctrl_held: false,
             shift_held: false,
             pending_g: false,
