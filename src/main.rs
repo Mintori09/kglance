@@ -35,16 +35,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::process::exit(1);
             }
 
-            log_info!("Attempting to update preview via DBus: {:?}", file_paths);
-            if let Err(e) = dbus::send_multiple_update_via_dbus(&file_paths) {
-                log_error!("Daemon update via DBus failed: {:?}", e);
-                eprintln!(
-                    "Failed to update preview via DBus (daemon not running or not responding): {}",
-                    e
-                );
-                std::process::exit(1);
+            match dbus::is_gui_open() {
+                Ok(true) => {
+                    log_info!("Attempting to update preview via DBus: {:?}", file_paths);
+                    if let Err(e) = dbus::send_multiple_update_via_dbus(&file_paths) {
+                        log_error!("Daemon update via DBus failed: {:?}", e);
+                        eprintln!(
+                            "Failed to update preview via DBus (daemon not running or not responding): {}",
+                            e
+                        );
+                        std::process::exit(1);
+                    }
+                    log_info!("Successfully requested update via DBus");
+                }
+                Ok(false) => {
+                    log_info!("Preview GUI is not open/initialized. Skipping DBus update.");
+                }
+                Err(e) => {
+                    log_info!(
+                        "Daemon is not running or DBus unavailable: {e}. Skipping DBus update."
+                    );
+                }
             }
-            log_info!("Successfully requested update via DBus");
             Ok(())
         }
         Some(path) if !path.starts_with('-') => {
@@ -86,6 +98,9 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     let registry = Arc::new(build_registry());
     let (tx, rx) = tokio::sync::mpsc::channel::<dbus::DaemonCommand>(100);
 
+    let is_gui_open = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let daemon_gui_open = is_gui_open.clone();
+
     let zbus_registry = registry.clone();
     let _zbus_thread = std::thread::spawn(move || {
         log_info!("Starting DBus zbus thread...");
@@ -96,7 +111,7 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
                 return;
             }
         };
-        if let Err(e) = rt.block_on(dbus::run_zbus(zbus_registry, tx)) {
+        if let Err(e) = rt.block_on(dbus::run_zbus(zbus_registry, tx, daemon_gui_open)) {
             log_error!("zbus daemon error: {e}");
         }
     });
@@ -113,7 +128,7 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     let reg = registry.clone();
     let rx = std::cell::Cell::new(Some(rx));
     iced::daemon(
-        move || KglanceApp::new(reg.clone(), rx.take(), &[], true),
+        move || KglanceApp::new(reg.clone(), rx.take(), &[], true, is_gui_open.clone()),
         KglanceApp::update,
         KglanceApp::view_daemon,
     )
@@ -158,9 +173,11 @@ fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
     log_info!("Running Iced GUI in standalone mode...");
     let reg = registry.clone();
+    let is_gui_open = Arc::new(std::sync::atomic::AtomicBool::new(true));
     iced::application(
         move || {
-            let (app, task) = KglanceApp::new(reg.clone(), None, &owned_paths, false);
+            let (app, task) =
+                KglanceApp::new(reg.clone(), None, &owned_paths, false, is_gui_open.clone());
             let duration = start_time.elapsed();
             log_info!("[PERF] PreviewWindow GUI initialized in: {:?}", duration);
             (app, task)

@@ -28,6 +28,7 @@ pub struct KglanceApp {
     pub registry: Arc<ParserRegistry>,
     pub daemon_rx: Arc<Mutex<Option<mpsc::Receiver<DaemonCommand>>>>,
     pub is_daemon: bool,
+    pub is_gui_open: Arc<std::sync::atomic::AtomicBool>,
     pub window_id: Option<iced::window::Id>,
     pub current_content: Option<PreviewData>,
     pub video_tx: Option<tokio::sync::mpsc::Sender<crate::features::video::handler::PlayerCommand>>,
@@ -48,6 +49,7 @@ impl KglanceApp {
         daemon_rx: Option<mpsc::Receiver<DaemonCommand>>,
         initial_paths: &[String],
         is_daemon: bool,
+        is_gui_open: Arc<std::sync::atomic::AtomicBool>,
     ) -> (Self, Task<Message>) {
         let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel(100);
         let (event_tx, event_rx) = tokio::sync::mpsc::channel(100);
@@ -96,6 +98,7 @@ impl KglanceApp {
             registry,
             daemon_rx: Arc::new(Mutex::new(daemon_rx)),
             is_daemon,
+            is_gui_open,
             window_id: None,
             current_content: None,
             video_tx: Some(cmd_tx),
@@ -741,6 +744,7 @@ pub(crate) mod test_util {
             registry,
             daemon_rx: std::sync::Arc::new(std::sync::Mutex::new(None)),
             is_daemon: false,
+            is_gui_open: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             window_id: None,
             current_content: content,
             video_tx: None,

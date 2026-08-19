@@ -114,12 +114,28 @@ pub fn send_multiple_update_via_dbus(paths: &[String]) -> Result<(), Box<dyn std
     Ok(())
 }
 
+pub fn is_gui_open() -> Result<bool, Box<dyn std::error::Error>> {
+    let conn = zbus::blocking::Connection::session()?;
+    let reply: bool = conn
+        .call_method(
+            Some("org.mintori.Kglance"),
+            "/org/mintori/Kglance",
+            Some("org.mintori.Kglance"),
+            "IsGuiOpen",
+            &(),
+        )?
+        .body()
+        .deserialize()?;
+    Ok(reply)
+}
+
 pub async fn run_zbus(
     registry: Arc<ParserRegistry>,
     tx: tokio::sync::mpsc::Sender<DaemonCommand>,
+    is_gui_open: Arc<std::sync::atomic::AtomicBool>,
 ) -> Result<(), String> {
     log_info!("DBus: Starting zbus connection setup for org.mintori.Kglance...");
-    let service = DaemonService::new(registry, tx);
+    let service = DaemonService::new(registry, tx, is_gui_open);
     let _conn = zbus::connection::Builder::session()
         .map_err(|e| {
             log_error!("DBus error during session build: {e}");
