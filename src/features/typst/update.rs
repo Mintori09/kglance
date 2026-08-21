@@ -27,7 +27,7 @@ pub fn handle_page_ready(
 }
 
 pub fn handle_compile_error(app: &mut KglanceApp) -> Task<Message> {
-    app.state.typst.pdf.loading = false;
+    app.state.typst.pdf.active_page_tasks = app.state.typst.pdf.active_page_tasks.saturating_sub(1);
     if app.state.typst.error.is_none() {
         app.state.typst.error = Some("Failed to compile Typst document".to_string());
     }

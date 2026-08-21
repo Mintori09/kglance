@@ -395,11 +395,15 @@ impl KglanceApp {
                 let _ = dc.save_page_with_meta(0, data, *width, *height);
             }
             let handle = iced::widget::image::Handle::from_bytes(data.clone());
-            self.state.pdf.pages.insert(0, crate::core::PageCacheEntry {
-                width: *width,
-                height: *height,
-                handle,
-            }, 0);
+            self.state.pdf.pages.insert(
+                0,
+                crate::core::PageCacheEntry {
+                    width: *width,
+                    height: *height,
+                    handle,
+                },
+                0,
+            );
         }
 
         if is_pdf && self.state.pdf.page_count > 0 {
@@ -408,15 +412,22 @@ impl KglanceApp {
             let visible_page = self.state.pdf.visible_page.clone();
             let generation_id = self.state.pdf.generation_id.clone();
 
-            let thumb_task = crate::features::pdf::handler::lazy_load_thumbnails(
-                pdf_path.clone(),
-                page_count,
-                visible_page.clone(),
-                generation_id.clone(),
-            );
+            let thumb_task = if self.state.pdf.sidebar_visible
+                && self.state.pdf.sidebar_mode == crate::core::types::PdfSidebarMode::Thumbnails
+            {
+                Some(crate::features::pdf::handler::lazy_load_thumbnails(
+                    pdf_path.clone(),
+                    page_count,
+                    visible_page.clone(),
+                    generation_id.clone(),
+                ))
+            } else {
+                None
+            };
 
             if page_count > 1 {
-                self.state.pdf.loading = true;
+                self.state.pdf.active_page_tasks =
+                    self.state.pdf.active_page_tasks.saturating_add(1);
                 let page_task = crate::features::pdf::handler::lazy_load_pages(
                     pdf_path,
                     page_count,
@@ -424,9 +435,13 @@ impl KglanceApp {
                     generation_id,
                     disk_cache,
                 );
-                Some(Task::batch([page_task, thumb_task]))
+                if let Some(tt) = thumb_task {
+                    Some(Task::batch([page_task, tt]))
+                } else {
+                    Some(page_task)
+                }
             } else {
-                Some(thumb_task)
+                thumb_task
             }
         } else {
             None
@@ -460,11 +475,15 @@ impl KglanceApp {
                 let _ = dc.save_page_with_meta(0, data, *width, *height);
             }
             let handle = iced::widget::image::Handle::from_bytes(data.clone());
-            self.state.typst.pdf.pages.insert(0, crate::core::PageCacheEntry {
-                width: *width,
-                height: *height,
-                handle,
-            }, 0);
+            self.state.typst.pdf.pages.insert(
+                0,
+                crate::core::PageCacheEntry {
+                    width: *width,
+                    height: *height,
+                    handle,
+                },
+                0,
+            );
         }
 
         if is_typst && self.state.typst.pdf.page_count > 0 && self.state.typst.error.is_none() {
@@ -473,15 +492,23 @@ impl KglanceApp {
             let visible_page = self.state.typst.pdf.visible_page.clone();
             let generation_id = self.state.typst.pdf.generation_id.clone();
 
-            let thumb_task = crate::features::pdf::handler::lazy_load_thumbnails(
-                typst_path.clone(),
-                page_count,
-                visible_page.clone(),
-                generation_id.clone(),
-            );
+            let thumb_task = if self.state.typst.pdf.sidebar_visible
+                && self.state.typst.pdf.sidebar_mode
+                    == crate::core::types::PdfSidebarMode::Thumbnails
+            {
+                Some(crate::features::pdf::handler::lazy_load_thumbnails(
+                    typst_path.clone(),
+                    page_count,
+                    visible_page.clone(),
+                    generation_id.clone(),
+                ))
+            } else {
+                None
+            };
 
             if page_count > 1 {
-                self.state.typst.pdf.loading = true;
+                self.state.typst.pdf.active_page_tasks =
+                    self.state.typst.pdf.active_page_tasks.saturating_add(1);
                 let page_task = crate::features::typst::handler::lazy_load_typst_pages(
                     typst_path,
                     page_count,
@@ -489,9 +516,13 @@ impl KglanceApp {
                     generation_id,
                     disk_cache,
                 );
-                Some(Task::batch([page_task, thumb_task]))
+                if let Some(tt) = thumb_task {
+                    Some(Task::batch([page_task, tt]))
+                } else {
+                    Some(page_task)
+                }
             } else {
-                Some(thumb_task)
+                thumb_task
             }
         } else {
             None
