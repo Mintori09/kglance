@@ -15,6 +15,7 @@ use iced_futures::subscription;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::Ordering;
 use std::time::Instant;
 use tokio::sync::mpsc;
 
@@ -230,6 +231,12 @@ impl KglanceApp {
 
     pub fn handle_file_loaded(&mut self, path: String, content: PreviewData) -> Task<Message> {
         let t0 = Instant::now();
+        self.state.pdf.generation_id.fetch_add(1, Ordering::Relaxed);
+        self.state
+            .typst
+            .pdf
+            .generation_id
+            .fetch_add(1, Ordering::Relaxed);
 
         self.record_read_position();
         if self.state.read_positions_dirty {
@@ -389,10 +396,12 @@ impl KglanceApp {
             let page_count = self.state.pdf.page_count;
             let pdf_path = path.to_string();
             let visible_page = self.state.pdf.visible_page.clone();
+            let generation_id = self.state.pdf.generation_id.clone();
             Some(crate::features::pdf::handler::lazy_load_pages(
                 pdf_path,
                 page_count,
                 visible_page,
+                generation_id,
             ))
         } else {
             None
@@ -427,10 +436,12 @@ impl KglanceApp {
             let page_count = self.state.typst.pdf.page_count;
             let typst_path = path.to_string();
             let visible_page = self.state.typst.pdf.visible_page.clone();
+            let generation_id = self.state.typst.pdf.generation_id.clone();
             Some(crate::features::typst::handler::lazy_load_typst_pages(
                 typst_path,
                 page_count,
                 visible_page,
+                generation_id,
             ))
         } else {
             None
@@ -456,6 +467,7 @@ impl KglanceApp {
             || path_lower.ends_with(".opus");
 
         self.state.media.has_video = is_video;
+        self.state.media.error = None;
 
         if is_video || is_audio {
             match crate::features::video::handler::load_video(path) {
@@ -465,6 +477,7 @@ impl KglanceApp {
                 }
                 Err(e) => {
                     crate::log_error!("Failed to load video: {e}");
+                    self.state.media.error = Some(e);
                     self.video = None;
                 }
             }

@@ -139,6 +139,7 @@ pub struct PdfState {
     pub sidebar_width: f32,
     pub sidebar_resizing: bool,
     pub sidebar_drag_start_x: Option<f32>,
+    pub generation_id: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     pub sidebar_drag_start_width: f32,
     pub outline: Vec<crate::parsers::pdf::PdfTocEntry>,
     pub scroll_y: f32,
@@ -151,6 +152,7 @@ impl Default for PdfState {
             thumbnails: Vec::new(),
             page_count: 0,
             loading: false,
+            generation_id: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             current_page: 0,
             visible_page: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             window_start: 0,
@@ -323,6 +325,8 @@ pub struct MediaState {
     pub show_controls: bool,
     pub position_secs: f64,
     pub duration_secs: f64,
+    /// Set when video/audio loading fails; cleared on new file load.
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
