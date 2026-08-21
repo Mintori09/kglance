@@ -24,28 +24,11 @@ pub fn active_pdf_state(app: &KglanceApp) -> &crate::core::PdfState {
     }
 }
 
-pub const MAX_CACHED_PAGES: usize = 24;
+pub const MAX_CACHED_PAGES: usize = crate::core::types::PageCache::MAX_COUNT;
 
-/// Evicts the furthest pages from `current_page` when total cached pages exceed `MAX_CACHED_PAGES`.
-/// Visited pages are preserved in cache for instant display when scrolling back.
+/// Evicts the furthest pages from `current_page` when total cached pages exceed `MAX_CACHED_PAGES` or byte limit.
 pub fn evict_distant_pages(pdf_state: &mut crate::core::PdfState, current_page: usize) {
-    let cached_indices: Vec<usize> = pdf_state
-        .pages
-        .iter()
-        .enumerate()
-        .filter_map(|(idx, page)| page.is_some().then_some(idx))
-        .collect();
-
-    if cached_indices.len() > MAX_CACHED_PAGES {
-        let mut sorted_by_dist = cached_indices;
-        sorted_by_dist
-            .sort_by_key(|&idx| std::cmp::Reverse((idx as isize - current_page as isize).abs()));
-
-        let to_evict = sorted_by_dist.len() - MAX_CACHED_PAGES;
-        for &idx in sorted_by_dist.iter().take(to_evict) {
-            pdf_state.pages[idx] = None;
-        }
-    }
+    pdf_state.pages.evict(current_page);
 }
 
 /// Promotes a page from Tier 1 disk cache to Tier 2 UI GPU handle if available.
@@ -53,18 +36,25 @@ pub fn promote_page_from_disk_if_cached(
     pdf_state: &mut crate::core::PdfState,
     page_index: usize,
 ) -> bool {
-    if page_index >= pdf_state.pages.len() || pdf_state.pages[page_index].is_some() {
+    if pdf_state.pages.is_cached(page_index) {
         return false;
     }
     if let Some(ref disk_cache) = pdf_state.disk_cache
         && let Ok(png_bytes) = disk_cache.load_page(page_index)
     {
         let handle = iced::widget::image::Handle::from_bytes(png_bytes);
-        pdf_state.pages[page_index] = Some(crate::core::PageCacheEntry {
-            width: 0,
-            height: 0,
-            handle,
-        });
+        let current_page = pdf_state
+            .visible_page
+            .load(std::sync::atomic::Ordering::Relaxed);
+        pdf_state.pages.insert(
+            page_index,
+            crate::core::PageCacheEntry {
+                width: 0,
+                height: 0,
+                handle,
+            },
+            current_page,
+        );
         return true;
     }
     false
@@ -165,20 +155,18 @@ pub fn page_ready(
 ) {
     if index < pdf_state.pages.len() {
         let handle = iced::widget::image::Handle::from_bytes(data);
-        pdf_state.pages[index] = Some(crate::core::PageCacheEntry {
-            width,
-            height,
-            handle,
-        });
         let current_page = pdf_state
             .visible_page
             .load(std::sync::atomic::Ordering::Relaxed);
-        evict_distant_pages(pdf_state, current_page);
-    }
-
-    let all_loaded = pdf_state.pages.iter().all(|p| p.is_some());
-    if all_loaded {
-        pdf_state.loading = false;
+        pdf_state.pages.insert(
+            index,
+            crate::core::PageCacheEntry {
+                width,
+                height,
+                handle,
+            },
+            current_page,
+        );
     }
 }
 
@@ -193,11 +181,18 @@ pub fn handle_thumb_ready(
 
     if index < pdf_state.thumbnails.len() {
         let handle = iced::widget::image::Handle::from_bytes(data);
-        pdf_state.thumbnails[index] = Some(crate::core::PageCacheEntry {
-            width,
-            height,
-            handle,
-        });
+        let current_page = pdf_state
+            .visible_page
+            .load(std::sync::atomic::Ordering::Relaxed);
+        pdf_state.thumbnails.insert(
+            index,
+            crate::core::PageCacheEntry {
+                width,
+                height,
+                handle,
+            },
+            current_page,
+        );
     }
     Task::none()
 }
@@ -321,35 +316,35 @@ mod tests {
     #[test]
     fn evict_distant_pages_works() {
         let mut pdf_state = crate::core::PdfState {
-            pages: vec![
-                Some(crate::core::PageCacheEntry {
-                    width: 10,
-                    height: 10,
-                    handle: iced::widget::image::Handle::from_rgba(10, 10, vec![0; 400]),
-                });
-                30
-            ],
+            pages: crate::core::types::PageCache::new(30),
             page_count: 30,
             ..Default::default()
         };
 
-        // Total cached pages is 30, MAX_CACHED_PAGES is 24.
-        // With current_page = 15, the 6 furthest pages (e.g. indices 0, 1, 2, 29, 28, 27) are evicted.
-        evict_distant_pages(&mut pdf_state, 15);
-        let cached_count = pdf_state.pages.iter().filter(|p| p.is_some()).count();
-        assert_eq!(cached_count, MAX_CACHED_PAGES);
+        for i in 0..20 {
+            pdf_state.pages.insert(
+                i,
+                crate::core::PageCacheEntry {
+                    width: 10,
+                    height: 10,
+                    handle: iced::widget::image::Handle::from_rgba(1, 1, vec![0; 4]),
+                },
+                15,
+            );
+        }
 
+        assert!(pdf_state.pages.count() <= MAX_CACHED_PAGES);
         // Near pages around 15 are retained
-        assert!(pdf_state.pages[15].is_some());
-        assert!(pdf_state.pages[14].is_some());
-        assert!(pdf_state.pages[16].is_some());
+        assert!(pdf_state.pages.get(15).is_some());
+        assert!(pdf_state.pages.get(14).is_some());
+        assert!(pdf_state.pages.get(16).is_some());
     }
 
     #[test]
     fn test_disk_cache_instant_promotion() {
         let mut state = crate::core::PdfState {
             page_count: 50,
-            pages: vec![None; 50],
+            pages: crate::core::types::PageCache::new(50),
             ..Default::default()
         };
         let cache =
@@ -357,8 +352,8 @@ mod tests {
         let _ = cache.save_page(10, b"\x89PNG\r\n\x1a\nfake");
         state.disk_cache = Some(cache);
 
-        assert!(state.pages[10].is_none());
+        assert!(state.pages.get(10).is_none());
         assert!(promote_page_from_disk_if_cached(&mut state, 10));
-        assert!(state.pages[10].is_some());
+        assert!(state.pages.get(10).is_some());
     }
 }
