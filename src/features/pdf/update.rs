@@ -30,15 +30,16 @@ pub fn handle_scrolled(
 ) -> Task<Message> {
     let y = viewport.absolute_offset().y;
     let content_h = viewport.content_bounds().height;
+    let view_h = viewport.bounds().height;
 
     let pdf_state = active_pdf_state_mut(app);
 
     let count = pdf_state.page_count;
     if count > 0 && content_h > 0.0 {
-        let mut page_index = ((y / content_h) * count as f32) as usize;
-        if page_index >= count {
-            page_index = count - 1;
-        }
+        let approx_page_height = content_h / count as f32;
+        let focus_y = (y + (view_h * 0.3).min(approx_page_height * 0.5)).max(0.0);
+        let page_index = ((focus_y / approx_page_height) as usize).min(count - 1);
+
         pdf_state.scroll_y = y;
         pdf_state
             .visible_page
@@ -113,6 +114,7 @@ pub fn page_ready(
             handle,
         });
     }
+
     let all_loaded = pdf_state.pages.iter().all(|p| p.is_some());
     if all_loaded {
         pdf_state.loading = false;
@@ -179,6 +181,7 @@ fn start_thumbnail_loading_if_needed(app: &KglanceApp) -> Task<Message> {
             app.state.file_name.clone(),
             pdf.page_count,
             pdf.visible_page.clone(),
+            pdf.generation_id.clone(),
         )
     } else {
         Task::none()

@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use iced::Task;
 use iced::futures::SinkExt;
@@ -16,11 +16,13 @@ pub fn lazy_load_pages(
     file_path: String,
     total_pages: usize,
     visible_page: Arc<AtomicUsize>,
+    generation_id: Arc<AtomicUsize>,
 ) -> Task<Message> {
     crate::features::pdf::lazy_handler::lazy_load_pages(
         file_path,
         total_pages,
         visible_page,
+        generation_id,
         |page_index, page_data| {
             crate::app::messages::PdfMsg::PageReady(
                 page_index,
@@ -38,9 +40,10 @@ pub fn lazy_load_thumbnails(
     file_path: String,
     total_pages: usize,
     visible_page: Arc<AtomicUsize>,
+    generation_id: Arc<AtomicUsize>,
 ) -> Task<Message> {
     let stream = iced::stream::channel(CHANNEL_BUFFER_SIZE, move |output| {
-        process_pdf_thumb_loading(output, file_path, total_pages, visible_page)
+        process_pdf_thumb_loading(output, file_path, total_pages, visible_page, generation_id)
     });
 
     Task::run(stream, |message| message)
@@ -51,10 +54,16 @@ async fn process_pdf_thumb_loading(
     file_path: String,
     total_pages: usize,
     visible_page: Arc<AtomicUsize>,
+    generation_id: Arc<AtomicUsize>,
 ) {
     let mut rendered_thumbs = vec![false; total_pages];
 
+    let expected_gen = generation_id.load(Ordering::Relaxed);
+
     loop {
+        if generation_id.load(Ordering::Relaxed) != expected_gen {
+            return;
+        }
         let current_page = visible_page.load(std::sync::atomic::Ordering::Relaxed);
         let window_range = WindowRange::new(current_page, total_pages, PRELOAD_RADIUS);
 
@@ -70,6 +79,10 @@ async fn process_pdf_thumb_loading(
         }
 
         render_and_send_thumb_batch(&mut output, &file_path, &batch).await;
+
+        if generation_id.load(Ordering::Relaxed) != expected_gen {
+            return;
+        }
 
         tokio::time::sleep(LOOP_POLL_INTERVAL).await;
     }

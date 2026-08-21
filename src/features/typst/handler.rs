@@ -13,10 +13,13 @@ pub fn lazy_load_typst_pages(
     file_path: String,
     total_pages: usize,
     visible_page: Arc<AtomicUsize>,
+    generation_id: Arc<AtomicUsize>,
 ) -> Task<Message> {
     let stream = iced::stream::channel(
         crate::features::pdf::lazy_handler::CHANNEL_BUFFER_SIZE,
-        move |output| process_typst_page_loading(output, file_path, total_pages, visible_page),
+        move |output| {
+            process_typst_page_loading(output, file_path, total_pages, visible_page, generation_id)
+        },
     );
 
     Task::run(stream, |message| message)
@@ -27,6 +30,7 @@ async fn process_typst_page_loading(
     file_path: String,
     total_pages: usize,
     visible_page: Arc<AtomicUsize>,
+    generation_id: Arc<AtomicUsize>,
 ) {
     let compiled = tokio::task::spawn_blocking(move || {
         let path = Path::new(&file_path);
@@ -50,6 +54,7 @@ async fn process_typst_page_loading(
         pdf_path.to_string_lossy().into_owned(),
         total_pages,
         visible_page,
+        generation_id,
         |page_index, page_data| {
             crate::app::messages::TypstMsg::PageReady(
                 page_index,
