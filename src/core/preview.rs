@@ -1,5 +1,6 @@
 use crate::core::types::KglanceState;
 use crate::features::common::parser::traits::ParseError;
+use crate::features::pdf::types::PageDimensions;
 use crate::parsers::markdown::{Block, estimated_block_height, extract_toc};
 use std::collections::HashMap;
 use std::path::Path;
@@ -18,6 +19,18 @@ fn compute_block_y_offsets(
         y += estimated_block_height(block, font_size, i, image_sizes);
     }
     (offsets, y)
+}
+
+/// Compute cumulative Y offsets for PDF pages given their dimensions and display width.
+/// Returns `(offsets, ends, total_height)`.
+pub fn compute_pdf_page_offsets(
+    dims: &[PageDimensions],
+    display_width: f32,
+    spacing: f32,
+) -> (Vec<f32>, Vec<f32>, f32) {
+    let (offsets, ends, _, total_h) =
+        crate::features::pdf::geometry::compute_pdf_page_offsets(dims, display_width, spacing);
+    (offsets, ends, total_h)
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +58,7 @@ pub enum PreviewData {
         width: u32,
         height: u32,
         outline: Vec<crate::parsers::pdf::PdfTocEntry>,
+        page_dimensions: Vec<PageDimensions>,
     },
     Typst {
         page_count: usize,
@@ -55,6 +69,7 @@ pub enum PreviewData {
         source: String,
         error: Option<String>,
         outline: Vec<crate::parsers::pdf::PdfTocEntry>,
+        page_dimensions: Vec<PageDimensions>,
     },
     Media {
         url: String,
@@ -159,6 +174,7 @@ impl PreviewData {
             PreviewData::Pdf {
                 page_count,
                 outline,
+                page_dimensions,
                 ..
             } => {
                 let old_sidebar_visible = state.pdf.sidebar_visible;
@@ -176,6 +192,14 @@ impl PreviewData {
                     220.0
                 };
                 state.pdf.outline = outline.clone();
+                state.pdf.page_dimensions = page_dimensions.clone();
+                let display_width = (state.font_size / 14.0) * 800.0;
+                let (offsets, ends, total_h) =
+                    compute_pdf_page_offsets(page_dimensions, display_width, 4.0);
+                state.pdf.display_width = display_width;
+                state.pdf.page_y_offsets = offsets;
+                state.pdf.page_ends = ends;
+                state.pdf.total_content_height = total_h;
                 state.file_type_text = "PDF Document".to_string();
             }
             PreviewData::Typst {
@@ -183,11 +207,15 @@ impl PreviewData {
                 source,
                 error,
                 outline,
+                page_dimensions,
                 ..
             } => {
                 let old_sidebar_visible = state.typst.pdf.sidebar_visible;
                 let old_sidebar_mode = state.typst.pdf.sidebar_mode;
                 let old_sidebar_width = state.typst.pdf.sidebar_width;
+                let display_width = (state.font_size / 14.0) * 800.0;
+                let (offsets, ends, total_h) =
+                    compute_pdf_page_offsets(page_dimensions, display_width, 4.0);
                 state.typst = crate::core::TypstState {
                     pdf: crate::core::PdfState {
                         page_count: *page_count,
@@ -201,6 +229,11 @@ impl PreviewData {
                             220.0
                         },
                         outline: outline.clone(),
+                        page_dimensions: page_dimensions.clone(),
+                        display_width,
+                        page_y_offsets: offsets,
+                        page_ends: ends,
+                        total_content_height: total_h,
                         ..Default::default()
                     },
                     source_content: iced::widget::text_editor::Content::with_text(source),
