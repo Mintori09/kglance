@@ -53,8 +53,8 @@ impl super::KglanceApp {
 
     pub fn handle_play_pause(&mut self) -> Task<Message> {
         if let Some(video) = &mut self.video {
-            let is_playing = crate::features::video::handler::toggle_play_pause(video);
-            self.state.media.playing = is_playing;
+            crate::features::video::handler::toggle_play_pause(video);
+            self.state.media.playing = !video.paused();
         }
         Task::none()
     }
