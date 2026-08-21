@@ -110,7 +110,6 @@ impl Default for TextState {
 
 #[derive(Debug, Clone)]
 pub struct PageCacheEntry {
-    pub data: Vec<u8>,
     pub width: u32,
     pub height: u32,
     pub handle: iced::widget::image::Handle,
@@ -143,6 +142,17 @@ pub struct PdfState {
     pub sidebar_drag_start_width: f32,
     pub outline: Vec<crate::parsers::pdf::PdfTocEntry>,
     pub scroll_y: f32,
+    pub viewport_height: f32,
+    pub display_width: f32,
+    pub page_dimensions: Vec<crate::features::pdf::types::PageDimensions>,
+    /// Cumulative Y offset for each page (pixels). `page_y_offsets[i]` = Y start of page i.
+    pub page_y_offsets: Vec<f32>,
+    /// Cumulative Y bottom edge for each page (pixels). `page_ends[i]` = Y end of page i.
+    pub page_ends: Vec<f32>,
+    /// Total estimated height of all pages + spacing (pixels).
+    pub total_content_height: f32,
+    /// Tier 1 session disk cache for compressed PDF page files.
+    pub disk_cache: Option<std::sync::Arc<crate::features::pdf::PdfDiskCache>>,
 }
 
 impl Default for PdfState {
@@ -166,6 +176,13 @@ impl Default for PdfState {
             sidebar_drag_start_width: 220.0,
             outline: Vec::new(),
             scroll_y: 0.0,
+            viewport_height: 800.0,
+            display_width: 800.0,
+            page_dimensions: Vec::new(),
+            page_y_offsets: Vec::new(),
+            page_ends: Vec::new(),
+            total_content_height: 0.0,
+            disk_cache: None,
         }
     }
 }

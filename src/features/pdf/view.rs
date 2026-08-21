@@ -8,17 +8,85 @@ use iced::widget::{button, column, container, image, row, text};
 use iced::{Alignment, Border, Element, Length, Padding};
 
 const PAGE_SPACING: f32 = spacing::S;
-const PAGE_CONTAINER_PADDING: f32 = spacing::XS;
-const PLACEHOLDER_PADDING: f32 = spacing::S;
 const MAIN_COLUMN_PADDING: f32 = spacing::M;
 
 const EMPTY_STATE_TEXT_SIZE: f32 = 14.0;
-const LOADING_TEXT_SIZE: f32 = 14.0;
 const PLACEHOLDER_TEXT_SIZE: f32 = 12.0;
 
 const SCROLL_PANE_ID: &str = "content_scroll";
 const EMPTY_STATE_MESSAGE: &str = "No pages";
-const LOADING_MESSAGE: &str = "Loading…";
+
+/// Recalculate page Y offsets when display width changes (e.g. zoom/font_size change).
+pub fn recalculate_pdf_offsets(pdf_state: &mut crate::core::PdfState, font_size: f32) {
+    if pdf_state.page_dimensions.is_empty() {
+        return;
+    }
+    let display_width = (font_size / 14.0) * 800.0;
+    let (offsets, ends, total_h) = crate::core::preview::compute_pdf_page_offsets(
+        &pdf_state.page_dimensions,
+        display_width,
+        PAGE_SPACING,
+    );
+    pdf_state.display_width = display_width;
+    pdf_state.page_y_offsets = offsets;
+    pdf_state.page_ends = ends;
+    pdf_state.total_content_height = total_h;
+}
+
+/// Recalculate PDF layout for a new font size and return the adjusted scroll Y offset to anchor the visible position.
+pub fn rescale_pdf_and_anchor(
+    pdf_state: &mut crate::core::PdfState,
+    old_font_size: f32,
+    new_font_size: f32,
+) -> f32 {
+    if pdf_state.page_dimensions.is_empty() || pdf_state.page_count == 0 {
+        return 0.0;
+    }
+
+    let current_scroll_y = pdf_state.scroll_y;
+    let current_page = crate::features::pdf::viewport::find_visible_page(
+        &pdf_state.page_y_offsets,
+        current_scroll_y,
+        800.0,
+        0.0,
+    );
+
+    let old_page_y = pdf_state
+        .page_y_offsets
+        .get(current_page)
+        .copied()
+        .unwrap_or(0.0);
+    let old_display_w = (old_font_size / 14.0) * 800.0;
+    let old_page_h = pdf_state
+        .page_dimensions
+        .get(current_page)
+        .map(|d| d.display_height(old_display_w))
+        .unwrap_or(800.0);
+
+    let fractional_progress = if old_page_h > 0.0 {
+        ((current_scroll_y - old_page_y) / old_page_h).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+
+    recalculate_pdf_offsets(pdf_state, new_font_size);
+
+    let new_page_y = pdf_state
+        .page_y_offsets
+        .get(current_page)
+        .copied()
+        .unwrap_or(0.0);
+    let new_display_w = (new_font_size / 14.0) * 800.0;
+    let new_page_h = pdf_state
+        .page_dimensions
+        .get(current_page)
+        .map(|d| d.display_height(new_display_w))
+        .unwrap_or(800.0);
+
+    let new_scroll_y = (new_page_y + fractional_progress * new_page_h).max(0.0);
+    pdf_state.scroll_y = new_scroll_y;
+    new_scroll_y
+}
 
 pub fn view_pdf<'a>(
     state: &'a PdfState,
@@ -51,28 +119,90 @@ pub fn view_pdf_pages<'a>(
         return render_empty_state(scroll_id);
     }
 
-    let page_width = (font_size / 14.0) * 800.0;
-    let mut pages_column = column![].spacing(PAGE_SPACING).padding(MAIN_COLUMN_PADDING);
+    let page_width = if state.display_width > 0.0 {
+        state.display_width
+    } else {
+        (font_size / 14.0) * 800.0
+    };
+    let view_h = if state.viewport_height > 0.0 {
+        state.viewport_height
+    } else {
+        800.0
+    };
 
-    for (page_index, page_entry) in state.pages.iter().take(state.page_count).enumerate() {
-        let page_card = match page_entry {
-            Some(entry) => render_page_image(&entry.handle, page_width),
-            None => render_page_placeholder(page_index + 1, page_width),
+    let visible_opt = crate::features::pdf::geometry::visible_page_range(
+        &state.page_y_offsets,
+        &state.page_ends,
+        state.scroll_y,
+        view_h,
+    );
+
+    let render_range = crate::features::pdf::geometry::buffered_page_range(
+        visible_opt,
+        state.page_count,
+        2, // BUFFER_PAGES
+    )
+    .unwrap_or(0..=0);
+
+    let layout = crate::features::pdf::geometry::calculate_virtualized_layout(
+        &state.page_y_offsets,
+        state.total_content_height,
+        PAGE_SPACING,
+        render_range,
+    );
+
+    let mut pages_column = column![].spacing(PAGE_SPACING).padding(0.0);
+
+    // Top spacer
+    if layout.top_spacer_height > 0.0 {
+        pages_column = pages_column.push(
+            iced::widget::Space::new()
+                .width(Length::Fill)
+                .height(layout.top_spacer_height),
+        );
+    }
+
+    // Render visible pages
+    for page_index in layout.first_render..=layout.last_render {
+        if page_index >= state.page_count {
+            break;
+        }
+        let aspect_ratio = state
+            .page_dimensions
+            .get(page_index)
+            .map(|d| d.aspect_ratio())
+            .unwrap_or(1.0 / 1.414);
+        let page_height = page_width / aspect_ratio;
+
+        let page_card = match state.pages.get(page_index).and_then(|p| p.as_ref()) {
+            Some(entry) => render_page_image(&entry.handle, page_width, page_height),
+            None => render_page_placeholder(page_index + 1, page_width, page_height),
         };
         pages_column = pages_column.push(page_card);
     }
 
-    if state.loading {
-        pages_column = pages_column.push(render_loading_indicator());
+    // Bottom spacer
+    if layout.bottom_spacer_height > 0.0 {
+        pages_column = pages_column.push(
+            iced::widget::Space::new()
+                .width(Length::Fill)
+                .height(layout.bottom_spacer_height),
+        );
     }
 
     let centered = container(pages_column)
         .center_x(Length::Fill)
         .width(Length::Fill);
 
-    scroll_pane(scroll_id, centered)
+    let content_scroll = scroll_pane(scroll_id, centered)
         .on_scroll(on_scroll)
-        .build()
+        .build();
+
+    container(content_scroll)
+        .padding(MAIN_COLUMN_PADDING)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
 }
 
 fn render_pdf_sidebar<'a>(
@@ -316,34 +446,44 @@ fn render_empty_state<'a>(scroll_id: &'static str) -> Element<'a, Message> {
     .build()
 }
 
-fn render_page_image<'a>(image_handle: &image::Handle, target_width: f32) -> Element<'a, Message> {
+fn render_page_image<'a>(
+    image_handle: &image::Handle,
+    target_width: f32,
+    page_height: f32,
+) -> Element<'a, Message> {
     let page_image = image(image_handle.clone())
         .width(Length::Fixed(target_width))
-        .height(Length::Shrink);
+        .height(Length::Fixed(page_height));
 
-    container(page_image)
+    let card = container(page_image)
+        .width(Length::Fixed(target_width))
+        .height(Length::Fixed(page_height))
+        .center_x(Length::Fixed(target_width))
+        .center_y(Length::Fixed(page_height));
+
+    container(card)
         .width(Length::Fill)
         .center_x(Length::Fill)
-        .padding(PAGE_CONTAINER_PADDING)
         .into()
 }
 
-fn render_page_placeholder<'a>(page_number: usize, target_width: f32) -> Element<'a, Message> {
+fn render_page_placeholder<'a>(
+    page_number: usize,
+    target_width: f32,
+    page_height: f32,
+) -> Element<'a, Message> {
     let placeholder_text = text(format!("Page {}…", page_number))
         .size(PLACEHOLDER_TEXT_SIZE)
         .center();
 
-    container(placeholder_text)
+    let card = container(placeholder_text)
         .width(Length::Fixed(target_width))
-        .height(Length::Fixed(target_width * 1.414))
-        .padding(PLACEHOLDER_PADDING)
-        .into()
-}
+        .height(Length::Fixed(page_height))
+        .center_x(Length::Fixed(target_width))
+        .center_y(Length::Fixed(page_height));
 
-fn render_loading_indicator<'a>() -> Element<'a, Message> {
-    text(LOADING_MESSAGE)
-        .size(LOADING_TEXT_SIZE)
+    container(card)
         .width(Length::Fill)
-        .center()
+        .center_x(Length::Fill)
         .into()
 }
