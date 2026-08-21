@@ -1,10 +1,16 @@
+pub mod cache;
+pub mod compress;
+pub mod dimensions;
+pub mod geometry;
 pub mod handler;
 pub mod lazy_handler;
 pub mod parser;
 pub mod types;
 pub mod update;
 pub mod view;
+pub mod viewport;
 
+pub use cache::PdfDiskCache;
 pub use handler::lazy_load_thumbnails;
 pub use lazy_handler::lazy_load_pages;
 pub use parser::*;
