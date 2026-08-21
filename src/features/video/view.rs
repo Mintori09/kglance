@@ -54,7 +54,9 @@ fn render_media_display<'a>(
     data: &'a [u8],
     video: Option<&'a iced_video_player::Video>,
 ) -> Element<'a, Message> {
-    let content: Element<'a, Message> = if state.has_video {
+    let content: Element<'a, Message> = if let Some(err) = &state.error {
+        text(err.as_str()).size(STATUS_TEXT_SIZE).into()
+    } else if state.has_video {
         render_video_player(video)
     } else if !data.is_empty() {
         render_image_preview(data)

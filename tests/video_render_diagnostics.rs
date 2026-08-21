@@ -149,8 +149,9 @@ fn test_video_controls_helper_functions() {
     let video_path = get_test_video();
     let mut video = load_video(video_path.to_str().unwrap()).unwrap();
 
-    let playing = toggle_play_pause(&mut video);
-    assert!(!playing || playing);
+    let initial_paused = video.paused();
+    toggle_play_pause(&mut video);
+    assert_ne!(video.paused(), initial_paused);
 
     seek_to_ratio(&mut video, 0.5);
     seek_relative(&mut video, 0.5);
