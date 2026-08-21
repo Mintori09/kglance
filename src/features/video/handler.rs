@@ -6,10 +6,8 @@ pub fn load_video(path: &str) -> Result<Video, String> {
     Video::new(&url).map_err(|e| format!("iced_video_player failed to load video: {e:?}"))
 }
 
-pub fn toggle_play_pause(video: &mut Video) -> bool {
-    let new_paused = !video.paused();
-    video.set_paused(new_paused);
-    !new_paused
+pub fn toggle_play_pause(video: &mut Video) {
+    video.set_paused(!video.paused());
 }
 
 pub fn seek_to_ratio(video: &mut Video, ratio: f64) {
