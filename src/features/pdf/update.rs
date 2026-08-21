@@ -40,17 +40,17 @@ pub fn promote_page_from_disk_if_cached(
         return false;
     }
     if let Some(ref disk_cache) = pdf_state.disk_cache
-        && let Ok(png_bytes) = disk_cache.load_page(page_index)
+        && let Ok(cached) = disk_cache.load_page_with_meta(page_index)
     {
-        let handle = iced::widget::image::Handle::from_bytes(png_bytes);
+        let handle = iced::widget::image::Handle::from_bytes(cached.png_bytes);
         let current_page = pdf_state
             .visible_page
             .load(std::sync::atomic::Ordering::Relaxed);
         pdf_state.pages.insert(
             page_index,
             crate::core::PageCacheEntry {
-                width: 0,
-                height: 0,
+                width: cached.width,
+                height: cached.height,
                 handle,
             },
             current_page,
@@ -349,7 +349,7 @@ mod tests {
         };
         let cache =
             std::sync::Arc::new(crate::features::pdf::cache::PdfDiskCache::new(77777).unwrap());
-        let _ = cache.save_page(10, b"\x89PNG\r\n\x1a\nfake");
+        let _ = cache.save_page_with_meta(10, b"\x89PNG\r\n\x1a\nfake", 800, 1000);
         state.disk_cache = Some(cache);
 
         assert!(state.pages.get(10).is_none());
