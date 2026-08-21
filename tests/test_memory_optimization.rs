@@ -83,3 +83,48 @@ fn test_thumbnail_cache_enforces_count_limit() {
         assert!(cache.count() <= ThumbnailCache::MAX_COUNT);
     }
 }
+
+#[test]
+fn test_page_cache_randomized_stress_1000_operations() {
+    let mut rng_state: u64 = 54321;
+    let mut pseudo_rand = || {
+        rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
+        (rng_state >> 33) as f32 / 2147483648.0
+    };
+
+    let mut cache = PageCache::new(180);
+
+    for _ in 0..1000 {
+        let page_idx = (pseudo_rand() * 180.0) as usize;
+        let anchor = (pseudo_rand() * 180.0) as usize;
+        let side = 100 + (pseudo_rand() * 1200.0) as u32;
+        let entry = fake_entry(side, side);
+
+        cache.insert(page_idx, entry, anchor);
+
+        assert!(cache.count() <= PageCache::MAX_COUNT);
+        assert!(cache.accounted_decoded_bytes() <= PageCache::MAX_BYTES);
+        assert_eq!(
+            cache.accounted_decoded_bytes(),
+            cache.compute_actual_decoded_bytes()
+        );
+    }
+}
+
+#[test]
+fn test_disk_cache_atomic_write_and_metadata_validation() {
+    let disk_cache = kglance::features::pdf::PdfDiskCache::new(12345).unwrap();
+    let mut sample_png = Vec::new();
+    sample_png.extend_from_slice(kglance::features::pdf::cache::PNG_SIGNATURE);
+    sample_png.extend_from_slice(b"valid_payload_stream");
+
+    disk_cache
+        .save_page_with_meta(42, &sample_png, 1024, 768)
+        .unwrap();
+    assert!(disk_cache.has_page(42));
+
+    let loaded = disk_cache.load_page_with_meta(42).unwrap();
+    assert_eq!(loaded.width, 1024);
+    assert_eq!(loaded.height, 768);
+    assert_eq!(loaded.png_bytes, sample_png);
+}

@@ -295,19 +295,80 @@ fn render_thumbnails_list<'a>(
     state: &'a PdfState,
     theme: crate::ui::theme::AppTheme,
 ) -> Element<'a, Message> {
+    if state.page_count == 0 {
+        return render_empty_state("pdf_thumb_scroll");
+    }
+
     let current_page = state
         .visible_page
         .load(std::sync::atomic::Ordering::Relaxed);
 
-    let mut thumbs_col = column![].spacing(10).padding(8);
+    let thumb_width = (state.sidebar_width - 24.0).clamp(100.0, 360.0);
+    let spacing = 10.0;
 
-    for page_idx in 0..state.page_count {
+    let (offsets, ends, _, total_h) = crate::features::pdf::geometry::compute_thumbnail_offsets(
+        &state.page_dimensions,
+        thumb_width,
+        spacing,
+    );
+
+    let view_h = if state.viewport_height > 0.0 {
+        state.viewport_height
+    } else {
+        800.0
+    };
+
+    let current_thumb_top = offsets.get(current_page).copied().unwrap_or(0.0);
+    let thumb_scroll_y = (current_thumb_top - 100.0).max(0.0);
+
+    let visible_opt =
+        crate::features::pdf::geometry::visible_page_range(&offsets, &ends, thumb_scroll_y, view_h);
+
+    let render_range =
+        crate::features::pdf::geometry::buffered_page_range(visible_opt, state.page_count, 3)
+            .unwrap_or(0..=state.page_count.min(10).saturating_sub(1));
+
+    let layout = crate::features::pdf::geometry::calculate_virtualized_layout(
+        &offsets,
+        total_h,
+        spacing,
+        render_range,
+    );
+
+    let mut thumbs_col = column![].spacing(spacing).padding(0.0);
+
+    if layout.top_spacer_height > 0.0 {
+        thumbs_col = thumbs_col.push(
+            iced::widget::Space::new()
+                .width(Length::Fill)
+                .height(layout.top_spacer_height),
+        );
+    }
+
+    for page_idx in layout.first_render..=layout.last_render {
+        if page_idx >= state.page_count {
+            break;
+        }
         let is_active = page_idx == current_page;
         let thumb_item = render_thumb_item(state, page_idx, is_active, theme);
         thumbs_col = thumbs_col.push(thumb_item);
     }
 
-    scroll_pane("pdf_thumb_scroll", thumbs_col).build()
+    if layout.bottom_spacer_height > 0.0 {
+        thumbs_col = thumbs_col.push(
+            iced::widget::Space::new()
+                .width(Length::Fill)
+                .height(layout.bottom_spacer_height),
+        );
+    }
+
+    let scroll = scroll_pane("pdf_thumb_scroll", thumbs_col).build();
+
+    container(scroll)
+        .padding(8)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
 }
 
 fn render_thumb_item<'a>(

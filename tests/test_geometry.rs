@@ -1,6 +1,5 @@
 use kglance::features::pdf::geometry::{
-    buffered_page_range, calculate_virtualized_layout, compute_pdf_page_offsets,
-    visible_page_range,
+    buffered_page_range, calculate_virtualized_layout, compute_pdf_page_offsets, visible_page_range,
 };
 use kglance::features::pdf::types::PageDimensions;
 
@@ -96,9 +95,7 @@ fn test_child_sequence_height_parity_randomized_10k() {
         if layout.top_spacer_height > 0.0 {
             child_heights.push(layout.top_spacer_height);
         }
-        for i in *render_range.start()..=*render_range.end() {
-            child_heights.push(heights[i]);
-        }
+        child_heights.extend_from_slice(&heights[*render_range.start()..=*render_range.end()]);
         if layout.bottom_spacer_height > 0.0 {
             child_heights.push(layout.bottom_spacer_height);
         }
@@ -136,4 +133,39 @@ fn test_buffered_page_range_expansion() {
 
     // None visible
     assert_eq!(buffered_page_range(None, total_pages, 2), None);
+}
+
+#[test]
+fn test_thumbnail_visible_range_differential_10k() {
+    let mut rng_state: u64 = 98765;
+    let mut pseudo_rand = || {
+        rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
+        (rng_state >> 33) as f32 / 2147483648.0
+    };
+
+    for _ in 0..10_000 {
+        let page_count = (pseudo_rand() * 180.0) as usize + 1;
+        let mut dims = Vec::with_capacity(page_count);
+        for _ in 0..page_count {
+            dims.push(PageDimensions {
+                width_pts: 600.0,
+                height_pts: 400.0 + pseudo_rand() * 800.0,
+            });
+        }
+        let spacing = 10.0;
+        let thumb_w = 180.0;
+        let (offsets, ends, _, total_h) =
+            kglance::features::pdf::geometry::compute_thumbnail_offsets(&dims, thumb_w, spacing);
+
+        let scroll_y = (pseudo_rand() * (total_h + 300.0)) - 100.0;
+        let viewport_h = 400.0 + pseudo_rand() * 800.0;
+
+        let opt_range = visible_page_range(&offsets, &ends, scroll_y, viewport_h);
+        let ref_range = visible_page_range_reference(&offsets, &ends, scroll_y, viewport_h);
+
+        assert_eq!(
+            opt_range, ref_range,
+            "Thumbnail mismatch at scroll_y={scroll_y}, vp_h={viewport_h}, page_count={page_count}"
+        );
+    }
 }
