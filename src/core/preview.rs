@@ -182,8 +182,8 @@ impl PreviewData {
                 let old_sidebar_width = state.pdf.sidebar_width;
                 state.pdf = crate::core::PdfState::default();
                 state.pdf.page_count = *page_count;
-                state.pdf.pages = vec![None; *page_count];
-                state.pdf.thumbnails = vec![None; *page_count];
+                state.pdf.pages = crate::core::types::PageCache::new(*page_count);
+                state.pdf.thumbnails = crate::core::types::ThumbnailCache::new(*page_count);
                 state.pdf.sidebar_visible = old_sidebar_visible;
                 state.pdf.sidebar_mode = old_sidebar_mode;
                 state.pdf.sidebar_width = if old_sidebar_width > 0.0 {
@@ -219,8 +219,8 @@ impl PreviewData {
                 state.typst = crate::core::TypstState {
                     pdf: crate::core::PdfState {
                         page_count: *page_count,
-                        pages: vec![None; *page_count],
-                        thumbnails: vec![None; *page_count],
+                        pages: crate::core::types::PageCache::new(*page_count),
+                        thumbnails: crate::core::types::ThumbnailCache::new(*page_count),
                         sidebar_visible: old_sidebar_visible,
                         sidebar_mode: old_sidebar_mode,
                         sidebar_width: if old_sidebar_width > 0.0 {

@@ -174,7 +174,7 @@ pub fn view_pdf_pages<'a>(
             .unwrap_or(1.0 / 1.414);
         let page_height = page_width / aspect_ratio;
 
-        let page_card = match state.pages.get(page_index).and_then(|p| p.as_ref()) {
+        let page_card = match state.pages.get(page_index) {
             Some(entry) => render_page_image(&entry.handle, page_width, page_height),
             None => render_page_placeholder(page_index + 1, page_width, page_height),
         };
@@ -318,13 +318,12 @@ fn render_thumb_item<'a>(
 ) -> Element<'a, Message> {
     let thumb_width = (state.sidebar_width - 24.0).clamp(100.0, 360.0);
 
-    let thumb_img: Element<'a, Message> = if let Some(Some(entry)) = state.thumbnails.get(page_idx)
-    {
+    let thumb_img: Element<'a, Message> = if let Some(entry) = state.thumbnails.get(page_idx) {
         image(&entry.handle)
             .width(Length::Fixed(thumb_width))
             .height(Length::Shrink)
             .into()
-    } else if let Some(Some(entry)) = state.pages.get(page_idx) {
+    } else if let Some(entry) = state.pages.get(page_idx) {
         image(&entry.handle)
             .width(Length::Fixed(thumb_width))
             .height(Length::Shrink)

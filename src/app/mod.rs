@@ -373,6 +373,15 @@ impl KglanceApp {
     fn prepare_pdf_task(&mut self, content: &PreviewData, path: &str) -> Option<Task<Message>> {
         let is_pdf = matches!(content, PreviewData::Pdf { .. });
 
+        let session_id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as usize)
+            .unwrap_or(0);
+        let disk_cache = crate::features::pdf::PdfDiskCache::new(session_id)
+            .ok()
+            .map(std::sync::Arc::new);
+        self.state.pdf.disk_cache = disk_cache.clone();
+
         if let PreviewData::Pdf {
             data,
             width,
@@ -382,27 +391,43 @@ impl KglanceApp {
             && !data.is_empty()
             && !self.state.pdf.pages.is_empty()
         {
-            let handle = iced::widget::image::Handle::from_rgba(*width, *height, data.clone());
-            self.state.pdf.pages[0] = Some(crate::core::PageCacheEntry {
-                data: data.clone(),
+            if let Some(ref dc) = disk_cache {
+                let _ = dc.save_page(0, data);
+            }
+            let handle = iced::widget::image::Handle::from_bytes(data.clone());
+            self.state.pdf.pages.insert(0, crate::core::PageCacheEntry {
                 width: *width,
                 height: *height,
                 handle,
-            });
+            }, 0);
         }
 
-        if is_pdf && self.state.pdf.page_count > 1 {
-            self.state.pdf.loading = true;
+        if is_pdf && self.state.pdf.page_count > 0 {
             let page_count = self.state.pdf.page_count;
             let pdf_path = path.to_string();
             let visible_page = self.state.pdf.visible_page.clone();
             let generation_id = self.state.pdf.generation_id.clone();
-            Some(crate::features::pdf::handler::lazy_load_pages(
-                pdf_path,
+
+            let thumb_task = crate::features::pdf::handler::lazy_load_thumbnails(
+                pdf_path.clone(),
                 page_count,
-                visible_page,
-                generation_id,
-            ))
+                visible_page.clone(),
+                generation_id.clone(),
+            );
+
+            if page_count > 1 {
+                self.state.pdf.loading = true;
+                let page_task = crate::features::pdf::handler::lazy_load_pages(
+                    pdf_path,
+                    page_count,
+                    visible_page,
+                    generation_id,
+                    disk_cache,
+                );
+                Some(Task::batch([page_task, thumb_task]))
+            } else {
+                Some(thumb_task)
+            }
         } else {
             None
         }
@@ -410,6 +435,15 @@ impl KglanceApp {
 
     fn prepare_typst_task(&mut self, content: &PreviewData, path: &str) -> Option<Task<Message>> {
         let is_typst = matches!(content, PreviewData::Typst { .. });
+
+        let session_id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as usize)
+            .unwrap_or(0);
+        let disk_cache = crate::features::pdf::PdfDiskCache::new(session_id)
+            .ok()
+            .map(std::sync::Arc::new);
+        self.state.typst.pdf.disk_cache = disk_cache.clone();
 
         if let PreviewData::Typst {
             data,
@@ -422,27 +456,43 @@ impl KglanceApp {
             && !self.state.typst.pdf.pages.is_empty()
             && *page_count > 0
         {
-            let handle = iced::widget::image::Handle::from_rgba(*width, *height, data.clone());
-            self.state.typst.pdf.pages[0] = Some(crate::core::PageCacheEntry {
-                data: data.clone(),
+            if let Some(ref dc) = disk_cache {
+                let _ = dc.save_page(0, data);
+            }
+            let handle = iced::widget::image::Handle::from_bytes(data.clone());
+            self.state.typst.pdf.pages.insert(0, crate::core::PageCacheEntry {
                 width: *width,
                 height: *height,
                 handle,
-            });
+            }, 0);
         }
 
-        if is_typst && self.state.typst.pdf.page_count > 1 && self.state.typst.error.is_none() {
-            self.state.typst.pdf.loading = true;
+        if is_typst && self.state.typst.pdf.page_count > 0 && self.state.typst.error.is_none() {
             let page_count = self.state.typst.pdf.page_count;
             let typst_path = path.to_string();
             let visible_page = self.state.typst.pdf.visible_page.clone();
             let generation_id = self.state.typst.pdf.generation_id.clone();
-            Some(crate::features::typst::handler::lazy_load_typst_pages(
-                typst_path,
+
+            let thumb_task = crate::features::pdf::handler::lazy_load_thumbnails(
+                typst_path.clone(),
                 page_count,
-                visible_page,
-                generation_id,
-            ))
+                visible_page.clone(),
+                generation_id.clone(),
+            );
+
+            if page_count > 1 {
+                self.state.typst.pdf.loading = true;
+                let page_task = crate::features::typst::handler::lazy_load_typst_pages(
+                    typst_path,
+                    page_count,
+                    visible_page,
+                    generation_id,
+                    disk_cache,
+                );
+                Some(Task::batch([page_task, thumb_task]))
+            } else {
+                Some(thumb_task)
+            }
         } else {
             None
         }
@@ -664,6 +714,23 @@ impl KglanceApp {
         let global_event_sub = iced::event::listen_with(|event, _status, _window_id| match event {
             iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, modifiers, .. }) => {
                 Some(crate::app::messages::SystemMsg::KeyPressed(key, modifiers).into())
+            }
+            iced::Event::Keyboard(iced::keyboard::Event::KeyReleased {
+                key, modifiers, ..
+            }) => {
+                if matches!(
+                    key,
+                    iced::keyboard::Key::Named(iced::keyboard::key::Named::Shift)
+                ) {
+                    Some(Message::ShiftHeldChanged(false))
+                } else if matches!(
+                    key,
+                    iced::keyboard::Key::Named(iced::keyboard::key::Named::Control)
+                ) {
+                    Some(Message::CtrlHeldChanged(false))
+                } else {
+                    Some(Message::ModifiersUpdated(modifiers))
+                }
             }
             iced::Event::Keyboard(iced::keyboard::Event::ModifiersChanged(modifiers)) => {
                 Some(Message::ModifiersUpdated(modifiers))
