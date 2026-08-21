@@ -392,7 +392,7 @@ impl KglanceApp {
             && !self.state.pdf.pages.is_empty()
         {
             if let Some(ref dc) = disk_cache {
-                let _ = dc.save_page(0, data);
+                let _ = dc.save_page_with_meta(0, data, *width, *height);
             }
             let handle = iced::widget::image::Handle::from_bytes(data.clone());
             self.state.pdf.pages.insert(0, crate::core::PageCacheEntry {
@@ -457,7 +457,7 @@ impl KglanceApp {
             && *page_count > 0
         {
             if let Some(ref dc) = disk_cache {
-                let _ = dc.save_page(0, data);
+                let _ = dc.save_page_with_meta(0, data, *width, *height);
             }
             let handle = iced::widget::image::Handle::from_bytes(data.clone());
             self.state.typst.pdf.pages.insert(0, crate::core::PageCacheEntry {
