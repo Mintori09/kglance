@@ -12,8 +12,8 @@ use crate::app::Message;
 use crate::features::pdf::types::PageData;
 use crate::parsers::pdf::render_pdf_page;
 
-pub const PRELOAD_RADIUS: usize = 15;
-pub const BATCH_SIZE: usize = 4;
+pub const PRELOAD_RADIUS: usize = 5;
+pub const BATCH_SIZE: usize = 2;
 pub const CHANNEL_BUFFER_SIZE: usize = 10;
 pub const LOOP_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
@@ -43,6 +43,7 @@ pub fn lazy_load_pages<F>(
     file_path: String,
     total_pages: usize,
     visible_page: Arc<AtomicUsize>,
+    generation_id: Arc<AtomicUsize>,
     make_message: F,
     done: Message,
 ) -> Task<Message>
@@ -55,6 +56,7 @@ where
             file_path,
             total_pages,
             visible_page,
+            generation_id,
             make_message,
             done,
         )
@@ -68,6 +70,7 @@ pub async fn process_page_loading<F>(
     file_path: String,
     total_pages: usize,
     visible_page: Arc<AtomicUsize>,
+    generation_id: Arc<AtomicUsize>,
     make_message: F,
     done: Message,
 ) where
@@ -81,7 +84,13 @@ pub async fn process_page_loading<F>(
         rendered_pages[0] = true;
     }
 
+    let expected_gen = generation_id.load(std::sync::atomic::Ordering::Relaxed);
+
     loop {
+        if generation_id.load(std::sync::atomic::Ordering::Relaxed) != expected_gen {
+            break;
+        }
+
         let current_page = visible_page.load(Ordering::Relaxed);
         let window_range = WindowRange::new(current_page, total_pages, PRELOAD_RADIUS);
 
@@ -101,7 +110,9 @@ pub async fn process_page_loading<F>(
         tokio::time::sleep(LOOP_POLL_INTERVAL).await;
     }
 
-    let _ = output.send(done).await;
+    if generation_id.load(std::sync::atomic::Ordering::Relaxed) == expected_gen {
+        let _ = output.send(done).await;
+    }
 }
 
 fn find_unrendered_pages(rendered_pages: &[bool]) -> Vec<usize> {
