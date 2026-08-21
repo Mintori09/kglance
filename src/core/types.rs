@@ -108,11 +108,232 @@ impl Default for TextState {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InsertResult {
+    Inserted,
+    RejectedOversized,
+    InvalidIndex,
+}
+
 #[derive(Debug, Clone)]
 pub struct PageCacheEntry {
     pub width: u32,
     pub height: u32,
     pub handle: iced::widget::image::Handle,
+}
+
+impl PageCacheEntry {
+    #[inline]
+    pub fn decoded_bytes(&self) -> usize {
+        (self.width as usize) * (self.height as usize) * 4
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PageCache {
+    entries: Vec<Option<PageCacheEntry>>,
+    accounted_decoded_bytes: usize,
+}
+
+impl PageCache {
+    pub const MAX_COUNT: usize = 8;
+    pub const MAX_BYTES: usize = 48 * 1024 * 1024; // 48 MiB logical budget
+
+    pub fn new(page_count: usize) -> Self {
+        Self {
+            entries: vec![None; page_count],
+            accounted_decoded_bytes: 0,
+        }
+    }
+
+    #[inline]
+    pub fn get(&self, index: usize) -> Option<&PageCacheEntry> {
+        self.entries.get(index).and_then(|p| p.as_ref())
+    }
+
+    #[inline]
+    pub fn is_cached(&self, index: usize) -> bool {
+        self.get(index).is_some()
+    }
+
+    #[inline]
+    pub fn count(&self) -> usize {
+        self.entries.iter().filter(|p| p.is_some()).count()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    #[inline]
+    pub fn accounted_decoded_bytes(&self) -> usize {
+        self.accounted_decoded_bytes
+    }
+
+    pub fn compute_actual_decoded_bytes(&self) -> usize {
+        self.entries
+            .iter()
+            .filter_map(|p| p.as_ref())
+            .map(|e| e.decoded_bytes())
+            .sum()
+    }
+
+    pub fn insert(&mut self, page_index: usize, entry: PageCacheEntry, anchor_page: usize) -> InsertResult {
+        if page_index >= self.entries.len() {
+            return InsertResult::InvalidIndex;
+        }
+        let entry_bytes = entry.decoded_bytes();
+        if entry_bytes > Self::MAX_BYTES {
+            crate::log_debug!("[PDF_CACHE] Page {page_index} exceeds total RAM cache budget ({entry_bytes} bytes), keeping disk-backed only");
+            return InsertResult::RejectedOversized;
+        }
+
+        if let Some(old) = self.entries[page_index].take() {
+            self.accounted_decoded_bytes = self.accounted_decoded_bytes.saturating_sub(old.decoded_bytes());
+        }
+
+        self.accounted_decoded_bytes += entry_bytes;
+        self.entries[page_index] = Some(entry);
+        self.evict(anchor_page);
+        InsertResult::Inserted
+    }
+
+    pub fn evict(&mut self, anchor_page: usize) {
+        let mut cached_indices: Vec<usize> = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, page)| page.is_some().then_some(idx))
+            .collect();
+
+        if cached_indices.len() > Self::MAX_COUNT || self.accounted_decoded_bytes > Self::MAX_BYTES {
+            cached_indices.sort_by_key(|&idx| {
+                let dist = (idx as isize - anchor_page as isize).abs();
+                (std::cmp::Reverse(dist), std::cmp::Reverse(idx))
+            });
+
+            for &idx in &cached_indices {
+                if self.count() <= Self::MAX_COUNT && self.accounted_decoded_bytes <= Self::MAX_BYTES {
+                    break;
+                }
+                if let Some(entry) = self.entries[idx].take() {
+                    self.accounted_decoded_bytes = self.accounted_decoded_bytes.saturating_sub(entry.decoded_bytes());
+                }
+            }
+        }
+    }
+
+    pub fn clear(&mut self) {
+        for slot in &mut self.entries {
+            *slot = None;
+        }
+        self.accounted_decoded_bytes = 0;
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ThumbnailCache {
+    entries: Vec<Option<PageCacheEntry>>,
+    accounted_decoded_bytes: usize,
+}
+
+impl ThumbnailCache {
+    pub const MAX_COUNT: usize = 25;
+    pub const MAX_BYTES: usize = 8 * 1024 * 1024; // 8 MiB logical budget
+
+    pub fn new(page_count: usize) -> Self {
+        Self {
+            entries: vec![None; page_count],
+            accounted_decoded_bytes: 0,
+        }
+    }
+
+    #[inline]
+    pub fn get(&self, index: usize) -> Option<&PageCacheEntry> {
+        self.entries.get(index).and_then(|p| p.as_ref())
+    }
+
+    #[inline]
+    pub fn is_cached(&self, index: usize) -> bool {
+        self.get(index).is_some()
+    }
+
+    #[inline]
+    pub fn count(&self) -> usize {
+        self.entries.iter().filter(|p| p.is_some()).count()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    #[inline]
+    pub fn accounted_decoded_bytes(&self) -> usize {
+        self.accounted_decoded_bytes
+    }
+
+    pub fn insert(&mut self, page_index: usize, entry: PageCacheEntry, anchor_page: usize) -> InsertResult {
+        if page_index >= self.entries.len() {
+            return InsertResult::InvalidIndex;
+        }
+        let entry_bytes = entry.decoded_bytes();
+        if entry_bytes > Self::MAX_BYTES {
+            return InsertResult::RejectedOversized;
+        }
+
+        if let Some(old) = self.entries[page_index].take() {
+            self.accounted_decoded_bytes = self.accounted_decoded_bytes.saturating_sub(old.decoded_bytes());
+        }
+
+        self.accounted_decoded_bytes += entry_bytes;
+        self.entries[page_index] = Some(entry);
+        self.evict(anchor_page);
+        InsertResult::Inserted
+    }
+
+    pub fn evict(&mut self, anchor_page: usize) {
+        let mut cached_indices: Vec<usize> = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, page)| page.is_some().then_some(idx))
+            .collect();
+
+        if cached_indices.len() > Self::MAX_COUNT || self.accounted_decoded_bytes > Self::MAX_BYTES {
+            cached_indices.sort_by_key(|&idx| {
+                let dist = (idx as isize - anchor_page as isize).abs();
+                (std::cmp::Reverse(dist), std::cmp::Reverse(idx))
+            });
+
+            for &idx in &cached_indices {
+                if self.count() <= Self::MAX_COUNT && self.accounted_decoded_bytes <= Self::MAX_BYTES {
+                    break;
+                }
+                if let Some(entry) = self.entries[idx].take() {
+                    self.accounted_decoded_bytes = self.accounted_decoded_bytes.saturating_sub(entry.decoded_bytes());
+                }
+            }
+        }
+    }
+
+    pub fn clear(&mut self) {
+        for slot in &mut self.entries {
+            *slot = None;
+        }
+        self.accounted_decoded_bytes = 0;
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -124,8 +345,8 @@ pub enum PdfSidebarMode {
 
 #[derive(Debug, Clone)]
 pub struct PdfState {
-    pub pages: Vec<Option<PageCacheEntry>>,
-    pub thumbnails: Vec<Option<PageCacheEntry>>,
+    pub pages: PageCache,
+    pub thumbnails: ThumbnailCache,
     pub page_count: usize,
     pub loading: bool,
     pub current_page: usize,
@@ -158,8 +379,8 @@ pub struct PdfState {
 impl Default for PdfState {
     fn default() -> Self {
         Self {
-            pages: Vec::new(),
-            thumbnails: Vec::new(),
+            pages: PageCache::default(),
+            thumbnails: ThumbnailCache::default(),
             page_count: 0,
             loading: false,
             generation_id: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
