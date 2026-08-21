@@ -143,7 +143,7 @@ pub fn handle_page_ready(
 }
 
 pub fn pages_loaded(pdf_state: &mut crate::core::PdfState) {
-    pdf_state.loading = false;
+    pdf_state.active_page_tasks = pdf_state.active_page_tasks.saturating_sub(1);
 }
 
 pub fn page_ready(
@@ -202,8 +202,15 @@ pub fn handle_sidebar_toggled(app: &mut KglanceApp) -> Task<Message> {
     pdf_state.sidebar_visible = !pdf_state.sidebar_visible;
     let scroll_y = pdf_state.scroll_y;
     let load_task = if pdf_state.sidebar_visible {
-        start_thumbnail_loading_if_needed(app)
+        if pdf_state.sidebar_mode == crate::core::PdfSidebarMode::Thumbnails {
+            start_thumbnail_loading_if_needed(app)
+        } else {
+            Task::none()
+        }
     } else {
+        pdf_state
+            .generation_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Task::none()
     };
     let restore_scroll = iced::widget::operation::scroll_to(
@@ -221,10 +228,16 @@ pub fn handle_set_sidebar_mode(
     mode: crate::core::PdfSidebarMode,
 ) -> Task<Message> {
     let pdf_state = active_pdf_state_mut(app);
+    let old_mode = pdf_state.sidebar_mode;
     pdf_state.sidebar_mode = mode;
-    if mode == crate::core::PdfSidebarMode::Thumbnails {
+    if mode == crate::core::PdfSidebarMode::Thumbnails && pdf_state.sidebar_visible {
         start_thumbnail_loading_if_needed(app)
     } else {
+        if old_mode == crate::core::PdfSidebarMode::Thumbnails {
+            pdf_state
+                .generation_id
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
         Task::none()
     }
 }

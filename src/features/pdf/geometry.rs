@@ -1,5 +1,5 @@
-use std::ops::RangeInclusive;
 use crate::features::pdf::types::PageDimensions;
+use std::ops::RangeInclusive;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VirtualizedLayout {
@@ -128,4 +128,33 @@ pub fn calculate_virtualized_layout(
         top_spacer_height,
         bottom_spacer_height,
     }
+}
+
+/// Compute thumbnail cumulative Y offsets in content coordinates.
+pub fn compute_thumbnail_offsets(
+    dims: &[PageDimensions],
+    thumb_width: f32,
+    spacing: f32,
+) -> (Vec<f32>, Vec<f32>, Vec<f32>, f32) {
+    if dims.is_empty() {
+        return (Vec::new(), Vec::new(), Vec::new(), 0.0);
+    }
+    let mut offsets = Vec::with_capacity(dims.len());
+    let mut ends = Vec::with_capacity(dims.len());
+    let mut heights = Vec::with_capacity(dims.len());
+    let mut y = 0.0;
+
+    for (i, dim) in dims.iter().enumerate() {
+        offsets.push(y);
+        let ar = dim.aspect_ratio();
+        let item_h = (thumb_width / ar).max(20.0);
+        heights.push(item_h);
+        y += item_h;
+        ends.push(y);
+        if i + 1 < dims.len() {
+            y += spacing.max(0.0);
+        }
+    }
+    let total_h = y;
+    (offsets, ends, heights, total_h)
 }
