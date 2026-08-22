@@ -1,7 +1,7 @@
 use iced::Task;
 
 use super::Message;
-use crate::core::PreviewData;
+use crate::core::{PdfState, PreviewData};
 
 const ZOOM_STEP: f32 = 0.2;
 const ZOOM_MIN: f32 = 0.1;
@@ -11,6 +11,7 @@ const FONT_MAX: f32 = 48.0;
 
 use crate::app::KglanceApp;
 use crate::features::markdown::parser::extract_toc;
+use crate::log_error;
 
 impl KglanceApp {
     pub(super) fn handle_ctrl_shortcuts(
@@ -28,55 +29,81 @@ impl KglanceApp {
 
         match c {
             "c" | "C" => self.handle_ctrl_copy(),
-            "," => Some(Task::done(
-                crate::app::messages::NavigationMsg::ToggleSettingsClicked.into(),
-            )),
+            "," => self.handle_toggle_settings(),
             "a" | "A" => self.handle_ctrl_a(),
-            "t" => {
-                self.state.app_theme = match self.state.app_theme {
-                    crate::ui::theme::AppTheme::Dark => crate::ui::theme::AppTheme::Light,
-                    crate::ui::theme::AppTheme::Light => crate::ui::theme::AppTheme::Nord,
-                    _ => crate::ui::theme::AppTheme::Dark,
-                };
-                Some(Task::none())
-            }
+            "t" => self.handle_toggle_theme(),
             "+" | "=" => self.handle_zoom_or_font(1.0),
             "-" => self.handle_zoom_or_font(-1.0),
-            "0" if matches!(self.current_content, Some(PreviewData::Image { .. })) => {
-                self.state.image.camera.zoom = 1.0;
-                self.state.image.camera.offset_x = 0.0;
-                self.state.image.camera.offset_y = 0.0;
-                Some(Task::none())
-            }
+            "0" => self.handle_image_reset(),
             "f" | "F" => self.handle_ctrl_f(),
-            "e" if matches!(self.current_content, Some(PreviewData::Json { .. })) => {
-                Some(Task::done(crate::app::messages::JsonMsg::ExpandAll.into()))
-            }
-            "E" if matches!(self.current_content, Some(PreviewData::Json { .. })) => Some(
-                Task::done(crate::app::messages::JsonMsg::CollapseAll.into()),
-            ),
-            "i" | "I" if matches!(self.current_content, Some(PreviewData::Json { .. })) => Some(
-                Task::done(crate::app::messages::JsonMsg::SchemaToggle.into()),
-            ),
-            "P" if matches!(self.current_content, Some(PreviewData::Json { .. })) => Some(
-                Task::done(crate::app::messages::JsonMsg::ToggleFormat.into()),
-            ),
-            "w" | "W"
-                if matches!(
-                    self.current_content,
-                    Some(PreviewData::Text { .. })
-                        | Some(PreviewData::Json { .. })
-                        | Some(PreviewData::Typst { .. })
-                ) =>
-            {
-                self.state.word_wrap = !self.state.word_wrap;
-                let mut config = crate::core::config::ConfigManager::load_or_create();
-                config.ui.word_wrap = self.state.word_wrap;
-                let _ = crate::core::config::ConfigManager::save(&config);
-                Some(Task::none())
-            }
+            "e" | "E" | "i" | "I" | "P" => self.handle_json_shortcut(c),
+            "w" | "W" => self.handle_toggle_word_wrap(),
             _ => None,
         }
+    }
+
+    fn handle_toggle_word_wrap(&mut self) -> Option<Task<Message>> {
+        if !matches!(
+            self.current_content,
+            Some(PreviewData::Text { .. } | PreviewData::Json { .. } | PreviewData::Typst { .. })
+        ) {
+            return None;
+        }
+
+        self.state.word_wrap = !self.state.word_wrap;
+
+        let mut config = crate::core::config::ConfigManager::load_or_create();
+        config.ui.word_wrap = self.state.word_wrap;
+
+        if let Err(err) = crate::core::config::ConfigManager::save(&config) {
+            log_error!("failed to save word-wrap preference: {}", err);
+        }
+
+        Some(Task::none())
+    }
+
+    fn handle_json_shortcut(&mut self, key: &str) -> Option<Task<Message>> {
+        if !matches!(self.current_content, Some(PreviewData::Json { .. })) {
+            return None;
+        }
+
+        let message = match key {
+            "e" => crate::app::messages::JsonMsg::ExpandAll,
+            "E" => crate::app::messages::JsonMsg::CollapseAll,
+            "i" | "I" => crate::app::messages::JsonMsg::SchemaToggle,
+            "P" => crate::app::messages::JsonMsg::ToggleFormat,
+            _ => return None,
+        };
+
+        Some(Task::done(message.into()))
+    }
+
+    fn handle_toggle_settings(&mut self) -> Option<Task<Message>> {
+        Some(Task::done(
+            crate::app::messages::NavigationMsg::ToggleSettingsClicked.into(),
+        ))
+    }
+
+    fn handle_toggle_theme(&mut self) -> Option<Task<Message>> {
+        self.state.app_theme = match self.state.app_theme {
+            crate::ui::theme::AppTheme::Dark => crate::ui::theme::AppTheme::Light,
+            crate::ui::theme::AppTheme::Light => crate::ui::theme::AppTheme::Nord,
+            crate::ui::theme::AppTheme::Nord => crate::ui::theme::AppTheme::Dark,
+        };
+
+        Some(Task::none())
+    }
+
+    fn handle_image_reset(&mut self) -> Option<Task<Message>> {
+        if !matches!(self.current_content, Some(PreviewData::Image { .. })) {
+            return None;
+        }
+
+        self.state.image.camera.zoom = 1.0;
+        self.state.image.camera.offset_x = 0.0;
+        self.state.image.camera.offset_y = 0.0;
+
+        Some(Task::none())
     }
 
     fn handle_ctrl_a(&mut self) -> Option<Task<Message>> {
@@ -95,119 +122,185 @@ impl KglanceApp {
     }
 
     fn handle_ctrl_copy(&mut self) -> Option<Task<Message>> {
-        if matches!(self.current_content, Some(PreviewData::Text { .. })) {
-            let selection = self.state.text.content.selection().unwrap_or_default();
-            if selection.is_empty() {
-                None
-            } else {
-                let toast = self.show_toast("Copied! selected");
-                Some(Task::batch(vec![iced::clipboard::write(selection), toast]))
+        let text = match self.current_content {
+            Some(PreviewData::Text { .. }) => self.state.text.content.selection(),
+
+            Some(PreviewData::Json { .. }) if !self.state.json.tree_mode => {
+                self.state.json.raw_editor.selection()
             }
-        } else if matches!(self.current_content, Some(PreviewData::Json { .. }))
-            && !self.state.json.tree_mode
-        {
-            let selection = self.state.json.raw_editor.selection().unwrap_or_default();
-            if selection.is_empty() {
-                None
-            } else {
-                let toast = self.show_toast("Copied selected!");
-                Some(Task::batch(vec![iced::clipboard::write(selection), toast]))
+
+            Some(PreviewData::Markdown { .. } | PreviewData::Epub { .. }) => {
+                let previous = crate::features::markdown::update::active_markdown_state(self)
+                    .selected_text
+                    .clone();
+
+                crate::features::markdown::update::update_selected_text_from_range(self);
+
+                crate::features::markdown::update::active_markdown_state(self)
+                    .selected_text
+                    .clone()
+                    .or(previous)
             }
-        } else if matches!(
-            self.current_content,
-            Some(PreviewData::Markdown { .. }) | Some(PreviewData::Epub { .. })
-        ) {
-            let previous_selected = crate::features::markdown::update::active_markdown_state(self)
-                .selected_text
-                .clone();
-            crate::features::markdown::update::update_selected_text_from_range(self);
-            let selected_text = crate::features::markdown::update::active_markdown_state(self)
-                .selected_text
-                .clone()
-                .or(previous_selected);
-            if let Some(text) = selected_text
-                && !text.is_empty()
-            {
-                let toast = self.show_toast("Copied selected!");
-                Some(Task::batch(vec![iced::clipboard::write(text), toast]))
-            } else {
-                None
-            }
-        } else {
-            None
+
+            _ => None,
+        }?;
+
+        if text.is_empty() {
+            return None;
         }
+
+        let toast = self.show_toast("Copied selected!");
+
+        Some(Task::batch(vec![iced::clipboard::write(text), toast]))
+    }
+
+    fn resize_pdf_preview(
+        pdf: &mut PdfState,
+        window_width: f32,
+        direction: f32,
+    ) -> Option<Task<Message>> {
+        let old_width = pdf.desired_width;
+        let mut new_width = (old_width + direction * 50.0).clamp(300.0, 2400.0);
+
+        if new_width == old_width {
+            return Some(Task::none());
+        }
+
+        let sidebar_width = if pdf.sidebar_visible {
+            pdf.sidebar_width + 1.0
+        } else {
+            0.0
+        };
+
+        let max_width = (window_width - sidebar_width - 40.0).clamp(300.0, 2400.0);
+
+        if new_width > max_width {
+            new_width = max_width;
+        }
+
+        let scroll_y = crate::features::pdf::view::rescale_pdf_and_anchor(
+            pdf, old_width, new_width, max_width,
+        );
+
+        Some(iced::widget::operation::scroll_to(
+            "content_scroll",
+            iced::widget::operation::AbsoluteOffset {
+                x: 0.0,
+                y: scroll_y,
+            },
+        ))
     }
 
     fn handle_zoom_or_font(&mut self, direction: f32) -> Option<Task<Message>> {
-        if matches!(self.current_content, Some(PreviewData::Image { .. })) {
-            let next_zoom =
-                (self.state.image.camera.zoom + direction * ZOOM_STEP).clamp(ZOOM_MIN, ZOOM_MAX);
-            if (next_zoom - self.state.image.camera.zoom).abs() > f32::EPSILON {
-                self.state.image.camera.zoom = next_zoom;
+        match self.current_content {
+            Some(PreviewData::Image { .. }) => {
+                self.state.image.camera.zoom = (self.state.image.camera.zoom
+                    + direction * ZOOM_STEP)
+                    .clamp(ZOOM_MIN, ZOOM_MAX);
+
+                Some(Task::none())
             }
-            Some(Task::none())
-        } else if matches!(
-            self.current_content,
-            Some(PreviewData::Markdown { .. })
-                | Some(PreviewData::Text { .. })
-                | Some(PreviewData::Epub { .. })
-                | Some(PreviewData::Pdf { .. })
-                | Some(PreviewData::Typst { .. })
-        ) {
-            let next_font_size = (self.state.font_size + direction).clamp(FONT_MIN, FONT_MAX);
-            if (next_font_size - self.state.font_size).abs() > f32::EPSILON {
-                self.state.font_size = next_font_size;
-                if let Some(PreviewData::Markdown { ref blocks, .. }) = self.current_content {
-                    self.state.markdown.toc = extract_toc(
-                        blocks,
-                        self.state.font_size,
-                        &self.state.markdown.cached_image_sizes,
-                    );
+
+            Some(PreviewData::Pdf { .. }) => Self::resize_pdf_preview(
+                &mut self.state.pdf,
+                self.state.current_window_size.width,
+                direction,
+            ),
+
+            Some(PreviewData::Typst { .. }) => Self::resize_pdf_preview(
+                &mut self.state.typst.pdf,
+                self.state.current_window_size.width,
+                direction,
+            ),
+
+            Some(
+                PreviewData::Markdown { .. } | PreviewData::Text { .. } | PreviewData::Epub { .. },
+            ) => {
+                let old_size = self.state.font_size;
+                let new_size = (old_size + direction).clamp(FONT_MIN, FONT_MAX);
+
+                if new_size != old_size {
+                    self.state.font_size = new_size;
+
+                    if let Some(PreviewData::Markdown { ref blocks, .. }) = self.current_content {
+                        self.state.markdown.toc =
+                            extract_toc(blocks, new_size, &self.state.markdown.cached_image_sizes);
+                    }
                 }
+
+                Some(Task::none())
             }
-            Some(Task::none())
-        } else {
-            None
+
+            _ => None,
         }
     }
 
     fn handle_ctrl_f(&mut self) -> Option<Task<Message>> {
-        if matches!(self.current_content, Some(PreviewData::Json { .. })) {
-            self.state.json.search_visible = !self.state.json.search_visible;
-            if !self.state.json.search_visible {
-                self.state.json.search_query.clear();
-                Some(Task::none())
-            } else {
-                Some(iced::widget::operation::focus("json_search_input"))
+        match self.current_content {
+            Some(PreviewData::Json { .. }) => {
+                self.state.json.search_visible = !self.state.json.search_visible;
+
+                if self.state.json.search_visible {
+                    Some(iced::widget::operation::focus("json_search_input"))
+                } else {
+                    self.state.json.search_query.clear();
+                    Some(Task::none())
+                }
             }
-        } else if matches!(self.current_content, Some(PreviewData::Text { .. })) {
-            self.state.text.search_visible = !self.state.text.search_visible;
-            if !self.state.text.search_visible {
-                self.state.text.search_query.clear();
-                Some(Task::none())
-            } else {
-                Some(iced::widget::operation::focus("txt_search_input"))
+
+            Some(PreviewData::Text { .. }) => {
+                self.state.text.search_visible = !self.state.text.search_visible;
+
+                if self.state.text.search_visible {
+                    Some(iced::widget::operation::focus("txt_search_input"))
+                } else {
+                    self.state.text.search_query.clear();
+                    Some(Task::none())
+                }
             }
-        } else if matches!(self.current_content, Some(PreviewData::Markdown { .. })) {
-            self.state.markdown.search_visible = !self.state.markdown.search_visible;
-            if !self.state.markdown.search_visible {
-                self.state.markdown.search_query.clear();
-                self.state.markdown.search_match_count = 0;
-                self.state.markdown.search_match_index = 0;
-                self.state.markdown.search_match_blocks.clear();
-                self.state.markdown.search_info.clear();
-                Some(Task::none())
-            } else {
-                Some(iced::widget::operation::focus("md_search_input"))
+
+            Some(PreviewData::Markdown { .. }) => {
+                self.state.markdown.search_visible = !self.state.markdown.search_visible;
+
+                if self.state.markdown.search_visible {
+                    Some(iced::widget::operation::focus("md_search_input"))
+                } else {
+                    self.state.markdown.search_query.clear();
+                    self.state.markdown.search_match_count = 0;
+                    self.state.markdown.search_match_index = 0;
+                    self.state.markdown.search_match_blocks.clear();
+                    self.state.markdown.search_info.clear();
+                    Some(Task::none())
+                }
             }
-        } else if matches!(self.current_content, Some(PreviewData::Spreadsheet { .. })) {
-            self.state.spreadsheet.search_visible = true;
-            Some(iced::widget::operation::focus("ss_search_input"))
-        } else if matches!(&self.state.view_mode, crate::core::ViewMode::Grid(_)) {
-            self.state.grid_search_visible = true;
-            Some(iced::widget::operation::focus("grid_search_input"))
-        } else {
-            None
+
+            Some(PreviewData::Spreadsheet { .. }) => {
+                self.state.spreadsheet.search_visible = !self.state.spreadsheet.search_visible;
+
+                if self.state.spreadsheet.search_visible {
+                    Some(iced::widget::operation::focus("ss_search_input"))
+                } else {
+                    self.state.spreadsheet.search_query.clear();
+                    Some(Task::none())
+                }
+            }
+
+            None => match &self.state.view_mode {
+                crate::core::ViewMode::Grid(_) => {
+                    self.state.grid_search_visible = !self.state.grid_search_visible;
+
+                    if self.state.grid_search_visible {
+                        Some(iced::widget::operation::focus("grid_search_input"))
+                    } else {
+                        self.state.grid_search_query.clear();
+                        Some(Task::none())
+                    }
+                }
+
+                _ => None,
+            },
+
+            _ => None,
         }
     }
 
@@ -218,18 +311,65 @@ impl KglanceApp {
     ) -> Option<Task<Message>> {
         match key {
             iced::keyboard::Key::Character(c) if (c == "+" || c == "=") && modifiers.shift() => {
-                self.state.font_size = self.state.default_font_size;
-                if let Some(PreviewData::Markdown { ref blocks, .. }) = self.current_content {
-                    self.state.markdown.toc = extract_toc(
-                        blocks,
-                        self.state.font_size,
-                        &self.state.markdown.cached_image_sizes,
-                    );
+                match self.current_content {
+                    Some(PreviewData::Pdf { .. }) => Some(Self::reset_pdf_width(
+                        &mut self.state.pdf,
+                        self.state.current_window_size.width,
+                    )),
+
+                    Some(PreviewData::Typst { .. }) => Some(Self::reset_pdf_width(
+                        &mut self.state.typst.pdf,
+                        self.state.current_window_size.width,
+                    )),
+
+                    Some(PreviewData::Markdown { ref blocks, .. }) => {
+                        self.state.font_size = self.state.default_font_size;
+
+                        self.state.markdown.toc = extract_toc(
+                            blocks,
+                            self.state.font_size,
+                            &self.state.markdown.cached_image_sizes,
+                        );
+
+                        Some(Task::none())
+                    }
+
+                    Some(PreviewData::Text { .. } | PreviewData::Epub { .. }) => {
+                        self.state.font_size = self.state.default_font_size;
+                        Some(Task::none())
+                    }
+
+                    _ => Some(Task::none()),
                 }
-                Some(Task::none())
             }
+
             _ => None,
         }
+    }
+
+    fn reset_pdf_width(pdf: &mut PdfState, window_width: f32) -> Task<Message> {
+        let old_width = pdf.desired_width;
+        let new_width = 800.0;
+
+        let sidebar_width = if pdf.sidebar_visible {
+            pdf.sidebar_width + 1.0
+        } else {
+            0.0
+        };
+
+        let max_width = (window_width - sidebar_width - 40.0).clamp(300.0, 2400.0);
+
+        let scroll_y = crate::features::pdf::view::rescale_pdf_and_anchor(
+            pdf, old_width, new_width, max_width,
+        );
+
+        iced::widget::operation::scroll_to(
+            "content_scroll",
+            iced::widget::operation::AbsoluteOffset {
+                x: 0.0,
+                y: scroll_y,
+            },
+        )
     }
 }
 

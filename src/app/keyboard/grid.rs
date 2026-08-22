@@ -1,65 +1,85 @@
 use iced::Task;
+use iced::keyboard::{Key, key::Named};
 use iced::widget::operation::AbsoluteOffset;
 
 use super::Message;
-
 use crate::app::KglanceApp;
 
-impl KglanceApp {
-    pub(super) fn handle_grid_navigation(
-        &mut self,
-        key: &iced::keyboard::Key,
-    ) -> Option<Task<Message>> {
-        use iced::keyboard::key::Named;
+const MIN_GRID_COLUMNS: usize = 1;
+const GRID_SCROLL_ID: &str = "grid_scroll";
 
-        let total = self.state.playlist.len();
-        if total == 0 {
+impl KglanceApp {
+    pub(super) fn handle_grid_navigation(&mut self, key: &Key) -> Option<Task<Message>> {
+        let total_items = self.state.playlist.len();
+
+        if total_items == 0 {
             return None;
         }
 
-        let cols = self.state.grid_cols.max(1);
-        let cur = self.state.current_index;
+        let column_count = self.state.grid_cols.max(MIN_GRID_COLUMNS);
+        let current_index = self.state.current_index;
 
         match key {
-            iced::keyboard::Key::Named(Named::ArrowRight) => {
-                if cur + 1 < total {
-                    self.state.current_index = cur + 1;
-                }
-                Some(self.grid_scroll_to_current(cols))
+            Key::Named(Named::ArrowRight) => {
+                self.select_next_item(current_index, total_items);
+                Some(self.scroll_grid_to_current(column_count))
             }
-            iced::keyboard::Key::Named(Named::ArrowLeft) => {
-                if cur > 0 {
-                    self.state.current_index = cur - 1;
-                }
-                Some(self.grid_scroll_to_current(cols))
+            Key::Named(Named::ArrowLeft) => {
+                self.select_previous_item(current_index);
+                Some(self.scroll_grid_to_current(column_count))
             }
-            iced::keyboard::Key::Named(Named::ArrowDown) => {
-                if cur + cols < total {
-                    self.state.current_index = cur + cols;
-                } else if cur < total - 1 {
-                    self.state.current_index = total - 1;
-                }
-                Some(self.grid_scroll_to_current(cols))
+            Key::Named(Named::ArrowDown) => {
+                self.select_item_below(current_index, column_count, total_items);
+                Some(self.scroll_grid_to_current(column_count))
             }
-            iced::keyboard::Key::Named(Named::ArrowUp) => {
-                if cur >= cols {
-                    self.state.current_index = cur - cols;
-                } else {
-                    self.state.current_index = 0;
-                }
-                Some(self.grid_scroll_to_current(cols))
+            Key::Named(Named::ArrowUp) => {
+                self.select_item_above(current_index, column_count);
+                Some(self.scroll_grid_to_current(column_count))
             }
-            iced::keyboard::Key::Named(Named::Enter) => Some(
-                self.update(crate::app::messages::NavigationMsg::FileClickedInGrid(cur).into()),
-            ),
+            Key::Named(Named::Enter) => Some(self.update(
+                crate::app::messages::NavigationMsg::FileClickedInGrid(current_index).into(),
+            )),
             _ => None,
         }
     }
 
-    fn grid_scroll_to_current(&self, cols: usize) -> Task<Message> {
-        let row_h = crate::core::types::GRID_ROW_HEIGHT * self.state.grid_scale;
-        let row_idx = (self.state.current_index / cols) as f32;
-        let y = if row_idx == 0.0 { 0.0 } else { row_idx * row_h };
-        iced::widget::operation::scroll_to("grid_scroll", AbsoluteOffset { x: 0.0, y })
+    fn select_next_item(&mut self, current_index: usize, total_items: usize) {
+        if current_index + 1 < total_items {
+            self.state.current_index = current_index + 1;
+        }
+    }
+
+    fn select_previous_item(&mut self, current_index: usize) {
+        if current_index > 0 {
+            self.state.current_index = current_index - 1;
+        }
+    }
+
+    fn select_item_below(&mut self, current_index: usize, column_count: usize, total_items: usize) {
+        self.state.current_index = if current_index + column_count < total_items {
+            current_index + column_count
+        } else if current_index < total_items - 1 {
+            total_items - 1
+        } else {
+            current_index
+        };
+    }
+
+    fn select_item_above(&mut self, current_index: usize, column_count: usize) {
+        self.state.current_index = current_index.saturating_sub(column_count);
+    }
+
+    fn scroll_grid_to_current(&self, column_count: usize) -> Task<Message> {
+        let row_height = crate::core::types::GRID_ROW_HEIGHT * self.state.grid_scale;
+        let current_row = self.state.current_index / column_count;
+        let scroll_offset_y = current_row as f32 * row_height;
+
+        iced::widget::operation::scroll_to(
+            GRID_SCROLL_ID,
+            AbsoluteOffset {
+                x: 0.0,
+                y: scroll_offset_y,
+            },
+        )
     }
 }

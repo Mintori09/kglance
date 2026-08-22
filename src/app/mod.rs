@@ -16,13 +16,12 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::Ordering;
-use std::time::Instant;
 use tokio::sync::mpsc;
 
 use crate::core::{FilePreviewer, KglanceState, PreviewData};
 use crate::dbus::DaemonCommand;
 use crate::features::common::parser::traits::ParserRegistry;
-use crate::{log_debug, log_info};
+use crate::log_debug;
 
 pub struct KglanceApp {
     pub state: KglanceState,
@@ -217,56 +216,53 @@ impl KglanceApp {
         Task::batch(tasks)
     }
 
-    pub fn title(&self) -> String {
-        if self.state.file_name.is_empty() {
-            "Kglance Preview".to_string()
-        } else {
-            let name = std::path::Path::new(&self.state.file_name)
-                .file_name()
-                .map(|n| n.to_string_lossy())
-                .unwrap_or(std::borrow::Cow::Borrowed(&self.state.file_name));
-            format!("Kglance - {name}")
-        }
-    }
-
-    pub fn handle_file_loaded(&mut self, path: String, content: PreviewData) -> Task<Message> {
-        let t0 = Instant::now();
+    fn invalidate_render_generations(&self) {
         self.state.pdf.generation_id.fetch_add(1, Ordering::Relaxed);
         self.state
             .typst
             .pdf
             .generation_id
             .fetch_add(1, Ordering::Relaxed);
+    }
 
+    fn save_current_read_position(&mut self) {
         self.record_read_position();
+
         if self.state.read_positions_dirty {
             let _ = self.state.read_positions.save();
             self.state.read_positions_dirty = false;
         }
+    }
 
+    fn prepare_file_tasks(&mut self, path: &str, content: &PreviewData) -> Vec<Task<Message>> {
+        let mut tasks = self.prepare_markdown_tasks(content, path);
+
+        if let Some(task) = self.prepare_pdf_task(content, path) {
+            tasks.push(task);
+        }
+
+        if let Some(task) = self.prepare_typst_task(content, path) {
+            tasks.push(task);
+        }
+
+        tasks.extend(self.prepare_media_tasks(path));
+        tasks.extend(self.prepare_window_tasks());
+
+        if let Some(task) = self.prepare_sibling_scan_task(path) {
+            tasks.push(task);
+        }
+
+        tasks
+    }
+
+    pub fn handle_file_loaded(&mut self, path: String, content: PreviewData) -> Task<Message> {
+        self.invalidate_render_generations();
+        self.save_current_read_position();
         self.update_loaded_file_state(&path, &content);
         self.state.read_positions_dirty = true;
 
-        let mut tasks = self.prepare_markdown_tasks(&content, &path);
-        if let Some(pdf_task) = self.prepare_pdf_task(&content, &path) {
-            tasks.push(pdf_task);
-        }
-        if let Some(typst_task) = self.prepare_typst_task(&content, &path) {
-            tasks.push(typst_task);
-        }
-        tasks.extend(self.prepare_media_tasks(&path));
-        tasks.extend(self.prepare_window_tasks());
-        if let Some(scan_task) = self.prepare_sibling_scan_task(&path) {
-            tasks.push(scan_task);
-        }
-
-        log_info!(
-            "[PERF] handle_file_loaded state+tasks prepared in {:?}",
-            t0.elapsed()
-        );
-
-        let restore = self.restore_read_position_for(&path);
-        tasks.push(restore);
+        let mut tasks = self.prepare_file_tasks(&path, &content);
+        tasks.push(self.restore_read_position_for(&path));
 
         Task::batch(tasks)
     }
@@ -412,14 +408,16 @@ impl KglanceApp {
             let visible_page = self.state.pdf.visible_page.clone();
             let generation_id = self.state.pdf.generation_id.clone();
 
+            let visible_thumb_page = self.state.pdf.visible_thumb_page.clone();
+            let thumb_generation_id = self.state.pdf.thumb_generation_id.clone();
             let thumb_task = if self.state.pdf.sidebar_visible
                 && self.state.pdf.sidebar_mode == crate::core::types::PdfSidebarMode::Thumbnails
             {
                 Some(crate::features::pdf::handler::lazy_load_thumbnails(
                     pdf_path.clone(),
                     page_count,
-                    visible_page.clone(),
-                    generation_id.clone(),
+                    visible_thumb_page,
+                    thumb_generation_id,
                 ))
             } else {
                 None

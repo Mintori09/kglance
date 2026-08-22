@@ -1,6 +1,6 @@
 use iced::{
     Alignment, Element, Length, Padding,
-    widget::{Space, Stack, column, container, row, text},
+    widget::{Space, Stack, button, column, container, row, text},
 };
 
 use crate::app::Message;
@@ -32,7 +32,7 @@ fn left_metadata_text(state: &KglanceState) -> String {
         parts.push(Cow::Borrowed(&state.file_modified_text));
     }
 
-    let is_markdown = state.file_type_text.contains("Markdown");
+    let is_markdown = file_has_extension(state, "md") || file_has_extension(state, "markdown");
     let stats = if is_markdown {
         Some((
             state.markdown.word_count,
@@ -69,68 +69,31 @@ fn metadata_style(theme: &iced::Theme) -> iced::widget::text::Style {
 
 fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     let left = left_metadata_text(state);
+    let right = &state.file_size_text;
 
-    let (left_display, right_display) = if left.is_empty() && state.file_size_text.is_empty() {
-        return Element::from(container(text("")).padding(0));
-    } else if left.is_empty() {
-        (String::from(" "), state.file_size_text.clone())
-    } else if state.file_size_text.is_empty() {
-        (left, String::new())
-    } else {
-        (left, state.file_size_text.clone())
-    };
-
-    let counter_el: Option<Element<'a, Message>> = if state.playlist.len() > 1 {
-        let label = format!("[ {} / {} ]", state.current_index + 1, state.playlist.len());
-        Some(
-            iced::widget::button(text(label).size(11).style(metadata_style))
-                .on_press(crate::app::messages::NavigationMsg::ToggleViewMode.into())
-                .style(iced::widget::button::secondary)
-                .padding([2, 6])
-                .into(),
-        )
-    } else {
-        None
-    };
-
-    let left_el: Element<'a, Message> = text(left_display).size(11).style(metadata_style).into();
-    let right_el: Element<'a, Message> = text(right_display).size(11).style(metadata_style).into();
-    let settings_btn: Element<'a, Message> =
-        iced::widget::button(text("⚙").size(12).style(metadata_style))
-            .on_press(crate::app::messages::NavigationMsg::ToggleSettingsClicked.into())
-            .style(iced::widget::button::secondary)
-            .padding([2, 6])
-            .into();
-
-    let typst_toggle_btn: Option<Element<'a, Message>> =
-        if state.file_name.to_lowercase().ends_with(".typ") {
-            let label = if state.typst.show_source {
-                "👁 Rendered"
-            } else {
-                "</> Source"
-            };
-            Some(
-                iced::widget::button(text(label).size(11).style(metadata_style))
-                    .on_press(crate::app::messages::TypstMsg::ToggleSource.into())
-                    .style(iced::widget::button::secondary)
-                    .padding([2, 8])
-                    .into(),
-            )
-        } else {
-            None
-        };
-
-    let mut right_row = row![right_el].align_y(Alignment::Center);
-    if let Some(btn) = typst_toggle_btn {
-        right_row = right_row.push(Space::new().width(8)).push(btn);
+    if left.is_empty() && right.is_empty() {
+        return container(text("")).padding(0).into();
     }
-    right_row = right_row.push(Space::new().width(8)).push(settings_btn);
 
-    let left_row = if let Some(cnt) = counter_el {
-        row![cnt, Space::new().width(8), left_el].align_y(Alignment::Center)
-    } else {
-        row![left_el].align_y(Alignment::Center)
-    };
+    let counter = playlist_position_button(state);
+    let page_counter = page_indicator(state);
+    let typst = typst_toggle_button(state);
+
+    let left_row = row![
+        counter,
+        page_counter,
+        text(left).size(11).style(metadata_style),
+    ]
+    .spacing(8)
+    .align_y(Alignment::Center);
+
+    let right_row = row![
+        text(right).size(11).style(metadata_style),
+        typst,
+        setting_button(),
+    ]
+    .spacing(8)
+    .align_y(Alignment::Center);
 
     container(
         row![left_row, Space::new().width(Length::Fill), right_row]
@@ -140,6 +103,97 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     .width(Length::Fill)
     .style(default_raised)
     .into()
+}
+
+fn playlist_position_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
+    (state.playlist.len() > 1).then(|| {
+        button(
+            text(format!(
+                "[ {} / {} ]",
+                state.current_index + 1,
+                state.playlist.len()
+            ))
+            .size(11),
+        )
+        .on_press(crate::app::messages::NavigationMsg::ToggleViewMode.into())
+        .style(iced::widget::button::secondary)
+        .padding([2, 6])
+        .into()
+    })
+}
+
+fn file_has_extension(state: &KglanceState, extension: &str) -> bool {
+    std::path::Path::new(&state.file_name)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case(extension))
+}
+
+fn page_indicator<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
+    let (page, total) = if file_has_extension(state, "pdf") || state.file_type_text.contains("PDF")
+    {
+        if state.pdf.page_count == 0 {
+            return None;
+        }
+
+        (
+            state
+                .pdf
+                .visible_page
+                .load(std::sync::atomic::Ordering::Relaxed)
+                + 1,
+            state.pdf.page_count,
+        )
+    } else if file_has_extension(state, "typ") || state.file_type_text.contains("Typst") {
+        if state.typst.pdf.page_count == 0 {
+            return None;
+        }
+
+        (
+            state
+                .typst
+                .pdf
+                .visible_page
+                .load(std::sync::atomic::Ordering::Relaxed)
+                + 1,
+            state.typst.pdf.page_count,
+        )
+    } else {
+        return None;
+    };
+
+    Some(
+        text(format!("[ {page} / {total} ]"))
+            .size(11)
+            .style(metadata_style)
+            .into(),
+    )
+}
+
+fn setting_button<'a>() -> Element<'a, Message> {
+    iced::widget::button(text("⚙").size(12).style(metadata_style))
+        .on_press(crate::app::messages::NavigationMsg::ToggleSettingsClicked.into())
+        .style(iced::widget::button::secondary)
+        .padding([2, 6])
+        .into()
+}
+
+fn typst_toggle_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
+    if state.file_name.to_lowercase().ends_with(".typ") {
+        let label = if state.typst.show_source {
+            "👁 Rendered"
+        } else {
+            "</> Source"
+        };
+        Some(
+            iced::widget::button(text(label).size(11).style(metadata_style))
+                .on_press(crate::app::messages::TypstMsg::ToggleSource.into())
+                .style(iced::widget::button::secondary)
+                .padding([2, 8])
+                .into(),
+        )
+    } else {
+        None
+    }
 }
 
 fn content<'a>(preview_body: Element<'a, Message>, edge_to_edge: bool) -> Element<'a, Message> {
