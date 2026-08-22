@@ -262,6 +262,11 @@ where
             return;
         };
 
+        if self.selection_range.is_none() && !state.is_selecting && !state.is_mouse_held {
+            state.selection = None;
+            state.drag_start = None;
+        }
+
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
                 if let Some(cursor_pos) = cursor.position_over(bounds) {
@@ -320,27 +325,54 @@ where
                 if !dragging {
                     return;
                 }
-                if let Some(cursor_pos) = cursor.position_over(bounds) {
-                    let rel_pos = Point::new(cursor_pos.x - bounds.x, cursor_pos.y - bounds.y);
-                    if let Some(hit) = paragraph.hit_test(rel_pos) {
-                        let offset = hit.cursor();
-                        if state.is_selecting {
-                            if let Some(drag_start) = state.drag_start {
-                                let start = drag_start.min(offset);
-                                let end = drag_start.max(offset);
-                                state.selection = Some((start, end));
+                if let Some(cursor_pos) = cursor.position() {
+                    let is_over = cursor.position_over(bounds).is_some();
+                    let is_in_y_range =
+                        cursor_pos.y >= bounds.y && cursor_pos.y <= (bounds.y + bounds.height);
+
+                    if is_over || is_in_y_range {
+                        let clamped_x = cursor_pos.x.clamp(bounds.x, bounds.x + bounds.width);
+                        let clamped_y = cursor_pos.y.clamp(bounds.y, bounds.y + bounds.height);
+                        let rel_pos = Point::new(clamped_x - bounds.x, clamped_y - bounds.y);
+
+                        if let Some(hit) = paragraph.hit_test(rel_pos) {
+                            let mut offset = hit.cursor();
+                            // If cursor is to the right of the line/bounds, select to end
+                            if cursor_pos.x > bounds.x + bounds.width {
+                                offset = state.plain_text.len();
+                            } else if cursor_pos.x < bounds.x {
+                                offset = 0;
                             }
-                        } else if state.is_mouse_held {
-                            state.is_selecting = true;
-                            state.drag_start = Some(offset);
-                            state.selection = Some((offset, offset));
+
+                            if state.is_selecting {
+                                if let Some(drag_start) = state.drag_start {
+                                    let start = drag_start.min(offset);
+                                    let end = drag_start.max(offset);
+                                    state.selection = Some((start, end));
+                                } else {
+                                    state.drag_start = Some(offset);
+                                    state.selection = Some((offset, offset));
+                                }
+                            } else if state.is_mouse_held
+                                || (self.drag_active && self.selection_range.is_none())
+                            {
+                                state.is_selecting = true;
+                                state.drag_start = Some(offset);
+                                state.selection = Some((offset, offset));
+                                if let (Some(blk), Some(on_start)) =
+                                    (self.block_index, &self.on_drag_start)
+                                {
+                                    shell.publish(on_start(blk, offset));
+                                }
+                            }
+
+                            if let (Some(blk), Some(on_update)) =
+                                (self.block_index, &self.on_drag_update)
+                            {
+                                shell.publish(on_update(blk, offset));
+                            }
+                            shell.capture_event();
                         }
-                        if let (Some(blk), Some(on_update)) =
-                            (self.block_index, &self.on_drag_update)
-                        {
-                            shell.publish(on_update(blk, offset));
-                        }
-                        shell.capture_event();
                     }
                 }
             }
@@ -349,8 +381,9 @@ where
                 state.is_mouse_held = false;
                 state.is_selecting = false;
                 if was_selecting || self.drag_active {
-                    if let (Some(selection), Some(on_change)) =
-                        (state.selection, &self.on_selection_change)
+                    if self.block_index.is_none()
+                        && let (Some(selection), Some(on_change)) =
+                            (state.selection, &self.on_selection_change)
                     {
                         let (start, end) = selection;
                         let start = char_boundary(&state.plain_text, start);
@@ -388,32 +421,37 @@ where
             return;
         };
 
-        let effective_selection = if let (Some(range), Some(current_blk)) =
-            (self.selection_range, self.block_index)
-        {
-            let (start_pt, end_pt) =
-                if (range.start.block, range.start.offset) <= (range.end.block, range.end.offset) {
+        let effective_selection = if let Some(current_blk) = self.block_index {
+            if let Some(range) = self.selection_range {
+                let (start_pt, end_pt) = if (range.start.block, range.start.offset)
+                    <= (range.end.block, range.end.offset)
+                {
                     (range.start, range.end)
                 } else {
                     (range.end, range.start)
                 };
 
-            if current_blk < start_pt.block || current_blk > end_pt.block {
-                None
-            } else if current_blk > start_pt.block && current_blk < end_pt.block {
-                Some((0, state.plain_text.len()))
-            } else if current_blk == start_pt.block && current_blk == end_pt.block {
-                Some((
-                    start_pt.offset.min(state.plain_text.len()),
-                    end_pt.offset.min(state.plain_text.len()),
-                ))
-            } else if current_blk == start_pt.block {
-                Some((
-                    start_pt.offset.min(state.plain_text.len()),
-                    state.plain_text.len(),
-                ))
+                if current_blk < start_pt.block || current_blk > end_pt.block {
+                    None
+                } else if current_blk > start_pt.block && current_blk < end_pt.block {
+                    Some((0, state.plain_text.len()))
+                } else if current_blk == start_pt.block && current_blk == end_pt.block {
+                    Some((
+                        start_pt.offset.min(state.plain_text.len()),
+                        end_pt.offset.min(state.plain_text.len()),
+                    ))
+                } else if current_blk == start_pt.block {
+                    Some((
+                        start_pt.offset.min(state.plain_text.len()),
+                        state.plain_text.len(),
+                    ))
+                } else {
+                    Some((0, end_pt.offset.min(state.plain_text.len())))
+                }
+            } else if state.is_selecting {
+                state.selection
             } else {
-                Some((0, end_pt.offset.min(state.plain_text.len())))
+                None
             }
         } else {
             state.selection

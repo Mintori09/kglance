@@ -249,6 +249,8 @@ pub enum Message {
     SidebarDragStarted,
     SidebarDragEnded,
     MouseMoved(f32, f32),
+    MousePressed(f32, f32),
+    MouseReleased,
 }
 
 impl From<ActionMsg> for Message {

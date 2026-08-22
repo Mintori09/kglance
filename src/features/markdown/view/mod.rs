@@ -60,7 +60,7 @@ pub fn view_markdown<'a>(
     let ctx = RenderContext {
         block_index: 0,
         selection_range: state.selection_range,
-        drag_active: state.is_dragging_selection,
+        drag_active: state.is_dragging_selection || state.is_mouse_held,
         search_query: &state.search_query,
         active_match: state.search_match_index,
         counter: &search_counter,
