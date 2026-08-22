@@ -60,6 +60,7 @@ pub enum PdfMsg {
     PageReady(usize, Vec<u8>, u32, u32),
     ThumbReady(usize, Vec<u8>, u32, u32),
     Scrolled(iced::widget::scrollable::Viewport),
+    SidebarScrolled(iced::widget::scrollable::Viewport),
     SidebarToggled,
     SetSidebarMode(crate::core::PdfSidebarMode),
     ThumbnailClicked(usize),

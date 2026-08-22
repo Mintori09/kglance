@@ -22,6 +22,11 @@ impl super::KglanceApp {
         key: iced::keyboard::Key,
         modifiers: iced::keyboard::Modifiers,
     ) -> Task<Message> {
+        self.ctrl_held =
+            modifiers.control() || matches!(key, iced::keyboard::Key::Named(Named::Control));
+        self.shift_held =
+            modifiers.shift() || matches!(key, iced::keyboard::Key::Named(Named::Shift));
+
         if let Some(task) = self.handle_folder_navigation(&key) {
             return task;
         }
