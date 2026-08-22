@@ -1,28 +1,15 @@
-use crate::core::types::KglanceState;
+use crate::core::types::{EpubChapterInfo, FolderRowState, KglanceState, SheetInfo};
 use crate::features::common::parser::traits::ParseError;
+use crate::features::json::JsonNode;
+use crate::features::pdf::PdfTocEntry;
 use crate::features::pdf::types::PageDimensions;
-use crate::parsers::markdown::{Block, estimated_block_height, extract_toc};
+use crate::parsers::markdown::Block;
 use std::collections::HashMap;
 use std::path::Path;
 
-/// Compute cumulative Y offsets for each block in a single linear pass.
-/// Returns `(offsets, total_height)` where `offsets[i]` is the Y start of block `i`.
-fn compute_block_y_offsets(
-    blocks: &[Block],
-    font_size: f32,
-    image_sizes: &HashMap<usize, (u32, u32)>,
-) -> (Vec<f32>, f32) {
-    let mut offsets = Vec::with_capacity(blocks.len());
-    let mut y: f32 = 15.0;
-    for (i, block) in blocks.iter().enumerate() {
-        offsets.push(y);
-        y += estimated_block_height(block, font_size, i, image_sizes);
-    }
-    (offsets, y)
-}
+#[doc(hidden)]
+pub use crate::features::markdown::compute_block_y_offsets;
 
-/// Compute cumulative Y offsets for PDF pages given their dimensions and display width.
-/// Returns `(offsets, ends, total_height)`.
 pub fn compute_pdf_page_offsets(
     dims: &[PageDimensions],
     display_width: f32,
@@ -48,7 +35,7 @@ pub enum PreviewData {
         language: String,
     },
     Markdown {
-        blocks: Vec<crate::parsers::markdown::Block>,
+        blocks: Vec<Block>,
         raw_text: String,
     },
     Pdf {
@@ -57,7 +44,7 @@ pub enum PreviewData {
         data: Vec<u8>,
         width: u32,
         height: u32,
-        outline: Vec<crate::parsers::pdf::PdfTocEntry>,
+        outline: Vec<PdfTocEntry>,
         page_dimensions: Vec<PageDimensions>,
     },
     Typst {
@@ -68,7 +55,7 @@ pub enum PreviewData {
         height: u32,
         source: String,
         error: Option<String>,
-        outline: Vec<crate::parsers::pdf::PdfTocEntry>,
+        outline: Vec<PdfTocEntry>,
         page_dimensions: Vec<PageDimensions>,
     },
     Media {
@@ -79,15 +66,15 @@ pub enum PreviewData {
         height: u32,
     },
     Folder {
-        rows: Vec<crate::core::types::FolderRowState>,
+        rows: Vec<FolderRowState>,
         total_size: u64,
     },
     Spreadsheet {
-        sheets: Vec<crate::core::types::SheetInfo>,
+        sheets: Vec<SheetInfo>,
         active_sheet: usize,
     },
     Json {
-        nodes: Vec<crate::parsers::json::JsonNode>,
+        nodes: Vec<JsonNode>,
         content: String,
         pretty: String,
         has_parse_error: bool,
@@ -95,9 +82,9 @@ pub enum PreviewData {
     Epub {
         title: String,
         author: String,
-        chapters: Vec<crate::core::types::EpubChapterInfo>,
+        chapters: Vec<EpubChapterInfo>,
         active_chapter: usize,
-        images: std::collections::HashMap<String, Vec<u8>>,
+        images: HashMap<String, Vec<u8>>,
     },
     Font {
         name: String,
@@ -113,17 +100,21 @@ pub trait FilePreviewer {
     fn parse(&self, path: &Path) -> Result<PreviewData, ParseError>;
 }
 
-impl PreviewData {
-    pub fn populate_state(&self, state: &mut KglanceState) {
-        if !state.file_name.is_empty() {
-            let path = Path::new(&state.file_name);
-            if let Ok(meta) = std::fs::metadata(path) {
-                state.file_size_text = crate::parsers::human_size(meta.len());
-                if let Ok(modified) = meta.modified() {
-                    state.file_modified_text = crate::parsers::human_time(modified);
-                }
+fn update_file_metadata(state: &mut KglanceState) {
+    if !state.file_name.is_empty() {
+        let path = Path::new(&state.file_name);
+        if let Ok(meta) = std::fs::metadata(path) {
+            state.file_size_text = crate::parsers::human_size(meta.len());
+            if let Ok(modified) = meta.modified() {
+                state.file_modified_text = crate::parsers::human_time(modified);
             }
         }
+    }
+}
+
+impl PreviewData {
+    pub fn populate_state(&self, state: &mut KglanceState) {
+        update_file_metadata(state);
 
         match self {
             PreviewData::Text {
@@ -131,26 +122,12 @@ impl PreviewData {
                 line_numbers,
                 language,
             } => {
-                let words = content.split_whitespace().count();
-                let chars = content.chars().count();
-                let mins = (words as f32 / 200.0).ceil() as usize;
-
-                state.text.content = iced::widget::text_editor::Content::with_text(content);
-                let path_ext = if !state.file_name.is_empty() {
-                    Path::new(&state.file_name)
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .unwrap_or(language)
-                } else {
-                    language
-                };
-                state.text.extension = path_ext.to_string();
-                state.text.line_numbers.clone_from(line_numbers);
-                state.text.word_count = words;
-                state.text.char_count = chars;
-                state.text.reading_time_mins = mins;
-                state.text.symbols = crate::features::text::extract_symbols(content, path_ext);
-                state.file_type_text = language.clone();
+                crate::features::text::populate_state(
+                    state,
+                    content.clone(),
+                    line_numbers.clone(),
+                    language,
+                );
             }
             PreviewData::Image {
                 data,
@@ -159,17 +136,14 @@ impl PreviewData {
                 format_info,
                 exif_content,
             } => {
-                state.image = crate::core::ImageState {
-                    handle: Some(iced::widget::image::Handle::from_bytes(data.clone())),
-                    image_bytes: data.clone(),
-                    width: *width,
-                    height: *height,
-                    exif_content: exif_content.clone().unwrap_or_default(),
-                    format_info: format_info.clone(),
-                    load_state: crate::features::image::ImageLoadState::Ready,
-                    ..Default::default()
-                };
-                state.file_type_text.clone_from(format_info);
+                crate::features::image::populate_image_state(
+                    state,
+                    data,
+                    *width,
+                    *height,
+                    format_info,
+                    exif_content.as_deref(),
+                );
             }
             PreviewData::Pdf {
                 page_count,
@@ -177,30 +151,12 @@ impl PreviewData {
                 page_dimensions,
                 ..
             } => {
-                let old_sidebar_visible = state.pdf.sidebar_visible;
-                let old_sidebar_mode = state.pdf.sidebar_mode;
-                let old_sidebar_width = state.pdf.sidebar_width;
-                state.pdf = crate::core::PdfState::default();
-                state.pdf.page_count = *page_count;
-                state.pdf.pages = crate::core::types::PageCache::new(*page_count);
-                state.pdf.thumbnails = crate::core::types::ThumbnailCache::new(*page_count);
-                state.pdf.sidebar_visible = old_sidebar_visible;
-                state.pdf.sidebar_mode = old_sidebar_mode;
-                state.pdf.sidebar_width = if old_sidebar_width > 0.0 {
-                    old_sidebar_width
-                } else {
-                    220.0
-                };
-                state.pdf.outline = outline.clone();
-                state.pdf.page_dimensions = page_dimensions.clone();
-                let display_width = (state.font_size / 14.0) * 800.0;
-                let (offsets, ends, total_h) =
-                    compute_pdf_page_offsets(page_dimensions, display_width, 4.0);
-                state.pdf.display_width = display_width;
-                state.pdf.page_y_offsets = offsets;
-                state.pdf.page_ends = ends;
-                state.pdf.total_content_height = total_h;
-                state.file_type_text = "PDF Document".to_string();
+                crate::features::pdf::populate_state(
+                    state,
+                    *page_count,
+                    outline.clone(),
+                    page_dimensions.clone(),
+                );
             }
             PreviewData::Typst {
                 page_count,
@@ -210,37 +166,14 @@ impl PreviewData {
                 page_dimensions,
                 ..
             } => {
-                let old_sidebar_visible = state.typst.pdf.sidebar_visible;
-                let old_sidebar_mode = state.typst.pdf.sidebar_mode;
-                let old_sidebar_width = state.typst.pdf.sidebar_width;
-                let display_width = (state.font_size / 14.0) * 800.0;
-                let (offsets, ends, total_h) =
-                    compute_pdf_page_offsets(page_dimensions, display_width, 4.0);
-                state.typst = crate::core::TypstState {
-                    pdf: crate::core::PdfState {
-                        page_count: *page_count,
-                        pages: crate::core::types::PageCache::new(*page_count),
-                        thumbnails: crate::core::types::ThumbnailCache::new(*page_count),
-                        sidebar_visible: old_sidebar_visible,
-                        sidebar_mode: old_sidebar_mode,
-                        sidebar_width: if old_sidebar_width > 0.0 {
-                            old_sidebar_width
-                        } else {
-                            220.0
-                        },
-                        outline: outline.clone(),
-                        page_dimensions: page_dimensions.clone(),
-                        display_width,
-                        page_y_offsets: offsets,
-                        page_ends: ends,
-                        total_content_height: total_h,
-                        ..Default::default()
-                    },
-                    source_content: iced::widget::text_editor::Content::with_text(source),
-                    show_source: error.is_some(),
-                    error: error.clone(),
-                };
-                state.file_type_text = "Typst Document".to_string();
+                crate::features::typst::populate_state(
+                    state,
+                    *page_count,
+                    source,
+                    error.clone(),
+                    outline,
+                    page_dimensions,
+                );
             }
             PreviewData::Folder { rows, total_size } => {
                 state.folder.rows = rows.clone();
@@ -251,89 +184,7 @@ impl PreviewData {
                 state.file_size_text.clear();
             }
             PreviewData::Markdown { blocks, .. } => {
-                let fs = state.font_size;
-                let full_text: String = blocks
-                    .iter()
-                    .map(|b| match b {
-                        Block::Heading { content, .. } | Block::Paragraph(content) => {
-                            crate::parsers::markdown::flatten_inlines(content)
-                        }
-                        Block::CodeBlock { code, .. } => code.clone(),
-                        Block::Math(code) => code.clone(),
-                        _ => String::new(),
-                    })
-                    .collect::<Vec<_>>()
-                    .join(" ");
-
-                let words = full_text.split_whitespace().count();
-                let chars = full_text.chars().count();
-                let mins = (words as f32 / 200.0).ceil() as usize;
-
-                let old_scroll_y = state.markdown.scroll_y;
-                let old_toc_visible = state.markdown.toc_visible;
-                let old_collapsed = std::mem::take(&mut state.markdown.collapsed_headings);
-                let old_mermaid = std::mem::take(&mut state.markdown.cached_mermaid_handles);
-                let old_image_h = std::mem::take(&mut state.markdown.cached_image_handles);
-                let old_image_s = std::mem::take(&mut state.markdown.cached_image_sizes);
-
-                let old_sidebar_w = state.markdown.sidebar_width;
-
-                // Compute cumulative Y offsets for virtual rendering (one pass over blocks).
-                let (block_y_offsets, total_content_height) =
-                    compute_block_y_offsets(blocks, fs, &old_image_s);
-
-                state.markdown = crate::core::types::MarkdownState {
-                    toc: extract_toc(blocks, fs, &old_image_s),
-                    toc_visible: old_toc_visible,
-                    sidebar_width: if old_sidebar_w > 0.0 {
-                        old_sidebar_w
-                    } else {
-                        220.0
-                    },
-                    sidebar_resizing: false,
-                    sidebar_drag_start_x: None,
-                    sidebar_drag_start_width: 220.0,
-                    collapsed_headings: old_collapsed,
-                    scroll_y: old_scroll_y,
-                    cached_mermaid_handles: old_mermaid,
-                    cached_image_handles: old_image_h,
-                    cached_image_sizes: old_image_s,
-                    word_count: words,
-                    char_count: chars,
-                    reading_time_mins: mins,
-                    block_y_offsets,
-                    total_content_height,
-                    viewport_height: 800.0,
-                    search_visible: false,
-                    search_query: String::new(),
-                    search_match_count: 0,
-                    search_match_index: 0,
-                    search_match_blocks: Vec::new(),
-                    search_info: String::new(),
-                    selected_text: None,
-                    selection_range: None,
-                    is_dragging_selection: false,
-                    auto_scroll_delta: None,
-                    drag_last_y: 0.0,
-                };
-                for (i, block) in blocks.iter().enumerate() {
-                    if let Block::Mermaid {
-                        rendered: Some(png),
-                        ..
-                    } = block
-                    {
-                        let handle = match image::load_from_memory(png) {
-                            Ok(img) => {
-                                let rgba = img.to_rgba8();
-                                let (w, h) = rgba.dimensions();
-                                iced::widget::image::Handle::from_rgba(w, h, rgba.into_raw())
-                            }
-                            Err(_) => iced::widget::image::Handle::from_bytes(png.clone()),
-                        };
-                        state.markdown.cached_mermaid_handles.insert(i, handle);
-                    }
-                }
-                state.file_type_text = "Markdown Document".to_string();
+                crate::features::markdown::populate_state(state, blocks);
             }
             PreviewData::Spreadsheet {
                 sheets,
@@ -350,98 +201,22 @@ impl PreviewData {
                 active_chapter,
                 images,
             } => {
-                let old_sidebar = state.epub.sidebar_visible;
-                let old_scroll = state.epub.scroll_y;
-                let old_collapsed = std::mem::take(&mut state.epub.collapsed_chapters);
-                let mut markdown_state = crate::core::MarkdownState::default();
-                let mut block_global_idx = 0;
-                for ch in chapters {
-                    for block in &ch.blocks {
-                        if let crate::parsers::markdown::Block::Image { path: img_path, .. } = block
-                        {
-                            let filename = std::path::Path::new(img_path)
-                                .file_name()
-                                .and_then(|n| n.to_str())
-                                .unwrap_or(img_path);
-                            if let Some(bytes) =
-                                images.get(img_path).or_else(|| images.get(filename))
-                            {
-                                let handle = iced::widget::image::Handle::from_bytes(bytes.clone());
-                                markdown_state
-                                    .cached_image_handles
-                                    .insert(block_global_idx, handle);
-                                if let Ok(img) = image::load_from_memory(bytes) {
-                                    markdown_state
-                                        .cached_image_sizes
-                                        .insert(block_global_idx, (img.width(), img.height()));
-                                }
-                            }
-                        }
-                        block_global_idx += 1;
-                    }
-                }
-                let old_sidebar_width = state.epub.sidebar_width;
-                state.epub = crate::core::types::EpubState {
-                    title: title.clone(),
-                    author: author.clone(),
-                    chapters: chapters.clone(),
-                    active_chapter: *active_chapter,
-                    sidebar_visible: old_sidebar,
-                    sidebar_width: if old_sidebar_width > 0.0 {
-                        old_sidebar_width
-                    } else {
-                        240.0
-                    },
-                    sidebar_resizing: false,
-                    sidebar_drag_start_x: None,
-                    sidebar_drag_start_width: 240.0,
-                    scroll_y: old_scroll,
-                    collapsed_chapters: old_collapsed,
-                    markdown_state,
-                };
-                state.file_type_text = format!("EPUB E-Book ({} chapters)", chapters.len());
+                crate::features::epub::populate_state(
+                    state,
+                    title,
+                    author,
+                    chapters,
+                    *active_chapter,
+                    images,
+                );
             }
             PreviewData::Json {
                 nodes,
-                content: _,
                 pretty,
                 has_parse_error,
+                ..
             } => {
-                let old_scroll = state.json.scroll_y;
-                let old_tree_mode = state.json.tree_mode;
-
-                let mut expanded = std::collections::HashSet::new();
-                for (i, node) in nodes.iter().enumerate() {
-                    if node.depth == 0 {
-                        expanded.insert(i);
-                    }
-                }
-
-                let minified = serde_json::from_str::<serde_json::Value>(pretty)
-                    .ok()
-                    .and_then(|v| serde_json::to_string(&v).ok())
-                    .unwrap_or_else(|| pretty.clone());
-
-                state.json = crate::core::types::JsonState {
-                    nodes: nodes.clone(),
-                    expanded,
-                    raw_content: pretty.clone(),
-                    pretty_content: pretty.clone(),
-                    tree_mode: old_tree_mode,
-                    scroll_y: old_scroll,
-                    has_parse_error: *has_parse_error,
-                    raw_editor: iced::widget::text_editor::Content::with_text(pretty),
-                    search_visible: false,
-                    search_query: String::new(),
-                    minified_content: minified,
-                    raw_pretty: true,
-                    active_node: None,
-                    editing_node: None,
-                    edit_value: String::new(),
-                    schema_visible: false,
-                    schema_info: String::new(),
-                };
-                state.file_type_text = "JSON Document".to_string();
+                crate::features::json::populate_state(state, nodes, pretty, *has_parse_error);
             }
             PreviewData::Font {
                 name,
@@ -450,21 +225,14 @@ impl PreviewData {
                 sample_width,
                 sample_height,
             } => {
-                state.image = crate::core::ImageState {
-                    handle: Some(iced::widget::image::Handle::from_rgba(
-                        *sample_width,
-                        *sample_height,
-                        sample.clone(),
-                    )),
-                    image_bytes: sample.clone(),
-                    width: *sample_width,
-                    height: *sample_height,
-                    format_info: format!("Font — {name}"),
-                    exif_content: metadata.clone(),
-                    load_state: crate::features::image::ImageLoadState::Ready,
-                    ..Default::default()
-                };
-                state.file_type_text = "Font".to_string();
+                crate::features::font::populate_state(
+                    state,
+                    name,
+                    metadata,
+                    sample,
+                    *sample_width,
+                    *sample_height,
+                );
             }
             PreviewData::Media { metadata, .. } => {
                 state.media = crate::core::MediaState::default();
