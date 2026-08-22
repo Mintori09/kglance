@@ -137,7 +137,9 @@ mod tests {
         sample_png.extend_from_slice(PNG_SIGNATURE);
         sample_png.extend_from_slice(b"fake_png_data_payload");
 
-        cache.save_page_with_meta(0, &sample_png, 800, 1100).unwrap();
+        cache
+            .save_page_with_meta(0, &sample_png, 800, 1100)
+            .unwrap();
         assert!(cache.has_page(0));
 
         let loaded = cache.load_page_with_meta(0).unwrap();
@@ -157,7 +159,9 @@ mod tests {
         // Invalid PNG signature
         let mut bad_sig_data = Vec::new();
         bad_sig_data.extend_from_slice(b"NOT_PNG_BYTES_HERE");
-        cache.save_page_with_meta(2, &bad_sig_data, 100, 100).unwrap();
+        cache
+            .save_page_with_meta(2, &bad_sig_data, 100, 100)
+            .unwrap();
         assert!(cache.load_page_with_meta(2).is_err());
     }
 

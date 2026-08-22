@@ -1,5 +1,6 @@
 use crate::app::Message;
 use crate::core::PdfState;
+use crate::core::preview::compute_pdf_page_offsets;
 use crate::core::types::PdfSidebarMode;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::sidebar::{drag_handle, sidebar_entry_style};
@@ -15,8 +16,23 @@ const PLACEHOLDER_TEXT_SIZE: f32 = 12.0;
 
 const SCROLL_PANE_ID: &str = "content_scroll";
 const EMPTY_STATE_MESSAGE: &str = "No pages";
+const BUFFER_PAGES: usize = 2;
 
-/// Recalculate page Y offsets when display width changes (e.g. zoom/font_size change).
+pub fn recalculate_pdf_offsets_for_width(
+    pdf_state: &mut crate::core::PdfState,
+    display_width: f32,
+) {
+    if pdf_state.page_dimensions.is_empty() {
+        return;
+    }
+    let (offsets, ends, total_h) =
+        compute_pdf_page_offsets(&pdf_state.page_dimensions, display_width, PAGE_SPACING);
+    pdf_state.display_width = display_width;
+    pdf_state.page_y_offsets = offsets;
+    pdf_state.page_ends = ends;
+    pdf_state.total_content_height = total_h;
+}
+
 pub fn recalculate_pdf_offsets(pdf_state: &mut crate::core::PdfState, font_size: f32) {
     if pdf_state.page_dimensions.is_empty() {
         return;
@@ -31,16 +47,27 @@ pub fn recalculate_pdf_offsets(pdf_state: &mut crate::core::PdfState, font_size:
     pdf_state.page_y_offsets = offsets;
     pdf_state.page_ends = ends;
     pdf_state.total_content_height = total_h;
+    if pdf_state.thumbnail_y_offsets.is_empty() {
+        crate::features::pdf::geometry::recalculate_pdf_thumbnail_offsets(pdf_state);
+    }
 }
 
-/// Recalculate PDF layout for a new font size and return the adjusted scroll Y offset to anchor the visible position.
 pub fn rescale_pdf_and_anchor(
     pdf_state: &mut crate::core::PdfState,
-    old_font_size: f32,
-    new_font_size: f32,
+    old_desired_width: f32,
+    new_desired_width: f32,
+    max_available_width: f32,
 ) -> f32 {
     if pdf_state.page_dimensions.is_empty() || pdf_state.page_count == 0 {
         return 0.0;
+    }
+
+    pdf_state.desired_width = new_desired_width;
+    let old_display_w = old_desired_width.min(max_available_width);
+    let new_display_w = new_desired_width.min(max_available_width);
+
+    if (new_display_w - old_display_w).abs() < f32::EPSILON {
+        return pdf_state.scroll_y;
     }
 
     let current_scroll_y = pdf_state.scroll_y;
@@ -56,7 +83,6 @@ pub fn rescale_pdf_and_anchor(
         .get(current_page)
         .copied()
         .unwrap_or(0.0);
-    let old_display_w = (old_font_size / 14.0) * 800.0;
     let old_page_h = pdf_state
         .page_dimensions
         .get(current_page)
@@ -69,14 +95,13 @@ pub fn rescale_pdf_and_anchor(
         0.0
     };
 
-    recalculate_pdf_offsets(pdf_state, new_font_size);
+    recalculate_pdf_offsets_for_width(pdf_state, new_display_w);
 
     let new_page_y = pdf_state
         .page_y_offsets
         .get(current_page)
         .copied()
         .unwrap_or(0.0);
-    let new_display_w = (new_font_size / 14.0) * 800.0;
     let new_page_h = pdf_state
         .page_dimensions
         .get(current_page)
@@ -112,7 +137,7 @@ pub fn view_pdf<'a>(
 pub fn view_pdf_pages<'a>(
     state: &'a PdfState,
     scroll_id: &'static str,
-    font_size: f32,
+    _font_size: f32,
     on_scroll: impl Fn(iced::widget::scrollable::Viewport) -> Message + 'static,
 ) -> Element<'a, Message> {
     if state.page_count == 0 {
@@ -122,7 +147,7 @@ pub fn view_pdf_pages<'a>(
     let page_width = if state.display_width > 0.0 {
         state.display_width
     } else {
-        (font_size / 14.0) * 800.0
+        state.desired_width
     };
     let view_h = if state.viewport_height > 0.0 {
         state.viewport_height
@@ -140,7 +165,7 @@ pub fn view_pdf_pages<'a>(
     let render_range = crate::features::pdf::geometry::buffered_page_range(
         visible_opt,
         state.page_count,
-        2, // BUFFER_PAGES
+        BUFFER_PAGES,
     )
     .unwrap_or(0..=0);
 
@@ -153,7 +178,6 @@ pub fn view_pdf_pages<'a>(
 
     let mut pages_column = column![].spacing(PAGE_SPACING).padding(0.0);
 
-    // Top spacer
     if layout.top_spacer_height > 0.0 {
         pages_column = pages_column.push(
             iced::widget::Space::new()
@@ -162,7 +186,6 @@ pub fn view_pdf_pages<'a>(
         );
     }
 
-    // Render visible pages
     for page_index in layout.first_render..=layout.last_render {
         if page_index >= state.page_count {
             break;
@@ -181,7 +204,6 @@ pub fn view_pdf_pages<'a>(
         pages_column = pages_column.push(page_card);
     }
 
-    // Bottom spacer
     if layout.bottom_spacer_height > 0.0 {
         pages_column = pages_column.push(
             iced::widget::Space::new()
@@ -303,66 +325,18 @@ fn render_thumbnails_list<'a>(
         .visible_page
         .load(std::sync::atomic::Ordering::Relaxed);
 
-    let thumb_width = (state.sidebar_width - 24.0).clamp(100.0, 360.0);
-    let spacing = 10.0;
-
-    let (offsets, ends, _, total_h) = crate::features::pdf::geometry::compute_thumbnail_offsets(
-        &state.page_dimensions,
-        thumb_width,
-        spacing,
-    );
-
-    let view_h = if state.viewport_height > 0.0 {
-        state.viewport_height
-    } else {
-        800.0
-    };
-
-    let current_thumb_top = offsets.get(current_page).copied().unwrap_or(0.0);
-    let thumb_scroll_y = (current_thumb_top - 100.0).max(0.0);
-
-    let visible_opt =
-        crate::features::pdf::geometry::visible_page_range(&offsets, &ends, thumb_scroll_y, view_h);
-
-    let render_range =
-        crate::features::pdf::geometry::buffered_page_range(visible_opt, state.page_count, 3)
-            .unwrap_or(0..=state.page_count.min(10).saturating_sub(1));
-
-    let layout = crate::features::pdf::geometry::calculate_virtualized_layout(
-        &offsets,
-        total_h,
-        spacing,
-        render_range,
-    );
-
+    let spacing = crate::features::pdf::geometry::THUMBNAIL_SPACING;
     let mut thumbs_col = column![].spacing(spacing).padding(0.0);
 
-    if layout.top_spacer_height > 0.0 {
-        thumbs_col = thumbs_col.push(
-            iced::widget::Space::new()
-                .width(Length::Fill)
-                .height(layout.top_spacer_height),
-        );
-    }
-
-    for page_idx in layout.first_render..=layout.last_render {
-        if page_idx >= state.page_count {
-            break;
-        }
+    for page_idx in 0..state.page_count {
         let is_active = page_idx == current_page;
         let thumb_item = render_thumb_item(state, page_idx, is_active, theme);
         thumbs_col = thumbs_col.push(thumb_item);
     }
 
-    if layout.bottom_spacer_height > 0.0 {
-        thumbs_col = thumbs_col.push(
-            iced::widget::Space::new()
-                .width(Length::Fill)
-                .height(layout.bottom_spacer_height),
-        );
-    }
-
-    let scroll = scroll_pane("pdf_thumb_scroll", thumbs_col).build();
+    let scroll = scroll_pane("pdf_thumb_scroll", thumbs_col)
+        .on_scroll(|vp| crate::app::messages::PdfMsg::SidebarScrolled(vp).into())
+        .build();
 
     container(scroll)
         .padding(8)
@@ -378,24 +352,57 @@ fn render_thumb_item<'a>(
     theme: crate::ui::theme::AppTheme,
 ) -> Element<'a, Message> {
     let thumb_width = (state.sidebar_width - 24.0).clamp(100.0, 360.0);
+    let aspect_ratio = state
+        .page_dimensions
+        .get(page_idx)
+        .map(|d| d.aspect_ratio())
+        .unwrap_or(1.0 / 1.414);
+    let thumb_height = (thumb_width / aspect_ratio).max(20.0);
+
+    let p = theme.palette().base;
 
     let thumb_img: Element<'a, Message> = if let Some(entry) = state.thumbnails.get(page_idx) {
         image(&entry.handle)
             .width(Length::Fixed(thumb_width))
-            .height(Length::Shrink)
+            .height(Length::Fixed(thumb_height))
             .into()
     } else if let Some(entry) = state.pages.get(page_idx) {
         image(&entry.handle)
             .width(Length::Fixed(thumb_width))
-            .height(Length::Shrink)
+            .height(Length::Fixed(thumb_height))
             .into()
     } else {
-        container(text(format!("Page {}", page_idx + 1)).size(11))
-            .width(Length::Fixed(thumb_width))
-            .height(Length::Fixed(thumb_width * 1.3))
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
-            .into()
+        container(
+            container(text(format!("{}", page_idx + 1)).size(12).style(move |_| {
+                iced::widget::text::Style {
+                    color: Some(p.text_dim),
+                }
+            }))
+            .padding([3, 8])
+            .style(move |_| container::Style {
+                background: Some(p.surface.into()),
+                border: Border {
+                    radius: 4.0.into(),
+                    width: 0.0,
+                    color: iced::Color::TRANSPARENT,
+                },
+                ..Default::default()
+            }),
+        )
+        .width(Length::Fixed(thumb_width))
+        .height(Length::Fixed(thumb_height))
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .style(move |_| container::Style {
+            background: Some(p.surface.scale_alpha(0.3).into()),
+            border: Border {
+                radius: 4.0.into(),
+                width: 1.0,
+                color: p.border.scale_alpha(0.5),
+            },
+            ..Default::default()
+        })
+        .into()
     };
 
     let badge_bg = theme.palette().base.surface;
@@ -444,7 +451,7 @@ fn render_thumb_item<'a>(
             };
             style
         })
-        .padding(2)
+        .padding(0)
         .into()
 }
 
@@ -468,20 +475,33 @@ fn render_toc_list<'a>(
         .iter()
         .rposition(|entry| entry.page <= current_page);
 
+    let p = theme.palette().base;
     let mut toc_col = column![].spacing(2).padding(6);
 
     for (idx, entry) in state.outline.iter().enumerate() {
         let is_active = active_idx == Some(idx);
         let indent = (entry.level.saturating_sub(1) as f32) * 12.0;
 
-        let label = text(&entry.title).size(12);
-        let btn = button(label)
+        let title_text = text(&entry.title).size(12).width(Length::Fill);
+
+        let page_label = text(format!("{}", entry.page + 1))
+            .size(11)
+            .style(move |_| iced::widget::text::Style {
+                color: Some(p.text_dim),
+            });
+
+        let row_content = row![title_text, page_label]
+            .spacing(8)
+            .align_y(Alignment::Center)
+            .width(Length::Fill);
+
+        let btn = button(row_content)
             .on_press(crate::app::messages::PdfMsg::TocItemClicked(entry.page).into())
             .width(Length::Fill)
             .style(move |iced_theme, status| {
                 sidebar_entry_style(iced_theme, status, is_active, theme)
             })
-            .padding([4, 6]);
+            .padding([5, 8]);
 
         let row_item = container(btn)
             .padding(Padding {
@@ -513,7 +533,8 @@ fn render_page_image<'a>(
 ) -> Element<'a, Message> {
     let page_image = image(image_handle.clone())
         .width(Length::Fixed(target_width))
-        .height(Length::Fixed(page_height));
+        .height(Length::Fixed(page_height))
+        .content_fit(iced::ContentFit::Fill);
 
     let card = container(page_image)
         .width(Length::Fixed(target_width))
