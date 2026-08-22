@@ -31,7 +31,8 @@ pub(crate) fn build_epub_content<'a>(
         let block_ctx = RenderContext {
             block_index: global_index * 1000,
             selection_range: state.markdown_state.selection_range,
-            drag_active: state.markdown_state.is_dragging_selection,
+            drag_active: state.markdown_state.is_dragging_selection
+                || state.markdown_state.is_mouse_held,
             ..*ctx
         };
         let inner = crate::features::markdown::view::render_block(

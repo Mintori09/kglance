@@ -446,5 +446,7 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
         Message::SidebarDragStarted => misc::handle_sidebar_drag_started(app),
         Message::SidebarDragEnded => misc::handle_sidebar_drag_ended(app),
         Message::MouseMoved(x, y) => misc::handle_mouse_moved(app, x, y),
+        Message::MousePressed(x, y) => misc::handle_mouse_pressed(app, x, y),
+        Message::MouseReleased => misc::handle_mouse_released(app),
     }
 }
