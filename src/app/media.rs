@@ -5,29 +5,93 @@ use super::Message;
 use crate::core::{PreviewData, ViewMode};
 
 impl super::KglanceApp {
-    pub fn handle_scroll_delta(&mut self, _x: f32, y: f32) -> Task<Message> {
-        if self.shift_held && matches!(self.state.view_mode, ViewMode::Grid(_)) {
-            let factor = if y > 0.0 { 0.1 } else { -0.1 };
+    pub fn handle_scroll_delta(&mut self, x: f32, y: f32) -> Task<Message> {
+        let is_mod = self.shift_held || self.ctrl_held;
+        // On X11/Wayland with Shift held, vertical wheel scrolling is translated to horizontal (x != 0, y == 0).
+        let scroll_val = if y.abs() > f32::EPSILON {
+            y
+        } else if x.abs() > f32::EPSILON {
+            x
+        } else {
+            return Task::none();
+        };
+
+        if is_mod && matches!(self.state.view_mode, ViewMode::Grid(_)) {
+            let factor = if scroll_val > 0.0 { 0.1 } else { -0.1 };
             self.state.grid_scale = (self.state.grid_scale + factor).clamp(0.3, 3.0);
             self.recalc_grid_cols();
             Task::none()
-        } else if self.shift_held && matches!(self.current_content, Some(PreviewData::Image { .. }))
-        {
-            let factor = if y > 0.0 { 0.1 } else { -0.1 };
-            self.state.image.camera.zoom = (self.state.image.camera.zoom + factor).clamp(0.1, 10.0);
+        } else if is_mod && matches!(self.current_content, Some(PreviewData::Image { .. })) {
+            let factor = if scroll_val > 0.0 { 1.15 } else { 1.0 / 1.15 };
+            self.state.image.camera.zoom = (self.state.image.camera.zoom * factor).clamp(0.1, 10.0);
             Task::none()
-        } else if self.shift_held {
+        } else if is_mod && matches!(self.current_content, Some(PreviewData::Pdf { .. })) {
+            let delta = if scroll_val > 0.0 { 50.0 } else { -50.0 };
+            let old_desired = self.state.pdf.desired_width;
+            let next_desired = (old_desired + delta).clamp(300.0, 2400.0);
+            if (next_desired - old_desired).abs() > f32::EPSILON {
+                let win_w = self.state.current_window_size.width;
+                let sidebar_w = if self.state.pdf.sidebar_visible {
+                    self.state.pdf.sidebar_width + 1.0
+                } else {
+                    0.0
+                };
+                let max_w = (win_w - sidebar_w - 40.0).clamp(300.0, 2400.0);
+                let new_scroll_y = crate::features::pdf::view::rescale_pdf_and_anchor(
+                    &mut self.state.pdf,
+                    old_desired,
+                    next_desired,
+                    max_w,
+                );
+                operation::scroll_to(
+                    "content_scroll",
+                    AbsoluteOffset {
+                        x: 0.0,
+                        y: new_scroll_y,
+                    },
+                )
+            } else {
+                Task::none()
+            }
+        } else if is_mod && matches!(self.current_content, Some(PreviewData::Typst { .. })) {
+            let delta = if scroll_val > 0.0 { 50.0 } else { -50.0 };
+            let old_desired = self.state.typst.pdf.desired_width;
+            let next_desired = (old_desired + delta).clamp(300.0, 2400.0);
+            if (next_desired - old_desired).abs() > f32::EPSILON {
+                let win_w = self.state.current_window_size.width;
+                let sidebar_w = if self.state.typst.pdf.sidebar_visible {
+                    self.state.typst.pdf.sidebar_width + 1.0
+                } else {
+                    0.0
+                };
+                let max_w = (win_w - sidebar_w - 40.0).clamp(300.0, 2400.0);
+                let new_scroll_y = crate::features::pdf::view::rescale_pdf_and_anchor(
+                    &mut self.state.typst.pdf,
+                    old_desired,
+                    next_desired,
+                    max_w,
+                );
+                operation::scroll_to(
+                    "content_scroll",
+                    AbsoluteOffset {
+                        x: 0.0,
+                        y: new_scroll_y,
+                    },
+                )
+            } else {
+                Task::none()
+            }
+        } else if is_mod {
             if matches!(
                 self.current_content,
                 Some(PreviewData::Markdown { .. })
                     | Some(PreviewData::Text { .. })
                     | Some(PreviewData::Epub { .. })
-                    | Some(PreviewData::Pdf { .. })
-                    | Some(PreviewData::Typst { .. })
             ) {
-                let delta = if y > 0.0 { 1.0 } else { -1.0 };
-                let next_font_size = (self.state.font_size + delta).clamp(8.0, 48.0);
-                if (next_font_size - self.state.font_size).abs() > f32::EPSILON {
+                let delta = if scroll_val > 0.0 { 1.0 } else { -1.0 };
+                let old_font_size = self.state.font_size;
+                let next_font_size = (old_font_size + delta).clamp(8.0, 48.0);
+                if (next_font_size - old_font_size).abs() > f32::EPSILON {
                     self.state.font_size = next_font_size;
                     if let Some(PreviewData::Markdown { ref blocks, .. }) = self.current_content {
                         self.state.markdown.toc = crate::parsers::markdown::extract_toc(
@@ -39,7 +103,13 @@ impl super::KglanceApp {
                 }
                 Task::none()
             } else {
-                operation::scroll_by("content_scroll", AbsoluteOffset { x: -y, y: 0.0 })
+                operation::scroll_by(
+                    "content_scroll",
+                    AbsoluteOffset {
+                        x: -scroll_val,
+                        y: 0.0,
+                    },
+                )
             }
         } else {
             Task::none()

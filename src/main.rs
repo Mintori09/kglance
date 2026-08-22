@@ -8,8 +8,6 @@ use kglance::{dbus, log_error, log_info};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
 
-    // log_info!("Starting kglance with arguments: {:?}", args);
-
     let file_paths: Vec<String> = args
         .iter()
         .skip(1)
@@ -155,8 +153,17 @@ fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         config.ui.default_width as f32,
         config.ui.default_height as f32,
     );
-    if let Ok(kglance::parsers::ParsedContent::Image { width, height, .. }) =
-        registry.parse(resolved)
+    let ext = resolved
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let image_extensions = [
+        "png", "jpg", "jpeg", "gif", "bmp", "webp", "tiff", "tif", "ico", "svg",
+    ];
+    if image_extensions.contains(&ext.as_str())
+        && let Ok(kglance::parsers::ParsedContent::Image { width, height, .. }) =
+            registry.parse(resolved)
     {
         initial_size =
             kglance::features::image::view::helpers::calculate_window_size(width, height);

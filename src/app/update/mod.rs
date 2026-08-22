@@ -157,6 +157,9 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::PdfMsg::Scrolled(vp) => {
                 crate::features::pdf::update::handle_scrolled(app, vp)
             }
+            crate::app::messages::PdfMsg::SidebarScrolled(vp) => {
+                crate::features::pdf::update::handle_sidebar_scrolled(app, vp)
+            }
             crate::app::messages::PdfMsg::PagesLoaded(_) => {
                 crate::features::pdf::update::handle_pages_loaded(app)
             }

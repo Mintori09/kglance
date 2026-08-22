@@ -57,7 +57,19 @@ pub fn handle_sidebar_drag_started(app: &mut KglanceApp) -> Task<Message> {
 pub fn handle_sidebar_drag_ended(app: &mut KglanceApp) -> Task<Message> {
     app.state.markdown.sidebar_resizing = false;
     app.state.epub.sidebar_resizing = false;
-    active_pdf_state_mut(app).sidebar_resizing = false;
+    let win_w = app.state.current_window_size.width;
+    let pdf = active_pdf_state_mut(app);
+    let desired_w = pdf.desired_width;
+    pdf.sidebar_resizing = false;
+    crate::features::pdf::geometry::recalculate_pdf_thumbnail_offsets(pdf);
+    let sidebar_w = if pdf.sidebar_visible {
+        pdf.sidebar_width + 1.0
+    } else {
+        0.0
+    };
+    let max_w = (win_w - sidebar_w - 40.0).clamp(300.0, 2400.0);
+    let target_display_w = desired_w.min(max_w);
+    crate::features::pdf::view::recalculate_pdf_offsets_for_width(pdf, target_display_w);
     markdown::active_markdown_state_mut(app).is_dragging_selection = false;
     markdown::active_markdown_state_mut(app).auto_scroll_delta = None;
     markdown::handle_selection_drag_end(app)
@@ -113,8 +125,11 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
             550.0,
         );
     }
+    let win_w = app.state.current_window_size.width;
     let pdf = active_pdf_state_mut(app);
     if pdf.sidebar_resizing {
+        let old_width = pdf.sidebar_width;
+        let desired_w = pdf.desired_width;
         apply_sidebar_drag(
             &mut pdf.sidebar_drag_start_x,
             &mut pdf.sidebar_drag_start_width,
@@ -123,6 +138,22 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
             120.0,
             500.0,
         );
+        if (pdf.sidebar_width - old_width).abs() > 0.5 {
+            crate::features::pdf::geometry::recalculate_pdf_thumbnail_offsets(pdf);
+            let sidebar_w = if pdf.sidebar_visible {
+                pdf.sidebar_width + 1.0
+            } else {
+                0.0
+            };
+            let max_w = (win_w - sidebar_w - 40.0).clamp(300.0, 2400.0);
+            let target_display_w = desired_w.min(max_w);
+            if (pdf.display_width - target_display_w).abs() > 1.0 {
+                crate::features::pdf::view::recalculate_pdf_offsets_for_width(
+                    pdf,
+                    target_display_w,
+                );
+            }
+        }
     }
     Task::none()
 }
@@ -149,6 +180,20 @@ fn apply_sidebar_drag(
 pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32) -> Task<Message> {
     app.state.current_window_size.width = width;
     app.state.current_window_size.height = height;
+
+    let pdf = active_pdf_state_mut(app);
+    let desired_w = pdf.desired_width;
+    let sidebar_w = if pdf.sidebar_visible {
+        pdf.sidebar_width + 1.0
+    } else {
+        0.0
+    };
+    let max_w = (width - sidebar_w - 40.0).clamp(300.0, 2400.0);
+    let target_display_w = desired_w.min(max_w);
+    if (pdf.display_width - target_display_w).abs() > 1.0 {
+        crate::features::pdf::view::recalculate_pdf_offsets_for_width(pdf, target_display_w);
+    }
+
     Task::none()
 }
 

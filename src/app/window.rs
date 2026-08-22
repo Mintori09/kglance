@@ -12,6 +12,18 @@ const TOAST_DURATION_SECS: u64 = 2;
 const MIN_GRID_COLUMNS: usize = 1;
 
 impl KglanceApp {
+    pub fn title(&self) -> String {
+        if self.state.file_name.is_empty() {
+            "Kglance Preview".to_string()
+        } else {
+            let name = std::path::Path::new(&self.state.file_name)
+                .file_name()
+                .map(|n| n.to_string_lossy())
+                .unwrap_or(std::borrow::Cow::Borrowed(&self.state.file_name));
+            format!("Kglance - {name}")
+        }
+    }
+
     fn update_grid_cols(&mut self, window_width: f32) {
         self.state.window_width = window_width;
         self.state.grid_cols = Self::calculate_grid_cols(window_width, self.state.grid_scale);
