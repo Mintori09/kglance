@@ -1,4 +1,7 @@
+pub(crate) mod alert;
 pub(crate) mod code;
+pub(crate) mod footnote;
+pub(crate) mod frontmatter;
 pub(crate) mod heading;
 pub(crate) mod hr;
 pub(crate) mod html;
@@ -13,7 +16,10 @@ pub(crate) mod quote;
 pub(crate) mod style;
 pub(crate) mod table;
 
+pub(crate) use alert::render_alert;
 pub(crate) use code::render_code_block;
+pub(crate) use footnote::render_footnote_definition;
+pub(crate) use frontmatter::render_frontmatter;
 pub(crate) use heading::render_heading;
 pub(crate) use hr::render_horizontal_rule;
 pub(crate) use html::render_html;

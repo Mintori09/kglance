@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::{features::image::types::ImageRef, log_debug};
 
-use super::{Block, Inline, ListItem, TableBlock, TableCell};
+use super::{AlertKind, Block, Inline, ListItem, TableBlock, TableCell};
 
 pub(super) fn extract_images(raw: &str, parent: &Path) -> Vec<ImageRef> {
     let mut images = Vec::new();
@@ -146,6 +146,9 @@ impl<'a> EventStream<'a> {
                 }
                 Event::InlineMath(t) => result.push(Inline::InlineMath(t.to_string())),
                 Event::DisplayMath(t) => result.push(Inline::DisplayMath(t.to_string())),
+                Event::FootnoteReference(label) => {
+                    result.push(Inline::FootnoteReference(label.to_string()));
+                }
                 _ => {
                     self.iter.next();
                 }
@@ -241,7 +244,39 @@ impl<'a> EventStream<'a> {
             }
             Event::Start(Tag::BlockQuote(kind)) => {
                 let quotes = self.parse_blocks_until(TagEnd::BlockQuote(kind));
-                vec![Block::Quote(quotes)]
+                let alert_opt = match kind {
+                    Some(pulldown_cmark::BlockQuoteKind::Note) => {
+                        Some((AlertKind::Note, quotes.clone()))
+                    }
+                    Some(pulldown_cmark::BlockQuoteKind::Tip) => {
+                        Some((AlertKind::Tip, quotes.clone()))
+                    }
+                    Some(pulldown_cmark::BlockQuoteKind::Important) => {
+                        Some((AlertKind::Important, quotes.clone()))
+                    }
+                    Some(pulldown_cmark::BlockQuoteKind::Warning) => {
+                        Some((AlertKind::Warning, quotes.clone()))
+                    }
+                    Some(pulldown_cmark::BlockQuoteKind::Caution) => {
+                        Some((AlertKind::Caution, quotes.clone()))
+                    }
+                    _ => detect_and_convert_alert(quotes.clone()),
+                };
+                if let Some((alert_kind, cleaned_blocks)) = alert_opt {
+                    vec![Block::Alert {
+                        kind: alert_kind,
+                        content: cleaned_blocks,
+                    }]
+                } else {
+                    vec![Block::Quote(quotes)]
+                }
+            }
+            Event::Start(Tag::FootnoteDefinition(label)) => {
+                let content = self.parse_blocks_until(TagEnd::FootnoteDefinition);
+                vec![Block::FootnoteDefinition {
+                    label: label.to_string(),
+                    content,
+                }]
             }
             Event::Rule => vec![Block::HorizontalRule],
             Event::Html(text) | Event::InlineHtml(text) => vec![Block::Html(text.to_string())],
@@ -513,7 +548,131 @@ impl<'a> EventStream<'a> {
     }
 }
 
+fn detect_and_convert_alert(mut blocks: Vec<Block>) -> Option<(AlertKind, Vec<Block>)> {
+    if blocks.is_empty() {
+        return None;
+    }
+
+    if let Block::Paragraph(ref mut inlines) = blocks[0] {
+        if inlines.is_empty() {
+            return None;
+        }
+
+        let first_inline = &inlines[0];
+        if let Inline::Text(t) = first_inline {
+            let trimmed = t.trim_start();
+            let kind = if trimmed.starts_with("[!NOTE]") {
+                AlertKind::Note
+            } else if trimmed.starts_with("[!TIP]") {
+                AlertKind::Tip
+            } else if trimmed.starts_with("[!IMPORTANT]") {
+                AlertKind::Important
+            } else if trimmed.starts_with("[!WARNING]") {
+                AlertKind::Warning
+            } else if trimmed.starts_with("[!CAUTION]") {
+                AlertKind::Caution
+            } else {
+                return None;
+            };
+
+            let prefix_tag = match kind {
+                AlertKind::Note => "[!NOTE]",
+                AlertKind::Tip => "[!TIP]",
+                AlertKind::Important => "[!IMPORTANT]",
+                AlertKind::Warning => "[!WARNING]",
+                AlertKind::Caution => "[!CAUTION]",
+            };
+
+            let idx = t.find(prefix_tag).unwrap_or(0);
+            let rem = t[idx + prefix_tag.len()..].trim_start().to_string();
+
+            if rem.is_empty() {
+                inlines.remove(0);
+                if inlines
+                    .first()
+                    .is_some_and(|i| matches!(i, Inline::SoftBreak))
+                {
+                    inlines.remove(0);
+                }
+            } else {
+                inlines[0] = Inline::Text(rem);
+            }
+
+            if inlines.is_empty() {
+                blocks.remove(0);
+            }
+
+            return Some((kind, blocks));
+        }
+    }
+
+    None
+}
+
+fn extract_frontmatter(content: &str) -> (Option<Vec<(String, String)>>, &str) {
+    let trimmed = content.trim_start();
+    if !trimmed.starts_with("---") {
+        return (None, content);
+    }
+
+    let after_start = &trimmed[3..];
+    if !after_start.starts_with('\n') && !after_start.starts_with("\r\n") {
+        return (None, content);
+    }
+
+    let body_start = if let Some(rest) = after_start.strip_prefix("\r\n") {
+        rest
+    } else if let Some(rest) = after_start.strip_prefix('\n') {
+        rest
+    } else {
+        return (None, content);
+    };
+
+    if let Some(end_pos) = body_start.find("\n---") {
+        let frontmatter_text = &body_start[..end_pos];
+        let rest_after = &body_start[end_pos + 4..];
+        let remaining_markdown = if let Some(rest) = rest_after.strip_prefix("\r\n") {
+            rest
+        } else if let Some(rest) = rest_after.strip_prefix('\n') {
+            rest
+        } else {
+            rest_after
+        };
+
+        let mut entries = Vec::new();
+        for line in frontmatter_text.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if let Some((k, v)) = line.split_once(':') {
+                let key = k.trim().to_string();
+                let mut val = v.trim().to_string();
+                let is_quoted = (val.starts_with('"') && val.ends_with('"'))
+                    || (val.starts_with('\'') && val.ends_with('\''));
+                if is_quoted && val.len() >= 2 {
+                    val = val[1..val.len() - 1].to_string();
+                }
+                entries.push((key, val));
+            }
+        }
+
+        if entries.is_empty() {
+            (None, content)
+        } else {
+            (Some(entries), remaining_markdown)
+        }
+    } else {
+        (None, content)
+    }
+}
+
 pub fn parse_to_blocks(content: &str) -> Vec<Block> {
-    let mut stream = EventStream::new(content);
-    stream.parse_blocks()
+    let (frontmatter, rest) = extract_frontmatter(content);
+    let mut stream = EventStream::new(rest);
+    let mut blocks = stream.parse_blocks();
+    if let Some(entries) = frontmatter {
+        blocks.insert(0, Block::Frontmatter(entries));
+    }
+    blocks
 }

@@ -11,9 +11,9 @@ pub use flatten::{
     flatten_inlines, flatten_inlines_plain, flatten_inlines_toc, flatten_inlines_visual,
 };
 pub use handle::parse_to_blocks;
-pub use layout::{estimated_block_height, extract_toc};
+pub use layout::{estimated_block_height, extract_toc, slugify};
 pub use mermaid::render_mermaid_to_png;
-pub use types::{Block, Inline, ListItem, TableBlock, TableCell};
+pub use types::{AlertKind, Block, Inline, ListItem, TableBlock, TableCell};
 
 use std::path::Path;
 

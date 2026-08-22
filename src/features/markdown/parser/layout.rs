@@ -96,6 +96,24 @@ pub fn estimated_block_height(
                 .sum();
             h + margin
         }
+        Block::Alert { content, .. } => {
+            let h: f32 = content
+                .iter()
+                .map(|b| estimated_block_height(b, font_size, block_index, image_sizes))
+                .sum();
+            scale(28.0) + h + margin
+        }
+        Block::FootnoteDefinition { content, .. } => {
+            let h: f32 = content
+                .iter()
+                .map(|b| estimated_block_height(b, font_size, block_index, image_sizes))
+                .sum();
+            scale(16.0) + h + margin
+        }
+        Block::Frontmatter(entries) => {
+            let n = entries.len() as f32;
+            scale(32.0) + n * scale(20.0) + margin
+        }
         Block::HorizontalRule => 12.0 + margin,
         Block::Image { .. } => {
             if let Some(&(w, h)) = image_sizes.get(&block_index) {
@@ -129,11 +147,35 @@ fn block_margin(block: &Block) -> f32 {
         Block::Table(_) => 16.0,
         Block::List { .. } => 12.0,
         Block::Quote(_) => 16.0,
+        Block::Alert { .. } => 16.0,
+        Block::FootnoteDefinition { .. } => 12.0,
+        Block::Frontmatter(_) => 24.0,
         Block::Image { .. } => 16.0,
         Block::Mermaid { .. } => 16.0,
         Block::Math(_) => 16.0,
         Block::Paragraph(_) | Block::Html(_) => 8.0,
     }
+}
+
+pub fn slugify(text: &str) -> String {
+    let mut slug = String::with_capacity(text.len());
+    let mut last_dash = false;
+    for c in text.chars() {
+        if c.is_alphanumeric() {
+            slug.extend(c.to_lowercase());
+            last_dash = false;
+        } else if (c == ' ' || c == '-' || c == '_') && !last_dash {
+            slug.push('-');
+            last_dash = true;
+        }
+    }
+    if slug.ends_with('-') {
+        slug.pop();
+    }
+    if slug.starts_with('-') {
+        slug.remove(0);
+    }
+    slug
 }
 
 pub fn extract_toc(
