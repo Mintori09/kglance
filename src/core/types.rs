@@ -674,6 +674,7 @@ pub struct MarkdownState {
     pub selected_text: Option<String>,
     pub selection_range: Option<SelectionRange>,
     pub is_dragging_selection: bool,
+    pub is_mouse_held: bool,
     pub auto_scroll_delta: Option<f32>,
     pub drag_last_y: f32,
     /// `block_y_offsets[i]` is the pixel Y where block `i` starts.
@@ -710,6 +711,7 @@ impl Default for MarkdownState {
             selected_text: None,
             selection_range: None,
             is_dragging_selection: false,
+            is_mouse_held: false,
             auto_scroll_delta: None,
             drag_last_y: 0.0,
             block_y_offsets: Vec::new(),

@@ -76,6 +76,7 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
         selected_text: None,
         selection_range: None,
         is_dragging_selection: false,
+        is_mouse_held: false,
         auto_scroll_delta: None,
         drag_last_y: 0.0,
     };
