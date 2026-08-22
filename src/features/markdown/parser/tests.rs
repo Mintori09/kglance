@@ -910,3 +910,94 @@ fn test_cong_thuc_toan_va_khoa_hoc_latex_file() {
         );
     }
 }
+
+#[test]
+fn test_parse_gfm_alerts() {
+    let md = "> [!NOTE]\n> This is a helpful note\n\n> [!WARNING]\n> Be careful!";
+    let blocks = parse_to_blocks(md);
+    assert_eq!(blocks.len(), 2);
+    match &blocks[0] {
+        Block::Alert { kind, content } => {
+            assert_eq!(*kind, AlertKind::Note);
+            assert_eq!(content.len(), 1);
+            if let Block::Paragraph(inlines) = &content[0] {
+                assert_eq!(flatten_inlines(inlines), "This is a helpful note");
+            } else {
+                panic!("expected paragraph inside alert");
+            }
+        }
+        _ => panic!("expected Alert block for note"),
+    }
+    match &blocks[1] {
+        Block::Alert { kind, content } => {
+            assert_eq!(*kind, AlertKind::Warning);
+            assert_eq!(content.len(), 1);
+            if let Block::Paragraph(inlines) = &content[0] {
+                assert_eq!(flatten_inlines(inlines), "Be careful!");
+            } else {
+                panic!("expected paragraph inside alert");
+            }
+        }
+        _ => panic!("expected Alert block for warning"),
+    }
+}
+
+#[test]
+fn test_parse_frontmatter() {
+    let md = "---\ntitle: Document Title\nauthor: John Doe\n---\n\n# Body Heading\n\nSome text.";
+    let blocks = parse_to_blocks(md);
+    assert_eq!(blocks.len(), 3);
+    match &blocks[0] {
+        Block::Frontmatter(entries) => {
+            assert_eq!(entries.len(), 2);
+            assert_eq!(
+                entries[0],
+                ("title".to_string(), "Document Title".to_string())
+            );
+            assert_eq!(entries[1], ("author".to_string(), "John Doe".to_string()));
+        }
+        _ => panic!("expected Frontmatter block"),
+    }
+    assert!(matches!(&blocks[1], Block::Heading { level: 1, .. }));
+}
+
+#[test]
+fn test_parse_footnotes() {
+    let md = "Here is a simple footnote[^1].\n\n[^1]: This is the footnote text.";
+    let blocks = parse_to_blocks(md);
+    assert_eq!(blocks.len(), 2);
+    if let Block::Paragraph(inlines) = &blocks[0] {
+        let fn_ref = inlines
+            .iter()
+            .find(|i| matches!(i, Inline::FootnoteReference(_)));
+        assert!(fn_ref.is_some(), "should find FootnoteReference");
+        if let Some(Inline::FootnoteReference(label)) = fn_ref {
+            assert_eq!(label, "1");
+        }
+    } else {
+        panic!("expected Paragraph");
+    }
+    match &blocks[1] {
+        Block::FootnoteDefinition { label, content } => {
+            assert_eq!(label, "1");
+            assert_eq!(content.len(), 1);
+            if let Block::Paragraph(inlines) = &content[0] {
+                assert_eq!(flatten_inlines(inlines), "This is the footnote text.");
+            } else {
+                panic!("expected paragraph inside footnote definition");
+            }
+        }
+        _ => panic!("expected FootnoteDefinition block"),
+    }
+}
+
+#[test]
+fn test_slugify() {
+    use super::layout::slugify;
+    assert_eq!(slugify("Hello World!"), "hello-world");
+    assert_eq!(
+        slugify("Header With - Special_Chars & 123"),
+        "header-with-special-chars-123"
+    );
+    assert_eq!(slugify("Tiêu Đề Tiếng Việt"), "tiêu-đề-tiếng-việt");
+}

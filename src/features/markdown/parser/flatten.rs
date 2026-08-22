@@ -74,6 +74,9 @@ fn flatten_inlines_with(inlines: &[Inline], mode: FlattenMode) -> String {
                 }
                 _ => s.push_str(latex),
             },
+            Inline::FootnoteReference(label) => {
+                s.push_str(&format!("[^{label}]"));
+            }
             Inline::SoftBreak => s.push(' '),
         }
     }

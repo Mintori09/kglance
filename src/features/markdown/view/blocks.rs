@@ -1,8 +1,9 @@
 use crate::app::Message;
 use crate::features::markdown::view::components::style::STYLE;
 use crate::features::markdown::view::components::{
-    render_code_block, render_heading, render_horizontal_rule, render_html, render_inline_image,
-    render_list, render_math_block, render_mermaid, render_paragraph, render_quote, render_table,
+    render_alert, render_code_block, render_footnote_definition, render_frontmatter,
+    render_heading, render_horizontal_rule, render_html, render_inline_image, render_list,
+    render_math_block, render_mermaid, render_paragraph, render_quote, render_table,
 };
 use crate::parsers::markdown::Block;
 use crate::ui::types::RenderContext;
@@ -15,6 +16,7 @@ pub(crate) fn render_block<'a>(
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
     match block {
+        Block::Frontmatter(entries) => render_frontmatter(entries, ctx),
         Block::Heading { level, content } => render_heading(*level, content, ctx),
         Block::Paragraph(content) => render_paragraph(content, ctx),
         Block::CodeBlock { lang, code, .. } => render_code_block(lang, code, ctx),
@@ -27,6 +29,10 @@ pub(crate) fn render_block<'a>(
             items,
         } => render_list(*ordered, *start_number, items, state, ctx),
         Block::Quote(blocks) => render_quote(blocks, state, ctx),
+        Block::Alert { kind, content } => render_alert(*kind, content, state, ctx),
+        Block::FootnoteDefinition { label, content } => {
+            render_footnote_definition(label, content, state, ctx)
+        }
         Block::HorizontalRule => render_horizontal_rule(ctx.theme),
         Block::Html(html) => render_html(html, ctx),
         Block::Math(latex) => render_math_block(latex, ctx),
@@ -42,6 +48,9 @@ pub(crate) fn block_margin(block: &Block) -> f32 {
         Block::CodeBlock { .. } => STYLE.block.code,
         Block::Table(_) => STYLE.block.table,
         Block::Quote(_) => STYLE.block.quote,
+        Block::Alert { .. } => STYLE.block.quote,
+        Block::FootnoteDefinition { .. } => STYLE.block.paragraph,
+        Block::Frontmatter(_) => STYLE.block.heading_h1,
         Block::Image { .. } => STYLE.block.image,
         Block::Mermaid { .. } => STYLE.block.mermaid,
         Block::List { .. } => STYLE.block.list,
