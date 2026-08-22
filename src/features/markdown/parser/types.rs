@@ -1,3 +1,24 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AlertKind {
+    Note,
+    Tip,
+    Important,
+    Warning,
+    Caution,
+}
+
+impl AlertKind {
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::Note => "NOTE",
+            Self::Tip => "TIP",
+            Self::Important => "IMPORTANT",
+            Self::Warning => "WARNING",
+            Self::Caution => "CAUTION",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Inline {
     Text(String),
@@ -9,6 +30,7 @@ pub enum Inline {
     Image { alt: String, url: String },
     InlineMath(String),
     DisplayMath(String),
+    FootnoteReference(String),
     SoftBreak,
 }
 
@@ -25,6 +47,7 @@ pub struct TableBlock {
 
 #[derive(Debug, Clone)]
 pub enum Block {
+    Frontmatter(Vec<(String, String)>),
     Heading {
         level: u8,
         content: Vec<Inline>,
@@ -50,6 +73,14 @@ pub enum Block {
         items: Vec<ListItem>,
     },
     Quote(Vec<Block>),
+    Alert {
+        kind: AlertKind,
+        content: Vec<Block>,
+    },
+    FootnoteDefinition {
+        label: String,
+        content: Vec<Block>,
+    },
     HorizontalRule,
     Html(String),
     Math(String),

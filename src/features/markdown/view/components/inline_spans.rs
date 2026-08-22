@@ -155,6 +155,14 @@ fn inlines_to_spans_core<'a>(
                 let math_color = span_ctx.theme.palette().markdown.math;
                 spans.push(Span::new(display_text).font(main_font).color(math_color));
             }
+            Inline::FootnoteReference(label) => {
+                let link_color = span_ctx.theme.palette().roles.link;
+                spans.push(
+                    Span::new(format!("[{label}]"))
+                        .font(main_font)
+                        .color(link_color),
+                );
+            }
         }
     }
 
