@@ -184,18 +184,27 @@ impl PageCache {
             .sum()
     }
 
-    pub fn insert(&mut self, page_index: usize, entry: PageCacheEntry, anchor_page: usize) -> InsertResult {
+    pub fn insert(
+        &mut self,
+        page_index: usize,
+        entry: PageCacheEntry,
+        anchor_page: usize,
+    ) -> InsertResult {
         if page_index >= self.entries.len() {
             return InsertResult::InvalidIndex;
         }
         let entry_bytes = entry.decoded_bytes();
         if entry_bytes > Self::MAX_BYTES {
-            crate::log_debug!("[PDF_CACHE] Page {page_index} exceeds total RAM cache budget ({entry_bytes} bytes), keeping disk-backed only");
+            crate::log_debug!(
+                "[PDF_CACHE] Page {page_index} exceeds total RAM cache budget ({entry_bytes} bytes), keeping disk-backed only"
+            );
             return InsertResult::RejectedOversized;
         }
 
         if let Some(old) = self.entries[page_index].take() {
-            self.accounted_decoded_bytes = self.accounted_decoded_bytes.saturating_sub(old.decoded_bytes());
+            self.accounted_decoded_bytes = self
+                .accounted_decoded_bytes
+                .saturating_sub(old.decoded_bytes());
         }
 
         self.accounted_decoded_bytes += entry_bytes;
@@ -212,18 +221,23 @@ impl PageCache {
             .filter_map(|(idx, page)| page.is_some().then_some(idx))
             .collect();
 
-        if cached_indices.len() > Self::MAX_COUNT || self.accounted_decoded_bytes > Self::MAX_BYTES {
+        if cached_indices.len() > Self::MAX_COUNT || self.accounted_decoded_bytes > Self::MAX_BYTES
+        {
             cached_indices.sort_by_key(|&idx| {
                 let dist = (idx as isize - anchor_page as isize).abs();
                 (std::cmp::Reverse(dist), std::cmp::Reverse(idx))
             });
 
             for &idx in &cached_indices {
-                if self.count() <= Self::MAX_COUNT && self.accounted_decoded_bytes <= Self::MAX_BYTES {
+                if self.count() <= Self::MAX_COUNT
+                    && self.accounted_decoded_bytes <= Self::MAX_BYTES
+                {
                     break;
                 }
                 if let Some(entry) = self.entries[idx].take() {
-                    self.accounted_decoded_bytes = self.accounted_decoded_bytes.saturating_sub(entry.decoded_bytes());
+                    self.accounted_decoded_bytes = self
+                        .accounted_decoded_bytes
+                        .saturating_sub(entry.decoded_bytes());
                 }
             }
         }
@@ -244,8 +258,8 @@ pub struct ThumbnailCache {
 }
 
 impl ThumbnailCache {
-    pub const MAX_COUNT: usize = 25;
-    pub const MAX_BYTES: usize = 8 * 1024 * 1024; // 8 MiB logical budget
+    pub const MAX_COUNT: usize = 2000;
+    pub const MAX_BYTES: usize = 64 * 1024 * 1024; // 64 MiB logical budget
 
     pub fn new(page_count: usize) -> Self {
         Self {
@@ -284,7 +298,12 @@ impl ThumbnailCache {
         self.accounted_decoded_bytes
     }
 
-    pub fn insert(&mut self, page_index: usize, entry: PageCacheEntry, anchor_page: usize) -> InsertResult {
+    pub fn insert(
+        &mut self,
+        page_index: usize,
+        entry: PageCacheEntry,
+        anchor_page: usize,
+    ) -> InsertResult {
         if page_index >= self.entries.len() {
             return InsertResult::InvalidIndex;
         }
@@ -294,7 +313,9 @@ impl ThumbnailCache {
         }
 
         if let Some(old) = self.entries[page_index].take() {
-            self.accounted_decoded_bytes = self.accounted_decoded_bytes.saturating_sub(old.decoded_bytes());
+            self.accounted_decoded_bytes = self
+                .accounted_decoded_bytes
+                .saturating_sub(old.decoded_bytes());
         }
 
         self.accounted_decoded_bytes += entry_bytes;
@@ -311,18 +332,23 @@ impl ThumbnailCache {
             .filter_map(|(idx, page)| page.is_some().then_some(idx))
             .collect();
 
-        if cached_indices.len() > Self::MAX_COUNT || self.accounted_decoded_bytes > Self::MAX_BYTES {
+        if cached_indices.len() > Self::MAX_COUNT || self.accounted_decoded_bytes > Self::MAX_BYTES
+        {
             cached_indices.sort_by_key(|&idx| {
                 let dist = (idx as isize - anchor_page as isize).abs();
                 (std::cmp::Reverse(dist), std::cmp::Reverse(idx))
             });
 
             for &idx in &cached_indices {
-                if self.count() <= Self::MAX_COUNT && self.accounted_decoded_bytes <= Self::MAX_BYTES {
+                if self.count() <= Self::MAX_COUNT
+                    && self.accounted_decoded_bytes <= Self::MAX_BYTES
+                {
                     break;
                 }
                 if let Some(entry) = self.entries[idx].take() {
-                    self.accounted_decoded_bytes = self.accounted_decoded_bytes.saturating_sub(entry.decoded_bytes());
+                    self.accounted_decoded_bytes = self
+                        .accounted_decoded_bytes
+                        .saturating_sub(entry.decoded_bytes());
                 }
             }
         }
@@ -348,7 +374,7 @@ pub struct PdfState {
     pub pages: PageCache,
     pub thumbnails: ThumbnailCache,
     pub page_count: usize,
-    pub loading: bool,
+    pub active_page_tasks: usize,
     pub current_page: usize,
     pub visible_page: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     pub window_start: usize,
@@ -365,6 +391,7 @@ pub struct PdfState {
     pub scroll_y: f32,
     pub viewport_height: f32,
     pub display_width: f32,
+    pub desired_width: f32,
     pub page_dimensions: Vec<crate::features::pdf::types::PageDimensions>,
     /// Cumulative Y offset for each page (pixels). `page_y_offsets[i]` = Y start of page i.
     pub page_y_offsets: Vec<f32>,
@@ -372,8 +399,29 @@ pub struct PdfState {
     pub page_ends: Vec<f32>,
     /// Total estimated height of all pages + spacing (pixels).
     pub total_content_height: f32,
+    /// Cumulative Y offset for each thumbnail in sidebar (pixels).
+    pub thumbnail_y_offsets: Vec<f32>,
+    /// Cumulative Y bottom edge for each thumbnail in sidebar (pixels).
+    pub thumbnail_ends: Vec<f32>,
+    /// Total estimated height of all thumbnails + spacing in sidebar (pixels).
+    pub total_thumbnail_height: f32,
+    /// Current Y scroll offset of the sidebar thumbnails.
+    pub sidebar_scroll_y: f32,
+    /// Current viewport height of the sidebar.
+    pub sidebar_viewport_height: f32,
+    /// Atomic index of top visible thumbnail for prioritizing background thumbnail loading.
+    pub visible_thumb_page: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    /// Atomic generation ID specifically for background thumbnail worker.
+    pub thumb_generation_id: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     /// Tier 1 session disk cache for compressed PDF page files.
     pub disk_cache: Option<std::sync::Arc<crate::features::pdf::PdfDiskCache>>,
+}
+
+impl PdfState {
+    #[inline]
+    pub fn is_loading(&self) -> bool {
+        self.active_page_tasks > 0
+    }
 }
 
 impl Default for PdfState {
@@ -382,8 +430,9 @@ impl Default for PdfState {
             pages: PageCache::default(),
             thumbnails: ThumbnailCache::default(),
             page_count: 0,
-            loading: false,
+            active_page_tasks: 0,
             generation_id: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            thumb_generation_id: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             current_page: 0,
             visible_page: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             window_start: 0,
@@ -399,10 +448,17 @@ impl Default for PdfState {
             scroll_y: 0.0,
             viewport_height: 800.0,
             display_width: 800.0,
+            desired_width: 800.0,
             page_dimensions: Vec::new(),
             page_y_offsets: Vec::new(),
             page_ends: Vec::new(),
             total_content_height: 0.0,
+            thumbnail_y_offsets: Vec::new(),
+            thumbnail_ends: Vec::new(),
+            total_thumbnail_height: 0.0,
+            sidebar_scroll_y: 0.0,
+            sidebar_viewport_height: 800.0,
+            visible_thumb_page: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             disk_cache: None,
         }
     }
@@ -620,7 +676,6 @@ pub struct MarkdownState {
     pub is_dragging_selection: bool,
     pub auto_scroll_delta: Option<f32>,
     pub drag_last_y: f32,
-    /// Cumulative Y offset for each block index, computed once on load.
     /// `block_y_offsets[i]` is the pixel Y where block `i` starts.
     pub block_y_offsets: Vec<f32>,
     /// Total estimated height of all content (sum of all block heights).

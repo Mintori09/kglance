@@ -7,9 +7,15 @@ use crate::features::common::parser::types::ParsedContent;
 use crate::features::pdf::parser::{PdfTocEntry, extract_pdf_toc, render_pdf_page};
 use crate::features::pdf::types::PageData;
 
-pub fn compile_typst_to_pdf(
-    path: &Path,
-) -> Result<(NamedTempFile, u32, PageData, Vec<PdfTocEntry>), ParseError> {
+pub type TypstCompiledOutput = (
+    NamedTempFile,
+    u32,
+    PageData,
+    Vec<PdfTocEntry>,
+    Vec<crate::features::pdf::types::PageDimensions>,
+);
+
+pub fn compile_typst_to_pdf(path: &Path) -> Result<TypstCompiledOutput, ParseError> {
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     let temp_pdf = tempfile::Builder::new()
         .suffix(".pdf")
@@ -50,9 +56,22 @@ pub fn compile_typst_to_pdf(
         .map_err(|e| ParseError::ParseFailed(e.to_string()))? as u32;
 
     let outline = extract_pdf_toc(&doc);
+    let page_dimensions = crate::features::pdf::dimensions::extract_page_dimensions(&doc)
+        .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
     let first_page = if page_count > 0 {
-        render_pdf_page(temp_pdf.path(), 0)?
+        let raw_page = render_pdf_page(temp_pdf.path(), 0)?;
+        let compressed = crate::features::pdf::compress::compress_rgba_to_png(
+            &raw_page.data,
+            raw_page.width,
+            raw_page.height,
+        )
+        .unwrap_or(raw_page.data);
+        PageData {
+            width: raw_page.width,
+            height: raw_page.height,
+            data: compressed,
+        }
     } else {
         PageData {
             width: 0,
@@ -61,7 +80,7 @@ pub fn compile_typst_to_pdf(
         }
     };
 
-    Ok((temp_pdf, page_count, first_page, outline))
+    Ok((temp_pdf, page_count, first_page, outline, page_dimensions))
 }
 
 pub struct TypstParser;
@@ -76,13 +95,16 @@ impl PreviewParser for TypstParser {
             std::fs::read_to_string(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
         match compile_typst_to_pdf(path) {
-            Ok((_temp_pdf, page_count, first_page, outline)) => Ok(ParsedContent::Typst {
-                source,
-                page_count,
-                first_page,
-                error: None,
-                outline,
-            }),
+            Ok((_temp_pdf, page_count, first_page, outline, page_dimensions)) => {
+                Ok(ParsedContent::Typst {
+                    source,
+                    page_count,
+                    first_page,
+                    error: None,
+                    outline,
+                    page_dimensions,
+                })
+            }
             Err(err) => Ok(ParsedContent::Typst {
                 source,
                 page_count: 0,
@@ -93,6 +115,7 @@ impl PreviewParser for TypstParser {
                 },
                 error: Some(err.to_string()),
                 outline: Vec::new(),
+                page_dimensions: Vec::new(),
             }),
         }
     }

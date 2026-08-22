@@ -213,6 +213,135 @@ async fn render_and_send_batch<F>(
     }
 }
 
+pub const THUMBNAIL_DPI: f32 = 24.0;
+pub const THUMB_WINDOW_RADIUS: usize = 5;
+pub const THUMB_BATCH_SIZE: usize = 4;
+
+pub fn lazy_load_thumbnails<F>(
+    file_path: String,
+    total_pages: usize,
+    visible_thumb_page: Arc<AtomicUsize>,
+    generation_id: Arc<AtomicUsize>,
+    make_message: F,
+    done: Message,
+) -> Task<Message>
+where
+    F: Fn(usize, PageData) -> Message + Send + Sync + 'static,
+{
+    let stream = iced::stream::channel(CHANNEL_BUFFER_SIZE, move |output| {
+        process_thumbnail_loading(
+            output,
+            file_path,
+            total_pages,
+            visible_thumb_page,
+            generation_id,
+            make_message,
+            done,
+        )
+    });
+
+    Task::run(stream, |message| message)
+}
+
+pub async fn process_thumbnail_loading<F>(
+    output: Sender<Message>,
+    file_path: String,
+    total_pages: usize,
+    visible_thumb_page: Arc<AtomicUsize>,
+    generation_id: Arc<AtomicUsize>,
+    make_message: F,
+    done: Message,
+) where
+    F: Fn(usize, PageData) -> Message + Send + Sync,
+{
+    let mut output = output;
+    let pdf_path = PathBuf::from(file_path);
+    let mut rendered = vec![false; total_pages];
+    let expected_gen = generation_id.load(Ordering::Relaxed);
+
+    loop {
+        if generation_id.load(Ordering::Relaxed) != expected_gen {
+            break;
+        }
+
+        let current_thumb = visible_thumb_page.load(Ordering::Relaxed);
+        let window = WindowRange::new(current_thumb, total_pages, THUMB_WINDOW_RADIUS);
+
+        let mut unrendered = find_unrendered_window_pages(&rendered, &window, current_thumb);
+
+        if unrendered.is_empty() {
+            let mut remaining: Vec<usize> =
+                (0..total_pages).filter(|&idx| !rendered[idx]).collect();
+
+            if remaining.is_empty() {
+                break;
+            }
+
+            remaining.sort_by_key(|&idx| (idx as isize - current_thumb as isize).abs());
+            unrendered = remaining;
+        }
+
+        let batch: Vec<usize> = unrendered.into_iter().take(THUMB_BATCH_SIZE).collect();
+        for &idx in &batch {
+            rendered[idx] = true;
+        }
+
+        render_and_send_thumbnail_batch(&mut output, &pdf_path, &batch, &make_message).await;
+
+        tokio::time::sleep(LOOP_POLL_INTERVAL).await;
+    }
+
+    if generation_id.load(Ordering::Relaxed) == expected_gen {
+        let _ = output.send(done).await;
+    }
+}
+
+async fn render_and_send_thumbnail_batch<F>(
+    output: &mut Sender<Message>,
+    pdf_path: &Path,
+    batch: &[usize],
+    make_message: &F,
+) where
+    F: Fn(usize, PageData) -> Message + Send + Sync,
+{
+    let path_buffer = pdf_path.to_owned();
+    let batch_vec = batch.to_vec();
+
+    let render_results = tokio::task::spawn_blocking(move || {
+        let path = Path::new(&path_buffer);
+        let rendered = crate::features::pdf::parser::render_pdf_pages_batch_at_dpi(
+            path,
+            &batch_vec,
+            THUMBNAIL_DPI,
+        );
+        let mut results = Vec::with_capacity(rendered.len());
+        for (idx, res) in rendered {
+            let compressed = res.map(|p| {
+                let compressed_data = crate::features::pdf::compress::compress_rgba_to_png(
+                    &p.data, p.width, p.height,
+                );
+                let data = compressed_data.unwrap_or(p.data);
+                PageData {
+                    width: p.width,
+                    height: p.height,
+                    data,
+                }
+            });
+            results.push((idx, compressed));
+        }
+        results
+    })
+    .await
+    .unwrap_or_default();
+
+    for (page_index, task_result) in render_results {
+        if let Ok(page_data) = task_result {
+            let message = make_message(page_index, page_data);
+            let _ = output.send(message).await;
+        }
+    }
+}
+
 #[test]
 fn test_window_range_filtering() {
     let range = WindowRange::new(10, 100, 2); // 8..=12
