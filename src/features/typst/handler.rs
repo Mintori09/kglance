@@ -14,11 +14,19 @@ pub fn lazy_load_typst_pages(
     total_pages: usize,
     visible_page: Arc<AtomicUsize>,
     generation_id: Arc<AtomicUsize>,
+    disk_cache: Option<Arc<crate::features::pdf::PdfDiskCache>>,
 ) -> Task<Message> {
     let stream = iced::stream::channel(
         crate::features::pdf::lazy_handler::CHANNEL_BUFFER_SIZE,
         move |output| {
-            process_typst_page_loading(output, file_path, total_pages, visible_page, generation_id)
+            process_typst_page_loading(
+                output,
+                file_path,
+                total_pages,
+                visible_page,
+                generation_id,
+                disk_cache,
+            )
         },
     );
 
@@ -31,6 +39,7 @@ async fn process_typst_page_loading(
     total_pages: usize,
     visible_page: Arc<AtomicUsize>,
     generation_id: Arc<AtomicUsize>,
+    disk_cache: Option<Arc<crate::features::pdf::PdfDiskCache>>,
 ) {
     let compiled = tokio::task::spawn_blocking(move || {
         let path = Path::new(&file_path);
@@ -40,7 +49,7 @@ async fn process_typst_page_loading(
     .ok()
     .flatten();
 
-    let Some((temp_pdf, _, _, _)) = compiled else {
+    let Some((temp_pdf, _, _, _, _)) = compiled else {
         let _ = output
             .send(crate::app::messages::TypstMsg::CompileError.into())
             .await;
@@ -55,6 +64,7 @@ async fn process_typst_page_loading(
         total_pages,
         visible_page,
         generation_id,
+        disk_cache,
         |page_index, page_data| {
             crate::app::messages::TypstMsg::PageReady(
                 page_index,

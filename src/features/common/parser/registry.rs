@@ -246,6 +246,7 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 page_count,
                 first_page,
                 outline,
+                page_dimensions,
             } => crate::core::preview::PreviewData::Pdf {
                 page_count: page_count as usize,
                 current_page: 0,
@@ -253,6 +254,7 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 width: first_page.width,
                 height: first_page.height,
                 outline,
+                page_dimensions,
             },
             ParsedContent::Typst {
                 source,
@@ -260,6 +262,7 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 first_page,
                 error,
                 outline,
+                page_dimensions,
             } => crate::core::preview::PreviewData::Typst {
                 page_count: page_count as usize,
                 current_page: 0,
@@ -269,6 +272,7 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 source,
                 error,
                 outline,
+                page_dimensions,
             },
             ParsedContent::Spreadsheet { sheets } => {
                 crate::core::preview::PreviewData::Spreadsheet {

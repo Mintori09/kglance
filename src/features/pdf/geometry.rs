@@ -130,7 +130,8 @@ pub fn calculate_virtualized_layout(
     }
 }
 
-/// Compute thumbnail cumulative Y offsets in content coordinates.
+pub const THUMBNAIL_SPACING: f32 = 10.0;
+
 pub fn compute_thumbnail_offsets(
     dims: &[PageDimensions],
     thumb_width: f32,
@@ -157,4 +158,98 @@ pub fn compute_thumbnail_offsets(
     }
     let total_h = y;
     (offsets, ends, heights, total_h)
+}
+
+pub fn recalculate_pdf_thumbnail_offsets(pdf_state: &mut crate::core::PdfState) {
+    if pdf_state.page_dimensions.is_empty() {
+        pdf_state.thumbnail_y_offsets.clear();
+        pdf_state.thumbnail_ends.clear();
+        pdf_state.total_thumbnail_height = 0.0;
+        return;
+    }
+    let thumb_width = (pdf_state.sidebar_width - 24.0).clamp(100.0, 360.0);
+    let (offsets, ends, _, total_h) =
+        compute_thumbnail_offsets(&pdf_state.page_dimensions, thumb_width, THUMBNAIL_SPACING);
+    pdf_state.thumbnail_y_offsets = offsets;
+    pdf_state.thumbnail_ends = ends;
+    pdf_state.total_thumbnail_height = total_h;
+}
+
+/// Finds the primary visible thumbnail page index for a given scroll Y and viewport height.
+pub fn find_visible_thumbnail_page(offsets: &[f32], scroll_y: f32, viewport_height: f32) -> usize {
+    if offsets.is_empty() {
+        return 0;
+    }
+    let target_y = scroll_y + viewport_height * 0.3;
+    match offsets.binary_search_by(|&probe| {
+        if probe <= target_y {
+            std::cmp::Ordering::Less
+        } else {
+            std::cmp::Ordering::Greater
+        }
+    }) {
+        Ok(idx) => idx.min(offsets.len() - 1),
+        Err(idx) => idx.saturating_sub(1).min(offsets.len() - 1),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::features::pdf::types::PageDimensions;
+
+    #[test]
+    fn test_compute_thumbnail_offsets() {
+        let dims = vec![
+            PageDimensions {
+                width_pts: 100.0,
+                height_pts: 200.0,
+            },
+            PageDimensions {
+                width_pts: 200.0,
+                height_pts: 200.0,
+            },
+        ];
+        let (offsets, ends, heights, total_h) = compute_thumbnail_offsets(&dims, 100.0, 10.0);
+        assert_eq!(offsets.len(), 2);
+        assert_eq!(offsets[0], 0.0);
+        assert_eq!(heights[0], 200.0);
+        assert_eq!(ends[0], 200.0);
+        assert_eq!(offsets[1], 210.0);
+        assert_eq!(heights[1], 100.0);
+        assert_eq!(ends[1], 310.0);
+        assert_eq!(total_h, 310.0);
+    }
+
+    #[test]
+    fn test_recalculate_pdf_thumbnail_offsets() {
+        let mut pdf_state = crate::core::PdfState {
+            sidebar_width: 224.0, // thumb_width = 200.0
+            page_dimensions: vec![
+                PageDimensions {
+                    width_pts: 100.0,
+                    height_pts: 100.0,
+                },
+                PageDimensions {
+                    width_pts: 100.0,
+                    height_pts: 100.0,
+                },
+            ],
+            ..Default::default()
+        };
+
+        recalculate_pdf_thumbnail_offsets(&mut pdf_state);
+        assert_eq!(pdf_state.thumbnail_y_offsets.len(), 2);
+        assert_eq!(pdf_state.thumbnail_y_offsets[0], 0.0);
+        assert_eq!(pdf_state.thumbnail_y_offsets[1], 210.0); // 200 + 10
+        assert_eq!(pdf_state.total_thumbnail_height, 410.0);
+    }
+
+    #[test]
+    fn test_find_visible_thumbnail_page() {
+        let offsets = vec![0.0, 200.0, 400.0, 600.0];
+        assert_eq!(find_visible_thumbnail_page(&offsets, 0.0, 300.0), 0);
+        assert_eq!(find_visible_thumbnail_page(&offsets, 150.0, 300.0), 1);
+        assert_eq!(find_visible_thumbnail_page(&offsets, 550.0, 300.0), 3);
+    }
 }

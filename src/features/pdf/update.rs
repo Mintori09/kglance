@@ -96,21 +96,40 @@ pub fn handle_scrolled(
         if pdf_state.sidebar_visible {
             match pdf_state.sidebar_mode {
                 crate::core::types::PdfSidebarMode::Thumbnails => {
-                    let target_y =
-                        (page_index as f32 * (pdf_state.sidebar_width * 1.3) - 100.0).max(0.0);
-                    return iced::widget::operation::scroll_to(
-                        "pdf_thumb_scroll",
-                        iced::widget::operation::AbsoluteOffset {
-                            x: 0.0,
-                            y: target_y,
-                        },
-                    );
+                    if let Some(&thumb_y) = pdf_state.thumbnail_y_offsets.get(page_index) {
+                        let thumb_end = pdf_state
+                            .thumbnail_ends
+                            .get(page_index)
+                            .copied()
+                            .unwrap_or(thumb_y + 100.0);
+                        let s_h = if pdf_state.sidebar_viewport_height > 0.0 {
+                            pdf_state.sidebar_viewport_height
+                        } else {
+                            800.0
+                        };
+                        let item_h = thumb_end - thumb_y;
+                        let target_y = (thumb_y - (s_h - item_h) / 2.0).max(0.0);
+                        return iced::widget::operation::scroll_to(
+                            "pdf_thumb_scroll",
+                            iced::widget::operation::AbsoluteOffset {
+                                x: 0.0,
+                                y: target_y,
+                            },
+                        );
+                    }
                 }
                 crate::core::types::PdfSidebarMode::Toc => {
                     if let Some(active_pos) =
                         pdf_state.outline.iter().rposition(|e| e.page <= page_index)
                     {
-                        let target_y = (active_pos as f32 * 28.0 - 100.0).max(0.0);
+                        let s_h = if pdf_state.sidebar_viewport_height > 0.0 {
+                            pdf_state.sidebar_viewport_height
+                        } else {
+                            800.0
+                        };
+                        const TOC_ITEM_HEIGHT: f32 = 30.0;
+                        let item_y = active_pos as f32 * TOC_ITEM_HEIGHT;
+                        let target_y = (item_y - (s_h - TOC_ITEM_HEIGHT) / 2.0).max(0.0);
                         return iced::widget::operation::scroll_to(
                             "pdf_toc_scroll",
                             iced::widget::operation::AbsoluteOffset {
@@ -123,6 +142,33 @@ pub fn handle_scrolled(
             }
         }
     }
+    Task::none()
+}
+
+pub fn handle_sidebar_scrolled(
+    app: &mut KglanceApp,
+    viewport: iced::widget::scrollable::Viewport,
+) -> Task<Message> {
+    let y = viewport.absolute_offset().y;
+    let view_h = viewport.bounds().height;
+
+    let pdf_state = active_pdf_state_mut(app);
+    pdf_state.sidebar_scroll_y = y;
+    if view_h > 0.0 {
+        pdf_state.sidebar_viewport_height = view_h;
+    }
+
+    if !pdf_state.thumbnail_y_offsets.is_empty() {
+        let visible_thumb = crate::features::pdf::geometry::find_visible_thumbnail_page(
+            &pdf_state.thumbnail_y_offsets,
+            y,
+            view_h,
+        );
+        pdf_state
+            .visible_thumb_page
+            .store(visible_thumb, std::sync::atomic::Ordering::Relaxed);
+    }
+
     Task::none()
 }
 
@@ -181,8 +227,8 @@ pub fn handle_thumb_ready(
 
     if index < pdf_state.thumbnails.len() {
         let handle = iced::widget::image::Handle::from_bytes(data);
-        let current_page = pdf_state
-            .visible_page
+        let current_thumb = pdf_state
+            .visible_thumb_page
             .load(std::sync::atomic::Ordering::Relaxed);
         pdf_state.thumbnails.insert(
             index,
@@ -191,15 +237,25 @@ pub fn handle_thumb_ready(
                 height,
                 handle,
             },
-            current_page,
+            current_thumb,
         );
     }
     Task::none()
 }
 
 pub fn handle_sidebar_toggled(app: &mut KglanceApp) -> Task<Message> {
+    let win_w = app.state.current_window_size.width;
     let pdf_state = active_pdf_state_mut(app);
+    let desired_w = pdf_state.desired_width;
     pdf_state.sidebar_visible = !pdf_state.sidebar_visible;
+    let sidebar_w = if pdf_state.sidebar_visible {
+        pdf_state.sidebar_width + 1.0
+    } else {
+        0.0
+    };
+    let max_w = (win_w - sidebar_w - 40.0).clamp(300.0, 2400.0);
+    let target_display_w = desired_w.min(max_w);
+    crate::features::pdf::view::recalculate_pdf_offsets_for_width(pdf_state, target_display_w);
     let scroll_y = pdf_state.scroll_y;
     let load_task = if pdf_state.sidebar_visible {
         if pdf_state.sidebar_mode == crate::core::PdfSidebarMode::Thumbnails {
@@ -209,7 +265,7 @@ pub fn handle_sidebar_toggled(app: &mut KglanceApp) -> Task<Message> {
         }
     } else {
         pdf_state
-            .generation_id
+            .thumb_generation_id
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Task::none()
     };
@@ -235,7 +291,7 @@ pub fn handle_set_sidebar_mode(
     } else {
         if old_mode == crate::core::PdfSidebarMode::Thumbnails {
             pdf_state
-                .generation_id
+                .thumb_generation_id
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
         Task::none()
@@ -244,12 +300,24 @@ pub fn handle_set_sidebar_mode(
 
 fn start_thumbnail_loading_if_needed(app: &KglanceApp) -> Task<Message> {
     let pdf = active_pdf_state(app);
-    if !app.state.file_name.is_empty() && pdf.page_count > 0 {
-        crate::features::pdf::lazy_load_thumbnails(
+    let is_have_pdf = !app.state.file_name.is_empty() && pdf.page_count > 0;
+
+    if is_have_pdf {
+        crate::features::pdf::lazy_handler::lazy_load_thumbnails(
             app.state.file_name.clone(),
             pdf.page_count,
-            pdf.visible_page.clone(),
-            pdf.generation_id.clone(),
+            pdf.visible_thumb_page.clone(),
+            pdf.thumb_generation_id.clone(),
+            |page_index, page_data| {
+                crate::app::messages::PdfMsg::ThumbReady(
+                    page_index,
+                    page_data.data,
+                    page_data.width,
+                    page_data.height,
+                )
+                .into()
+            },
+            crate::app::messages::PdfMsg::PagesLoaded(Vec::new()).into(),
         )
     } else {
         Task::none()
@@ -276,20 +344,90 @@ fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
         .visible_page
         .store(target, std::sync::atomic::Ordering::Relaxed);
 
+    let start = target.saturating_sub(2);
+    let end = (target + 2).min(count.saturating_sub(1));
+    for p in start..=end {
+        promote_page_from_disk_if_cached(pdf_state, p);
+    }
+    evict_distant_pages(pdf_state, target);
+
     let target_y =
         crate::features::pdf::viewport::page_scroll_offset(&pdf_state.page_y_offsets, target);
 
-    iced::widget::operation::scroll_to(
+    let main_scroll = iced::widget::operation::scroll_to(
         "content_scroll",
         iced::widget::operation::AbsoluteOffset {
             x: 0.0,
             y: target_y,
         },
-    )
+    );
+
+    if pdf_state.sidebar_visible {
+        match pdf_state.sidebar_mode {
+            crate::core::types::PdfSidebarMode::Thumbnails => {
+                if let Some(&thumb_y) = pdf_state.thumbnail_y_offsets.get(target) {
+                    let thumb_end = pdf_state
+                        .thumbnail_ends
+                        .get(target)
+                        .copied()
+                        .unwrap_or(thumb_y + 100.0);
+                    let s_h = if pdf_state.sidebar_viewport_height > 0.0 {
+                        pdf_state.sidebar_viewport_height
+                    } else {
+                        800.0
+                    };
+                    let item_h = thumb_end - thumb_y;
+                    let target_thumb_y = (thumb_y - (s_h - item_h) / 2.0).max(0.0);
+                    let side_scroll = iced::widget::operation::scroll_to(
+                        "pdf_thumb_scroll",
+                        iced::widget::operation::AbsoluteOffset {
+                            x: 0.0,
+                            y: target_thumb_y,
+                        },
+                    );
+                    return Task::batch([main_scroll, side_scroll]);
+                }
+            }
+            crate::core::types::PdfSidebarMode::Toc => {
+                if let Some(active_pos) = pdf_state.outline.iter().rposition(|e| e.page <= target) {
+                    let s_h = if pdf_state.sidebar_viewport_height > 0.0 {
+                        pdf_state.sidebar_viewport_height
+                    } else {
+                        800.0
+                    };
+                    const TOC_ITEM_HEIGHT: f32 = 30.0;
+                    let item_y = active_pos as f32 * TOC_ITEM_HEIGHT;
+                    let target_toc_y = (item_y - (s_h - TOC_ITEM_HEIGHT) / 2.0).max(0.0);
+                    let side_scroll = iced::widget::operation::scroll_to(
+                        "pdf_toc_scroll",
+                        iced::widget::operation::AbsoluteOffset {
+                            x: 0.0,
+                            y: target_toc_y,
+                        },
+                    );
+                    return Task::batch([main_scroll, side_scroll]);
+                }
+            }
+        }
+    }
+
+    main_scroll
 }
 
 pub fn handle_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task<Message> {
-    active_pdf_state_mut(app).sidebar_width = width.clamp(120.0, 500.0);
+    let win_w = app.state.current_window_size.width;
+    let pdf_state = active_pdf_state_mut(app);
+    let desired_w = pdf_state.desired_width;
+    pdf_state.sidebar_width = width.clamp(120.0, 500.0);
+    crate::features::pdf::geometry::recalculate_pdf_thumbnail_offsets(pdf_state);
+    let sidebar_w = if pdf_state.sidebar_visible {
+        pdf_state.sidebar_width + 1.0
+    } else {
+        0.0
+    };
+    let max_w = (win_w - sidebar_w - 40.0).clamp(300.0, 2400.0);
+    let target_display_w = desired_w.min(max_w);
+    crate::features::pdf::view::recalculate_pdf_offsets_for_width(pdf_state, target_display_w);
     Task::none()
 }
 

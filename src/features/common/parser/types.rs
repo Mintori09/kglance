@@ -5,7 +5,10 @@ use crate::features::{
     json::parser::types::JsonNode,
     markdown::parser::Block,
     office::types::SheetData,
-    pdf::{parser::PdfTocEntry, types::PageData},
+    pdf::{
+        parser::PdfTocEntry,
+        types::{PageData, PageDimensions},
+    },
 };
 
 #[derive(Debug)]
@@ -26,6 +29,7 @@ pub enum ParsedContent {
         page_count: u32,
         first_page: PageData,
         outline: Vec<PdfTocEntry>,
+        page_dimensions: Vec<PageDimensions>,
     },
     Typst {
         source: String,
@@ -33,6 +37,7 @@ pub enum ParsedContent {
         first_page: PageData,
         error: Option<String>,
         outline: Vec<PdfTocEntry>,
+        page_dimensions: Vec<PageDimensions>,
     },
     Archive {
         entries: Vec<ArchiveEntry>,
