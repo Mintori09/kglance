@@ -79,9 +79,7 @@ impl KglanceApp {
 
         match &self.current_content {
             Some(PreviewData::Text { .. }) => self.state.text.search_visible,
-            Some(PreviewData::Json { .. }) => {
-                self.state.json.search_visible || self.state.json.editing_node.is_some()
-            }
+            Some(PreviewData::Json { .. }) => self.state.json.search_visible,
             Some(PreviewData::Markdown { .. }) => self.state.markdown.search_visible,
             Some(PreviewData::Spreadsheet { .. }) => self.state.spreadsheet.search_visible,
             _ => false,
@@ -154,7 +152,6 @@ impl KglanceApp {
     fn is_json_search_available(&self) -> bool {
         matches!(self.current_content, Some(PreviewData::Json { .. }))
             && !self.state.json.search_visible
-            && self.state.json.editing_node.is_none()
     }
 
     fn is_grid_search_active(&self) -> bool {
@@ -223,11 +220,8 @@ impl KglanceApp {
         if self.state.json.search_visible {
             self.state.json.search_visible = false;
             self.state.json.search_query.clear();
-        }
-
-        if self.state.json.editing_node.is_some() {
-            self.state.json.editing_node = None;
-            self.state.json.edit_value.clear();
+            self.state.json.search_matches.clear();
+            self.state.json.search_match_index = 0;
         }
     }
 

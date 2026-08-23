@@ -11,7 +11,7 @@ use iced::{Element, Length, Padding};
 
 use crate::ui::theme::tokens::spacing;
 
-use components::{render_breadcrumbs, render_raw, render_schema};
+use components::{render_breadcrumbs, render_raw};
 use style::{header_button_style, small_btn_style};
 use tree::render_tree;
 
@@ -54,14 +54,6 @@ pub fn view_json<'a>(
         None
     };
 
-    let schema_btn = button(text("Σ").size(12).font(iced::Font {
-        weight: iced::font::Weight::Bold,
-        ..iced::Font::MONOSPACE
-    }))
-    .on_press(crate::app::messages::JsonMsg::SchemaToggle.into())
-    .padding([2, 6])
-    .style(small_btn_style());
-
     let err_text = if state.has_parse_error {
         "⚠ JSON Parse Error — showing raw"
     } else {
@@ -97,7 +89,6 @@ pub fn view_json<'a>(
             .into(),
         );
     }
-    header_items.push(tooltip(schema_btn, "Schema (Ctrl+I)", tooltip::Position::Bottom).into());
     header_items.push(toggle_btn.into());
 
     let header = container(
@@ -114,21 +105,31 @@ pub fn view_json<'a>(
     .width(Length::Fill);
 
     let search_bar: Option<Element<'a, Message>> = if state.search_visible && state.tree_mode {
-        Some(search_bar(SearchKind::Json, &state.search_query, None))
+        let info = if state.search_info.is_empty() {
+            None
+        } else {
+            Some(state.search_info.as_str())
+        };
+        Some(search_bar(SearchKind::Json, &state.search_query, info))
     } else {
         None
     };
 
     let content: Element<'a, Message> = if state.tree_mode {
-        let editing_view = state.editing_node.is_some();
-        let tree = render_tree(state, theme, font_size, editing_view);
-        scroll_pane("json_scroll", tree)
+        let tree = render_tree(state, theme, font_size);
+        scroll_pane("content_scroll", tree)
             .container_padding(4)
+            .on_scroll(|viewport| {
+                crate::app::messages::JsonMsg::Scrolled(viewport.absolute_offset().y).into()
+            })
             .build()
     } else {
         let raw = render_raw(state, theme, font_size, font_family_mono, word_wrap);
-        scroll_pane("json_raw_scroll", raw)
+        scroll_pane("content_scroll", raw)
             .container_padding(4)
+            .on_scroll(|viewport| {
+                crate::app::messages::JsonMsg::Scrolled(viewport.absolute_offset().y).into()
+            })
             .build()
     };
 
@@ -138,14 +139,9 @@ pub fn view_json<'a>(
         None
     };
 
-    let schema_bar = render_schema(state, theme, font_size);
-
     let mut col_parts: Vec<Element<'a, Message>> = Vec::new();
     col_parts.push(header.into());
     if let Some(sb) = search_bar {
-        col_parts.push(sb);
-    }
-    if let Some(sb) = schema_bar {
         col_parts.push(sb);
     }
     if let Some(bc) = breadcrumbs {

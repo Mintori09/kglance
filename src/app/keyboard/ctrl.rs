@@ -70,7 +70,6 @@ impl KglanceApp {
         let message = match key {
             "e" => crate::app::messages::JsonMsg::ExpandAll,
             "E" => crate::app::messages::JsonMsg::CollapseAll,
-            "i" | "I" => crate::app::messages::JsonMsg::SchemaToggle,
             "P" => crate::app::messages::JsonMsg::ToggleFormat,
             _ => return None,
         };
@@ -127,6 +126,15 @@ impl KglanceApp {
 
             Some(PreviewData::Json { .. }) if !self.state.json.tree_mode => {
                 self.state.json.raw_editor.selection()
+            }
+
+            Some(PreviewData::Json { .. }) if self.state.json.tree_mode => {
+                self.state.json.active_node.and_then(|idx| {
+                    crate::features::json::parser::JsonParser::extract_subtree_json(
+                        &self.state.json.nodes,
+                        idx,
+                    )
+                })
             }
 
             Some(PreviewData::Markdown { .. } | PreviewData::Epub { .. }) => {
@@ -214,7 +222,10 @@ impl KglanceApp {
             ),
 
             Some(
-                PreviewData::Markdown { .. } | PreviewData::Text { .. } | PreviewData::Epub { .. },
+                PreviewData::Markdown { .. }
+                | PreviewData::Text { .. }
+                | PreviewData::Epub { .. }
+                | PreviewData::Json { .. },
             ) => {
                 let old_size = self.state.font_size;
                 let new_size = (old_size + direction).clamp(FONT_MIN, FONT_MAX);
@@ -225,6 +236,48 @@ impl KglanceApp {
                     if let Some(PreviewData::Markdown { ref blocks, .. }) = self.current_content {
                         self.state.markdown.toc =
                             extract_toc(blocks, new_size, &self.state.markdown.cached_image_sizes);
+                    }
+
+                    let scroll_task = match self.current_content {
+                        Some(PreviewData::Text { .. }) => {
+                            let old_lh = old_size * 1.35;
+                            let new_lh = new_size * 1.35;
+                            let line_index = (self.state.text.scroll_y / old_lh).max(0.0);
+                            self.state.text.scroll_y = (line_index * new_lh).max(0.0);
+                            Some(iced::widget::operation::scroll_to(
+                                "content_scroll",
+                                iced::widget::operation::AbsoluteOffset {
+                                    x: 0.0,
+                                    y: self.state.text.scroll_y,
+                                },
+                            ))
+                        }
+                        Some(PreviewData::Json { .. }) => {
+                            let new_scroll_y = if self.state.json.tree_mode {
+                                let old_row_h = (old_size * 1.2).max(18.0) + 4.0;
+                                let new_row_h = (new_size * 1.2).max(18.0) + 4.0;
+                                let node_index = (self.state.json.scroll_y / old_row_h).max(0.0);
+                                (node_index * new_row_h).max(0.0)
+                            } else {
+                                let old_lh = old_size * 1.35;
+                                let new_lh = new_size * 1.35;
+                                let line_index = (self.state.json.scroll_y / old_lh).max(0.0);
+                                (line_index * new_lh).max(0.0)
+                            };
+                            self.state.json.scroll_y = new_scroll_y;
+                            Some(iced::widget::operation::scroll_to(
+                                "content_scroll",
+                                iced::widget::operation::AbsoluteOffset {
+                                    x: 0.0,
+                                    y: self.state.json.scroll_y,
+                                },
+                            ))
+                        }
+                        _ => None,
+                    };
+
+                    if let Some(task) = scroll_task {
+                        return Some(task);
                     }
                 }
 
@@ -470,5 +523,81 @@ mod tests {
         let task = app.handle_ctrl_shortcuts(&key, modifiers);
         assert!(task.is_some());
         assert_eq!(app.state.word_wrap, !initial_wrap);
+    }
+
+    #[test]
+    fn ctrl_plus_minus_resizes_json_font_size() {
+        let mut app = test_app(Some(crate::core::PreviewData::Json {
+            nodes: vec![],
+            content: "{}".to_string(),
+            pretty: "{}".to_string(),
+            has_parse_error: false,
+        }));
+        let initial_size = app.state.font_size;
+        let plus_key = iced::keyboard::Key::Character("+".into());
+        let minus_key = iced::keyboard::Key::Character("-".into());
+        let modifiers = iced::keyboard::Modifiers::CTRL;
+
+        let task = app.handle_ctrl_shortcuts(&plus_key, modifiers);
+        assert!(task.is_some());
+        assert_eq!(app.state.font_size, initial_size + 1.0);
+
+        let task = app.handle_ctrl_shortcuts(&minus_key, modifiers);
+        assert!(task.is_some());
+        assert_eq!(app.state.font_size, initial_size);
+    }
+
+    #[test]
+    fn ctrl_plus_preserves_scroll_position_for_text_and_json() {
+        let mut app = test_app(Some(crate::core::PreviewData::Text {
+            content: "line 1\nline 2\nline 3".to_string(),
+            line_numbers: "1\n2\n3".to_string(),
+            language: "plaintext".to_string(),
+        }));
+        app.state.font_size = 14.0;
+        app.state.text.scroll_y = 140.0;
+
+        let plus_key = iced::keyboard::Key::Character("+".into());
+        let modifiers = iced::keyboard::Modifiers::CTRL;
+
+        let task = app.handle_ctrl_shortcuts(&plus_key, modifiers);
+        assert!(task.is_some());
+        assert_eq!(app.state.font_size, 15.0);
+        assert_eq!(app.state.text.scroll_y, 140.0 * (15.0 / 14.0));
+
+        let mut json_app = test_app(Some(crate::core::PreviewData::Json {
+            nodes: vec![],
+            content: "{}".to_string(),
+            pretty: "{}".to_string(),
+            has_parse_error: false,
+        }));
+        json_app.state.font_size = 14.0;
+        json_app.state.json.scroll_y = 280.0;
+
+        let task = json_app.handle_ctrl_shortcuts(&plus_key, modifiers);
+        assert!(task.is_some());
+        assert_eq!(json_app.state.font_size, 15.0);
+        assert_eq!(json_app.state.json.scroll_y, 280.0 * (15.0 / 14.0));
+
+        // Test tree mode node height preservation
+        let mut json_tree_app = test_app(Some(crate::core::PreviewData::Json {
+            nodes: vec![],
+            content: "{}".to_string(),
+            pretty: "{}".to_string(),
+            has_parse_error: false,
+        }));
+        json_tree_app.state.font_size = 14.0;
+        json_tree_app.state.json.tree_mode = true;
+        json_tree_app.state.json.scroll_y = 220.0;
+
+        let task = json_tree_app.handle_ctrl_shortcuts(&plus_key, modifiers);
+        assert!(task.is_some());
+        assert_eq!(json_tree_app.state.font_size, 15.0);
+        let old_row_h = (14.0f32 * 1.2).max(18.0) + 4.0;
+        let new_row_h = (15.0f32 * 1.2).max(18.0) + 4.0;
+        assert_eq!(
+            json_tree_app.state.json.scroll_y,
+            (220.0 / old_row_h) * new_row_h
+        );
     }
 }

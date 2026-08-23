@@ -55,6 +55,10 @@ impl super::KglanceApp {
             return task;
         }
 
+        if let Some(task) = self.handle_json_tree_navigation(&key, modifiers) {
+            return task;
+        }
+
         if let Some(task) = self.handle_scroll_shortcuts(&key, modifiers) {
             return task;
         }

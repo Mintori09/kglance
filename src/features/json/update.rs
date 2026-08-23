@@ -14,6 +14,7 @@ pub fn handle_toggle_node(app: &mut KglanceApp, index: usize) -> Task<Message> {
     } else {
         app.state.json.expanded.insert(index);
     }
+    app.state.json.active_node = Some(index);
     Task::none()
 }
 
@@ -37,20 +38,110 @@ pub fn handle_search_toggle(app: &mut KglanceApp) -> Task<Message> {
     s.search_visible = !s.search_visible;
     if !s.search_visible {
         s.search_query.clear();
+        s.search_matches.clear();
+        s.search_match_index = 0;
         Task::none()
     } else {
+        recompute_search_matches(s);
         operation::focus("json_search_input")
+    }
+}
+
+fn recompute_search_matches(s: &mut crate::core::types::JsonState) {
+    let q = s.search_query.trim().to_lowercase();
+    s.search_matches.clear();
+    s.search_match_index = 0;
+
+    if q.is_empty() {
+        s.search_info.clear();
+        return;
+    }
+
+    for (i, node) in s.nodes.iter().enumerate() {
+        let key_match = node
+            .key
+            .as_ref()
+            .is_some_and(|k| k.to_lowercase().contains(&q));
+        let val_match = node.value_preview.to_lowercase().contains(&q);
+        if key_match || val_match {
+            s.search_matches.push(i);
+        }
+    }
+
+    update_search_info(s);
+}
+
+fn update_search_info(s: &mut crate::core::types::JsonState) {
+    if s.search_query.trim().is_empty() {
+        s.search_info.clear();
+    } else if s.search_matches.is_empty() {
+        s.search_info = "0 matches".to_string();
+    } else {
+        s.search_info = format!(
+            "{}/{} matches",
+            s.search_match_index + 1,
+            s.search_matches.len()
+        );
+    }
+}
+
+fn expand_to_node(s: &mut crate::core::types::JsonState, target_index: usize) {
+    let mut current = s.nodes.get(target_index).and_then(|n| n.parent_index);
+    while let Some(parent_idx) = current {
+        s.expanded.insert(parent_idx);
+        current = s.nodes.get(parent_idx).and_then(|n| n.parent_index);
     }
 }
 
 pub fn handle_search_query_changed(app: &mut KglanceApp, query: String) -> Task<Message> {
     app.state.json.search_query = query;
+    recompute_search_matches(&mut app.state.json);
+
+    if let Some(&first_match) = app.state.json.search_matches.first() {
+        app.state.json.active_node = Some(first_match);
+        expand_to_node(&mut app.state.json, first_match);
+    }
+    Task::none()
+}
+
+pub fn handle_search_next(app: &mut KglanceApp) -> Task<Message> {
+    let s = &mut app.state.json;
+    if s.search_matches.is_empty() {
+        return Task::none();
+    }
+
+    s.search_match_index = (s.search_match_index + 1) % s.search_matches.len();
+    update_search_info(s);
+    let target = s.search_matches[s.search_match_index];
+    s.active_node = Some(target);
+    expand_to_node(s, target);
+    Task::none()
+}
+
+pub fn handle_search_prev(app: &mut KglanceApp) -> Task<Message> {
+    let s = &mut app.state.json;
+    if s.search_matches.is_empty() {
+        return Task::none();
+    }
+
+    if s.search_match_index == 0 {
+        s.search_match_index = s.search_matches.len() - 1;
+    } else {
+        s.search_match_index -= 1;
+    }
+    update_search_info(s);
+    let target = s.search_matches[s.search_match_index];
+    s.active_node = Some(target);
+    expand_to_node(s, target);
     Task::none()
 }
 
 pub fn handle_search_closed(app: &mut KglanceApp) -> Task<Message> {
     app.state.json.search_visible = false;
     app.state.json.search_query.clear();
+    app.state.json.search_matches.clear();
+    app.state.json.search_match_index = 0;
+    app.state.json.search_info.clear();
     Task::none()
 }
 
@@ -69,6 +160,13 @@ pub fn handle_collapse_all(app: &mut KglanceApp) -> Task<Message> {
 }
 
 pub fn handle_copy_path(app: &mut KglanceApp, index: usize) -> Task<Message> {
+    let path =
+        crate::features::json::view::components::build_json_path(&app.state.json.nodes, index);
+    let toast = app.show_toast("Copied JSON Path!");
+    Task::batch(vec![iced::clipboard::write(path), toast])
+}
+
+pub fn handle_copy_value(app: &mut KglanceApp, index: usize) -> Task<Message> {
     let val = app
         .state
         .json
@@ -80,13 +178,51 @@ pub fn handle_copy_path(app: &mut KglanceApp, index: usize) -> Task<Message> {
     Task::batch(vec![iced::clipboard::write(val), toast])
 }
 
+pub fn handle_copy_key(app: &mut KglanceApp, index: usize) -> Task<Message> {
+    let key = app
+        .state
+        .json
+        .nodes
+        .get(index)
+        .and_then(|n| n.key.clone())
+        .unwrap_or_default();
+    if key.is_empty() {
+        return Task::none();
+    }
+    let toast = app.show_toast("Copied Key!");
+    Task::batch(vec![iced::clipboard::write(key), toast])
+}
+
+pub fn handle_copy_subtree(app: &mut KglanceApp, index: usize) -> Task<Message> {
+    let json_text = crate::features::json::parser::JsonParser::extract_subtree_json(
+        &app.state.json.nodes,
+        index,
+    )
+    .unwrap_or_default();
+    if json_text.is_empty() {
+        return Task::none();
+    }
+    let toast = app.show_toast("Copied JSON subtree!");
+    Task::batch(vec![iced::clipboard::write(json_text), toast])
+}
+
 pub fn handle_node_clicked(app: &mut KglanceApp, index: usize) -> Task<Message> {
     app.state.json.active_node = Some(index);
     Task::none()
 }
 
-pub fn handle_breadcrumb_clicked(_app: &mut KglanceApp, _index: usize) -> Task<Message> {
-    operation::scroll_to("json_scroll", operation::AbsoluteOffset { x: 0.0, y: 0.0 })
+pub fn handle_breadcrumb_clicked(app: &mut KglanceApp, index: usize) -> Task<Message> {
+    app.state.json.active_node = Some(index);
+    if app
+        .state
+        .json
+        .nodes
+        .get(index)
+        .is_some_and(|n| n.children_count > 0)
+    {
+        app.state.json.expanded.insert(index);
+    }
+    Task::none()
 }
 
 pub fn handle_toggle_format(app: &mut KglanceApp) -> Task<Message> {
@@ -98,42 +234,5 @@ pub fn handle_toggle_format(app: &mut KglanceApp) -> Task<Message> {
     };
     s.raw_editor = iced::widget::text_editor::Content::with_text(&content);
     s.raw_pretty = !s.raw_pretty;
-    Task::none()
-}
-
-pub fn handle_edit_start(app: &mut KglanceApp, index: usize) -> Task<Message> {
-    if let Some(node) = app.state.json.nodes.get(index) {
-        let val = node.value_preview.clone();
-        app.state.json.editing_node = Some(index);
-        app.state.json.edit_value = val;
-    }
-    Task::none()
-}
-
-pub fn handle_edit_value(app: &mut KglanceApp, val: String) -> Task<Message> {
-    app.state.json.edit_value = val;
-    Task::none()
-}
-
-pub fn handle_edit_save(app: &mut KglanceApp) -> Task<Message> {
-    if let Some(_idx) = app.state.json.editing_node {
-        let path_str = app.state.file_name.clone();
-        app.state.json.editing_node = None;
-        app.state.json.edit_value.clear();
-        return crate::app::update::navigation::load_file_task(app, path_str, |_| {
-            crate::app::messages::SystemMsg::ToastDismissed(0).into()
-        });
-    }
-    Task::none()
-}
-
-pub fn handle_edit_cancel(app: &mut KglanceApp) -> Task<Message> {
-    app.state.json.editing_node = None;
-    app.state.json.edit_value.clear();
-    Task::none()
-}
-
-pub fn handle_schema_toggle(app: &mut KglanceApp) -> Task<Message> {
-    app.state.json.schema_visible = !app.state.json.schema_visible;
     Task::none()
 }
