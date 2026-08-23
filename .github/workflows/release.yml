@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag (e.g. v0.2.9)"
+        required: false
+        default: ""
 
 env:
   BINARY: kglance
@@ -39,7 +45,7 @@ jobs:
             appimagetool_url: https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Cache APT packages
         uses: actions/cache@v4
@@ -114,22 +120,38 @@ jobs:
       - name: Strip binary
         run: strip "target/release/${BINARY}"
 
+      - name: Resolve Release Version
+        id: version
+        run: |
+          RAW_TAG="${{ github.event.inputs.tag_name }}"
+          if [ -z "$RAW_TAG" ]; then
+            if [ "${{ github.ref_type }}" = "tag" ]; then
+              RAW_TAG="${{ github.ref_name }}"
+            else
+              CARGO_VER=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
+              RAW_TAG="v${CARGO_VER}"
+            fi
+          fi
+          CLEAN_VER="${RAW_TAG#v}"
+          echo "tag_name=${RAW_TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${CLEAN_VER}" >> "$GITHUB_OUTPUT"
+
       - name: Build .deb package
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ steps.version.outputs.version }}"
           cargo deb --no-build --deb-version "${VERSION}-1" \
             -o "${BINARY}_${VERSION}-1_${{ matrix.deb_arch }}.deb"
 
       - name: Build .rpm package
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ steps.version.outputs.version }}"
           cargo generate-rpm
           mv target/generate-rpm/*.rpm \
             "${BINARY}-${VERSION}-1.${{ matrix.rpm_arch }}.rpm"
 
       - name: Build AppImage
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ steps.version.outputs.version }}"
           APPDIR=AppDir
           rm -rf "$APPDIR"
 
@@ -179,6 +201,22 @@ jobs:
       contents: write
 
     steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve Release Tag
+        id: version
+        run: |
+          RAW_TAG="${{ github.event.inputs.tag_name }}"
+          if [ -z "$RAW_TAG" ]; then
+            if [ "${{ github.ref_type }}" = "tag" ]; then
+              RAW_TAG="${{ github.ref_name }}"
+            else
+              CARGO_VER=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
+              RAW_TAG="v${CARGO_VER}"
+            fi
+          fi
+          echo "tag_name=${RAW_TAG}" >> "$GITHUB_OUTPUT"
+
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -194,6 +232,7 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag_name }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |

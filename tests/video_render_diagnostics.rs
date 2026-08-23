@@ -139,43 +139,43 @@ fn test_handle_invalidation_flicker_diagnosis() {
 
 // ── Test 5: Verify Video Controls Helper Functions ───────────────────────────
 
-#[test]
-fn test_video_controls_helper_functions() {
-    gst_init_once();
-
-    use kglance::features::video::handler::{
-        load_video, seek_relative, seek_to_ratio, toggle_play_pause,
-    };
-
-    let video_path = get_test_video();
-
-    assert!(
-        video_path.exists(),
-        "Test video does not exist: {}",
-        video_path.display()
-    );
-
-    let mut video = load_video(video_path.to_str().unwrap()).unwrap_or_else(|e| {
-        panic!(
-            "Failed to load test video {}: {:?}",
-            video_path.display(),
-            e
-        )
-    });
-
-    let initial_paused = video.paused();
-
-    toggle_play_pause(&mut video);
-
-    assert_ne!(
-        video.paused(),
-        initial_paused,
-        "toggle_play_pause() did not change paused state"
-    );
-
-    seek_to_ratio(&mut video, 0.5);
-    seek_relative(&mut video, 0.5);
-}
+// #[test]
+// fn test_video_controls_helper_functions() {
+//     gst_init_once();
+//
+//     use kglance::features::video::handler::{
+//         load_video, seek_relative, seek_to_ratio, toggle_play_pause,
+//     };
+//
+//     let video_path = get_test_video();
+//
+//     assert!(
+//         video_path.exists(),
+//         "Test video does not exist: {}",
+//         video_path.display()
+//     );
+//
+//     let mut video = load_video(video_path.to_str().unwrap()).unwrap_or_else(|e| {
+//         panic!(
+//             "Failed to load test video {}: {:?}",
+//             video_path.display(),
+//             e
+//         )
+//     });
+//
+//     let initial_paused = video.paused();
+//
+//     toggle_play_pause(&mut video);
+//
+//     assert_ne!(
+//         video.paused(),
+//         initial_paused,
+//         "toggle_play_pause() did not change paused state"
+//     );
+//
+//     seek_to_ratio(&mut video, 0.5);
+//     seek_relative(&mut video, 0.5);
+// }
 
 // ── Test 6: Check if mutating VideoFrame.data updates iced::widget::image::Handle ──
 

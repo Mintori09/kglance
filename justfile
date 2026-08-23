@@ -38,3 +38,26 @@ release:
     cargo build --release
     notify-send "Build successfully!"
 
+tags version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    TAG="{{version}}"
+
+    echo "Checking tag: $TAG"
+
+    if git rev-parse "$TAG" >/dev/null 2>&1; then
+        echo "Deleting local tag: $TAG"
+        git tag -d "$TAG"
+    fi
+
+    if git ls-remote --tags --exit-code origin "refs/tags/$TAG" >/dev/null 2>&1; then
+        echo "Deleting remote tag on origin: $TAG"
+        git push origin --delete "$TAG"
+    fi
+
+    echo "Creating new tag: $TAG"
+    git tag "$TAG"
+
+    echo "Pushing tag $TAG to origin"
+    git push origin "$TAG"
