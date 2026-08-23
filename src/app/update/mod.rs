@@ -311,6 +311,12 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::JsonMsg::SearchQueryChanged(q) => {
                 crate::features::json::update::handle_search_query_changed(app, q)
             }
+            crate::app::messages::JsonMsg::SearchNext => {
+                crate::features::json::update::handle_search_next(app)
+            }
+            crate::app::messages::JsonMsg::SearchPrev => {
+                crate::features::json::update::handle_search_prev(app)
+            }
             crate::app::messages::JsonMsg::SearchClosed => {
                 crate::features::json::update::handle_search_closed(app)
             }
@@ -323,6 +329,15 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::JsonMsg::CopyPath(idx) => {
                 crate::features::json::update::handle_copy_path(app, idx)
             }
+            crate::app::messages::JsonMsg::CopyValue(idx) => {
+                crate::features::json::update::handle_copy_value(app, idx)
+            }
+            crate::app::messages::JsonMsg::CopyKey(idx) => {
+                crate::features::json::update::handle_copy_key(app, idx)
+            }
+            crate::app::messages::JsonMsg::CopySubtree(idx) => {
+                crate::features::json::update::handle_copy_subtree(app, idx)
+            }
             crate::app::messages::JsonMsg::NodeClicked(idx) => {
                 crate::features::json::update::handle_node_clicked(app, idx)
             }
@@ -331,21 +346,6 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::JsonMsg::ToggleFormat => {
                 crate::features::json::update::handle_toggle_format(app)
-            }
-            crate::app::messages::JsonMsg::EditStart(idx) => {
-                crate::features::json::update::handle_edit_start(app, idx)
-            }
-            crate::app::messages::JsonMsg::EditValue(v) => {
-                crate::features::json::update::handle_edit_value(app, v)
-            }
-            crate::app::messages::JsonMsg::EditSave => {
-                crate::features::json::update::handle_edit_save(app)
-            }
-            crate::app::messages::JsonMsg::EditCancel => {
-                crate::features::json::update::handle_edit_cancel(app)
-            }
-            crate::app::messages::JsonMsg::SchemaToggle => {
-                crate::features::json::update::handle_schema_toggle(app)
             }
         },
         Message::Settings(msg) => match msg {

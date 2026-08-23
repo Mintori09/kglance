@@ -541,13 +541,12 @@ pub struct JsonState {
     pub raw_editor: iced::widget::text_editor::Content,
     pub search_visible: bool,
     pub search_query: String,
+    pub search_matches: Vec<usize>,
+    pub search_match_index: usize,
+    pub search_info: String,
     pub minified_content: String,
     pub raw_pretty: bool,
     pub active_node: Option<usize>,
-    pub editing_node: Option<usize>,
-    pub edit_value: String,
-    pub schema_visible: bool,
-    pub schema_info: String,
 }
 
 impl Default for JsonState {
@@ -563,13 +562,12 @@ impl Default for JsonState {
             raw_editor: iced::widget::text_editor::Content::new(),
             search_visible: false,
             search_query: String::new(),
+            search_matches: Vec::new(),
+            search_match_index: 0,
+            search_info: String::new(),
             minified_content: String::new(),
             raw_pretty: true,
             active_node: None,
-            editing_node: None,
-            edit_value: String::new(),
-            schema_visible: false,
-            schema_info: String::new(),
         }
     }
 }
