@@ -144,18 +144,18 @@ pub enum JsonMsg {
     RawEdit(iced::widget::text_editor::Action),
     SearchToggle,
     SearchQueryChanged(String),
+    SearchNext,
+    SearchPrev,
     SearchClosed,
     ExpandAll,
     CollapseAll,
     CopyPath(usize),
+    CopyValue(usize),
+    CopyKey(usize),
+    CopySubtree(usize),
     NodeClicked(usize),
     BreadcrumbClicked(usize),
     ToggleFormat,
-    EditStart(usize),
-    EditValue(String),
-    EditSave,
-    EditCancel,
-    SchemaToggle,
 }
 
 #[derive(Debug, Clone)]

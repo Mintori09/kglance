@@ -142,18 +142,34 @@ fn available_themes() -> Vec<String> {
 
 fn resolve_icon_path(icon_name: &str) -> Option<PathBuf> {
     let themes = available_themes();
-
     let base_dirs = icon_base_dirs();
 
-    for theme in &themes {
-        for base in &base_dirs {
-            let theme_dir = base.join(theme);
-            if theme_dir.exists()
-                && let Some(p) = find_icon_in_dir(&theme_dir, icon_name)
-            {
-                return Some(p);
+    let try_find = |name: &str| -> Option<PathBuf> {
+        for theme in &themes {
+            for base in &base_dirs {
+                let theme_dir = base.join(theme);
+                if theme_dir.exists()
+                    && let Some(p) = find_icon_in_dir(&theme_dir, name)
+                {
+                    return Some(p);
+                }
             }
         }
+        None
+    };
+
+    if let Some(p) = try_find(icon_name) {
+        return Some(p);
+    }
+
+    if let Some(alt) = match icon_name {
+        "text-rust" => Some("text-x-rust"),
+        "text-x-rust" => Some("text-rust"),
+        "application-toml" => Some("text-x-toml"),
+        "text-x-toml" => Some("application-toml"),
+        _ => None,
+    } {
+        return try_find(alt);
     }
 
     None
@@ -187,7 +203,7 @@ pub fn icon_for_entry(name: &str, is_dir: bool) -> &'static str {
     let lower_name = name.to_ascii_lowercase();
 
     match lower_name.as_str() {
-        "cargo.toml" => return "text-x-toml",
+        "cargo.toml" => return "application-toml",
         "cargo.lock" => return "text-x-generic",
         "cmakelists.txt" => return "text-x-cmake",
         "dockerfile" => return "text-x-dockerfile",
@@ -212,7 +228,7 @@ pub fn icon_for_entry(name: &str, is_dir: bool) -> &'static str {
         // =========================
         // Rust
         // =========================
-        "rs" => "text-x-rust-source",
+        "rs" => "text-rust",
 
         // =========================
         // C / C++
@@ -293,7 +309,7 @@ pub fn icon_for_entry(name: &str, is_dir: bool) -> &'static str {
         // =========================
         "json" => "application-json",
         "jsonc" => "application-json",
-        "toml" => "text-x-toml",
+        "toml" => "application-toml",
         "yaml" | "yml" => "text-x-yaml",
         "xml" => "application-xml",
         "ini" | "cfg" | "conf" => "text-x-config",

@@ -22,21 +22,26 @@ pub fn estimated_block_height(
                 _ => scale(16.0),
             };
             let (pt, pb, div) = match level {
-                1 => (scale(24.0), scale(12.0), 5.0),
-                2 => (scale(20.0), scale(8.0), 5.0),
-                3 => (scale(12.0), scale(4.0), 0.0),
-                _ => (scale(8.0), scale(4.0), 0.0),
+                1 => (24.0, 12.0, 5.0),
+                2 => (20.0, 8.0, 5.0),
+                3 => (12.0, 4.0, 0.0),
+                _ => (8.0, 4.0, 0.0),
             };
             pt + h + pb + div + margin
         }
         Block::Paragraph(inlines) => {
-            let text_len = flatten_inlines_toc(inlines).len();
-            let estimated_lines = (text_len / 70 + 1) as f32;
-            estimated_lines * line + margin
+            let text = flatten_inlines_toc(inlines);
+            let explicit_lines = text.lines().count().max(1);
+            let chars_per_line = ((800.0 - 32.0) / (font_size * 0.55)).max(40.0) as usize;
+            let wrapped_lines = (text.len() / chars_per_line).max(1);
+            let num_lines = explicit_lines.max(wrapped_lines) as f32;
+            num_lines * line + 4.0 + margin
         }
-        Block::CodeBlock { code, .. } => {
+        Block::CodeBlock { lang, code, .. } => {
             let n = code.lines().count().max(1) as f32;
-            scale(16.0) + n * scale(13.0) * 1.3 + margin
+            let top_bar = if lang.is_some() { 28.0 } else { 24.0 };
+            let code_line_h = scale(13.0) * 1.35;
+            top_bar + 20.0 + n * code_line_h + margin
         }
         Block::Table(t) => {
             let num_cols = if t.headers.is_empty() {
@@ -47,7 +52,7 @@ pub fn estimated_block_height(
             .max(1);
             let approx_col_chars = (75 / num_cols).max(12);
 
-            let row_height = scale(24.0);
+            let row_height = scale(28.0);
             let mut total_lines = 0.0;
 
             if !t.headers.is_empty() {
@@ -80,28 +85,30 @@ pub fn estimated_block_height(
             total_lines * row_height + margin
         }
         Block::List { items, .. } => {
-            let total_item_lines: f32 = items
-                .iter()
-                .map(|item| {
-                    let len = flatten_inlines_toc(&item.content).len();
-                    (len / 70 + 1) as f32
-                })
-                .sum();
-            total_item_lines.max(1.0) * line + margin
+            let mut total_h = 0.0;
+            let chars_per_line = ((800.0 - 64.0) / (font_size * 0.55)).max(30.0) as usize;
+            for item in items {
+                let text = flatten_inlines_toc(&item.content);
+                let explicit_lines = text.lines().count().max(1);
+                let wrapped_lines = (text.len() / chars_per_line).max(1);
+                let n = explicit_lines.max(wrapped_lines) as f32;
+                total_h += n * line + 8.0;
+            }
+            total_h.max(line) + margin
         }
         Block::Quote(b) => {
             let h: f32 = b
                 .iter()
-                .map(|b| estimated_block_height(b, font_size, block_index, image_sizes) * 0.8)
+                .map(|b| estimated_block_height(b, font_size, block_index, image_sizes) * 0.9)
                 .sum();
-            h + margin
+            h + 16.0 + margin
         }
         Block::Alert { content, .. } => {
             let h: f32 = content
                 .iter()
                 .map(|b| estimated_block_height(b, font_size, block_index, image_sizes))
                 .sum();
-            scale(28.0) + h + margin
+            scale(28.0) + h + 16.0 + margin
         }
         Block::FootnoteDefinition { content, .. } => {
             let h: f32 = content

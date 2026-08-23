@@ -13,7 +13,7 @@ pub fn populate_state(
 
     let mut expanded = HashSet::new();
     for (i, node) in nodes.iter().enumerate() {
-        if node.depth == 0 {
+        if node.children_count > 0 {
             expanded.insert(i);
         }
     }
@@ -34,13 +34,56 @@ pub fn populate_state(
         raw_editor: iced::widget::text_editor::Content::with_text(pretty),
         search_visible: false,
         search_query: String::new(),
+        search_matches: Vec::new(),
+        search_match_index: 0,
+        search_info: String::new(),
         minified_content: minified,
         raw_pretty: true,
         active_node: None,
-        editing_node: None,
-        edit_value: String::new(),
-        schema_visible: false,
-        schema_info: String::new(),
     };
     state.file_type_text = "JSON Document".to_string();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_populate_state_expands_all_containers() {
+        let mut state = KglanceState::default();
+        let nodes = vec![
+            JsonNode {
+                key: None,
+                value_type: "Object",
+                value_preview: "{ 2 items }".to_string(),
+                children_count: 2,
+                skip_count: 2,
+                depth: 0,
+                parent_index: None,
+            },
+            JsonNode {
+                key: Some("arr".to_string()),
+                value_type: "Array",
+                value_preview: "[ 1 item ]".to_string(),
+                children_count: 1,
+                skip_count: 1,
+                depth: 1,
+                parent_index: Some(0),
+            },
+            JsonNode {
+                key: Some("[0]".to_string()),
+                value_type: "Number",
+                value_preview: "42".to_string(),
+                children_count: 0,
+                skip_count: 0,
+                depth: 2,
+                parent_index: Some(1),
+            },
+        ];
+
+        populate_state(&mut state, &nodes, "{}", false);
+        assert!(state.json.expanded.contains(&0));
+        assert!(state.json.expanded.contains(&1));
+        assert!(!state.json.expanded.contains(&2));
+    }
 }

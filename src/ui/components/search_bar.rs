@@ -64,8 +64,8 @@ impl SearchKind {
             },
             Self::Json => SearchMessages {
                 on_query: |q| crate::app::messages::JsonMsg::SearchQueryChanged(q).into(),
-                on_next: None,
-                on_prev: None,
+                on_next: Some(crate::app::messages::JsonMsg::SearchNext.into()),
+                on_prev: Some(crate::app::messages::JsonMsg::SearchPrev.into()),
                 on_close: crate::app::messages::JsonMsg::SearchClosed.into(),
             },
             Self::Spreadsheet => SearchMessages {

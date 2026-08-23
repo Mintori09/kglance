@@ -87,6 +87,7 @@ impl super::KglanceApp {
                 Some(PreviewData::Markdown { .. })
                     | Some(PreviewData::Text { .. })
                     | Some(PreviewData::Epub { .. })
+                    | Some(PreviewData::Json { .. })
             ) {
                 let delta = if scroll_val > 0.0 { 1.0 } else { -1.0 };
                 let old_font_size = self.state.font_size;
@@ -99,6 +100,44 @@ impl super::KglanceApp {
                             self.state.font_size,
                             &self.state.markdown.cached_image_sizes,
                         );
+                    }
+
+                    match self.current_content {
+                        Some(PreviewData::Text { .. }) => {
+                            let old_lh = old_font_size * 1.35;
+                            let new_lh = next_font_size * 1.35;
+                            let line_index = (self.state.text.scroll_y / old_lh).max(0.0);
+                            self.state.text.scroll_y = (line_index * new_lh).max(0.0);
+                            return operation::scroll_to(
+                                "content_scroll",
+                                AbsoluteOffset {
+                                    x: 0.0,
+                                    y: self.state.text.scroll_y,
+                                },
+                            );
+                        }
+                        Some(PreviewData::Json { .. }) => {
+                            let new_scroll_y = if self.state.json.tree_mode {
+                                let old_row_h = (old_font_size * 1.2).max(18.0) + 4.0;
+                                let new_row_h = (next_font_size * 1.2).max(18.0) + 4.0;
+                                let node_index = (self.state.json.scroll_y / old_row_h).max(0.0);
+                                (node_index * new_row_h).max(0.0)
+                            } else {
+                                let old_lh = old_font_size * 1.35;
+                                let new_lh = next_font_size * 1.35;
+                                let line_index = (self.state.json.scroll_y / old_lh).max(0.0);
+                                (line_index * new_lh).max(0.0)
+                            };
+                            self.state.json.scroll_y = new_scroll_y;
+                            return operation::scroll_to(
+                                "content_scroll",
+                                AbsoluteOffset {
+                                    x: 0.0,
+                                    y: self.state.json.scroll_y,
+                                },
+                            );
+                        }
+                        _ => {}
                     }
                 }
                 Task::none()
