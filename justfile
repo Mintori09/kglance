@@ -14,8 +14,8 @@ push: ci
 build:
     cargo build --all
 
-test FILTER='':
-    cargo test --all {{FILTER}}
+test *ARGS:
+    cargo nextest run --test-threads 3 {{ARGS}}
 
 clippy:
     cargo clippy --all-targets --all-features
