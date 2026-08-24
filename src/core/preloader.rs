@@ -1,6 +1,6 @@
 use std::path::Path;
 
-pub const MAX_PRELOAD_FILE_SIZE: u64 = 20 * 1024 * 1024; // 20 MB safety threshold
+pub const MAX_PRELOAD_FILE_SIZE: u64 = 30 * 1024 * 1024; // 30 MB safety threshold
 
 pub fn calculate_preload_window(current_index: usize, playlist_len: usize) -> Vec<usize> {
     if playlist_len <= 1 {

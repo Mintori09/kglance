@@ -11,12 +11,18 @@ pub(crate) fn load_file_task(
 ) -> Task<Message> {
     let reg = app.registry.clone();
     let path_for_err = path.clone();
+    let path_for_parse = path.clone();
     Task::perform(
         async move {
-            let content = FilePreviewer::parse(&*reg, Path::new(&path)).ok()?;
+            let content = tokio::task::spawn_blocking(move || {
+                FilePreviewer::parse(&*reg, Path::new(&path_for_parse)).ok()
+            })
+            .await
+            .ok()
+            .flatten()?;
             Some(crate::app::messages::SystemMsg::FileLoaded { path, content }.into())
         },
-        move |msg| msg.unwrap_or(on_error(path_for_err.clone())),
+        move |msg| msg.unwrap_or_else(|| on_error(path_for_err.clone())),
     )
 }
 
