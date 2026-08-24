@@ -1,0 +1,6 @@
+[profile.default]
+test-threads = 3
+slow-timeout = { period = "60s", terminate-after = 2 }
+
+[profile.ci]
+test-threads = 2
