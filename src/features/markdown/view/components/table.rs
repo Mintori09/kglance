@@ -4,40 +4,11 @@ use super::style::{
 };
 use crate::app::Message;
 use crate::features::markdown::view::components::render_inlines;
-use crate::parsers::markdown::{TableBlock, TableCell, flatten_inlines};
+use crate::parsers::markdown::TableBlock;
 use crate::ui::theme::scale_size;
 use crate::ui::types::RenderContext;
 use iced::widget::{column, container, row, text};
 use iced::{Element, Length};
-
-fn calculate_column_weights(headers: &[TableCell], rows: &[Vec<TableCell>]) -> Vec<u16> {
-    let n = headers.len();
-    if n == 0 {
-        return vec![];
-    }
-
-    let mut max_lens = vec![0usize; n];
-    for (i, header) in headers.iter().enumerate() {
-        max_lens[i] = flatten_inlines(&header.content).len();
-    }
-    for row in rows {
-        for (i, cell) in row.iter().enumerate().take(n) {
-            max_lens[i] = max_lens[i].max(flatten_inlines(&cell.content).len());
-        }
-    }
-
-    let total: usize = max_lens.iter().sum();
-    if total == 0 {
-        return vec![1; n];
-    }
-
-    max_lens
-        .iter()
-        .map(|&length| {
-            ((length as f32 / total as f32) * 100.0).max(STYLE.table.min_column_weight) as u16
-        })
-        .collect()
-}
 
 pub(crate) fn render_table<'a>(
     table: &'a TableBlock,
@@ -45,10 +16,10 @@ pub(crate) fn render_table<'a>(
 ) -> Element<'a, Message> {
     let header_size = scale_size(STYLE.table.header_font_size, ctx.font_size);
     let cell_size = scale_size(STYLE.table.cell_font_size, ctx.font_size);
-    let column_weights = calculate_column_weights(&table.headers, &table.rows);
 
     let get_column_width = |index: usize| -> Length {
-        column_weights
+        table
+            .column_weights
             .get(index)
             .map_or(Length::FillPortion(1), |&weight| {
                 Length::FillPortion(weight)
