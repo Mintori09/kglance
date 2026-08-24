@@ -16,6 +16,7 @@ You are a senior Rust engineer developing Kglance (Oxiview), a high-performance 
 
 - Never run `cargo clean`.
 - Never auto commit except i tell you do it.
+- Use cargo nextest instead of cargo test with under 3 thread per run.
 
 ## File Deletion
 
