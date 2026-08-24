@@ -603,7 +603,7 @@ fn markdown_state_caches_mermaid_handles_correctly() {
         {
             state
                 .cached_mermaid_handles
-                .insert(i, Handle::from_rgba(1, 1, vec![0, 0, 0, 255]));
+                .insert(i, Handle::from_bytes(vec![0, 0, 0, 255]));
         }
     }
     assert!(
@@ -691,6 +691,7 @@ fn markdown_state_ignores_non_mermaid_blocks() {
             rows: vec![vec![TableCell {
                 content: vec![text("1")],
             }]],
+            column_weights: vec![100],
         }),
     ];
 
@@ -702,7 +703,7 @@ fn markdown_state_ignores_non_mermaid_blocks() {
         {
             state
                 .cached_mermaid_handles
-                .insert(i, Handle::from_rgba(1, 1, vec![0, 0, 0, 255]));
+                .insert(i, Handle::from_bytes(vec![0, 0, 0, 255]));
         }
     }
     assert!(

@@ -176,3 +176,13 @@ pub(crate) const NORD11: Color = Color::from_rgb(0.75, 0.38, 0.42); // #BF616A R
 pub(crate) const NORD13: Color = Color::from_rgb(0.92, 0.80, 0.55); // #EBCB8B Yellow
 pub(crate) const NORD14: Color = Color::from_rgb(0.64, 0.75, 0.55); // #A3BE8C Green / Success
 pub(crate) const NORD15: Color = Color::from_rgb(0.71, 0.56, 0.68); // #B48EAD Purple / Constant
+
+#[inline]
+pub const fn syntect_to_iced_color(c: syntect::highlighting::Color) -> Color {
+    Color::from_rgba(
+        c.r as f32 / 255.0,
+        c.g as f32 / 255.0,
+        c.b as f32 / 255.0,
+        c.a as f32 / 255.0,
+    )
+}

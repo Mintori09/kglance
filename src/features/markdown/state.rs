@@ -87,15 +87,10 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
             ..
         } = block
         {
-            let handle = match image::load_from_memory(png) {
-                Ok(img) => {
-                    let rgba = img.to_rgba8();
-                    let (w, h) = rgba.dimensions();
-                    iced::widget::image::Handle::from_rgba(w, h, rgba.into_raw())
-                }
-                Err(_) => iced::widget::image::Handle::from_bytes(png.clone()),
-            };
-            state.markdown.cached_mermaid_handles.insert(i, handle);
+            state
+                .markdown
+                .cached_mermaid_handles
+                .insert(i, iced::widget::image::Handle::from_bytes(png.clone()));
         }
     }
     state.file_type_text = "Markdown Document".to_string();

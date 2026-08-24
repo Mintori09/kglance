@@ -52,6 +52,7 @@ impl PreviewParser for MarkdownParser {
 
         let images = handle::extract_images(&raw, parent);
         let blocks = parse_to_blocks(&raw);
+        crate::features::markdown::view::highlight::pre_highlight_blocks(&blocks);
 
         Ok(ParsedContent::Markdown {
             content: raw,

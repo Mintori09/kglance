@@ -36,7 +36,6 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
         cell_padding: [8, 12],
         header_font_size: tables::FONT_SIZE_HEADER,
         cell_font_size: tables::FONT_SIZE_BODY,
-        min_column_weight: 10.0,
     },
     list: ListStyle {
         bullet_color: primitive::GRAY_500,
@@ -158,7 +157,6 @@ pub(crate) struct TableStyle {
     pub cell_padding: [u16; 2],
     pub header_font_size: f32,
     pub cell_font_size: f32,
-    pub min_column_weight: f32,
 }
 
 #[derive(Clone, Copy)]

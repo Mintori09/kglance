@@ -5,6 +5,9 @@
 //! - [`base`], [`roles`] — shared semantic tokens for the whole UI.
 //! - [`markdown`], [`json`], [`sidebar`] — view/component semantic tokens.
 
+use crate::ui::theme::color::primitive::{
+    MD_DARK_CODE_FG, MD_LIGHT_CODE_FG, syntect_to_iced_color,
+};
 pub mod base;
 pub mod json;
 pub mod markdown;
@@ -18,7 +21,7 @@ pub use markdown::MarkdownColors;
 pub use roles::RoleColors;
 pub use sidebar::SidebarColors;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum AppTheme {
     #[default]
     Dark,
@@ -27,10 +30,6 @@ pub enum AppTheme {
 }
 
 impl AppTheme {
-    pub fn is_dark(self) -> bool {
-        matches!(self, AppTheme::Dark | AppTheme::Nord)
-    }
-
     pub fn palette(self) -> &'static ColorPalette {
         match self {
             AppTheme::Dark => &DARK_PALETTE,
@@ -38,14 +37,53 @@ impl AppTheme {
             AppTheme::Nord => &NORD_PALETTE,
         }
     }
+
+    #[inline]
+    pub const fn syntect_theme(self) -> &'static str {
+        match self {
+            AppTheme::Dark | AppTheme::Nord => "base16-eighties.dark",
+            AppTheme::Light => "InspiredGitHub",
+        }
+    }
+
+    #[inline]
+    pub const fn iced_highlighter_theme(self) -> iced::highlighter::Theme {
+        match self {
+            AppTheme::Dark | AppTheme::Nord => iced::highlighter::Theme::Base16Mocha,
+            AppTheme::Light => iced::highlighter::Theme::InspiredGitHub,
+        }
+    }
+
+    fn code_fg(&self) -> iced::Color {
+        match self {
+            AppTheme::Dark | AppTheme::Nord => MD_DARK_CODE_FG,
+            AppTheme::Light => MD_LIGHT_CODE_FG,
+        }
+    }
+
+    pub fn resolve_code_fg(&self, syntect_theme: &syntect::highlighting::Theme) -> iced::Color {
+        syntect_theme
+            .settings
+            .foreground
+            .map(syntect_to_iced_color)
+            .unwrap_or_else(|| self.code_fg())
+    }
 }
 
-impl From<bool> for AppTheme {
-    fn from(is_dark: bool) -> Self {
-        if is_dark {
-            AppTheme::Dark
-        } else {
-            AppTheme::Light
+impl From<AppTheme> for iced::Theme {
+    fn from(theme: AppTheme) -> Self {
+        match theme {
+            AppTheme::Dark | AppTheme::Nord => iced::Theme::Dark,
+            AppTheme::Light => iced::Theme::Light,
+        }
+    }
+}
+
+impl From<&iced::Theme> for AppTheme {
+    fn from(theme: &iced::Theme) -> Self {
+        match theme {
+            iced::Theme::Dark => AppTheme::Dark,
+            _ => AppTheme::Light,
         }
     }
 }

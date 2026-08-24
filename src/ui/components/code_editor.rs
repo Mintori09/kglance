@@ -56,11 +56,7 @@ fn select_highlight_syntax(extension: &str) -> String {
 use crate::ui::theme::AppTheme;
 
 fn select_highlight_theme(theme: AppTheme) -> HighlightTheme {
-    if theme.is_dark() {
-        HighlightTheme::Base16Mocha
-    } else {
-        HighlightTheme::InspiredGitHub
-    }
+    theme.iced_highlighter_theme()
 }
 
 fn generate_line_numbers_text(total_lines: usize) -> String {

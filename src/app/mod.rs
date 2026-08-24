@@ -821,11 +821,7 @@ impl KglanceApp {
     }
 
     pub fn theme(&self) -> Theme {
-        if self.state.app_theme.is_dark() {
-            Theme::Dark
-        } else {
-            Theme::Light
-        }
+        Theme::from(self.state.app_theme)
     }
 
     /// Variant for [`iced::daemon`] which requires a `window::Id` parameter.

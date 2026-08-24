@@ -524,7 +524,12 @@ impl<'a> EventStream<'a> {
             }
         }
 
-        Some(TableBlock { headers, rows })
+        let column_weights = calculate_column_weights(&headers, &rows);
+        Some(TableBlock {
+            headers,
+            rows,
+            column_weights,
+        })
     }
 
     fn parse_table_row_cells(&mut self) -> Vec<TableCell> {
@@ -546,6 +551,33 @@ impl<'a> EventStream<'a> {
         }
         cells
     }
+}
+
+pub fn calculate_column_weights(headers: &[TableCell], rows: &[Vec<TableCell>]) -> Vec<u16> {
+    let n = headers.len();
+    if n == 0 {
+        return vec![];
+    }
+
+    let mut max_lens = vec![0usize; n];
+    for (i, header) in headers.iter().enumerate() {
+        max_lens[i] = super::flatten::flatten_inlines(&header.content).len();
+    }
+    for row in rows {
+        for (i, cell) in row.iter().enumerate().take(n) {
+            max_lens[i] = max_lens[i].max(super::flatten::flatten_inlines(&cell.content).len());
+        }
+    }
+
+    let total: usize = max_lens.iter().sum();
+    if total == 0 {
+        return vec![1; n];
+    }
+
+    max_lens
+        .iter()
+        .map(|&length| ((length as f32 / total as f32) * 100.0).max(10.0) as u16)
+        .collect()
 }
 
 fn detect_and_convert_alert(mut blocks: Vec<Block>) -> Option<(AlertKind, Vec<Block>)> {
