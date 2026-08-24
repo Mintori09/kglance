@@ -263,6 +263,7 @@ impl KglanceApp {
 
         let mut tasks = self.prepare_file_tasks(&path, &content);
         tasks.push(self.restore_read_position_for(&path));
+        tasks.push(self.trigger_preload());
 
         Task::batch(tasks)
     }
