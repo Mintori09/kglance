@@ -316,11 +316,7 @@ pub fn view_window<'a>(
 
         let static_fonts: &'static [String] =
             Box::leak(crate::ui::views::setting_page::get_system_fonts().into_boxed_slice());
-        let theme = if state.app_theme.is_dark() {
-            iced::Theme::Dark
-        } else {
-            iced::Theme::Light
-        };
+        let theme = iced::Theme::from(state.app_theme);
 
         let settings_content =
             crate::ui::views::setting_page::settings_page(&theme, dummy_config, static_fonts);

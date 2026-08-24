@@ -43,6 +43,7 @@ pub struct TableCell {
 pub struct TableBlock {
     pub headers: Vec<TableCell>,
     pub rows: Vec<Vec<TableCell>>,
+    pub column_weights: Vec<u16>,
 }
 
 #[derive(Debug, Clone)]
