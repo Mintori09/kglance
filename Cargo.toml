@@ -147,11 +147,21 @@ path = "src/main.rs"
 
 [profile.dev]
 opt-level = 0
-debug = 1
+debug = 0
 incremental = true
+codegen-units = 256
 
 [profile.dev.package."*"]
-opt-level = 3
+opt-level = 2
+
+[profile.test]
+opt-level = 0
+debug = 0
+incremental = true
+codegen-units = 256
+
+[profile.test.package."*"]
+opt-level = 2
 
 [profile.release]
 lto = "thin"
