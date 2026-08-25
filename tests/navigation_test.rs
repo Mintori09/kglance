@@ -1,12 +1,35 @@
-use kglance::core::navigation::{is_supported_extension, scan_sibling_files};
+use kglance::core::navigation::{is_supported_path, scan_sibling_files};
 use std::fs::File;
 
 #[test]
-fn test_supported_extensions() {
-    assert!(is_supported_extension("test.png"));
-    assert!(is_supported_extension("doc.md"));
-    assert!(is_supported_extension("code.rs"));
-    assert!(!is_supported_extension("app.exe"));
+fn test_is_supported_path_linux() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    use std::path::Path;
+    assert!(is_supported_path(Path::new("/var/log/custom.txt")));
+    assert!(is_supported_path(Path::new("/home/user/workspace/app.rs")));
+    assert!(is_supported_path(Path::new("/tmp/render.png")));
+    assert!(is_supported_path(Path::new("./nested/docs/spec.md")));
+
+    assert!(is_supported_path(Path::new("/home/user/IMAGE.PNG")));
+    assert!(is_supported_path(Path::new("/tmp/CONFIG.JSON")));
+
+    assert!(!is_supported_path(Path::new("/usr/bin/bash")));
+    assert!(!is_supported_path(Path::new(
+        "/lib/x86_64-linux-gnu/libc.so"
+    )));
+    assert!(!is_supported_path(Path::new("/home/user/script.sh")));
+    assert!(!is_supported_path(Path::new("/home/user/package.deb")));
+    assert!(!is_supported_path(Path::new("/home/user/archive.tar.gz")));
+
+    assert!(!is_supported_path(Path::new("/home/user/.bashrc")));
+    assert!(!is_supported_path(Path::new("/home/user/.config")));
+    assert!(is_supported_path(Path::new(
+        "/home/user/.config/settings.json"
+    )));
+
+    let invalid_utf8_ext = OsStr::from_bytes(b"/tmp/file.\xFF\xFE");
+    assert!(!is_supported_path(Path::new(invalid_utf8_ext)));
 }
 
 #[test]
