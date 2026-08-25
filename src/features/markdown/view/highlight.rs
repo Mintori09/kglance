@@ -112,25 +112,3 @@ pub(crate) fn highlight_code<'a>(
 
     result
 }
-
-pub fn pre_highlight_blocks(blocks: &[crate::parsers::markdown::Block]) {
-    for block in blocks {
-        match block {
-            crate::parsers::markdown::Block::CodeBlock { lang, code, .. } => {
-                highlight_code(lang, code, AppTheme::Dark);
-                highlight_code(lang, code, AppTheme::Light);
-            }
-            crate::parsers::markdown::Block::List { items, .. } => {
-                for item in items {
-                    pre_highlight_blocks(&item.sub_blocks);
-                }
-            }
-            crate::parsers::markdown::Block::Quote(sub)
-            | crate::parsers::markdown::Block::Alert { content: sub, .. }
-            | crate::parsers::markdown::Block::FootnoteDefinition { content: sub, .. } => {
-                pre_highlight_blocks(sub);
-            }
-            _ => {}
-        }
-    }
-}

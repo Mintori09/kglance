@@ -20,39 +20,36 @@ pub(crate) fn render_code_block<'a>(
 
     let highlighted = highlight_code(lang, code, ctx.theme);
 
-    let line_spans_vector: Vec<Vec<iced::widget::text::Span<'a, (), iced::Font>>> = highlighted
-        .iter()
-        .map(|line_spans| {
-            line_spans
-                .iter()
-                .map(|(color, span_text)| {
-                    iced::widget::text::Span::new(*span_text)
-                        .font(code_font)
-                        .color(*color)
-                })
-                .collect()
-        })
-        .collect();
-
     let theme = ctx.theme;
-    let code_lines: Vec<Element<'a, Message>> = line_spans_vector
-        .into_iter()
-        .enumerate()
-        .map(|(line_idx, spans)| {
-            let line_block_index = ctx.block_index + line_idx + 1;
-            let default_text_color = ctx.theme.palette().base.text;
-            build_selectable(
-                spans,
-                scale_size(STYLE.code.line_font_size, font_size),
-                line_block_index,
-                Length::Fill,
-                default_text_color,
-                ctx.selection_range,
-                ctx.drag_active,
-            )
-            .into()
-        })
-        .collect();
+    let default_text_color = ctx.theme.palette().base.text;
+
+    let mut all_spans: Vec<iced::widget::text::Span<'a, (), iced::Font>> = Vec::new();
+    for (line_idx, line_spans) in highlighted.iter().enumerate() {
+        for (color, span_text) in line_spans {
+            all_spans.push(
+                iced::widget::text::Span::new(*span_text)
+                    .font(code_font)
+                    .color(*color),
+            );
+        }
+        if line_idx + 1 < highlighted.len() {
+            all_spans.push(
+                iced::widget::text::Span::new("\n")
+                    .font(code_font)
+                    .color(default_text_color),
+            );
+        }
+    }
+
+    let code_content = build_selectable(
+        all_spans,
+        scale_size(STYLE.code.line_font_size, font_size),
+        ctx.block_index + 1,
+        Length::Fill,
+        default_text_color,
+        ctx.selection_range,
+        ctx.drag_active,
+    );
 
     let top_bar: Element<'a, Message> = if !language.is_empty() {
         let language_label = container(
@@ -79,7 +76,7 @@ pub(crate) fn render_code_block<'a>(
 
     column![
         top_bar,
-        container(column(code_lines))
+        container(code_content)
             .padding(STYLE.code.padding)
             .width(Length::Fill)
             .style(move |_: &iced::Theme| code_block_style(theme)),

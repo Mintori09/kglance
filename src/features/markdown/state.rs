@@ -1,6 +1,7 @@
 use crate::core::types::{KglanceState, MarkdownState};
 use crate::parsers::markdown::{Block, estimated_block_height, extract_toc, flatten_inlines};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub fn compute_block_y_offsets(
     blocks: &[Block],
@@ -41,6 +42,7 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
     let old_image_s = std::mem::take(&mut state.markdown.cached_image_sizes);
 
     let old_sidebar_w = state.markdown.sidebar_width;
+    let old_gen = Arc::clone(&state.markdown.generation_id);
 
     // Compute cumulative Y offsets for virtual rendering (one pass over blocks).
     let (block_y_offsets, total_content_height) = compute_block_y_offsets(blocks, fs, &old_image_s);
@@ -67,6 +69,7 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
         block_y_offsets,
         total_content_height,
         viewport_height: 800.0,
+        generation_id: old_gen,
         search_visible: false,
         search_query: String::new(),
         search_match_count: 0,

@@ -5,43 +5,10 @@ use crate::{features::image::types::ImageRef, log_debug};
 
 use super::{AlertKind, Block, Inline, ListItem, TableBlock, TableCell};
 
-pub(super) fn extract_images(raw: &str, parent: &Path) -> Vec<ImageRef> {
-    let mut images = Vec::new();
-    let mut in_image = false;
-    let mut image_alt = String::new();
-    let mut image_url = String::new();
-
-    for event in Parser::new_ext(raw, pulldown_cmark::Options::all()) {
-        match event {
-            Event::Start(Tag::Image { dest_url, .. }) => {
-                in_image = true;
-                image_url = dest_url.to_string();
-                image_alt.clear();
-            }
-            Event::End(TagEnd::Image) => {
-                in_image = false;
-                let resolved = if image_url.starts_with('/') {
-                    image_url.clone()
-                } else {
-                    parent.join(&image_url).to_string_lossy().to_string()
-                };
-                log_debug!("{}", resolved.to_string().to_string());
-                images.push(ImageRef {
-                    alt_text: image_alt.clone(),
-                    path: resolved,
-                });
-            }
-            Event::Text(text) if in_image => {
-                image_alt.push_str(&text);
-            }
-            _ => {}
-        }
-    }
-    images
-}
-
 struct EventStream<'a> {
     iter: std::iter::Peekable<Parser<'a>>,
+    parent: Option<&'a Path>,
+    images: Vec<ImageRef>,
 }
 
 fn split_inlines_by_display_math(inlines: Vec<Inline>) -> Vec<Block> {
@@ -89,6 +56,16 @@ impl<'a> EventStream<'a> {
     fn new(content: &'a str) -> Self {
         Self {
             iter: Parser::new_ext(content, pulldown_cmark::Options::all()).peekable(),
+            parent: None,
+            images: Vec::new(),
+        }
+    }
+
+    fn new_with_parent(content: &'a str, parent: &'a Path) -> Self {
+        Self {
+            iter: Parser::new_ext(content, pulldown_cmark::Options::all()).peekable(),
+            parent: Some(parent),
+            images: Vec::new(),
         }
     }
 
@@ -142,6 +119,20 @@ impl<'a> EventStream<'a> {
                         self.iter.next();
                     }
                     let _ = self.iter.next();
+
+                    if let Some(parent) = self.parent {
+                        let resolved = if url.starts_with('/') {
+                            url.clone()
+                        } else {
+                            parent.join(&url).to_string_lossy().to_string()
+                        };
+                        log_debug!("{}", resolved.to_string());
+                        self.images.push(ImageRef {
+                            alt_text: alt.clone(),
+                            path: resolved,
+                        });
+                    }
+
                     result.push(Inline::Image { alt, url });
                 }
                 Event::InlineMath(t) => result.push(Inline::InlineMath(t.to_string())),
@@ -707,4 +698,15 @@ pub fn parse_to_blocks(content: &str) -> Vec<Block> {
         blocks.insert(0, Block::Frontmatter(entries));
     }
     blocks
+}
+
+pub fn parse_markdown(content: &str, parent: &Path) -> (Vec<Block>, Vec<ImageRef>) {
+    let (frontmatter, rest) = extract_frontmatter(content);
+    let mut stream = EventStream::new_with_parent(rest, parent);
+    let mut blocks = stream.parse_blocks();
+    if let Some(entries) = frontmatter {
+        blocks.insert(0, Block::Frontmatter(entries));
+    }
+    let images = stream.images;
+    (blocks, images)
 }
