@@ -5,6 +5,17 @@ use iced::widget::operation;
 
 pub fn handle_toggle_mode(app: &mut KglanceApp) -> Task<Message> {
     app.state.json.tree_mode = !app.state.json.tree_mode;
+
+    if !app.state.json.tree_mode {
+        let s = &mut app.state.json;
+        let content = if s.raw_pretty {
+            &s.pretty_content
+        } else {
+            &s.minified_content
+        };
+        s.raw_editor = iced::widget::text_editor::Content::with_text(content);
+    }
+
     Task::none()
 }
 
@@ -146,11 +157,16 @@ pub fn handle_search_closed(app: &mut KglanceApp) -> Task<Message> {
 }
 
 pub fn handle_expand_all(app: &mut KglanceApp) -> Task<Message> {
-    for (i, node) in app.state.json.nodes.iter().enumerate() {
+    let s = &mut app.state.json;
+    let mut expanded =
+        rustc_hash::FxHashSet::with_capacity_and_hasher(s.nodes.len() / 2, Default::default());
+
+    for (i, node) in s.nodes.iter().enumerate() {
         if node.children_count > 0 {
-            app.state.json.expanded.insert(i);
+            expanded.insert(i);
         }
     }
+    s.expanded = expanded;
     Task::none()
 }
 
@@ -227,12 +243,21 @@ pub fn handle_breadcrumb_clicked(app: &mut KglanceApp, index: usize) -> Task<Mes
 
 pub fn handle_toggle_format(app: &mut KglanceApp) -> Task<Message> {
     let s = &mut app.state.json;
-    let content = if s.raw_pretty {
-        s.minified_content.clone()
-    } else {
-        s.pretty_content.clone()
-    };
-    s.raw_editor = iced::widget::text_editor::Content::with_text(&content);
     s.raw_pretty = !s.raw_pretty;
+
+    let content = if s.raw_pretty {
+        &s.pretty_content
+    } else {
+        if s.minified_content.is_empty() {
+            s.minified_content = serde_json::from_str::<serde_json::Value>(&s.pretty_content)
+                .ok()
+                .and_then(|v| serde_json::to_string(&v).ok())
+                .unwrap_or_else(|| s.pretty_content.clone());
+        }
+        &s.minified_content
+    };
+
+    s.raw_editor = iced::widget::text_editor::Content::with_text(content);
+
     Task::none()
 }
