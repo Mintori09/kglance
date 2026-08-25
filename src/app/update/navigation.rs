@@ -12,17 +12,42 @@ pub(crate) fn load_file_task(
     let reg = app.registry.clone();
     let path_for_err = path.clone();
     let path_for_parse = path.clone();
+    let gen_id = app
+        .state
+        .generation_id
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        + 1;
+    let generation_id = app.state.generation_id.clone();
+    let gen_check = app.state.generation_id.clone();
     Task::perform(
         async move {
             let content = tokio::task::spawn_blocking(move || {
+                if generation_id.load(std::sync::atomic::Ordering::Relaxed) != gen_id {
+                    return None;
+                }
                 FilePreviewer::parse(&*reg, Path::new(&path_for_parse)).ok()
             })
             .await
             .ok()
             .flatten()?;
-            Some(crate::app::messages::SystemMsg::FileLoaded { path, content }.into())
+            Some(
+                crate::app::messages::SystemMsg::FileLoaded {
+                    path,
+                    content,
+                    generation_id: gen_id,
+                }
+                .into(),
+            )
         },
-        move |msg| msg.unwrap_or_else(|| on_error(path_for_err.clone())),
+        move |msg| {
+            if let Some(m) = msg {
+                m
+            } else if gen_check.load(std::sync::atomic::Ordering::Relaxed) == gen_id {
+                on_error(path_for_err.clone())
+            } else {
+                crate::app::Message::None
+            }
+        },
     )
 }
 
@@ -61,26 +86,31 @@ pub fn handle_sibling_files_loaded(app: &mut KglanceApp, files: Vec<String>) -> 
 }
 
 pub fn handle_next_file(app: &mut KglanceApp) -> Task<Message> {
-    if !app.state.playlist.is_empty() {
-        let next_idx = (app.state.current_index + 1) % app.state.playlist.len();
-        app.state.current_index = next_idx;
-        let next_path = app.state.playlist[next_idx].clone();
-
-        if let Some(cached_data) = app.state.cache.get(&next_path).cloned() {
-            return app.update(
-                crate::app::messages::SystemMsg::FileLoaded {
-                    path: next_path,
-                    content: (*cached_data).clone(),
-                }
-                .into(),
-            );
-        }
-
-        return load_file_task(app, next_path, |path| {
-            crate::app::messages::SystemMsg::FilePreviewError(path).into()
-        });
+    if app.state.playlist.is_empty() {
+        return Task::none();
     }
-    Task::none()
+
+    let next_idx = (app.state.current_index + 1) % app.state.playlist.len();
+    app.state.current_index = next_idx;
+    let next_path = app.state.playlist[next_idx].clone();
+
+    if let Some(cached_data) = app.state.cache.get(&next_path) {
+        let gen_id = app
+            .state
+            .generation_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        let msg = crate::app::messages::SystemMsg::FileLoaded {
+            path: next_path,
+            content: (**cached_data).clone(),
+            generation_id: gen_id,
+        };
+        return Task::done(msg.into());
+    }
+
+    load_file_task(app, next_path, |path| {
+        crate::app::messages::SystemMsg::FilePreviewError(path).into()
+    })
 }
 
 pub fn handle_prev_file(app: &mut KglanceApp) -> Task<Message> {
@@ -94,10 +124,16 @@ pub fn handle_prev_file(app: &mut KglanceApp) -> Task<Message> {
         let prev_path = app.state.playlist[prev_idx].clone();
 
         if let Some(cached_data) = app.state.cache.get(&prev_path).cloned() {
+            let gen_id = app
+                .state
+                .generation_id
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                + 1;
             return app.update(
                 crate::app::messages::SystemMsg::FileLoaded {
                     path: prev_path,
                     content: (*cached_data).clone(),
+                    generation_id: gen_id,
                 }
                 .into(),
             );
@@ -168,4 +204,96 @@ pub fn handle_toggle_settings(app: &mut KglanceApp) -> Task<Message> {
         app.state.view_mode = crate::core::ViewMode::Settings;
     }
     Task::none()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::preview::PreviewData;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn dummy_preview_data() -> PreviewData {
+        PreviewData::Text {
+            content: String::from("mock data"),
+            line_numbers: "1".into(),
+            language: "txt".into(),
+        }
+    }
+
+    fn create_test_app(
+        playlist: Vec<String>,
+        current_index: usize,
+        cached_files: Vec<(String, PreviewData)>,
+    ) -> KglanceApp {
+        let mut app = KglanceApp::default();
+
+        app.state.playlist = playlist;
+        app.state.current_index = current_index;
+        app.state.generation_id = Arc::new(AtomicUsize::new(0));
+
+        for (path, data) in cached_files {
+            // LruCache dùng .put() thay vì .insert()
+            app.state.cache.put(path, Arc::new(data));
+        }
+
+        app
+    }
+
+    #[test]
+    fn test_handle_next_file_empty_playlist() {
+        let mut app = create_test_app(vec![], 0, vec![]);
+
+        let _task = handle_next_file(&mut app);
+
+        assert_eq!(app.state.current_index, 0);
+        assert_eq!(app.state.generation_id.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn test_handle_next_file_wraparound_index() {
+        let file1 = "file1.png".to_string();
+        let file2 = "file2.png".to_string();
+        let playlist = vec![file1, file2];
+
+        let mut app = create_test_app(playlist, 1, vec![]);
+
+        let _task = handle_next_file(&mut app);
+
+        assert_eq!(app.state.current_index, 0);
+        assert_eq!(app.state.generation_id.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn test_handle_next_file_cache_hit() {
+        let file1 = "file1.png".to_string();
+        let file2 = "file2.png".to_string();
+
+        let playlist = vec![file1.clone(), file2.clone()];
+        let cache = vec![(file2.clone(), dummy_preview_data())];
+
+        let mut app = create_test_app(playlist, 0, cache);
+
+        let _task = handle_next_file(&mut app);
+
+        assert_eq!(app.state.current_index, 1);
+        assert_eq!(app.state.generation_id.load(Ordering::Relaxed), 1);
+        assert!(app.state.cache.contains(&file2));
+    }
+
+    #[test]
+    fn test_handle_next_file_cache_miss() {
+        let file1 = "file1.png".to_string();
+        let file2 = "file2.png".to_string();
+
+        let playlist = vec![file1.clone(), file2.clone()];
+
+        let mut app = create_test_app(playlist, 0, vec![]);
+
+        let _task = handle_next_file(&mut app);
+
+        assert_eq!(app.state.current_index, 1);
+        assert_eq!(app.state.generation_id.load(Ordering::Relaxed), 1);
+        assert!(!app.state.cache.contains(&file2));
+    }
 }

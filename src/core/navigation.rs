@@ -6,15 +6,11 @@ pub const SUPPORTED_EXTS: &[&str] = &[
     "xlsx", "epub",
 ];
 
-pub fn is_supported_extension(path_str: &str) -> bool {
-    let path = Path::new(path_str);
-    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-        SUPPORTED_EXTS
-            .iter()
-            .any(|&supported| ext.eq_ignore_ascii_case(supported))
-    } else {
-        false
-    }
+pub fn is_supported_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| SUPPORTED_EXTS.iter().any(|&s| ext.eq_ignore_ascii_case(s)))
+        .unwrap_or(false)
 }
 
 pub fn scan_sibling_files(file_path: &str) -> Vec<String> {
@@ -25,14 +21,13 @@ pub fn scan_sibling_files(file_path: &str) -> Vec<String> {
     };
 
     let mut files = Vec::new();
+
     if let Ok(entries) = std::fs::read_dir(parent) {
         for entry in entries.flatten() {
             let p = entry.path();
-            if p.is_file() {
-                let p_str = p.to_string_lossy().to_string();
-                if is_supported_extension(&p_str) {
-                    files.push(p_str);
-                }
+
+            if p.is_file() && is_supported_path(&p) {
+                files.push(p.to_string_lossy().into_owned());
             }
         }
     }

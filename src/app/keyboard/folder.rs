@@ -101,6 +101,12 @@ impl KglanceApp {
         let parent_path = Path::new(&self.state.folder.folder_path).parent()?;
         let parent_path = parent_path.to_string_lossy().into_owned();
         let registry = self.registry.clone();
+        let gen_id = self
+            .state
+            .generation_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        let generation_id = self.state.generation_id.clone();
 
         Some(Task::perform(
             async move {
@@ -110,13 +116,21 @@ impl KglanceApp {
                     return None;
                 }
 
-                FilePreviewer::parse(&*registry, path).ok().map(|content| {
-                    crate::app::messages::SystemMsg::FileLoaded {
-                        path: parent_path,
-                        content,
-                    }
-                    .into()
-                })
+                FilePreviewer::parse(&*registry, path)
+                    .ok()
+                    .and_then(|content| {
+                        if generation_id.load(std::sync::atomic::Ordering::Relaxed) != gen_id {
+                            return None;
+                        }
+                        Some(
+                            crate::app::messages::SystemMsg::FileLoaded {
+                                path: parent_path,
+                                content,
+                                generation_id: gen_id,
+                            }
+                            .into(),
+                        )
+                    })
             },
             |message| message.unwrap_or(crate::app::messages::ActionMsg::CloseRequested.into()),
         ))
