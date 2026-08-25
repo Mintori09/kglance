@@ -38,12 +38,19 @@ impl Recipe for DaemonRecipe {
                     while let Some(cmd) = rx.recv().await {
                         match cmd {
                             // Single merged event: open window + load content in one Iced cycle.
+                            // Route through DaemonOpenWithPlaylist (no window-closed guard) so
+                            // handle_file_loaded is always reached — which calls
+                            // prepare_window_tasks → create_new_window() when needed.
+                            // DaemonUpdateWindow had an early-return guard that silently dropped
+                            // content when window_id.is_none(), breaking the first preview.
                             DaemonCommand::OpenWindowWithContent { path, content } => {
+                                let playlist = vec![path.clone()];
                                 let _ = output
                                     .send(
-                                        crate::app::messages::SystemMsg::FileLoaded {
+                                        crate::app::messages::SystemMsg::DaemonOpenWithPlaylist {
                                             path,
                                             content,
+                                            playlist,
                                         }
                                         .into(),
                                     )
@@ -94,10 +101,11 @@ impl Recipe for DaemonRecipe {
                                     .await;
                             }
                             // Kept for future use (e.g. reloading without window re-open).
+                            // Also routed through DaemonUpdateWindow to avoid stale-gen discard.
                             DaemonCommand::ShowPreviewExisting { path, content } => {
                                 let _ = output
                                     .send(
-                                        crate::app::messages::SystemMsg::FileLoaded {
+                                        crate::app::messages::SystemMsg::DaemonUpdateWindow {
                                             path,
                                             content,
                                         }
