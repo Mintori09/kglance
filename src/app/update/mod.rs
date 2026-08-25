@@ -39,9 +39,11 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 content,
                 playlist,
             } => file::handle_daemon_update_with_playlist(app, path, content, playlist),
-            crate::app::messages::SystemMsg::FileLoaded { path, content } => {
-                file::handle_file_loaded_msg(app, path, content)
-            }
+            crate::app::messages::SystemMsg::FileLoaded {
+                path,
+                content,
+                generation_id,
+            } => file::handle_file_loaded_msg(app, path, content, generation_id),
             crate::app::messages::SystemMsg::WindowEvent(id, event) => {
                 app.handle_window_event(id, event)
             }
@@ -98,16 +100,28 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
         },
         Message::Image(msg) => match msg {
-            crate::app::messages::ImageMsg::Zoom(delta) => {
-                crate::features::image::update::handle_zoom(app, delta)
+            crate::app::messages::ImageMsg::Zoom { factor, cursor } => {
+                crate::features::image::update::handle_zoom(app, factor, cursor)
             }
             crate::app::messages::ImageMsg::PanDelta(dx, dy) => {
                 crate::features::image::update::handle_pan(app, dx, dy)
             }
+            crate::app::messages::ImageMsg::FitToWindow => {
+                crate::features::image::update::handle_fit_to_window(app)
+            }
             crate::app::messages::ImageMsg::DoubleClick => {
                 crate::features::image::update::handle_double_click(app)
             }
+            crate::app::messages::ImageMsg::Decoded {
+                load_id,
+                handle,
+                width,
+                height,
+            } => {
+                crate::features::image::update::handle_decoded(app, load_id, handle, width, height)
+            }
         },
+
         Message::Text(msg) => match msg {
             crate::app::messages::TextMsg::Edit(action) => {
                 crate::features::text::update::handle_text_edit(app, action)
@@ -253,12 +267,26 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::MarkdownMsg::SidebarResized(w) => {
                 misc::handle_markdown_sidebar_resized(app, w)
             }
-            crate::app::messages::MarkdownMsg::MermaidBlockRendered { index, png_bytes } => {
-                crate::features::image::update::handle_mermaid_rendered(app, index, png_bytes)
-            }
-            crate::app::messages::MarkdownMsg::ImageLoaded { index, png_bytes } => {
-                crate::features::image::update::handle_markdown_image_loaded(app, index, png_bytes)
-            }
+            crate::app::messages::MarkdownMsg::MermaidBlockRendered {
+                generation_id,
+                index,
+                png_bytes,
+            } => crate::features::image::update::handle_mermaid_rendered(
+                app,
+                generation_id,
+                index,
+                png_bytes,
+            ),
+            crate::app::messages::MarkdownMsg::ImageLoaded {
+                generation_id,
+                index,
+                png_bytes,
+            } => crate::features::image::update::handle_markdown_image_loaded(
+                app,
+                generation_id,
+                index,
+                png_bytes,
+            ),
             crate::app::messages::MarkdownMsg::SelectionChanged(s) => {
                 crate::features::markdown::update::handle_selection_changed(app, s)
             }
