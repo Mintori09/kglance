@@ -19,9 +19,8 @@ impl PreviewParser for ImageParser {
         file.read_to_end(&mut data)
             .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
-        let img = image::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-        // Extract original dimensions to fit the window with proportional scaling on open
-        let (width, height) = (img.width(), img.height());
+        let (width, height) =
+            image::image_dimensions(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
         let format = match path
             .extension()
             .and_then(|e| e.to_str())
