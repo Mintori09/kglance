@@ -6,11 +6,48 @@ use tempfile::NamedTempFile;
 use super::{Block, MarkdownParser};
 use crate::{log_debug, log_error};
 
+use std::path::PathBuf;
+use std::time::Duration;
+
 static GLOBAL_FONT_DATABASE: LazyLock<Arc<resvg::usvg::fontdb::Database>> = LazyLock::new(|| {
     let mut font_database = resvg::usvg::fontdb::Database::new();
     font_database.load_system_fonts();
     Arc::new(font_database)
 });
+
+static MMDC_SEMAPHORE: LazyLock<std::sync::Mutex<()>> = LazyLock::new(|| std::sync::Mutex::new(()));
+
+static MMDC_AVAILABLE: LazyLock<bool> = LazyLock::new(|| {
+    Command::new("mmdc")
+        .arg("--version")
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+});
+
+fn mermaid_cache_path(
+    diagram_code: &str,
+    background_color: Option<resvg::tiny_skia::Color>,
+) -> Option<PathBuf> {
+    let mut hasher = md5::Context::new();
+    hasher.consume(diagram_code.as_bytes());
+    if let Some(c) = background_color {
+        hasher.consume([
+            (c.red() * 255.0) as u8,
+            (c.green() * 255.0) as u8,
+            (c.blue() * 255.0) as u8,
+            (c.alpha() * 255.0) as u8,
+        ]);
+    } else {
+        hasher.consume(b"transparent");
+    }
+    let digest = hasher.finalize();
+    let hash_hex = format!("{:x}", digest);
+
+    let cache_dir = dirs::cache_dir()?.join("kglance").join("mermaid");
+    let _ = fs::create_dir_all(&cache_dir);
+    Some(cache_dir.join(format!("{}.png", hash_hex)))
+}
 
 impl MarkdownParser {
     pub fn render_mermaid_blocks(blocks: &mut [Block], prefer_cli: bool) {
@@ -30,14 +67,41 @@ pub fn render_mermaid_to_png(
     background_color: Option<resvg::tiny_skia::Color>,
     prefer_cli: bool,
 ) -> Option<Vec<u8>> {
-    if prefer_cli {
-        if let Some(png) = render_mermaid_by_mermaid_cli(diagram_code, background_color) {
-            return Some(png);
-        }
-        log_error!("mmdc rendering failed or not available, falling back to mmdr");
+    let cache_file = mermaid_cache_path(diagram_code, background_color);
+    if let Some(ref path) = cache_file
+        && let Ok(cached_bytes) = fs::read(path)
+        && !cached_bytes.is_empty()
+    {
+        log_debug!("Mermaid disk cache hit ({} bytes)", cached_bytes.len());
+        return Some(cached_bytes);
     }
 
-    log_debug!("Rendering Mermaid diagram ({} bytes)", diagram_code.len());
+    let rendered_png = if prefer_cli && *MMDC_AVAILABLE {
+        if let Some(png) = render_mermaid_by_mermaid_cli(diagram_code, background_color) {
+            Some(png)
+        } else {
+            log_error!("mmdc rendering failed, falling back to mmdr");
+            render_mermaid_via_rust(diagram_code, background_color)
+        }
+    } else {
+        render_mermaid_via_rust(diagram_code, background_color)
+    };
+
+    if let (Some(bytes), Some(path)) = (&rendered_png, &cache_file) {
+        let _ = fs::write(path, bytes);
+    }
+
+    rendered_png
+}
+
+fn render_mermaid_via_rust(
+    diagram_code: &str,
+    background_color: Option<resvg::tiny_skia::Color>,
+) -> Option<Vec<u8>> {
+    log_debug!(
+        "Rendering Mermaid diagram via Rust engine ({} bytes)",
+        diagram_code.len()
+    );
 
     let render_options = mermaid_rs_renderer::RenderOptions::modern();
     let mut svg_content =
@@ -97,6 +161,10 @@ fn render_mermaid_by_mermaid_cli(
 ) -> Option<Vec<u8>> {
     const INPUT_EXTENSION: &str = ".mmd";
     const OUTPUT_EXTENSION: &str = ".png";
+    const TIMEOUT: Duration = Duration::from_millis(6000);
+
+    let _lock = MMDC_SEMAPHORE.lock().ok()?;
+
     crate::log_info!("Attempting to render Mermaid diagram via mermaid-cli (mmdc)");
 
     let input_file = NamedTempFile::with_suffix(INPUT_EXTENSION).ok()?;
@@ -106,10 +174,53 @@ fn render_mermaid_by_mermaid_cli(
     let output_path = output_file.path().to_path_buf();
 
     let mut command = build_mermaid_cli_command(input_file.path(), &output_path, background_color);
-    let execution_status = command.status().ok()?;
+    command.stdout(std::process::Stdio::piped());
+    command.stderr(std::process::Stdio::piped());
 
-    if !execution_status.success() {
-        log_error!("Failed to render Mermaid diagram via mmdc CLI (exit code non-zero)");
+    let mut child = command
+        .spawn()
+        .map_err(|err| {
+            log_error!("Failed to spawn mmdc process: {:?}", err);
+            err
+        })
+        .ok()?;
+
+    let start_time = std::time::Instant::now();
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Some(status),
+            Ok(None) => {
+                if start_time.elapsed() >= TIMEOUT {
+                    log_error!(
+                        "mmdc process timed out after {:?}, killing process to prevent leak",
+                        TIMEOUT
+                    );
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    break None;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(e) => {
+                log_error!("Error waiting for mmdc process: {:?}", e);
+                let _ = child.kill();
+                break None;
+            }
+        }
+    };
+
+    let exit_status = status?;
+    if !exit_status.success() {
+        let mut stderr = String::new();
+        if let Some(mut err_pipe) = child.stderr.take() {
+            use std::io::Read;
+            let _ = err_pipe.read_to_string(&mut stderr);
+        }
+        log_error!(
+            "Failed to render Mermaid diagram via mmdc CLI (exit code {:?}): {}",
+            exit_status.code(),
+            stderr.trim()
+        );
         return None;
     }
 

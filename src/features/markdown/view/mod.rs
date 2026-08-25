@@ -94,17 +94,17 @@ fn build_scrollable_content<'a>(
     ctx: &RenderContext<'_>,
     max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
-    const VIRTUAL_THRESHOLD: usize = 120;
+    const VIRTUAL_THRESHOLD: usize = 20;
 
     let offsets = &state.block_y_offsets;
     let use_virtual = blocks.len() > VIRTUAL_THRESHOLD && offsets.len() == blocks.len();
 
     let elements: Vec<Element<'a, Message>> = if use_virtual {
-        const BUFFER: f32 = 6000.0;
-        const CHUNK_SIZE: usize = 64;
+        let buffer = (state.viewport_height * 1.5).clamp(800.0, 3000.0);
+        const CHUNK_SIZE: usize = 32;
 
-        let view_top = (state.scroll_y - BUFFER).max(0.0);
-        let view_bottom = state.scroll_y + state.viewport_height + BUFFER;
+        let view_top = (state.scroll_y - buffer).max(0.0);
+        let view_bottom = state.scroll_y + state.viewport_height + buffer;
 
         let raw_first = offsets.partition_point(|&y| y < view_top).saturating_sub(1);
         let raw_last = offsets
