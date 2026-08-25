@@ -23,9 +23,19 @@ pub enum NavigationMsg {
 
 #[derive(Debug, Clone)]
 pub enum ImageMsg {
-    Zoom(f32),
+    Zoom {
+        factor: f32,
+        cursor: iced::Point,
+    },
     PanDelta(f32, f32),
     DoubleClick,
+    FitToWindow,
+    Decoded {
+        load_id: u64,
+        handle: iced::widget::image::Handle,
+        width: u32,
+        height: u32,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -106,10 +116,12 @@ pub enum MarkdownMsg {
     SearchPrev,
     SearchClosed,
     MermaidBlockRendered {
+        generation_id: usize,
         index: usize,
         png_bytes: Option<Vec<u8>>,
     },
     ImageLoaded {
+        generation_id: usize,
         index: usize,
         png_bytes: Option<Vec<u8>>,
     },
@@ -191,6 +203,7 @@ pub enum SystemMsg {
     FileLoaded {
         path: String,
         content: PreviewData,
+        generation_id: usize,
     },
     WindowEvent(iced::window::Id, iced::window::Event),
     KeyPressed(iced::keyboard::Key, iced::keyboard::Modifiers),
