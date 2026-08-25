@@ -1,3 +1,14 @@
+use crate::core::preview::PreviewData;
+use crate::features::image::{Camera, ImageLoadState};
+use crate::features::json::JsonNode;
+use iced::widget::image;
+use lru::LruCache;
+use rustc_hash::FxHashSet;
+use std::collections::HashMap;
+use std::num::NonZeroUsize;
+use std::sync::atomic::AtomicU64;
+use std::sync::{Arc, Mutex};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortField {
     Name,
@@ -35,9 +46,6 @@ pub struct FolderRowState {
     pub is_dir: bool,
     pub icon: &'static str,
 }
-use crate::features::image::{Camera, ImageLoadState};
-use iced::widget::image;
-
 #[derive(Debug, Clone)]
 pub struct ImageState {
     pub exif_content: String,
@@ -45,9 +53,11 @@ pub struct ImageState {
     pub width: u32,
     pub height: u32,
     pub handle: Option<image::Handle>,
+    pub preview_handle: Option<image::Handle>,
     pub format_info: String,
     pub camera: Camera,
     pub load_state: ImageLoadState,
+    pub load_id: Arc<AtomicU64>,
 }
 
 impl Default for ImageState {
@@ -58,9 +68,11 @@ impl Default for ImageState {
             width: 0,
             height: 0,
             handle: None,
+            preview_handle: None,
             format_info: String::new(),
             camera: Camera::new(),
             load_state: ImageLoadState::Loading,
+            load_id: Arc::new(AtomicU64::new(0)),
         }
     }
 }
@@ -532,7 +544,7 @@ pub struct EpubChapterInfo {
 #[derive(Debug, Clone)]
 pub struct JsonState {
     pub nodes: Vec<crate::parsers::json::JsonNode>,
-    pub expanded: std::collections::HashSet<usize>,
+    pub expanded: FxHashSet<usize>,
     pub raw_content: String,
     pub pretty_content: String,
     pub tree_mode: bool,
@@ -547,13 +559,14 @@ pub struct JsonState {
     pub minified_content: String,
     pub raw_pretty: bool,
     pub active_node: Option<usize>,
+    pub parsed_cache: Arc<Mutex<HashMap<String, (Vec<JsonNode>, String, bool)>>>,
 }
 
 impl Default for JsonState {
     fn default() -> Self {
         Self {
             nodes: Vec::new(),
-            expanded: std::collections::HashSet::new(),
+            expanded: FxHashSet::default(),
             raw_content: String::new(),
             pretty_content: String::new(),
             tree_mode: false,
@@ -568,6 +581,7 @@ impl Default for JsonState {
             minified_content: String::new(),
             raw_pretty: true,
             active_node: None,
+            parsed_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -681,6 +695,8 @@ pub struct MarkdownState {
     pub total_content_height: f32,
     /// Height of the visible scroll viewport; updated on scroll events.
     pub viewport_height: f32,
+    /// Atomic generation ID specifically for background markdown tasks (mermaid, images).
+    pub generation_id: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl Default for MarkdownState {
@@ -715,6 +731,7 @@ impl Default for MarkdownState {
             block_y_offsets: Vec::new(),
             total_content_height: 0.0,
             viewport_height: 800.0,
+            generation_id: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         }
     }
 }
@@ -730,11 +747,6 @@ pub struct ToastInfo {
     pub id: u64,
     pub message: String,
 }
-
-use crate::core::preview::PreviewData;
-use lru::LruCache;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum ViewMode {
@@ -774,6 +786,7 @@ pub struct KglanceState {
     pub view_mode: ViewMode,
     pub cache: LruCache<String, Arc<PreviewData>>,
     pub pending_preloads: std::collections::HashSet<String>,
+    pub generation_id: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 
     pub image: ImageState,
     pub text: TextState,
@@ -841,7 +854,7 @@ impl Default for KglanceState {
             view_mode: ViewMode::Detail,
             cache: LruCache::new(CACHE_CAPACITY),
             pending_preloads: std::collections::HashSet::new(),
-
+            generation_id: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             image: ImageState::default(),
             text: TextState::default(),
             pdf: PdfState::default(),

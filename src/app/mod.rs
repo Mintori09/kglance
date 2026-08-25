@@ -7,7 +7,12 @@ pub mod update;
 
 mod window;
 
+use crate::core::{FilePreviewer, KglanceState, PreviewData};
+use crate::dbus::DaemonCommand;
+use crate::features::common::parser::traits::ParserRegistry;
+use crate::features::json;
 use crate::features::markdown::Block;
+use crate::log_debug;
 use iced::Subscription;
 use iced::window as iced_window;
 use iced::{Element, Task, Theme};
@@ -15,13 +20,9 @@ use iced_futures::subscription;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use tokio::sync::mpsc;
-
-use crate::core::{FilePreviewer, KglanceState, PreviewData};
-use crate::dbus::DaemonCommand;
-use crate::features::common::parser::traits::ParserRegistry;
-use crate::log_debug;
 
 pub struct KglanceApp {
     pub state: KglanceState,
@@ -37,6 +38,26 @@ pub struct KglanceApp {
     pub pending_g: bool,
     pub pending_home: bool,
     pub file_watcher: Option<crate::core::file_watcher::FileWatcher>,
+}
+
+impl Default for KglanceApp {
+    fn default() -> Self {
+        Self {
+            state: KglanceState::default(),
+            registry: Arc::new(ParserRegistry::default()),
+            daemon_rx: Arc::new(Mutex::new(None)),
+            is_daemon: false,
+            is_gui_open: Arc::new(AtomicBool::new(false)),
+            window_id: None,
+            current_content: None,
+            video: None,
+            ctrl_held: false,
+            shift_held: false,
+            pending_g: false,
+            pending_home: false,
+            file_watcher: None,
+        }
+    }
 }
 
 impl KglanceApp {
@@ -188,10 +209,15 @@ impl KglanceApp {
                     let target_path = path.clone();
 
                     let target_path_clone = path.clone();
+                    let current_gen = self.state.generation_id.load(Ordering::Relaxed);
+                    let generation_id = self.state.generation_id.clone();
 
                     tasks.push(Task::perform(
                         async move {
                             let content = tokio::task::spawn_blocking(move || {
+                                if generation_id.load(Ordering::Relaxed) != current_gen {
+                                    return None;
+                                }
                                 FilePreviewer::parse(&*reg, Path::new(&target_path)).ok()
                             })
                             .await
@@ -217,10 +243,15 @@ impl KglanceApp {
     }
 
     fn invalidate_render_generations(&self) {
+        self.state.generation_id.fetch_add(1, Ordering::Relaxed);
         self.state.pdf.generation_id.fetch_add(1, Ordering::Relaxed);
         self.state
             .typst
             .pdf
+            .generation_id
+            .fetch_add(1, Ordering::Relaxed);
+        self.state
+            .markdown
             .generation_id
             .fetch_add(1, Ordering::Relaxed);
     }
@@ -250,6 +281,62 @@ impl KglanceApp {
 
         if let Some(task) = self.prepare_sibling_scan_task(path) {
             tasks.push(task);
+        }
+
+        if let PreviewData::Image { .. } = content {
+            let load_id_val = self
+                .state
+                .image
+                .load_id
+                .load(std::sync::atomic::Ordering::Relaxed);
+
+            log_debug!("Spawning decode task for {}", path);
+            let bytes = self.state.image.image_bytes.clone();
+            let load_id_arc = self.state.image.load_id.clone();
+
+            tasks.push(crate::features::image::update::spawn_decode_task(
+                bytes,
+                load_id_val,
+                load_id_arc,
+            ));
+        }
+
+        if let PreviewData::Json {
+            nodes,
+            pretty,
+            has_parse_error,
+            ..
+        } = content
+        {
+            let cache_hit = {
+                self.state
+                    .json
+                    .parsed_cache
+                    .lock()
+                    .ok()
+                    .and_then(|c| c.get(path).cloned())
+            };
+
+            if let Some((nodes, pretty, has_error)) = cache_hit {
+                log_debug!("JSON parse cache HIT for {}", path);
+                json::populate_state(&mut self.state, &nodes, &pretty, has_error);
+            } else {
+                log_debug!("JSON parse cache MISS for {}, spawning parse task", path);
+
+                if let Ok(mut cache) = self.state.json.parsed_cache.lock() {
+                    cache.insert(
+                        path.to_string(),
+                        (nodes.clone(), pretty.clone(), *has_parse_error),
+                    );
+                }
+
+                crate::features::json::populate_state(
+                    &mut self.state,
+                    nodes,
+                    pretty,
+                    *has_parse_error,
+                );
+            }
         }
 
         tasks
@@ -288,6 +375,7 @@ impl KglanceApp {
 
     fn prepare_markdown_tasks(&self, content: &PreviewData, file_path: &str) -> Vec<Task<Message>> {
         let mut tasks = Vec::new();
+        let current_gen = self.state.markdown.generation_id.load(Ordering::Relaxed);
         if let PreviewData::Markdown { blocks, .. } = content {
             for (i, block) in blocks.iter().enumerate() {
                 match block {
@@ -298,9 +386,23 @@ impl KglanceApp {
                         log_debug!("Spawning async render for Mermaid block[{}]", i);
                         let code = lines.join("\n");
                         let prefer_cli = self.state.prefer_mermaid_cli;
+                        let gen_arc = Arc::clone(&self.state.markdown.generation_id);
                         tasks.push(Task::perform(
                             async move {
+                                // If the user already navigated away, abort immediately without spawning blocking/Chromium.
+                                if gen_arc.load(Ordering::Relaxed) != current_gen {
+                                    return crate::app::messages::MarkdownMsg::MermaidBlockRendered {
+                                        generation_id: current_gen,
+                                        index: i,
+                                        png_bytes: None,
+                                    }
+                                    .into();
+                                }
+
                                 let png = tokio::task::spawn_blocking(move || {
+                                    if gen_arc.load(Ordering::Relaxed) != current_gen {
+                                        return None;
+                                    }
                                     crate::parsers::markdown::render_mermaid_to_png(
                                         &code, None, prefer_cli,
                                     )
@@ -309,6 +411,7 @@ impl KglanceApp {
                                 .ok()
                                 .flatten();
                                 crate::app::messages::MarkdownMsg::MermaidBlockRendered {
+                                    generation_id: current_gen,
                                     index: i,
                                     png_bytes: png,
                                 }
@@ -326,6 +429,7 @@ impl KglanceApp {
                                     let bytes =
                                         crate::core::net::fetch_remote_image(&path_str).await;
                                     crate::app::messages::MarkdownMsg::ImageLoaded {
+                                        generation_id: current_gen,
                                         index: i,
                                         png_bytes: bytes,
                                     }
@@ -351,6 +455,7 @@ impl KglanceApp {
                                     .ok()
                                     .flatten();
                                     crate::app::messages::MarkdownMsg::ImageLoaded {
+                                        generation_id: current_gen,
                                         index: i,
                                         png_bytes: bytes,
                                     }
@@ -605,20 +710,6 @@ impl KglanceApp {
     }
 
     fn prepare_sibling_scan_task(&mut self, path: &str) -> Option<Task<Message>> {
-        // let is_video_or_epub = {
-        //     let lower = path.to_lowercase();
-        //     lower.ends_with(".epub")
-        //         || lower.ends_with(".mp4")
-        //         || lower.ends_with(".mkv")
-        //         || lower.ends_with(".avi")
-        //         || lower.ends_with(".mov")
-        //         || lower.ends_with(".webm")
-        // };
-        //
-        // if is_video_or_epub {
-        //     self.state.playlist.clear();
-        // }
-
         if self.state.playlist.len() <= 1 {
             let scan_path = path.to_string();
             Some(Task::perform(
