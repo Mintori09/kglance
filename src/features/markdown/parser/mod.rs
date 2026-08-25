@@ -10,7 +10,7 @@ mod tests;
 pub use flatten::{
     flatten_inlines, flatten_inlines_plain, flatten_inlines_toc, flatten_inlines_visual,
 };
-pub use handle::parse_to_blocks;
+pub use handle::{parse_markdown, parse_to_blocks};
 pub use layout::{estimated_block_height, extract_toc, slugify};
 pub use mermaid::render_mermaid_to_png;
 pub use types::{AlertKind, Block, Inline, ListItem, TableBlock, TableCell};
@@ -50,9 +50,7 @@ impl PreviewParser for MarkdownParser {
         let raw =
             std::fs::read_to_string(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
-        let images = handle::extract_images(&raw, parent);
-        let blocks = parse_to_blocks(&raw);
-        crate::features::markdown::view::highlight::pre_highlight_blocks(&blocks);
+        let (blocks, images) = handle::parse_markdown(&raw, parent);
 
         Ok(ParsedContent::Markdown {
             content: raw,
