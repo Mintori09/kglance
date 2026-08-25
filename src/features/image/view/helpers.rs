@@ -8,7 +8,7 @@ use super::constants::{
 };
 
 pub fn is_loaded(state: &ImageState) -> bool {
-    state.handle.is_some()
+    state.handle.is_some() || state.preview_handle.is_some()
 }
 
 pub fn calculate_window_size(img_width: u32, img_height: u32) -> Size {

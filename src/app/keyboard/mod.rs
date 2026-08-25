@@ -99,6 +99,12 @@ impl super::KglanceApp {
             return task;
         }
 
+        if matches!(&key, iced::keyboard::Key::Character(c) if c == "=")
+            && matches!(self.current_content, Some(PreviewData::Image { .. }))
+        {
+            return self.update(crate::app::messages::ImageMsg::FitToWindow.into());
+        }
+
         Task::none()
     }
 
