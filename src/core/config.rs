@@ -1,3 +1,4 @@
+use crate::{log_debug, log_error};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -25,7 +26,7 @@ pub struct UiConfig {
 }
 
 fn default_json_tree_view() -> bool {
-    false
+    true
 }
 
 fn default_min_width() -> u32 {
@@ -86,7 +87,7 @@ impl Default for UiConfig {
             min_height: default_min_height(),
             prefer_mermaid_cli: false,
             word_wrap: false,
-            json_tree_view: false,
+            json_tree_view: default_json_tree_view(),
         }
     }
 }
@@ -124,9 +125,16 @@ impl ConfigManager {
         let path = Self::get_config_path();
         let raw = fs::read_to_string(&path).ok();
 
-        let loaded = raw
-            .as_deref()
-            .and_then(|content| serde_json::from_str::<AppConfig>(content).ok());
+        let loaded = match raw.as_deref() {
+            Some(content) => match serde_json::from_str::<AppConfig>(content) {
+                Ok(cfg) => Some(cfg),
+                Err(err) => {
+                    log_error!("[kglance] Failed to parse config JSON: {err}");
+                    None
+                }
+            },
+            None => None,
+        };
 
         if let Some(config) = loaded {
             let reserialized = serde_json::to_string_pretty(&config).unwrap_or_default();
@@ -138,6 +146,10 @@ impl ConfigManager {
 
         let config = AppConfig::default();
         let _ = Self::save(&config);
+        log_debug!(
+            "[TRACE:CONFIG_LOAD] Loaded config.ui.json_tree_view = {}",
+            config.ui.json_tree_view
+        );
         config
     }
 
@@ -172,6 +184,28 @@ impl ConfigManager {
             "Light" | "light" => AppTheme::Light,
             "Nord" | "nord" => AppTheme::Nord,
             _ => AppTheme::Dark,
+        }
+    }
+}
+
+#[test]
+#[ignore]
+fn test_debug_deserialize_config() {
+    let path = ConfigManager::get_config_path();
+    println!("\n[TEST PATH] {:?}", path);
+
+    let raw = fs::read_to_string(&path).expect("Failed to read config file");
+    println!("[TEST RAW CONTENT]\n{}", raw);
+
+    match serde_json::from_str::<AppConfig>(&raw) {
+        Ok(cfg) => {
+            println!(
+                "[TEST SUCCESS] ui.json_tree_view = {}",
+                cfg.ui.json_tree_view
+            );
+        }
+        Err(err) => {
+            panic!("[TEST FAILED] Serde deserialize error: {:?}", err);
         }
     }
 }
