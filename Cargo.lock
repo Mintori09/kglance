@@ -3191,6 +3191,7 @@ dependencies = [
  "pulldown-cmark",
  "quick-xml",
  "resvg 0.48.1",
+ "rustc-hash 2.1.3",
  "serde",
  "serde_json",
  "sevenz-rust",
