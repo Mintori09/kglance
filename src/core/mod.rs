@@ -1,3 +1,4 @@
+pub mod cache;
 pub mod config;
 pub mod config_watcher;
 pub mod file_watcher;

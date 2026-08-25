@@ -18,7 +18,24 @@ pub fn handle_file_loaded_msg(
     app: &mut KglanceApp,
     path: String,
     content: PreviewData,
+    generation_id: usize,
 ) -> Task<Message> {
+    if generation_id
+        != app
+            .state
+            .generation_id
+            .load(std::sync::atomic::Ordering::Relaxed)
+    {
+        crate::log_debug!(
+            "Discarding stale FileLoaded for \"{}\" (msg gen: {}, current gen: {})",
+            path,
+            generation_id,
+            app.state
+                .generation_id
+                .load(std::sync::atomic::Ordering::Relaxed)
+        );
+        return Task::none();
+    }
     if !app.state.playlist.contains(&path) {
         app.state.playlist.clear();
     }
@@ -50,7 +67,12 @@ pub fn handle_daemon_update_window(
     if app.is_daemon && app.window_id.is_none() {
         return Task::none();
     }
-    handle_file_loaded_msg(app, path, content)
+    let current_gen = app
+        .state
+        .generation_id
+        .load(std::sync::atomic::Ordering::Relaxed);
+
+    handle_file_loaded_msg(app, path, content, current_gen)
 }
 
 pub fn handle_daemon_update_with_playlist(
