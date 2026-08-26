@@ -7,54 +7,45 @@ use crate::app::Message;
 use crate::core::KglanceState;
 use crate::ui::theme::color::primitive::OVERLAY_SHADOW;
 use crate::ui::theme::{default_raised, default_root};
-
-use std::borrow::Cow;
 use std::path::Path;
 
 fn left_metadata_text(state: &KglanceState) -> String {
-    let mut parts: Vec<Cow<'_, str>> = Vec::new();
+    let mut parts = Vec::new();
 
-    if let Some(folder_name) = Path::new(&state.file_name)
+    if let Some(name) = Path::new(&state.file_name)
         .parent()
         .and_then(|p| p.file_name())
+        .filter(|name| !name.is_empty())
     {
-        let name = folder_name.to_string_lossy();
-        if !name.is_empty() {
-            parts.push(Cow::Owned(format!("{}", name)));
-        }
+        parts.push(name.to_string_lossy().into_owned());
     }
 
     if !state.file_type_text.is_empty() {
-        parts.push(Cow::Borrowed(&state.file_type_text));
+        parts.push(state.file_type_text.clone());
     }
 
     if !state.file_modified_text.is_empty() {
-        parts.push(Cow::Borrowed(&state.file_modified_text));
+        parts.push(state.file_modified_text.clone());
     }
 
     let is_markdown = file_has_extension(state, "md") || file_has_extension(state, "markdown");
-    let stats = if is_markdown {
-        Some((
-            state.markdown.word_count,
-            state.markdown.char_count,
-            state.markdown.reading_time_mins,
-        ))
-    } else if state.text.word_count > 0 {
-        Some((
-            state.text.word_count,
-            state.text.char_count,
-            state.text.reading_time_mins,
-        ))
-    } else {
-        None
-    };
 
-    if let Some((words, chars, reading_mins)) = stats
-        && words > 0
-    {
-        parts.push(Cow::Owned(format!("{} words ({} chars)", words, chars)));
-        let mins = if reading_mins == 0 { 1 } else { reading_mins };
-        parts.push(Cow::Owned(format!("{} min read", mins)));
+    if is_markdown && state.markdown.word_count > 0 {
+        let mins = state.markdown.reading_time_mins.max(1);
+
+        parts.push(format!(
+            "{} words ({} chars)",
+            state.markdown.word_count, state.markdown.char_count
+        ));
+        parts.push(format!("{mins} min read"));
+    } else if state.text.word_count > 0 {
+        let mins = state.text.reading_time_mins.max(1);
+
+        parts.push(format!(
+            "{} words ({} chars)",
+            state.text.word_count, state.text.char_count
+        ));
+        parts.push(format!("{mins} min read"));
     }
 
     parts.join(" • ")
