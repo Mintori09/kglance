@@ -1,5 +1,8 @@
 use crate::app::KglanceApp;
 use crate::app::messages::Message;
+use crate::features::markdown::view::components::image::{
+    handle_markdown_image_loaded, handle_mermaid_rendered,
+};
 use iced::Task;
 
 pub mod file;
@@ -89,9 +92,11 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::NavigationMsg::GridThumbnailLoaded { index, handle } => {
                 grid::handle_grid_thumbnail_loaded(app, index, handle)
             }
-            crate::app::messages::NavigationMsg::PreloadCompleted { path, content } => {
-                file::handle_preload_completed(app, path, content)
-            }
+            crate::app::messages::NavigationMsg::PreloadCompleted {
+                path,
+                content,
+                decoded_cache,
+            } => file::handle_preload_completed(app, path, content, decoded_cache),
             crate::app::messages::NavigationMsg::ToggleSettingsClicked => {
                 navigation::handle_toggle_settings(app)
             }
@@ -271,22 +276,12 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 generation_id,
                 index,
                 png_bytes,
-            } => crate::features::image::update::handle_mermaid_rendered(
-                app,
-                generation_id,
-                index,
-                png_bytes,
-            ),
+            } => handle_mermaid_rendered(app, generation_id, index, png_bytes),
             crate::app::messages::MarkdownMsg::ImageLoaded {
                 generation_id,
                 index,
                 png_bytes,
-            } => crate::features::image::update::handle_markdown_image_loaded(
-                app,
-                generation_id,
-                index,
-                png_bytes,
-            ),
+            } => handle_markdown_image_loaded(app, generation_id, index, png_bytes),
             crate::app::messages::MarkdownMsg::SelectionChanged(s) => {
                 crate::features::markdown::update::handle_selection_changed(app, s)
             }
