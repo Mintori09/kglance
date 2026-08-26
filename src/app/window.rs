@@ -116,8 +116,9 @@ impl KglanceApp {
     }
 
     pub(crate) fn create_new_window(&self) -> Task<Message> {
+        let default_size = self.state.window_default_size;
         let settings = WindowSettings {
-            size: self.state.window_default_size,
+            size: default_size,
             min_size: Some(self.state.window_min_size),
             icon: crate::load_app_icon(),
             exit_on_close_request: false,
@@ -127,12 +128,12 @@ impl KglanceApp {
 
         let (_, open_task) = window::open(settings);
 
-        open_task.map(|opened_window_id| {
+        open_task.map(move |opened_window_id| {
             crate::app::messages::SystemMsg::WindowEvent(
                 opened_window_id,
                 WindowEvent::Opened {
                     position: None,
-                    size: Size::ZERO,
+                    size: default_size,
                 },
             )
             .into()
@@ -148,7 +149,9 @@ impl KglanceApp {
             WindowEvent::Opened { size, .. } => self.handle_window_opened(window_id, size),
             WindowEvent::CloseRequested => self.handle_window_close_requested(window_id),
             WindowEvent::Resized(size) => {
-                self.update_grid_cols(size.width, size.height);
+                if size.width > 0.0 && size.height > 0.0 {
+                    self.update_grid_cols(size.width, size.height);
+                }
                 Task::none()
             }
             _ => Task::none(),
@@ -159,14 +162,34 @@ impl KglanceApp {
         self.window_id = Some(window_id);
         self.is_gui_open
             .store(true, std::sync::atomic::Ordering::Release);
-        self.update_grid_cols(size.width, size.height);
+
+        let width = if size.width > 0.0 {
+            size.width
+        } else if self.state.window_width > 0.0 {
+            self.state.window_width
+        } else {
+            self.state.window_default_size.width
+        };
+
+        let height = if size.height > 0.0 {
+            size.height
+        } else if self.state.window_height > 0.0 {
+            self.state.window_height
+        } else {
+            self.state.window_default_size.height
+        };
+
+        self.update_grid_cols(width, height);
 
         if let Some(content) = self
             .current_content
             .as_ref()
             .filter(|c| c.supports_custom_initial_size())
         {
-            return window::resize(window_id, content.initial_window_size(&self.state));
+            let target_size = content.initial_window_size(&self.state);
+            if target_size.width > 0.0 && target_size.height > 0.0 {
+                return window::resize(window_id, target_size);
+            }
         }
 
         Task::none()

@@ -195,8 +195,12 @@ fn apply_sidebar_drag(
 }
 
 pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32) -> Task<Message> {
-    app.state.current_window_size.width = width;
-    app.state.current_window_size.height = height;
+    if width > 0.0 && height > 0.0 {
+        app.state.current_window_size.width = width;
+        app.state.current_window_size.height = height;
+        app.state.window_width = width;
+        app.state.window_height = height;
+    }
 
     let pdf = active_pdf_state_mut(app);
     let desired_w = pdf.desired_width;
