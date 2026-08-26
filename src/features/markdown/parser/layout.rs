@@ -206,3 +206,45 @@ pub fn extract_toc(
     }
     toc
 }
+
+pub fn rescale_markdown_scroll_y(
+    blocks: &[Block],
+    old_scroll_y: f32,
+    old_font_size: f32,
+    new_font_size: f32,
+    image_sizes: &HashMap<usize, (u32, u32)>,
+) -> f32 {
+    if blocks.is_empty() || old_scroll_y <= 0.0 {
+        return 0.0;
+    }
+
+    let mut current_y = 15.0;
+    let mut target_block_idx = 0;
+    let mut progress = 0.0;
+
+    for (i, block) in blocks.iter().enumerate() {
+        let h = estimated_block_height(block, old_font_size, i, image_sizes);
+        if old_scroll_y < current_y + h || i == blocks.len() - 1 {
+            target_block_idx = i;
+            let offset_inside_block = (old_scroll_y - current_y).max(0.0);
+            progress = if h > 0.0 {
+                (offset_inside_block / h).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            break;
+        }
+        current_y += h;
+    }
+
+    let mut new_y = 15.0;
+    for (i, block) in blocks.iter().enumerate() {
+        let new_h = estimated_block_height(block, new_font_size, i, image_sizes);
+        if i == target_block_idx {
+            return (new_y + progress * new_h).max(0.0);
+        }
+        new_y += new_h;
+    }
+
+    new_y.max(0.0)
+}
