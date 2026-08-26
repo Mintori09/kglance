@@ -8,9 +8,16 @@ pub fn handle_preload_completed(
     app: &mut KglanceApp,
     path: String,
     content: std::sync::Arc<PreviewData>,
+    decoded_cache: Option<crate::core::CachedContent>,
 ) -> Task<Message> {
     app.state.pending_preloads.remove(&path);
-    app.state.cache.put(path, content);
+    if let Some(decoded) = decoded_cache {
+        app.state.cache.put(path, decoded);
+    } else {
+        app.state
+            .cache
+            .put(path, crate::core::CachedContent::Preview(content));
+    }
     Task::none()
 }
 
@@ -56,7 +63,9 @@ pub fn handle_daemon_open_with_playlist(
             app.state.current_index = 0;
         }
     }
-    app.handle_file_loaded(path, content)
+    let file_task = app.handle_file_loaded(path, content);
+    let window_tasks = Task::batch(app.prepare_window_tasks());
+    Task::batch(vec![file_task, window_tasks])
 }
 
 pub fn handle_daemon_update_window(
@@ -72,7 +81,9 @@ pub fn handle_daemon_update_window(
         .generation_id
         .load(std::sync::atomic::Ordering::Relaxed);
 
-    handle_file_loaded_msg(app, path, content, current_gen)
+    let file_task = handle_file_loaded_msg(app, path, content, current_gen);
+    let window_tasks = Task::batch(app.prepare_window_tasks());
+    Task::batch(vec![file_task, window_tasks])
 }
 
 pub fn handle_daemon_update_with_playlist(

@@ -94,7 +94,9 @@ pub fn handle_next_file(app: &mut KglanceApp) -> Task<Message> {
     app.state.current_index = next_idx;
     let next_path = app.state.playlist[next_idx].clone();
 
-    if let Some(cached_data) = app.state.cache.get(&next_path) {
+    if let Some(cached) = app.state.cache.get(&next_path)
+        && let Some(cached_data) = cached.as_preview()
+    {
         let gen_id = app
             .state
             .generation_id
@@ -123,7 +125,9 @@ pub fn handle_prev_file(app: &mut KglanceApp) -> Task<Message> {
         app.state.current_index = prev_idx;
         let prev_path = app.state.playlist[prev_idx].clone();
 
-        if let Some(cached_data) = app.state.cache.get(&prev_path).cloned() {
+        if let Some(cached) = app.state.cache.get(&prev_path)
+            && let Some(cached_data) = cached.as_preview().cloned()
+        {
             let gen_id = app
                 .state
                 .generation_id
@@ -233,8 +237,10 @@ mod tests {
         app.state.generation_id = Arc::new(AtomicUsize::new(0));
 
         for (path, data) in cached_files {
-            // LruCache dùng .put() thay vì .insert()
-            app.state.cache.put(path, Arc::new(data));
+            app.state.cache.put(
+                path,
+                crate::core::CachedContent::from_preview(Arc::new(data)),
+            );
         }
 
         app

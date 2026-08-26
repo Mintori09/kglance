@@ -24,14 +24,15 @@ impl KglanceApp {
         }
     }
 
-    fn update_grid_cols(&mut self, window_width: f32) {
+    fn update_grid_cols(&mut self, window_width: f32, window_height: f32) {
         self.state.window_width = window_width;
+        self.state.window_height = window_height;
         self.state.grid_cols = Self::calculate_grid_cols(window_width, self.state.grid_scale);
     }
 
     pub(crate) fn recalc_grid_cols(&mut self) {
         if self.state.window_width > 0.0 {
-            self.update_grid_cols(self.state.window_width);
+            self.update_grid_cols(self.state.window_width, self.state.window_height);
         }
     }
 
@@ -103,7 +104,6 @@ impl KglanceApp {
     pub fn handle_daemon_open_window(&mut self, path: String) -> Task<Message> {
         self.state.file_name = path;
         self.state.content_ready = false;
-        self.current_content = None;
 
         if let Some(window_id) = self.window_id {
             Task::batch(vec![
@@ -148,7 +148,7 @@ impl KglanceApp {
             WindowEvent::Opened { size, .. } => self.handle_window_opened(window_id, size),
             WindowEvent::CloseRequested => self.handle_window_close_requested(window_id),
             WindowEvent::Resized(size) => {
-                self.update_grid_cols(size.width);
+                self.update_grid_cols(size.width, size.height);
                 Task::none()
             }
             _ => Task::none(),
@@ -159,14 +159,14 @@ impl KglanceApp {
         self.window_id = Some(window_id);
         self.is_gui_open
             .store(true, std::sync::atomic::Ordering::Release);
-        self.update_grid_cols(size.width);
+        self.update_grid_cols(size.width, size.height);
 
         if let Some(content) = self
             .current_content
             .as_ref()
             .filter(|c| c.supports_custom_initial_size())
         {
-            return window::resize(window_id, content.initial_window_size());
+            return window::resize(window_id, content.initial_window_size(&self.state));
         }
 
         Task::none()
