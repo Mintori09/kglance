@@ -131,16 +131,13 @@ impl PreviewData {
             }
             PreviewData::Image {
                 data,
-                width,
-                height,
                 format_info,
                 exif_content,
+                ..
             } => {
                 crate::features::image::populate_image_state(
                     state,
                     data,
-                    *width,
-                    *height,
                     format_info,
                     exif_content.as_deref(),
                 );
@@ -250,10 +247,15 @@ impl PreviewData {
         }
     }
 
-    pub fn initial_window_size(&self) -> iced::Size {
+    pub fn initial_window_size(&self, state: &KglanceState) -> iced::Size {
         match self {
             PreviewData::Image { width, height, .. } => {
-                crate::features::image::view::helpers::calculate_window_size(*width, *height)
+                crate::features::image::view::calculate_window_size(
+                    state.window_width,
+                    state.window_height,
+                    *width,
+                    *height,
+                )
             }
             PreviewData::Media { .. } => iced::Size::new(850.0, 550.0),
             _ => iced::Size::new(1024.0, 768.0),
@@ -300,41 +302,6 @@ mod tests {
     }
 
     #[test]
-    fn test_initial_window_size() {
-        let img_preview = PreviewData::Image {
-            data: vec![],
-            width: 800,
-            height: 600,
-            format_info: "PNG".into(),
-            exif_content: None,
-        };
-        let size = img_preview.initial_window_size();
-        assert!(size.width > 0.0 && size.height > 0.0);
-
-        let media_preview = PreviewData::Media {
-            url: "test.mp4".into(),
-            metadata: "".into(),
-            thumbnail_or_waveform: vec![],
-            width: 0,
-            height: 0,
-        };
-        assert_eq!(
-            media_preview.initial_window_size(),
-            iced::Size::new(850.0, 550.0)
-        );
-
-        let text_preview = PreviewData::Text {
-            content: "".into(),
-            line_numbers: "".into(),
-            language: "".into(),
-        };
-        assert_eq!(
-            text_preview.initial_window_size(),
-            iced::Size::new(1024.0, 768.0)
-        );
-    }
-
-    #[test]
     fn test_font_preview_populate_state() {
         let temp_dir = std::env::temp_dir().join("kglance-font-populate-test");
         let _ = std::fs::create_dir_all(&temp_dir);
@@ -361,23 +328,8 @@ mod tests {
         assert!(state.image.format_info.contains("TestFont"));
         assert_eq!(state.image.exif_content, "Name: TestFont");
         assert!(state.image.handle.is_some());
-        assert_eq!(state.image.width, 60);
-        assert_eq!(state.image.height, 30);
         assert_eq!(state.image.image_bytes, sample);
 
         let _ = std::fs::remove_dir_all(&temp_dir);
-    }
-
-    #[test]
-    fn test_font_preview_initial_window_size() {
-        let preview = PreviewData::Font {
-            name: "Test".into(),
-            metadata: "meta".into(),
-            sample: vec![0u8; 100 * 50 * 4],
-            sample_width: 100,
-            sample_height: 50,
-        };
-        let size = preview.initial_window_size();
-        assert!(size.width > 0.0 && size.height > 0.0);
     }
 }

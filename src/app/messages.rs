@@ -16,6 +16,7 @@ pub enum NavigationMsg {
     PreloadCompleted {
         path: String,
         content: std::sync::Arc<PreviewData>,
+        decoded_cache: Option<crate::core::CachedContent>,
     },
     ToggleSettingsClicked,
     FileClicked(usize),
