@@ -7,7 +7,6 @@ use crate::core::{PreviewData, ViewMode};
 impl super::KglanceApp {
     pub fn handle_scroll_delta(&mut self, x: f32, y: f32) -> Task<Message> {
         let is_mod = self.shift_held || self.ctrl_held;
-        // On X11/Wayland with Shift held, vertical wheel scrolling is translated to horizontal (x != 0, y == 0).
         let scroll_val = if y.abs() > f32::EPSILON {
             y
         } else if x.abs() > f32::EPSILON {
@@ -100,9 +99,74 @@ impl super::KglanceApp {
                             self.state.font_size,
                             &self.state.markdown.cached_image_sizes,
                         );
+                        let (offsets, total_h) = crate::features::markdown::compute_block_y_offsets(
+                            blocks,
+                            self.state.font_size,
+                            &self.state.markdown.cached_image_sizes,
+                        );
+                        self.state.markdown.block_y_offsets = offsets;
+                        self.state.markdown.total_content_height = total_h;
+                    }
+
+                    if let Some(PreviewData::Epub { ref chapters, .. }) = self.current_content {
+                        let active_chapter = self.state.epub.active_chapter;
+                        if let Some(chapter) = chapters.get(active_chapter) {
+                            self.state.epub.markdown_state.toc =
+                                crate::parsers::markdown::extract_toc(
+                                    &chapter.blocks,
+                                    self.state.font_size,
+                                    &self.state.markdown.cached_image_sizes,
+                                );
+                            let (offsets, total_h) =
+                                crate::features::markdown::compute_block_y_offsets(
+                                    &chapter.blocks,
+                                    self.state.font_size,
+                                    &self.state.markdown.cached_image_sizes,
+                                );
+                            self.state.epub.markdown_state.block_y_offsets = offsets;
+                            self.state.epub.markdown_state.total_content_height = total_h;
+                        }
                     }
 
                     match self.current_content {
+                        Some(PreviewData::Markdown { ref blocks, .. }) => {
+                            let new_scroll_y = crate::parsers::markdown::rescale_markdown_scroll_y(
+                                blocks,
+                                self.state.markdown.scroll_y,
+                                old_font_size,
+                                next_font_size,
+                                &self.state.markdown.cached_image_sizes,
+                            );
+                            self.state.markdown.scroll_y = new_scroll_y;
+                            return operation::scroll_to(
+                                "content_scroll",
+                                AbsoluteOffset {
+                                    x: 0.0,
+                                    y: new_scroll_y,
+                                },
+                            );
+                        }
+                        Some(PreviewData::Epub { ref chapters, .. }) => {
+                            let active_chapter = self.state.epub.active_chapter;
+                            if let Some(chapter) = chapters.get(active_chapter) {
+                                let new_scroll_y =
+                                    crate::parsers::markdown::rescale_markdown_scroll_y(
+                                        &chapter.blocks,
+                                        self.state.epub.markdown_state.scroll_y,
+                                        old_font_size,
+                                        next_font_size,
+                                        &self.state.markdown.cached_image_sizes,
+                                    );
+                                self.state.epub.markdown_state.scroll_y = new_scroll_y;
+                                return operation::scroll_to(
+                                    "content_scroll",
+                                    AbsoluteOffset {
+                                        x: 0.0,
+                                        y: new_scroll_y,
+                                    },
+                                );
+                            }
+                        }
                         Some(PreviewData::Text { .. }) => {
                             let old_lh = old_font_size * 1.35;
                             let new_lh = next_font_size * 1.35;

@@ -236,9 +236,73 @@ impl KglanceApp {
                     if let Some(PreviewData::Markdown { ref blocks, .. }) = self.current_content {
                         self.state.markdown.toc =
                             extract_toc(blocks, new_size, &self.state.markdown.cached_image_sizes);
+                        let (offsets, total_h) = crate::features::markdown::compute_block_y_offsets(
+                            blocks,
+                            self.state.font_size,
+                            &self.state.markdown.cached_image_sizes,
+                        );
+                        self.state.markdown.block_y_offsets = offsets;
+                        self.state.markdown.total_content_height = total_h;
+                    }
+
+                    if let Some(PreviewData::Epub { ref chapters, .. }) = self.current_content {
+                        let active_chapter = self.state.epub.active_chapter;
+                        if let Some(chapter) = chapters.get(active_chapter) {
+                            self.state.epub.markdown_state.toc = extract_toc(
+                                &chapter.blocks,
+                                new_size,
+                                &self.state.markdown.cached_image_sizes,
+                            );
+                            let (offsets, total_h) =
+                                crate::features::markdown::compute_block_y_offsets(
+                                    &chapter.blocks,
+                                    self.state.font_size,
+                                    &self.state.markdown.cached_image_sizes,
+                                );
+                            self.state.epub.markdown_state.block_y_offsets = offsets;
+                            self.state.epub.markdown_state.total_content_height = total_h;
+                        }
                     }
 
                     let scroll_task = match self.current_content {
+                        Some(PreviewData::Markdown { ref blocks, .. }) => {
+                            let new_scroll_y = crate::parsers::markdown::rescale_markdown_scroll_y(
+                                blocks,
+                                self.state.markdown.scroll_y,
+                                old_size,
+                                new_size,
+                                &self.state.markdown.cached_image_sizes,
+                            );
+                            self.state.markdown.scroll_y = new_scroll_y;
+                            Some(iced::widget::operation::scroll_to(
+                                "content_scroll",
+                                iced::widget::operation::AbsoluteOffset {
+                                    x: 0.0,
+                                    y: new_scroll_y,
+                                },
+                            ))
+                        }
+                        Some(PreviewData::Epub { ref chapters, .. }) => {
+                            let active_chapter = self.state.epub.active_chapter;
+                            chapters.get(active_chapter).map(|chapter| {
+                                let new_scroll_y =
+                                    crate::parsers::markdown::rescale_markdown_scroll_y(
+                                        &chapter.blocks,
+                                        self.state.epub.markdown_state.scroll_y,
+                                        old_size,
+                                        new_size,
+                                        &self.state.markdown.cached_image_sizes,
+                                    );
+                                self.state.epub.markdown_state.scroll_y = new_scroll_y;
+                                iced::widget::operation::scroll_to(
+                                    "content_scroll",
+                                    iced::widget::operation::AbsoluteOffset {
+                                        x: 0.0,
+                                        y: new_scroll_y,
+                                    },
+                                )
+                            })
+                        }
                         Some(PreviewData::Text { .. }) => {
                             let old_lh = old_size * 1.35;
                             let new_lh = new_size * 1.35;
@@ -376,18 +440,78 @@ impl KglanceApp {
                     )),
 
                     Some(PreviewData::Markdown { ref blocks, .. }) => {
-                        self.state.font_size = self.state.default_font_size;
+                        let old_size = self.state.font_size;
+                        let new_size = self.state.default_font_size;
+                        self.state.font_size = new_size;
 
-                        self.state.markdown.toc = extract_toc(
+                        self.state.markdown.toc =
+                            extract_toc(blocks, new_size, &self.state.markdown.cached_image_sizes);
+                        let (offsets, total_h) = crate::features::markdown::compute_block_y_offsets(
                             blocks,
-                            self.state.font_size,
+                            new_size,
                             &self.state.markdown.cached_image_sizes,
                         );
+                        self.state.markdown.block_y_offsets = offsets;
+                        self.state.markdown.total_content_height = total_h;
 
-                        Some(Task::none())
+                        let new_scroll_y = crate::parsers::markdown::rescale_markdown_scroll_y(
+                            blocks,
+                            self.state.markdown.scroll_y,
+                            old_size,
+                            new_size,
+                            &self.state.markdown.cached_image_sizes,
+                        );
+                        self.state.markdown.scroll_y = new_scroll_y;
+                        Some(iced::widget::operation::scroll_to(
+                            "content_scroll",
+                            iced::widget::operation::AbsoluteOffset {
+                                x: 0.0,
+                                y: new_scroll_y,
+                            },
+                        ))
                     }
 
-                    Some(PreviewData::Text { .. } | PreviewData::Epub { .. }) => {
+                    Some(PreviewData::Epub { ref chapters, .. }) => {
+                        let old_size = self.state.font_size;
+                        let new_size = self.state.default_font_size;
+                        self.state.font_size = new_size;
+                        let active_chapter = self.state.epub.active_chapter;
+                        if let Some(chapter) = chapters.get(active_chapter) {
+                            self.state.epub.markdown_state.toc = extract_toc(
+                                &chapter.blocks,
+                                new_size,
+                                &self.state.markdown.cached_image_sizes,
+                            );
+                            let (offsets, total_h) =
+                                crate::features::markdown::compute_block_y_offsets(
+                                    &chapter.blocks,
+                                    new_size,
+                                    &self.state.markdown.cached_image_sizes,
+                                );
+                            self.state.epub.markdown_state.block_y_offsets = offsets;
+                            self.state.epub.markdown_state.total_content_height = total_h;
+
+                            let new_scroll_y = crate::parsers::markdown::rescale_markdown_scroll_y(
+                                &chapter.blocks,
+                                self.state.epub.markdown_state.scroll_y,
+                                old_size,
+                                new_size,
+                                &self.state.markdown.cached_image_sizes,
+                            );
+                            self.state.epub.markdown_state.scroll_y = new_scroll_y;
+                            Some(iced::widget::operation::scroll_to(
+                                "content_scroll",
+                                iced::widget::operation::AbsoluteOffset {
+                                    x: 0.0,
+                                    y: new_scroll_y,
+                                },
+                            ))
+                        } else {
+                            Some(Task::none())
+                        }
+                    }
+
+                    Some(PreviewData::Text { .. }) => {
                         self.state.font_size = self.state.default_font_size;
                         Some(Task::none())
                     }
