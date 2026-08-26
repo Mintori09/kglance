@@ -9,15 +9,14 @@ pub fn populate_state(
     sample_width: u32,
     sample_height: u32,
 ) {
+    let handle =
+        iced::widget::image::Handle::from_rgba(sample_width, sample_height, sample.to_vec());
     state.image = ImageState {
-        handle: Some(iced::widget::image::Handle::from_rgba(
-            sample_width,
-            sample_height,
-            sample.to_vec(),
-        )),
+        handle: Some(handle.clone()),
+        display_handle: Some(handle),
+        display_width: sample_width,
+        display_height: sample_height,
         image_bytes: sample.to_vec(),
-        width: sample_width,
-        height: sample_height,
         format_info: format!("Font — {name}"),
         exif_content: metadata.to_string(),
         load_state: ImageLoadState::Ready,

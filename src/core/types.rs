@@ -1,4 +1,3 @@
-use crate::core::preview::PreviewData;
 use crate::features::image::{Camera, ImageLoadState};
 use crate::features::json::JsonNode;
 use iced::widget::image;
@@ -8,6 +7,8 @@ use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
+
+pub type JsonParsedCache = Arc<Mutex<HashMap<String, (Vec<JsonNode>, String, bool)>>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortField {
@@ -50,14 +51,15 @@ pub struct FolderRowState {
 pub struct ImageState {
     pub exif_content: String,
     pub image_bytes: Vec<u8>,
-    pub width: u32,
-    pub height: u32,
     pub handle: Option<image::Handle>,
     pub preview_handle: Option<image::Handle>,
     pub format_info: String,
     pub camera: Camera,
     pub load_state: ImageLoadState,
     pub load_id: Arc<AtomicU64>,
+    pub display_handle: Option<image::Handle>,
+    pub display_width: u32,
+    pub display_height: u32,
 }
 
 impl Default for ImageState {
@@ -65,14 +67,15 @@ impl Default for ImageState {
         Self {
             exif_content: String::new(),
             image_bytes: Vec::new(),
-            width: 0,
-            height: 0,
             handle: None,
             preview_handle: None,
             format_info: String::new(),
             camera: Camera::new(),
             load_state: ImageLoadState::Loading,
             load_id: Arc::new(AtomicU64::new(0)),
+            display_handle: None,
+            display_width: 0,
+            display_height: 0,
         }
     }
 }
@@ -559,7 +562,7 @@ pub struct JsonState {
     pub minified_content: String,
     pub raw_pretty: bool,
     pub active_node: Option<usize>,
-    pub parsed_cache: Arc<Mutex<HashMap<String, (Vec<JsonNode>, String, bool)>>>,
+    pub parsed_cache: JsonParsedCache,
 }
 
 impl Default for JsonState {
@@ -784,7 +787,7 @@ pub struct KglanceState {
     pub playlist: Vec<String>,
     pub current_index: usize,
     pub view_mode: ViewMode,
-    pub cache: LruCache<String, Arc<PreviewData>>,
+    pub cache: LruCache<String, crate::core::CachedContent>,
     pub pending_preloads: std::collections::HashSet<String>,
     pub generation_id: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 
@@ -803,6 +806,7 @@ pub struct KglanceState {
 
     pub grid_cols: usize,
     pub window_width: f32,
+    pub window_height: f32,
     pub grid_scale: f32,
     pub grid_search_visible: bool,
     pub grid_search_query: String,
@@ -869,6 +873,7 @@ impl Default for KglanceState {
             json: JsonState::default(),
             grid_cols: 5,
             window_width: 0.0,
+            window_height: 0.0,
             grid_scale: 1.0,
             grid_search_visible: false,
             grid_search_query: String::new(),

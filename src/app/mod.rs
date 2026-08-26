@@ -10,6 +10,7 @@ mod window;
 use crate::core::{FilePreviewer, KglanceState, PreviewData};
 use crate::dbus::DaemonCommand;
 use crate::features::common::parser::traits::ParserRegistry;
+use crate::features::image::png_to_rgba_handle_with_size;
 use crate::features::json;
 use crate::features::markdown::Block;
 use crate::log_debug;
@@ -218,16 +219,36 @@ impl KglanceApp {
                                 if generation_id.load(Ordering::Relaxed) != current_gen {
                                     return None;
                                 }
-                                FilePreviewer::parse(&*reg, Path::new(&target_path)).ok()
+                                let parsed =
+                                    FilePreviewer::parse(&*reg, Path::new(&target_path)).ok()?;
+
+                                if let PreviewData::Image { ref data, .. } = parsed
+                                    && let Some((handle, width, height)) =
+                                        png_to_rgba_handle_with_size(data.clone())
+                                {
+                                    return Some((
+                                        parsed,
+                                        Some(crate::core::CachedContent::DecodedImage {
+                                            handle,
+                                            width,
+                                            height,
+                                        }),
+                                    ));
+                                }
+
+                                Some((parsed, None))
                             })
                             .await
                             .ok()
                             .flatten()?;
 
+                            let (preview_data, decoded_cache) = content;
+
                             Some(
                                 crate::app::messages::NavigationMsg::PreloadCompleted {
                                     path: target_path_clone,
-                                    content: std::sync::Arc::new(content),
+                                    content: std::sync::Arc::new(preview_data),
+                                    decoded_cache,
                                 }
                                 .into(),
                             )
@@ -277,28 +298,44 @@ impl KglanceApp {
         }
 
         tasks.extend(self.prepare_media_tasks(path));
-        tasks.extend(self.prepare_window_tasks());
 
         if let Some(task) = self.prepare_sibling_scan_task(path) {
             tasks.push(task);
         }
 
         if let PreviewData::Image { .. } = content {
-            let load_id_val = self
+            let cache_hit = self
                 .state
-                .image
-                .load_id
-                .load(std::sync::atomic::Ordering::Relaxed);
+                .cache
+                .get(path)
+                .and_then(|c| c.as_decoded_image())
+                .map(|(h, w, ht)| (h.clone(), w, ht));
 
-            log_debug!("Spawning decode task for {}", path);
-            let bytes = self.state.image.image_bytes.clone();
-            let load_id_arc = self.state.image.load_id.clone();
+            if let Some((handle, w, h)) = cache_hit {
+                log_debug!("Image decode cache HIT for {}", path);
+                self.state.image.handle = Some(handle.clone());
+                self.state.image.load_state = crate::features::image::ImageLoadState::Ready;
+                self.state.image.display_handle = Some(handle);
+                self.state.image.display_width = w;
+                self.state.image.display_height = h;
+                self.state.image.camera = crate::features::image::Camera::new();
+            } else {
+                let load_id_val = self
+                    .state
+                    .image
+                    .load_id
+                    .load(std::sync::atomic::Ordering::Relaxed);
 
-            tasks.push(crate::features::image::update::spawn_decode_task(
-                bytes,
-                load_id_val,
-                load_id_arc,
-            ));
+                log_debug!("Spawning decode task for {}", path);
+                let bytes = self.state.image.image_bytes.clone();
+                let load_id_arc = self.state.image.load_id.clone();
+
+                tasks.push(crate::features::image::update::spawn_decode_task(
+                    bytes,
+                    load_id_val,
+                    load_id_arc,
+                ));
+            }
         }
 
         if let PreviewData::Json {
@@ -308,27 +345,26 @@ impl KglanceApp {
             ..
         } = content
         {
-            let cache_hit = {
-                self.state
-                    .json
-                    .parsed_cache
-                    .lock()
-                    .ok()
-                    .and_then(|c| c.get(path).cloned())
-            };
+            let cache_hit = self
+                .state
+                .cache
+                .get(path)
+                .and_then(|c| c.as_parsed_json())
+                .map(|(n, p, e)| (n.to_vec(), p.to_string(), e));
 
             if let Some((nodes, pretty, has_error)) = cache_hit {
                 log_debug!("JSON parse cache HIT for {}", path);
                 json::populate_state(&mut self.state, &nodes, &pretty, has_error);
             } else {
-                log_debug!("JSON parse cache MISS for {}, spawning parse task", path);
-
-                if let Ok(mut cache) = self.state.json.parsed_cache.lock() {
-                    cache.insert(
-                        path.to_string(),
-                        (nodes.clone(), pretty.clone(), *has_parse_error),
-                    );
-                }
+                log_debug!("JSON parse cache MISS for {}, storing in cache", path);
+                self.state.cache.put(
+                    path.to_string(),
+                    crate::core::CachedContent::ParsedJson {
+                        nodes: nodes.clone(),
+                        pretty: pretty.clone(),
+                        has_error: *has_parse_error,
+                    },
+                );
 
                 crate::features::json::populate_state(
                     &mut self.state,
@@ -356,10 +392,8 @@ impl KglanceApp {
     }
 
     fn update_loaded_file_state(&mut self, path: &str, content: &PreviewData) {
-        use crate::features::image::Camera;
         self.state.file_name = path.to_string();
         self.state.content_ready = true;
-        self.state.image.camera = Camera::new();
 
         if let Some(ref watcher) = self.file_watcher {
             let _ = watcher
@@ -389,7 +423,6 @@ impl KglanceApp {
                         let gen_arc = Arc::clone(&self.state.markdown.generation_id);
                         tasks.push(Task::perform(
                             async move {
-                                // If the user already navigated away, abort immediately without spawning blocking/Chromium.
                                 if gen_arc.load(Ordering::Relaxed) != current_gen {
                                     return crate::app::messages::MarkdownMsg::MermaidBlockRendered {
                                         generation_id: current_gen,
