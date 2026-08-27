@@ -6,7 +6,7 @@ use crate::core::{PreviewData, ViewMode};
 
 impl super::KglanceApp {
     pub fn handle_scroll_delta(&mut self, x: f32, y: f32) -> Task<Message> {
-        let is_mod = self.shift_held || self.ctrl_held;
+        let is_mod = self.ctrl_held;
         let scroll_val = if y.abs() > f32::EPSILON {
             y
         } else if x.abs() > f32::EPSILON {
@@ -50,7 +50,13 @@ impl super::KglanceApp {
                     },
                 )
             } else {
-                Task::none()
+                operation::scroll_to(
+                    "content_scroll",
+                    AbsoluteOffset {
+                        x: 0.0,
+                        y: self.state.pdf.scroll_y,
+                    },
+                )
             }
         } else if is_mod && matches!(self.current_content, Some(PreviewData::Typst { .. })) {
             let delta = if scroll_val > 0.0 { 50.0 } else { -50.0 };
@@ -78,7 +84,13 @@ impl super::KglanceApp {
                     },
                 )
             } else {
-                Task::none()
+                operation::scroll_to(
+                    "content_scroll",
+                    AbsoluteOffset {
+                        x: 0.0,
+                        y: self.state.typst.pdf.scroll_y,
+                    },
+                )
             }
         } else if is_mod {
             if matches!(
@@ -138,13 +150,13 @@ impl super::KglanceApp {
                                 &self.state.markdown.cached_image_sizes,
                             );
                             self.state.markdown.scroll_y = new_scroll_y;
-                            return operation::scroll_to(
+                            operation::scroll_to(
                                 "content_scroll",
                                 AbsoluteOffset {
                                     x: 0.0,
                                     y: new_scroll_y,
                                 },
-                            );
+                            )
                         }
                         Some(PreviewData::Epub { ref chapters, .. }) => {
                             let active_chapter = self.state.epub.active_chapter;
@@ -158,13 +170,15 @@ impl super::KglanceApp {
                                         &self.state.markdown.cached_image_sizes,
                                     );
                                 self.state.epub.markdown_state.scroll_y = new_scroll_y;
-                                return operation::scroll_to(
+                                operation::scroll_to(
                                     "content_scroll",
                                     AbsoluteOffset {
                                         x: 0.0,
                                         y: new_scroll_y,
                                     },
-                                );
+                                )
+                            } else {
+                                Task::none()
                             }
                         }
                         Some(PreviewData::Text { .. }) => {
@@ -172,13 +186,13 @@ impl super::KglanceApp {
                             let new_lh = next_font_size * 1.35;
                             let line_index = (self.state.text.scroll_y / old_lh).max(0.0);
                             self.state.text.scroll_y = (line_index * new_lh).max(0.0);
-                            return operation::scroll_to(
+                            operation::scroll_to(
                                 "content_scroll",
                                 AbsoluteOffset {
                                     x: 0.0,
                                     y: self.state.text.scroll_y,
                                 },
-                            );
+                            )
                         }
                         Some(PreviewData::Json { .. }) => {
                             let new_scroll_y = if self.state.json.tree_mode {
@@ -193,18 +207,49 @@ impl super::KglanceApp {
                                 (line_index * new_lh).max(0.0)
                             };
                             self.state.json.scroll_y = new_scroll_y;
-                            return operation::scroll_to(
+                            operation::scroll_to(
                                 "content_scroll",
                                 AbsoluteOffset {
                                     x: 0.0,
                                     y: self.state.json.scroll_y,
                                 },
-                            );
+                            )
                         }
-                        _ => {}
+                        _ => Task::none(),
+                    }
+                } else {
+                    match self.current_content {
+                        Some(PreviewData::Markdown { .. }) => operation::scroll_to(
+                            "content_scroll",
+                            AbsoluteOffset {
+                                x: 0.0,
+                                y: self.state.markdown.scroll_y,
+                            },
+                        ),
+                        Some(PreviewData::Epub { .. }) => operation::scroll_to(
+                            "content_scroll",
+                            AbsoluteOffset {
+                                x: 0.0,
+                                y: self.state.epub.markdown_state.scroll_y,
+                            },
+                        ),
+                        Some(PreviewData::Text { .. }) => operation::scroll_to(
+                            "content_scroll",
+                            AbsoluteOffset {
+                                x: 0.0,
+                                y: self.state.text.scroll_y,
+                            },
+                        ),
+                        Some(PreviewData::Json { .. }) => operation::scroll_to(
+                            "content_scroll",
+                            AbsoluteOffset {
+                                x: 0.0,
+                                y: self.state.json.scroll_y,
+                            },
+                        ),
+                        _ => Task::none(),
                     }
                 }
-                Task::none()
             } else {
                 operation::scroll_by(
                     "content_scroll",

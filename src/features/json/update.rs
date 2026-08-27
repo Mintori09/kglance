@@ -30,6 +30,9 @@ pub fn handle_toggle_node(app: &mut KglanceApp, index: usize) -> Task<Message> {
 }
 
 pub fn handle_scrolled(app: &mut KglanceApp, y: f32) -> Task<Message> {
+    if app.ctrl_held {
+        return Task::none();
+    }
     app.state.json.scroll_y = y;
     Task::none()
 }
