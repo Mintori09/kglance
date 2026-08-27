@@ -69,6 +69,9 @@ pub fn handle_markdown_scrolled(
     y: f32,
     viewport_height: f32,
 ) -> Task<Message> {
+    if app.ctrl_held {
+        return Task::none();
+    }
     let state = active_markdown_state_mut(app);
     state.scroll_y = y;
     state.viewport_height = viewport_height;
@@ -256,7 +259,6 @@ pub fn handle_selection_drag_update(
     offset: usize,
 ) -> Task<Message> {
     let pt = crate::core::SelectionPoint { block, offset };
-    let existed = active_markdown_state(app).selection_range.is_some();
     let s = active_markdown_state_mut(app);
     if s.selection_range.is_none() {
         s.selection_range = Some(crate::core::SelectionRange { start: pt, end: pt });
@@ -264,9 +266,8 @@ pub fn handle_selection_drag_update(
     } else if let Some(range) = &mut s.selection_range {
         range.end = pt;
     }
-    if existed {
-        update_selected_text_from_range(app);
-    }
+    // Note: Do not reconstruct full selected_text string during drag to prevent 60fps rebuild/allocation lag.
+    // Text is reconstructed on drag_end or Ctrl+C.
     Task::none()
 }
 
@@ -288,35 +289,57 @@ pub fn handle_selection_clear(app: &mut KglanceApp) -> Task<Message> {
 }
 
 pub fn handle_select_all(app: &mut KglanceApp) -> Task<Message> {
-    let blocks_vec: Vec<Block> = match &app.current_content {
-        Some(PreviewData::Markdown { blocks, .. }) => blocks.clone(),
+    let (range, text) = match &app.current_content {
+        Some(PreviewData::Markdown { blocks, .. }) => {
+            if blocks.is_empty() {
+                return Task::none();
+            }
+            let lines = collect_indexed_lines(blocks);
+            let Some((&last_block, _)) = lines.last_key_value() else {
+                return Task::none();
+            };
+            let range = crate::core::SelectionRange {
+                start: crate::core::SelectionPoint {
+                    block: 0,
+                    offset: 0,
+                },
+                end: crate::core::SelectionPoint {
+                    block: last_block,
+                    offset: 999_999,
+                },
+            };
+            let text = extract_lines_from_indexed_map(&lines, range.start, range.end);
+            (range, text)
+        }
         Some(PreviewData::Epub { chapters, .. }) => {
-            chapters.iter().flat_map(|ch| ch.blocks.clone()).collect()
+            if chapters.is_empty() {
+                return Task::none();
+            }
+            let lines = collect_indexed_lines_epub(chapters);
+            let Some((&last_block, _)) = lines.last_key_value() else {
+                return Task::none();
+            };
+            let range = crate::core::SelectionRange {
+                start: crate::core::SelectionPoint {
+                    block: 0,
+                    offset: 0,
+                },
+                end: crate::core::SelectionPoint {
+                    block: last_block,
+                    offset: 999_999,
+                },
+            };
+            let text = extract_lines_from_indexed_map(&lines, range.start, range.end);
+            (range, text)
         }
         _ => return Task::none(),
     };
-    if blocks_vec.is_empty() {
-        return Task::none();
-    }
-    let lines = collect_indexed_lines(&blocks_vec);
-    let Some((&last_block, _)) = lines.last_key_value() else {
-        return Task::none();
-    };
-    let range = crate::core::SelectionRange {
-        start: crate::core::SelectionPoint {
-            block: 0,
-            offset: 0,
-        },
-        end: crate::core::SelectionPoint {
-            block: last_block,
-            offset: 999_999,
-        },
-    };
+
     let s = active_markdown_state_mut(app);
     s.selection_range = Some(range);
     s.is_dragging_selection = false;
     s.auto_scroll_delta = None;
-    s.selected_text = build_selected_text(&blocks_vec, range);
+    s.selected_text = text;
     Task::none()
 }
 
@@ -362,17 +385,18 @@ pub(crate) fn update_selected_text_from_range(app: &mut KglanceApp) {
     let Some(range) = range else {
         return;
     };
-    let blocks_vec: Vec<Block> = match &app.current_content {
-        Some(PreviewData::Markdown { blocks, .. }) => blocks.clone(),
+    match &app.current_content {
+        Some(PreviewData::Markdown { blocks, .. }) => {
+            active_markdown_state_mut(app).selected_text = build_selected_text(blocks, range);
+        }
         Some(PreviewData::Epub { chapters, .. }) => {
-            chapters.iter().flat_map(|ch| ch.blocks.clone()).collect()
+            active_markdown_state_mut(app).selected_text =
+                build_selected_text_epub(chapters, range);
         }
         _ => {
             active_markdown_state_mut(app).selected_text = None;
-            return;
         }
-    };
-    active_markdown_state_mut(app).selected_text = build_selected_text(&blocks_vec, range);
+    }
 }
 
 struct CopyLine {
@@ -409,6 +433,21 @@ fn collect_indexed_lines(blocks: &[Block]) -> std::collections::BTreeMap<usize, 
     indexed_blocks
 }
 
+fn collect_indexed_lines_epub(
+    chapters: &[crate::core::types::EpubChapterInfo],
+) -> std::collections::BTreeMap<usize, CopyLine> {
+    let mut indexed_blocks: std::collections::BTreeMap<usize, CopyLine> =
+        std::collections::BTreeMap::new();
+    let mut global_idx = 0;
+    for chapter in chapters {
+        for block in &chapter.blocks {
+            collect_indexed_plain_texts(index_block_base(global_idx), block, &mut indexed_blocks);
+            global_idx += 1;
+        }
+    }
+    indexed_blocks
+}
+
 fn build_selected_text(blocks: &[Block], range: crate::core::SelectionRange) -> Option<String> {
     let (start_pt, end_pt) =
         if (range.start.block, range.start.offset) <= (range.end.block, range.end.offset) {
@@ -418,11 +457,33 @@ fn build_selected_text(blocks: &[Block], range: crate::core::SelectionRange) -> 
         };
 
     let indexed_blocks = collect_indexed_lines(blocks);
+    extract_lines_from_indexed_map(&indexed_blocks, start_pt, end_pt)
+}
 
+fn build_selected_text_epub(
+    chapters: &[crate::core::types::EpubChapterInfo],
+    range: crate::core::SelectionRange,
+) -> Option<String> {
+    let (start_pt, end_pt) =
+        if (range.start.block, range.start.offset) <= (range.end.block, range.end.offset) {
+            (range.start, range.end)
+        } else {
+            (range.end, range.start)
+        };
+
+    let indexed_blocks = collect_indexed_lines_epub(chapters);
+    extract_lines_from_indexed_map(&indexed_blocks, start_pt, end_pt)
+}
+
+fn extract_lines_from_indexed_map(
+    indexed_blocks: &std::collections::BTreeMap<usize, CopyLine>,
+    start_pt: crate::core::SelectionPoint,
+    end_pt: crate::core::SelectionPoint,
+) -> Option<String> {
     let mut result = String::new();
     let mut first_line = true;
     let mut prev_blk_idx: Option<usize> = None;
-    for (&blk_idx, line) in &indexed_blocks {
+    for (&blk_idx, line) in indexed_blocks {
         if blk_idx < start_pt.block || blk_idx > end_pt.block {
             continue;
         }
