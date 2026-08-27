@@ -80,31 +80,45 @@ To build Kglance from source on Linux (Debian/Ubuntu/Arch/Fedora), the following
 
 Kglance offers rich keyboard navigation for navigating files, zooming images, scrolling PDFs, and searching text.
 
-| Shortcut                      | Action                                         | Scope / Context              |
-| ----------------------------- | ---------------------------------------------- | ---------------------------- |
-| `Space` / `Escape`            | Close preview window                           | Global                       |
-| `Ctrl` + `C`                  | Copy file path / Copy selected text            | Global / Text preview        |
-| `Ctrl` + `A`                  | Select all text                                | Text / Code preview          |
-| `Ctrl` + `F`                  | Open text search bar                           | Text / Code preview          |
-| `Ctrl` + `W`                  | Toggle word wrap                               | Text / Code / JSON preview   |
-| `Ctrl` + `+` / `Ctrl` + `=`   | Zoom in / Increase font size                   | Image / PDF / Text preview   |
-| `Ctrl` + `-`                  | Zoom out / Decrease font size                  | Image / PDF / Text preview   |
-| `Ctrl` + `0`                  | Reset zoom to 100%                             | Image preview                |
-| `Shift` + `+` / `Shift` + `=` | Reset font size to 14px                        | Text / Code preview          |
-| `Ctrl` + `T`                  | Toggle dark / light theme                      | Global                       |
-| `←` / `→`                     | Go to parent dir / Preview selected file       | Folder view                  |
-| `Left Arrow` / `PageUp`       | Previous file in directory / Previous PDF page | Directory / Multi-file / PDF |
-| `Right Arrow` / `PageDown`    | Next file in directory / Next PDF page         | Directory / Multi-file / PDF |
-| `Enter`                       | Preview selected file / Open externally        | Folder view / Global         |
-| `Arrow Up` / `k`              | Scroll up                                      | Scrollable content           |
-| `Arrow Down` / `j`            | Scroll down                                    | Scrollable content           |
-| `PageUp` / `u`                | Scroll half page up                            | Scrollable content           |
-| `PageDown` / `d`              | Scroll half page down                          | Scrollable content           |
-| `gg` (double-tap `g`)         | Scroll to top                                  | Scrollable content           |
-| `G` / `Shift` + `g`           | Scroll to bottom                               | Scrollable content           |
-| `Home` (double-tap)           | Scroll to top                                  | Scrollable content           |
-| `End`                         | Scroll to bottom                               | Scrollable content           |
-| `Mouse Wheel`                 | Scroll / Zoom (with `Ctrl`)                    | All previews                 |
+| Shortcut | Action | Scope / Context |
+| :--- | :--- | :--- |
+| **General & Window** | | |
+| `Space` / `Escape` | Close preview window (or close search if open) | Global |
+| `Tab` | Toggle View Mode (Detail ↔ Grid) | Global |
+| `Enter` | Open file in default desktop app / Open folder entry | Global / Folder view |
+| `Ctrl` + `,` | Open Settings view | Global |
+| `Ctrl` + `T` | Cycle color theme (Dark → Light → Nord) | Global |
+| `Ctrl` + `C` | Copy file path / Copy selected text | Global / Text & Documents |
+| `Ctrl` + `A` | Select all text | Text, Code, Markdown, EPUB |
+| **Navigation & Playlist** | | |
+| `←` / `Left Arrow` | Previous file in directory / Previous chapter / Seek -5s | Playlist / EPUB / Video |
+| `→` / `Right Arrow` | Next file in directory / Next chapter / Seek +5s | Playlist / EPUB / Video |
+| `←` / `→` | Go to parent directory / Open folder or preview file | Folder view |
+| **Scrolling & Vim Navigation** | | |
+| `↑` / `k` | Scroll up (80px) | Scrollable content |
+| `↓` / `j` | Scroll down (80px) | Scrollable content |
+| `PageUp` / `u` | Scroll half page up | Scrollable content |
+| `PageDown` / `d` | Scroll half page down | Scrollable content |
+| `gg` / `Home` (double-tap) | Scroll to top | Scrollable content |
+| `G` / `Shift` + `G` / `End` | Scroll to bottom | Scrollable content |
+| `gt` | Toggle Table of Contents / Sidebar | Markdown, EPUB, PDF |
+| `Mouse Wheel` | Scroll / Zoom (while holding `Ctrl`) | All previews |
+| **Search** | | |
+| `Ctrl` + `F` / `/` | Open search bar | Text, Markdown, JSON, CSV, Grid |
+| `Escape` | Close search bar and clear query | Search active |
+| Type characters | Immediate type-to-search | Spreadsheets, Grid view |
+| **Zoom & Font Scaling** | | |
+| `Ctrl` + `+` / `Ctrl` + `=` | Zoom in / Increase font size | Image, PDF, Text, Code, Markdown |
+| `Ctrl` + `-` | Zoom out / Decrease font size | Image, PDF, Text, Code, Markdown |
+| `Ctrl` + `0` | Reset zoom to 100% | Image preview |
+| `=` | Fit image to window | Image preview |
+| `Shift` + `+` / `Shift` + `=` | Reset font size to default (14px) | Text & Code preview |
+| **Specific Formats** | | |
+| `Ctrl` + `W` | Toggle word wrap | Text, Code, JSON, Typst |
+| `Ctrl` + `e` | Expand all JSON tree nodes | JSON preview |
+| `Ctrl` + `E` (`Shift` + `e`) | Collapse all JSON tree nodes | JSON preview |
+| `Ctrl` + `P` (`Shift` + `p`) | Toggle JSON display (Tree vs Raw formatted) | JSON preview |
+| `s` / `S` | Toggle between Compiled Preview and Source | Typst (`.typ`) preview |
 
 ---
 
