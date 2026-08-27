@@ -12,68 +12,20 @@ pub fn handle_chapter_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message>
     if idx < app.state.epub.chapters.len() {
         app.state.epub.active_chapter = idx;
         app.record_read_position();
-        let chapter = &app.state.epub.chapters[idx];
-        let font_size = app.state.font_size;
-        let mut target_y: f32 = 0.0;
 
-        if let Some(ref anc) = chapter.anchor {
-            let mut y_accum: f32 = 0.0;
-            for (b_idx, block) in chapter.blocks.iter().enumerate() {
-                let text_flat = match block {
-                    crate::parsers::markdown::Block::Heading { content, .. }
-                    | crate::parsers::markdown::Block::Paragraph(content) => {
-                        crate::parsers::markdown::flatten_inlines(content)
-                    }
-                    _ => String::new(),
-                };
-                if text_flat.contains(anc) || text_flat.contains(&chapter.title) {
-                    target_y = y_accum;
-                    break;
-                }
-                y_accum += crate::parsers::markdown::estimated_block_height(
-                    block,
-                    font_size,
-                    b_idx,
-                    &app.state.markdown.cached_image_sizes,
-                );
-            }
-        } else {
-            let mut y_accum: f32 = 0.0;
-            for (b_idx, block) in chapter.blocks.iter().enumerate() {
-                let text_flat = match block {
-                    crate::parsers::markdown::Block::Heading { content, .. }
-                    | crate::parsers::markdown::Block::Paragraph(content) => {
-                        crate::parsers::markdown::flatten_inlines(content)
-                    }
-                    _ => String::new(),
-                };
-                if !chapter.title.is_empty() && text_flat.contains(&chapter.title) {
-                    target_y = y_accum;
-                    break;
-                }
-                y_accum += crate::parsers::markdown::estimated_block_height(
-                    block,
-                    font_size,
-                    b_idx,
-                    &app.state.markdown.cached_image_sizes,
-                );
-            }
-        }
-
-        if target_y > 0.0 {
-            return operation::scroll_to(
-                "content_scroll",
-                operation::AbsoluteOffset {
-                    x: 0.0,
-                    y: target_y,
-                },
-            );
-        } else {
-            return operation::snap_to(
-                "content_scroll",
-                operation::RelativeOffset { x: 0.0, y: 0.0 },
+        if let Some(crate::core::PreviewData::Epub { images, .. }) = &app.current_content {
+            crate::features::epub::state::ensure_chapter_images(
+                &mut app.state.epub.markdown_state,
+                &app.state.epub.chapters,
+                idx,
+                images,
             );
         }
+
+        return operation::snap_to(
+            "content_scroll",
+            operation::RelativeOffset { x: 0.0, y: 0.0 },
+        );
     }
     Task::none()
 }
@@ -85,4 +37,34 @@ pub fn handle_chapter_toggle_collapse(app: &mut KglanceApp, idx: usize) -> Task<
         app.state.epub.collapsed_chapters.insert(idx);
     }
     Task::none()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::test_util::{epub_content, test_app};
+
+    #[test]
+    fn test_handle_chapter_clicked_switches_active_chapter() {
+        let mut app = test_app(Some(epub_content(&[
+            "Chapter 1 content",
+            "Chapter 2 content",
+        ])));
+        assert_eq!(app.state.epub.active_chapter, 0);
+
+        let _ = handle_chapter_clicked(&mut app, 1);
+        assert_eq!(app.state.epub.active_chapter, 1);
+    }
+
+    #[test]
+    fn test_handle_chapter_toggle_collapse() {
+        let mut app = test_app(Some(epub_content(&["Ch 1"])));
+        assert!(!app.state.epub.collapsed_chapters.contains(&0));
+
+        let _ = handle_chapter_toggle_collapse(&mut app, 0);
+        assert!(app.state.epub.collapsed_chapters.contains(&0));
+
+        let _ = handle_chapter_toggle_collapse(&mut app, 0);
+        assert!(!app.state.epub.collapsed_chapters.contains(&0));
+    }
 }

@@ -28,6 +28,26 @@ pub fn extract_ncx_href(opf_xml: &str) -> Option<String> {
     None
 }
 
+pub fn extract_nav_href(opf_xml: &str) -> Option<String> {
+    let mut search_str = opf_xml;
+
+    while let Some(idx) = search_str.find("<item") {
+        let tag_end = search_str[idx..].find('>')?;
+        let tag = &search_str[idx..idx + tag_end];
+
+        let is_nav = tag.contains("properties=\"nav\"")
+            || tag.contains("properties=\"toc\"")
+            || tag.contains("id=\"nav\"")
+            || tag.contains("id=\"toc\"");
+
+        if is_nav && let Some(href) = extract_attribute(tag, "href=\"") {
+            return Some(href);
+        }
+        search_str = &search_str[idx + tag_end..];
+    }
+    None
+}
+
 pub fn extract_spine_items(xml: &str) -> Vec<String> {
     let mut item_refs = Vec::new();
     let mut search_str = xml;
