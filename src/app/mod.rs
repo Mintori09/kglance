@@ -845,6 +845,10 @@ impl KglanceApp {
             (iced::widget::text("No file loaded.").size(18).into(), false)
         };
 
+        let is_mod = self.ctrl_held;
+        let preview_body =
+            crate::ui::components::scroll_pane::ScrollFilter::new(preview_body, is_mod).into();
+
         crate::ui::window::view_window(&self.state, preview_body, is_media)
     }
 
@@ -959,9 +963,13 @@ pub(crate) mod test_util {
     use super::*;
 
     pub fn test_app(content: Option<PreviewData>) -> KglanceApp {
+        let mut state = KglanceState::default();
+        if let Some(ref c) = content {
+            c.populate_state(&mut state);
+        }
         let registry = std::sync::Arc::new(ParserRegistry::new());
         KglanceApp {
-            state: KglanceState::default(),
+            state,
             registry,
             daemon_rx: std::sync::Arc::new(std::sync::Mutex::new(None)),
             is_daemon: false,
