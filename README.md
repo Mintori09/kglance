@@ -50,14 +50,14 @@ Files without a matching extension fall back to plain text rendering.
 
 To build Kglance from source on Linux (Debian/Ubuntu/Arch/Fedora), the following system development libraries are required:
 
-| Component          | Library Dependency                                        | Description / Usage                          |
-| ------------------ | --------------------------------------------------------- | -------------------------------------------- |
-| **Fonts & Layout** | `libfontconfig1-dev` / `fontconfig`                       | Font matching and fallback configuration     |
-| **FreeType**       | `libfreetype6-dev` / `freetype2`                          | Font rendering engine for text/font previews |
-| **XKB Common**     | `libxkbcommon-dev` / `libxkbcommon`                       | Keyboard keycode handling for Wayland & X11  |
-| **GStreamer**      | `libgstreamer1.0-dev`, `libgstreamer-plugins-base1.0-dev` | Audio and video decoding/playback pipeline   |
-| **MuPDF**          | `libmupdf-dev` _(optional system bind)_                   | PDF rendering engine                         |
-| **Typst**          | `typst` _(optional CLI binary)_                           | Typst (`.typ`) document compilation & preview|
+| Component          | Library Dependency                                        | Description / Usage                           |
+| ------------------ | --------------------------------------------------------- | --------------------------------------------- |
+| **Fonts & Layout** | `libfontconfig1-dev` / `fontconfig`                       | Font matching and fallback configuration      |
+| **FreeType**       | `libfreetype6-dev` / `freetype2`                          | Font rendering engine for text/font previews  |
+| **XKB Common**     | `libxkbcommon-dev` / `libxkbcommon`                       | Keyboard keycode handling for Wayland & X11   |
+| **GStreamer**      | `libgstreamer1.0-dev`, `libgstreamer-plugins-base1.0-dev` | Audio and video decoding/playback pipeline    |
+| **MuPDF**          | `libmupdf-dev` _(optional system bind)_                   | PDF rendering engine                          |
+| **Typst**          | `typst` _(optional CLI binary)_                           | Typst (`.typ`) document compilation & preview |
 
 #### Installing Dependencies
 
@@ -80,45 +80,45 @@ To build Kglance from source on Linux (Debian/Ubuntu/Arch/Fedora), the following
 
 Kglance offers rich keyboard navigation for navigating files, zooming images, scrolling PDFs, and searching text.
 
-| Shortcut | Action | Scope / Context |
-| :--- | :--- | :--- |
-| **General & Window** | | |
-| `Space` / `Escape` | Close preview window (or close search if open) | Global |
-| `Tab` | Toggle View Mode (Detail ↔ Grid) | Global |
-| `Enter` | Open file in default desktop app / Open folder entry | Global / Folder view |
-| `Ctrl` + `,` | Open Settings view | Global |
-| `Ctrl` + `T` | Cycle color theme (Dark → Light → Nord) | Global |
-| `Ctrl` + `C` | Copy file path / Copy selected text | Global / Text & Documents |
-| `Ctrl` + `A` | Select all text | Text, Code, Markdown, EPUB |
-| **Navigation & Playlist** | | |
-| `←` / `Left Arrow` | Previous file in directory / Previous chapter / Seek -5s | Playlist / EPUB / Video |
-| `→` / `Right Arrow` | Next file in directory / Next chapter / Seek +5s | Playlist / EPUB / Video |
-| `←` / `→` | Go to parent directory / Open folder or preview file | Folder view |
-| **Scrolling & Vim Navigation** | | |
-| `↑` / `k` | Scroll up (80px) | Scrollable content |
-| `↓` / `j` | Scroll down (80px) | Scrollable content |
-| `PageUp` / `u` | Scroll half page up | Scrollable content |
-| `PageDown` / `d` | Scroll half page down | Scrollable content |
-| `gg` / `Home` (double-tap) | Scroll to top | Scrollable content |
-| `G` / `Shift` + `G` / `End` | Scroll to bottom | Scrollable content |
-| `gt` | Toggle Table of Contents / Sidebar | Markdown, EPUB, PDF |
-| `Mouse Wheel` | Scroll / Zoom (while holding `Ctrl`) | All previews |
-| **Search** | | |
-| `Ctrl` + `F` / `/` | Open search bar | Text, Markdown, JSON, CSV, Grid |
-| `Escape` | Close search bar and clear query | Search active |
-| Type characters | Immediate type-to-search | Spreadsheets, Grid view |
-| **Zoom & Font Scaling** | | |
-| `Ctrl` + `+` / `Ctrl` + `=` | Zoom in / Increase font size | Image, PDF, Text, Code, Markdown |
-| `Ctrl` + `-` | Zoom out / Decrease font size | Image, PDF, Text, Code, Markdown |
-| `Ctrl` + `0` | Reset zoom to 100% | Image preview |
-| `=` | Fit image to window | Image preview |
-| `Shift` + `+` / `Shift` + `=` | Reset font size to default (14px) | Text & Code preview |
-| **Specific Formats** | | |
-| `Ctrl` + `W` | Toggle word wrap | Text, Code, JSON, Typst |
-| `Ctrl` + `e` | Expand all JSON tree nodes | JSON preview |
-| `Ctrl` + `E` (`Shift` + `e`) | Collapse all JSON tree nodes | JSON preview |
-| `Ctrl` + `P` (`Shift` + `p`) | Toggle JSON display (Tree vs Raw formatted) | JSON preview |
-| `s` / `S` | Toggle between Compiled Preview and Source | Typst (`.typ`) preview |
+| Shortcut                       | Action                                                   | Scope / Context                  |
+| :----------------------------- | :------------------------------------------------------- | :------------------------------- |
+| **General & Window**           |                                                          |                                  |
+| `Space` / `Escape`             | Close preview window (or close search if open)           | Global                           |
+| `Tab`                          | Toggle View Mode (Detail ↔ Grid)                         | Global                           |
+| `Enter`                        | Open file in default desktop app / Open folder entry     | Global / Folder view             |
+| `Ctrl` + `,`                   | Open Settings view                                       | Global                           |
+| `Ctrl` + `T`                   | Cycle color theme (Dark → Light → Nord)                  | Global                           |
+| `Ctrl` + `C`                   | Copy file path / Copy selected text                      | Global / Text & Documents        |
+| `Ctrl` + `A`                   | Select all text                                          | Text, Code, Markdown, EPUB       |
+| **Navigation & Playlist**      |                                                          |                                  |
+| `←` / `Left Arrow`             | Previous file in directory / Previous chapter / Seek -5s | Playlist / EPUB / Video          |
+| `→` / `Right Arrow`            | Next file in directory / Next chapter / Seek +5s         | Playlist / EPUB / Video          |
+| `←` / `→`                      | Go to parent directory / Open folder or preview file     | Folder view                      |
+| **Scrolling & Vim Navigation** |                                                          |                                  |
+| `↑` / `k`                      | Scroll up (80px)                                         | Scrollable content               |
+| `↓` / `j`                      | Scroll down (80px)                                       | Scrollable content               |
+| `PageUp` / `u`                 | Scroll half page up                                      | Scrollable content               |
+| `PageDown` / `d`               | Scroll half page down                                    | Scrollable content               |
+| `gg` / `Home` (double-tap)     | Scroll to top                                            | Scrollable content               |
+| `G` / `Shift` + `G` / `End`    | Scroll to bottom                                         | Scrollable content               |
+| `gt`                           | Toggle Table of Contents / Sidebar                       | Markdown, EPUB, PDF              |
+| `Mouse Wheel`                  | Scroll / Zoom (while holding `Ctrl`)                     | All previews                     |
+| **Search**                     |                                                          |                                  |
+| `Ctrl` + `F` / `/`             | Open search bar                                          | Text, Markdown, JSON, CSV, Grid  |
+| `Escape`                       | Close search bar and clear query                         | Search active                    |
+| Type characters                | Immediate type-to-search                                 | Spreadsheets, Grid view          |
+| **Zoom & Font Scaling**        |                                                          |                                  |
+| `Ctrl` + `+` / `Ctrl` + `=`    | Zoom in / Increase font size                             | Image, PDF, Text, Code, Markdown |
+| `Ctrl` + `-`                   | Zoom out / Decrease font size                            | Image, PDF, Text, Code, Markdown |
+| `Ctrl` + `0`                   | Reset zoom to 100%                                       | Image preview                    |
+| `=`                            | Fit image to window                                      | Image preview                    |
+| `Shift` + `+` / `Shift` + `=`  | Reset font size to default (14px)                        | Text & Code preview              |
+| **Specific Formats**           |                                                          |                                  |
+| `Ctrl` + `W`                   | Toggle word wrap                                         | Text, Code, JSON, Typst          |
+| `Ctrl` + `e`                   | Expand all JSON tree nodes                               | JSON preview                     |
+| `Ctrl` + `E` (`Shift` + `e`)   | Collapse all JSON tree nodes                             | JSON preview                     |
+| `Ctrl` + `P` (`Shift` + `p`)   | Toggle JSON display (Tree vs Raw formatted)              | JSON preview                     |
+| `s` / `S`                      | Toggle between Compiled Preview and Source               | Typst (`.typ`) preview           |
 
 ---
 
@@ -150,7 +150,7 @@ bash <(curl -s https://raw.githubusercontent.com/Mintori09/kglance/main/scripts/
 
 Restart Dolphin (`killall dolphin`) or log out and back in to apply the changes.
 
-### 3. Configure Dolphin Keyboard Shortcut
+### 3. Configure Dolphin Keyboard Shortcut (Option)
 
 To preview files by pressing **Space**:
 
@@ -167,6 +167,38 @@ To remove:
 
 # Or fetch directly from GitHub:
 bash <(curl -s https://raw.githubusercontent.com/Mintori09/kglance/main/scripts/dolphin-setup.sh) uninstall
+```
+
+### 4. Setup Yazi Terminal File Manager Integration (Option)
+
+To integrate Kglance with [Yazi](https://github.com/sxyazi/yazi) for real-time hover sync and `<Space>` preview:
+
+#### Step 1: Download the plugin
+
+Download `main.lua` into your Yazi plugins directory:
+
+```bash
+mkdir -p ~/.config/yazi/plugins/kglance.yazi
+curl -fsSL https://raw.githubusercontent.com/Mintori09/kglance/main/kglance.yazi/main.lua -o ~/.config/yazi/plugins/kglance.yazi/main.lua
+```
+
+#### Step 2: Enable hover sync in `init.lua`
+
+Add the following line to `~/.config/yazi/init.lua` (create the file if it does not exist):
+
+```lua
+require("kglance"):setup()
+```
+
+#### Step 3: Configure `<Space>` shortcut in `keymap.toml`
+
+Add the keymap under `[[mgr.prepend_keymap]]` in `~/.config/yazi/keymap.toml`:
+
+```toml
+[[mgr.prepend_keymap]]
+on   = [ "<Space>" ]
+run  = "shell --orphan -- kglance %h"
+desc = "Open hovered file with kglance"
 ```
 
 ---
