@@ -8,6 +8,7 @@ pub fn build_registry() -> ParserRegistry {
     r.register(Box::new(features::text::parser::TextParser::new()));
     r.register(Box::new(features::image::parser::ImageParser));
     r.register(Box::new(features::svg::parser::SvgParser));
+    r.register(Box::new(features::krita::parser::KritaParser));
     r.register(Box::new(features::pdf::parser::PdfParser));
     r.register(Box::new(features::archive::ArchiveParser));
     r.register(Box::new(features::folder::parser::FolderParser));

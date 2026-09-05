@@ -9,6 +9,7 @@ pub mod grid;
 
 pub mod image;
 pub mod json;
+pub mod krita;
 pub mod markdown;
 pub mod office;
 pub mod pdf;
