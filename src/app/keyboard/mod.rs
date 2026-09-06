@@ -17,6 +17,13 @@ impl super::KglanceApp {
             || self.state.file_type_text.contains("EPUB")
     }
 
+    fn is_non_scrollable_content(&self) -> bool {
+        matches!(
+            self.current_content,
+            Some(PreviewData::Image { .. } | PreviewData::Media { .. } | PreviewData::Font { .. })
+        )
+    }
+
     pub fn handle_key_pressed(
         &mut self,
         key: iced::keyboard::Key,
@@ -160,6 +167,20 @@ impl super::KglanceApp {
                                 crate::app::messages::NavigationMsg::PrevFileClicked.into(),
                             ))
                         }
+                    }
+                    iced::keyboard::Key::Named(Named::ArrowDown | Named::PageDown)
+                        if self.is_non_scrollable_content() =>
+                    {
+                        Some(self.update(
+                            crate::app::messages::NavigationMsg::NextFileClicked.into(),
+                        ))
+                    }
+                    iced::keyboard::Key::Named(Named::ArrowUp | Named::PageUp)
+                        if self.is_non_scrollable_content() =>
+                    {
+                        Some(self.update(
+                            crate::app::messages::NavigationMsg::PrevFileClicked.into(),
+                        ))
                     }
                     _ => None,
                 }
