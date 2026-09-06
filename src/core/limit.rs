@@ -2,7 +2,10 @@ pub const KB: u64 = 1024;
 pub const MB: u64 = KB * 1024;
 pub const GB: u64 = MB * 1024;
 
-pub fn preview_size_limit(ext: &str) -> u64 {
+pub fn preview_size_limit(ext: &str, config_override_mb: Option<u64>) -> u64 {
+    if let Some(mb) = config_override_mb {
+        return mb * MB;
+    }
     match ext {
         // Video & Audio: 10 GB
         "mp4" | "mkv" | "avi" | "mov" | "wmv" | "webm" | "mp3" | "wav" | "flac" | "ogg" | "aac"

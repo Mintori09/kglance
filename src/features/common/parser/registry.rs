@@ -53,7 +53,8 @@ impl ParserRegistry {
             );
             ParseError::PermissionDenied
         })?;
-        let limit = preview_size_limit(&ext);
+        let config = crate::core::config::ConfigManager::load_or_create();
+        let limit = preview_size_limit(&ext, config.ui.max_preview_size_mb);
         if metadata.len() > limit {
             log_error!(
                 "ParserRegistry: File too large. Size: {}, Limit: {} for extension: {}",
