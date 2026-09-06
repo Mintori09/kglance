@@ -25,7 +25,7 @@ pub fn preview_size_limit(ext: &str, config_override_mb: Option<u64>) -> u64 {
         | "woff" | "woff2" => 100 * MB,
 
         // Creative app project files (ZIP-based, contain preview images): 500 MB
-        "kra" | "ora" => 500 * MB,
+        "kra" | "ora" | "psd" | "psb" => 500 * MB,
 
         // Default (text/code)
         _ => 20 * MB,

@@ -20,6 +20,7 @@ image = { version = "0.25.10", default-features = false, features = [
   "bmp",
 ] }
 kamadak-exif = "0.6.1"
+psd = "0.3"
 resvg = "0.48.1"
 
 mupdf = { version = "0.8", default-features = false, features = [
