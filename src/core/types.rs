@@ -899,3 +899,23 @@ impl Default for KglanceState {
         }
     }
 }
+
+impl KglanceState {
+    pub fn markdown_content_width(&self) -> f32 {
+        crate::features::markdown::effective_content_width(
+            self.max_text_width,
+            self.window_width,
+            self.markdown.toc_visible,
+            self.markdown.sidebar_width,
+        )
+    }
+
+    pub fn epub_content_width(&self) -> f32 {
+        crate::features::markdown::effective_content_width(
+            self.max_text_width,
+            self.window_width,
+            self.epub.sidebar_visible,
+            self.epub.sidebar_width,
+        )
+    }
+}

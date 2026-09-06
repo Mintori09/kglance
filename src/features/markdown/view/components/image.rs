@@ -121,10 +121,12 @@ pub fn handle_markdown_image_loaded(
                 .insert(index, handle);
             app.state.markdown.cached_image_sizes.insert(index, (w, h));
             if let Some(PreviewData::Markdown { ref blocks, .. }) = app.current_content {
-                app.state.markdown.toc = crate::parsers::markdown::extract_toc(
+                let content_width = app.state.markdown_content_width();
+                crate::features::markdown::recompute_markdown_layout(
+                    &mut app.state.markdown,
                     blocks,
                     app.state.font_size,
-                    &app.state.markdown.cached_image_sizes,
+                    content_width,
                 );
             }
             log_debug!(

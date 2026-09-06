@@ -10,7 +10,6 @@ const FONT_MIN: f32 = 8.0;
 const FONT_MAX: f32 = 48.0;
 
 use crate::app::KglanceApp;
-use crate::features::markdown::parser::extract_toc;
 use crate::log_error;
 
 impl KglanceApp {
@@ -233,47 +232,17 @@ impl KglanceApp {
                 if new_size != old_size {
                     self.state.font_size = new_size;
 
-                    if let Some(PreviewData::Markdown { ref blocks, .. }) = self.current_content {
-                        self.state.markdown.toc =
-                            extract_toc(blocks, new_size, &self.state.markdown.cached_image_sizes);
-                        let (offsets, total_h) = crate::features::markdown::compute_block_y_offsets(
-                            blocks,
-                            self.state.font_size,
-                            &self.state.markdown.cached_image_sizes,
-                        );
-                        self.state.markdown.block_y_offsets = offsets;
-                        self.state.markdown.total_content_height = total_h;
-                    }
-
-                    if let Some(PreviewData::Epub { ref chapters, .. }) = self.current_content {
-                        let active_chapter = self.state.epub.active_chapter;
-                        if let Some(chapter) = chapters.get(active_chapter) {
-                            self.state.epub.markdown_state.toc = extract_toc(
-                                &chapter.blocks,
-                                new_size,
-                                &self.state.markdown.cached_image_sizes,
-                            );
-                            let (offsets, total_h) =
-                                crate::features::markdown::compute_block_y_offsets(
-                                    &chapter.blocks,
-                                    self.state.font_size,
-                                    &self.state.markdown.cached_image_sizes,
-                                );
-                            self.state.epub.markdown_state.block_y_offsets = offsets;
-                            self.state.epub.markdown_state.total_content_height = total_h;
-                        }
-                    }
-
                     let scroll_task = match self.current_content {
                         Some(PreviewData::Markdown { ref blocks, .. }) => {
-                            let new_scroll_y = crate::parsers::markdown::rescale_markdown_scroll_y(
-                                blocks,
-                                self.state.markdown.scroll_y,
-                                old_size,
-                                new_size,
-                                &self.state.markdown.cached_image_sizes,
-                            );
-                            self.state.markdown.scroll_y = new_scroll_y;
+                            let content_width = self.state.markdown_content_width();
+                            let new_scroll_y =
+                                crate::features::markdown::rescale_and_update_markdown_layout(
+                                    &mut self.state.markdown,
+                                    blocks,
+                                    old_size,
+                                    new_size,
+                                    content_width,
+                                );
                             Some(iced::widget::operation::scroll_to(
                                 "content_scroll",
                                 iced::widget::operation::AbsoluteOffset {
@@ -285,15 +254,15 @@ impl KglanceApp {
                         Some(PreviewData::Epub { ref chapters, .. }) => {
                             let active_chapter = self.state.epub.active_chapter;
                             chapters.get(active_chapter).map(|chapter| {
+                                let epub_content_width = self.state.epub_content_width();
                                 let new_scroll_y =
-                                    crate::parsers::markdown::rescale_markdown_scroll_y(
+                                    crate::features::markdown::rescale_and_update_markdown_layout(
+                                        &mut self.state.epub.markdown_state,
                                         &chapter.blocks,
-                                        self.state.epub.markdown_state.scroll_y,
                                         old_size,
                                         new_size,
-                                        &self.state.markdown.cached_image_sizes,
+                                        epub_content_width,
                                     );
-                                self.state.epub.markdown_state.scroll_y = new_scroll_y;
                                 iced::widget::operation::scroll_to(
                                     "content_scroll",
                                     iced::widget::operation::AbsoluteOffset {
@@ -444,24 +413,15 @@ impl KglanceApp {
                         let new_size = self.state.default_font_size;
                         self.state.font_size = new_size;
 
-                        self.state.markdown.toc =
-                            extract_toc(blocks, new_size, &self.state.markdown.cached_image_sizes);
-                        let (offsets, total_h) = crate::features::markdown::compute_block_y_offsets(
-                            blocks,
-                            new_size,
-                            &self.state.markdown.cached_image_sizes,
-                        );
-                        self.state.markdown.block_y_offsets = offsets;
-                        self.state.markdown.total_content_height = total_h;
-
-                        let new_scroll_y = crate::parsers::markdown::rescale_markdown_scroll_y(
-                            blocks,
-                            self.state.markdown.scroll_y,
-                            old_size,
-                            new_size,
-                            &self.state.markdown.cached_image_sizes,
-                        );
-                        self.state.markdown.scroll_y = new_scroll_y;
+                        let content_width = self.state.markdown_content_width();
+                        let new_scroll_y =
+                            crate::features::markdown::rescale_and_update_markdown_layout(
+                                &mut self.state.markdown,
+                                blocks,
+                                old_size,
+                                new_size,
+                                content_width,
+                            );
                         Some(iced::widget::operation::scroll_to(
                             "content_scroll",
                             iced::widget::operation::AbsoluteOffset {
@@ -477,28 +437,15 @@ impl KglanceApp {
                         self.state.font_size = new_size;
                         let active_chapter = self.state.epub.active_chapter;
                         if let Some(chapter) = chapters.get(active_chapter) {
-                            self.state.epub.markdown_state.toc = extract_toc(
-                                &chapter.blocks,
-                                new_size,
-                                &self.state.markdown.cached_image_sizes,
-                            );
-                            let (offsets, total_h) =
-                                crate::features::markdown::compute_block_y_offsets(
+                            let epub_content_width = self.state.epub_content_width();
+                            let new_scroll_y =
+                                crate::features::markdown::rescale_and_update_markdown_layout(
+                                    &mut self.state.epub.markdown_state,
                                     &chapter.blocks,
+                                    old_size,
                                     new_size,
-                                    &self.state.markdown.cached_image_sizes,
+                                    epub_content_width,
                                 );
-                            self.state.epub.markdown_state.block_y_offsets = offsets;
-                            self.state.epub.markdown_state.total_content_height = total_h;
-
-                            let new_scroll_y = crate::parsers::markdown::rescale_markdown_scroll_y(
-                                &chapter.blocks,
-                                self.state.epub.markdown_state.scroll_y,
-                                old_size,
-                                new_size,
-                                &self.state.markdown.cached_image_sizes,
-                            );
-                            self.state.epub.markdown_state.scroll_y = new_scroll_y;
                             Some(iced::widget::operation::scroll_to(
                                 "content_scroll",
                                 iced::widget::operation::AbsoluteOffset {
