@@ -233,7 +233,7 @@ pub(crate) struct TocStyle {
     pub sidebar_border_width: f32,
 }
 
-pub(super) fn heading_layout(level: u8) -> (f32, f32, f32) {
+pub(crate) fn heading_layout(level: u8) -> (f32, f32, f32) {
     match level {
         1 => (32.0, 24.0, 12.0),
         2 => (24.0, 20.0, 8.0),

@@ -30,4 +30,5 @@ pub(crate) use math::render_math_block;
 pub(crate) use mermaid::render_mermaid;
 pub(crate) use paragraph::render_paragraph;
 pub(crate) use quote::render_quote;
+pub(crate) use style::{STYLE, heading_layout};
 pub(crate) use table::render_table;

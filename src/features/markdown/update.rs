@@ -26,13 +26,20 @@ fn markdown_block_y_offset(
     target_index: usize,
     font_size: f32,
     image_sizes: &std::collections::HashMap<usize, (u32, u32)>,
+    content_width: f32,
 ) -> f32 {
     let mut y: f32 = 15.0;
     for (i, block) in blocks.iter().enumerate() {
         if i == target_index {
             return y;
         }
-        y += crate::parsers::markdown::estimated_block_height(block, font_size, i, image_sizes);
+        y += crate::parsers::markdown::estimated_block_height(
+            block,
+            font_size,
+            i,
+            image_sizes,
+            content_width,
+        );
     }
     0.0
 }
@@ -73,6 +80,11 @@ pub fn handle_markdown_scrolled(
         return Task::none();
     }
     let state = active_markdown_state_mut(app);
+    let delta_y = (state.scroll_y - y).abs();
+    let delta_vh = (state.viewport_height - viewport_height).abs();
+    if delta_y < 1.0 && delta_vh < 1.0 {
+        return Task::none();
+    }
     state.scroll_y = y;
     state.viewport_height = viewport_height;
     app.record_read_position();
@@ -185,15 +197,25 @@ pub fn handle_search_next(app: &mut KglanceApp) -> Task<Message> {
         s.search_match_index = (s.search_match_index + 1) % s.search_match_count;
         s.search_info = format!("{}/{}", s.search_match_index + 1, s.search_match_count);
         let block_idx = s.search_match_blocks[s.search_match_index];
-        if let Some(PreviewData::Markdown { blocks, .. }) = &app.current_content {
-            let y = markdown_block_y_offset(
-                blocks,
-                block_idx,
-                app.state.font_size,
-                &app.state.markdown.cached_image_sizes,
-            );
-            return operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y });
-        }
+        let y = s
+            .block_y_offsets
+            .get(block_idx)
+            .copied()
+            .unwrap_or_else(|| {
+                if let Some(PreviewData::Markdown { blocks, .. }) = &app.current_content {
+                    let cw = app.state.markdown_content_width();
+                    markdown_block_y_offset(
+                        blocks,
+                        block_idx,
+                        app.state.font_size,
+                        &app.state.markdown.cached_image_sizes,
+                        cw,
+                    )
+                } else {
+                    0.0
+                }
+            });
+        return operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y });
     }
     Task::none()
 }
@@ -208,15 +230,25 @@ pub fn handle_search_prev(app: &mut KglanceApp) -> Task<Message> {
         };
         s.search_info = format!("{}/{}", s.search_match_index + 1, s.search_match_count);
         let block_idx = s.search_match_blocks[s.search_match_index];
-        if let Some(PreviewData::Markdown { blocks, .. }) = &app.current_content {
-            let y = markdown_block_y_offset(
-                blocks,
-                block_idx,
-                app.state.font_size,
-                &app.state.markdown.cached_image_sizes,
-            );
-            return operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y });
-        }
+        let y = s
+            .block_y_offsets
+            .get(block_idx)
+            .copied()
+            .unwrap_or_else(|| {
+                if let Some(PreviewData::Markdown { blocks, .. }) = &app.current_content {
+                    let cw = app.state.markdown_content_width();
+                    markdown_block_y_offset(
+                        blocks,
+                        block_idx,
+                        app.state.font_size,
+                        &app.state.markdown.cached_image_sizes,
+                        cw,
+                    )
+                } else {
+                    0.0
+                }
+            });
+        return operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y });
     }
     Task::none()
 }
