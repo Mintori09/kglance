@@ -1009,17 +1009,26 @@ fn test_rescale_markdown_scroll_y() {
     let doc = "# Heading 1\n\nParagraph 1\n\nParagraph 2\n\n# Heading 2\n\nParagraph 3";
     let blocks = parse_to_blocks(doc);
     let image_sizes = HashMap::new();
+    let content_width = 800.0;
 
     // scroll_y = 0 should remain 0
-    let res = rescale_markdown_scroll_y(&blocks, 0.0, 14.0, 18.0, &image_sizes);
+    let res = rescale_markdown_scroll_y(&blocks, 0.0, 14.0, 18.0, &image_sizes, content_width);
     assert_eq!(res, 0.0);
 
     // Zoom in (larger font size) should proportionally increase scroll_y
     let initial_y = 100.0;
-    let zoomed_in_y = rescale_markdown_scroll_y(&blocks, initial_y, 14.0, 28.0, &image_sizes);
+    let zoomed_in_y =
+        rescale_markdown_scroll_y(&blocks, initial_y, 14.0, 28.0, &image_sizes, content_width);
     assert!(zoomed_in_y > initial_y);
 
     // Zooming out should reverse the position back
-    let zoomed_out_y = rescale_markdown_scroll_y(&blocks, zoomed_in_y, 28.0, 14.0, &image_sizes);
+    let zoomed_out_y = rescale_markdown_scroll_y(
+        &blocks,
+        zoomed_in_y,
+        28.0,
+        14.0,
+        &image_sizes,
+        content_width,
+    );
     assert!((zoomed_out_y - initial_y).abs() < 1.0);
 }

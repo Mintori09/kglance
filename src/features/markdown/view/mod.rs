@@ -44,7 +44,7 @@ pub(crate) fn build_selectable<'a>(
 }
 
 pub(crate) use blocks::{block_margin, render_block};
-use components::style::STYLE;
+pub(crate) use components::{STYLE, heading_layout};
 const SCROLL_PANE_ID: &str = "content_scroll";
 
 pub fn view_markdown<'a>(
@@ -100,7 +100,9 @@ fn build_scrollable_content<'a>(
     let use_virtual = blocks.len() > VIRTUAL_THRESHOLD && offsets.len() == blocks.len();
 
     let elements: Vec<Element<'a, Message>> = if use_virtual {
-        let buffer = (state.viewport_height * 1.5).clamp(800.0, 3000.0);
+        let min_buf = state.viewport_height.max(600.0);
+        let max_buf = (state.viewport_height * 4.0).max(3000.0);
+        let buffer = (state.viewport_height * 2.0).clamp(min_buf, max_buf);
         const CHUNK_SIZE: usize = 32;
 
         let view_top = (state.scroll_y - buffer).max(0.0);
@@ -111,9 +113,21 @@ fn build_scrollable_content<'a>(
             .partition_point(|&y| y <= view_bottom)
             .min(blocks.len());
 
-        let first_visible = (raw_first / CHUNK_SIZE) * CHUNK_SIZE;
-        let last_visible = raw_last.div_ceil(CHUNK_SIZE) * CHUNK_SIZE;
-        let last_visible = last_visible.min(blocks.len());
+        let remaining_blocks = blocks.len().saturating_sub(raw_last);
+        let dist_to_bottom = state.total_content_height - (state.scroll_y + state.viewport_height);
+        let is_near_bottom = remaining_blocks <= CHUNK_SIZE * 3 || dist_to_bottom <= buffer * 1.5;
+
+        let (first_visible, last_visible) = if is_near_bottom {
+            let clamped_last = (raw_last + CHUNK_SIZE * 3).min(blocks.len());
+            let min_rendered = (CHUNK_SIZE * 3).min(blocks.len());
+            let max_first = clamped_last.saturating_sub(min_rendered);
+            let first = (raw_first / CHUNK_SIZE) * CHUNK_SIZE;
+            (first.min(max_first), clamped_last)
+        } else {
+            let first = (raw_first / CHUNK_SIZE) * CHUNK_SIZE;
+            let last = (raw_last.div_ceil(CHUNK_SIZE) * CHUNK_SIZE).min(blocks.len());
+            (first, last)
+        };
 
         let top_height = if first_visible > 0 {
             offsets[first_visible] - offsets[0]
@@ -122,7 +136,7 @@ fn build_scrollable_content<'a>(
         };
 
         let bottom_height = if last_visible < blocks.len() {
-            state.total_content_height - offsets[last_visible]
+            (state.total_content_height - offsets[last_visible]).max(0.0)
         } else {
             0.0
         };
