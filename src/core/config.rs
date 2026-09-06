@@ -4,6 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct UiConfig {
     pub theme: Option<String>,
     pub font_size: f32,
@@ -27,6 +28,11 @@ pub struct UiConfig {
 
 fn default_json_tree_view() -> bool {
     true
+}
+
+fn default_schema() -> String {
+    "https://raw.githubusercontent.com/Mintori09/kglance/main/data/examples/config.schema.json"
+        .to_string()
 }
 
 fn default_min_width() -> u32 {
@@ -92,9 +98,21 @@ impl Default for UiConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AppConfig {
+    #[serde(rename = "$schema", default = "default_schema")]
+    pub schema: String,
     pub ui: UiConfig,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            schema: default_schema(),
+            ui: UiConfig::default(),
+        }
+    }
 }
 
 pub struct ConfigManager;

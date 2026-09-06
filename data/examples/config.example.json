@@ -1,4 +1,5 @@
 {
+  "$schema": "./config.schema.json",
   "ui": {
     "theme": "Dark",
     "font_size": 14.0,
