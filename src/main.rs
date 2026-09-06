@@ -149,17 +149,17 @@ fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
     let primary = &paths[0];
     let resolved = std::path::Path::new(primary);
-    let mut initial_size = Size::new(
-        config.ui.default_width as f32,
-        config.ui.default_height as f32,
-    );
+    let saved_size = kglance::core::window_state::load();
+    let base_width = saved_size.as_ref().map_or(config.ui.default_width as f32, |s| s.width);
+    let base_height = saved_size.as_ref().map_or(config.ui.default_height as f32, |s| s.height);
+    let mut initial_size = Size::new(base_width, base_height);
 
     if let Ok(kglance::parsers::ParsedContent::Image { width, height, .. }) =
         registry.parse(resolved)
     {
         initial_size = kglance::features::image::view::calculate_window_size(
-            config.ui.default_width as f32,
-            config.ui.default_height as f32,
+            base_width,
+            base_height,
             width,
             height,
         );

@@ -10,6 +10,7 @@ pub mod preview;
 pub mod read_positions;
 pub mod types;
 pub mod utils;
+pub mod window_state;
 
 pub use cache::CachedContent;
 pub use preview::{FilePreviewer, PreviewData};
