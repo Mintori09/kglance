@@ -11,13 +11,27 @@ pub fn handle_text_edit(
 
     match &action {
         Action::Move(motion) | Action::Select(motion) => match motion {
-            Motion::Left | Motion::Up | Motion::PageUp => {
+            Motion::Left | Motion::PageUp => {
                 return app
                     .update(crate::app::messages::NavigationMsg::PrevFileClicked.into());
             }
-            Motion::Right | Motion::Down | Motion::PageDown => {
+            Motion::Right | Motion::PageDown => {
                 return app
                     .update(crate::app::messages::NavigationMsg::NextFileClicked.into());
+            }
+            Motion::Up => {
+                if !is_text_scrollable(app) {
+                    return app
+                        .update(crate::app::messages::NavigationMsg::PrevFileClicked.into());
+                }
+                app.state.text.content.perform(action);
+            }
+            Motion::Down => {
+                if !is_text_scrollable(app) {
+                    return app
+                        .update(crate::app::messages::NavigationMsg::NextFileClicked.into());
+                }
+                app.state.text.content.perform(action);
             }
             _ => {
                 app.state.text.content.perform(action);
@@ -29,6 +43,13 @@ pub fn handle_text_edit(
         }
     }
     Task::none()
+}
+
+fn is_text_scrollable(app: &KglanceApp) -> bool {
+    let line_count = app.state.text.content.line_count();
+    let line_height = app.state.font_size * 1.35;
+    let content_height = line_count as f32 * line_height;
+    content_height > app.state.window_height
 }
 
 pub fn handle_text_scrolled(app: &mut KglanceApp, y: f32) -> Task<Message> {
