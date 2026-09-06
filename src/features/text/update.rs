@@ -7,8 +7,26 @@ pub fn handle_text_edit(
     app: &mut KglanceApp,
     action: iced::widget::text_editor::Action,
 ) -> Task<Message> {
-    if !matches!(action, iced::widget::text_editor::Action::Edit(_)) {
-        app.state.text.content.perform(action);
+    use iced::widget::text_editor::{Action, Motion};
+
+    match &action {
+        Action::Move(motion) | Action::Select(motion) => match motion {
+            Motion::Left | Motion::Up | Motion::PageUp => {
+                return app
+                    .update(crate::app::messages::NavigationMsg::PrevFileClicked.into());
+            }
+            Motion::Right | Motion::Down | Motion::PageDown => {
+                return app
+                    .update(crate::app::messages::NavigationMsg::NextFileClicked.into());
+            }
+            _ => {
+                app.state.text.content.perform(action);
+            }
+        },
+        Action::Edit(_) => {}
+        _ => {
+            app.state.text.content.perform(action);
+        }
     }
     Task::none()
 }
