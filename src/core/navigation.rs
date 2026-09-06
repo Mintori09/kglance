@@ -3,7 +3,7 @@ use std::path::Path;
 pub const SUPPORTED_EXTS: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "txt", "md", "typ", "rs", "py", "js", "ts",
     "json", "toml", "yaml", "pdf", "mp4", "mkv", "avi", "webm", "mp3", "wav", "flac", "csv", "tsv",
-    "xlsx", "epub",
+    "xlsx", "epub", "kra", "ora",
 ];
 
 pub fn is_supported_path(path: &Path) -> bool {

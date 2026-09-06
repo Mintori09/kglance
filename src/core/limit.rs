@@ -21,6 +21,9 @@ pub fn preview_size_limit(ext: &str) -> u64 {
         "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg" | "ico" | "ttf" | "otf"
         | "woff" | "woff2" => 100 * MB,
 
+        // Creative app project files (ZIP-based, contain preview images): 500 MB
+        "kra" | "ora" => 500 * MB,
+
         // Default (text/code)
         _ => 20 * MB,
     }
