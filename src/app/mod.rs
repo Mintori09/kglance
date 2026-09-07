@@ -785,7 +785,10 @@ impl KglanceApp {
                     self.state.font_family_mono.as_deref(),
                     self.state.max_text_width,
                 ),
-                PreviewData::Image { .. } => crate::ui::views::view_image(&self.state.image),
+                PreviewData::Image { .. } => crate::ui::views::view_image(
+                    &self.state.image,
+                    self.state.font_family.as_deref(),
+                ),
                 PreviewData::Font { name, metadata, .. } => {
                     crate::ui::views::view_font(name, metadata, self.state.app_theme)
                 }

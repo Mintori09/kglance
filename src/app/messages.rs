@@ -31,6 +31,8 @@ pub enum ImageMsg {
     PanDelta(f32, f32),
     DoubleClick,
     FitToWindow,
+    ToggleInfo,
+    CloseInfo,
     Decoded {
         load_id: u64,
         handle: iced::widget::image::Handle,

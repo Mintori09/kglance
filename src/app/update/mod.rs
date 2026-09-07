@@ -125,6 +125,12 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             } => {
                 crate::features::image::update::handle_decoded(app, load_id, handle, width, height)
             }
+            crate::app::messages::ImageMsg::ToggleInfo => {
+                crate::features::image::update::handle_toggle_info(app)
+            }
+            crate::app::messages::ImageMsg::CloseInfo => {
+                crate::features::image::update::handle_close_info(app)
+            }
         },
 
         Message::Text(msg) => match msg {
