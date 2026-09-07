@@ -161,6 +161,16 @@ impl super::KglanceApp {
                             ))
                         }
                     }
+                    iced::keyboard::Key::Named(Named::PageDown) => {
+                        Some(self.update(
+                            crate::app::messages::NavigationMsg::NextFileClicked.into(),
+                        ))
+                    }
+                    iced::keyboard::Key::Named(Named::PageUp) => {
+                        Some(self.update(
+                            crate::app::messages::NavigationMsg::PrevFileClicked.into(),
+                        ))
+                    }
                     _ => None,
                 }
             }
