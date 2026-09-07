@@ -14,8 +14,12 @@ pub enum ImageFormat {
     Bmp,
 }
 
-#[derive(Debug, Clone)]
-pub struct ExifData {
+#[derive(Debug, Clone, Default)]
+pub struct ImageMetadata {
+    pub title: Option<String>,
+    pub author: Option<String>,
+    pub software: Option<String>,
+    pub creation_date: Option<String>,
     pub camera_make: Option<String>,
     pub camera_model: Option<String>,
     pub date_taken: Option<String>,

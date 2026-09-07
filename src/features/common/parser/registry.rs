@@ -3,6 +3,7 @@ use crate::core::utils::human_size;
 use crate::features::common::parser::traits::ParseError;
 use crate::features::common::parser::traits::{ParserRegistry, PreviewParser};
 use crate::features::common::parser::types::ParsedContent;
+use crate::features::image::types::ImageFormat;
 use crate::ui::theme::icon_theme::icon_for_entry;
 use crate::{log_debug, log_error, log_info};
 use std::path::Path;
@@ -219,21 +220,61 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 format,
                 exif,
             } => {
-                let format_info = format!("Image ({:?} - {}x{})", format, width, height);
-                let exif_content = exif.map(|exif_data| {
-                    format!(
-                        "Camera Make: {}\nCamera Model: {}\nDate Taken: {}\nGPS Lat: {}\nGPS Lon: {}\nExposure: {}\nF-Number: {}\nISO: {}\nFocal Length: {}",
-                        exif_data.camera_make.as_deref().unwrap_or("N/A"),
-                        exif_data.camera_model.as_deref().unwrap_or("N/A"),
-                        exif_data.date_taken.as_deref().unwrap_or("N/A"),
-                        exif_data.gps_lat.as_deref().unwrap_or("N/A"),
-                        exif_data.gps_lon.as_deref().unwrap_or("N/A"),
-                        exif_data.exposure.as_deref().unwrap_or("N/A"),
-                        exif_data.f_number.as_deref().unwrap_or("N/A"),
-                        exif_data.iso.as_deref().unwrap_or("N/A"),
-                        exif_data.focal_length.as_deref().unwrap_or("N/A")
-                    )
-                });
+                let format_str = match format {
+                    ImageFormat::Png => "PNG",
+                    ImageFormat::Jpeg => "JPEG",
+                    ImageFormat::WebP => "WebP",
+                    ImageFormat::Gif => "GIF",
+                    ImageFormat::Bmp => "BMP",
+                };
+                let format_info = format!("Image ({format_str} - {width}x{height})");
+                let mut lines = Vec::new();
+                lines.push(format!("Format: {format_str}"));
+                lines.push(format!("Dimensions: {width} × {height}"));
+
+                if let Some(exif_data) = exif {
+                    if let Some(ref title) = exif_data.title {
+                        lines.push(format!("Title: {title}"));
+                    }
+                    if let Some(ref author) = exif_data.author {
+                        lines.push(format!("Author: {author}"));
+                    }
+                    if let Some(ref software) = exif_data.software {
+                        lines.push(format!("Software: {software}"));
+                    }
+                    if let Some(ref date) = exif_data.creation_date {
+                        lines.push(format!("Created: {date}"));
+                    }
+                    if let Some(ref make) = exif_data.camera_make {
+                        lines.push(format!("Camera Make: {make}"));
+                    }
+                    if let Some(ref model) = exif_data.camera_model {
+                        lines.push(format!("Camera Model: {model}"));
+                    }
+                    if let Some(ref date) = exif_data.date_taken {
+                        lines.push(format!("Date Taken: {date}"));
+                    }
+                    if let Some(ref lat) = exif_data.gps_lat {
+                        lines.push(format!("GPS Lat: {lat}"));
+                    }
+                    if let Some(ref lon) = exif_data.gps_lon {
+                        lines.push(format!("GPS Lon: {lon}"));
+                    }
+                    if let Some(ref exp) = exif_data.exposure {
+                        lines.push(format!("Exposure: {exp}"));
+                    }
+                    if let Some(ref fnumb) = exif_data.f_number {
+                        lines.push(format!("F-Number: {fnumb}"));
+                    }
+                    if let Some(ref iso) = exif_data.iso {
+                        lines.push(format!("ISO: {iso}"));
+                    }
+                    if let Some(ref fl) = exif_data.focal_length {
+                        lines.push(format!("Focal Length: {fl}"));
+                    }
+                }
+
+                let exif_content = Some(lines.join("\n"));
                 crate::core::preview::PreviewData::Image {
                     data,
                     width,

@@ -60,6 +60,7 @@ pub struct ImageState {
     pub display_handle: Option<image::Handle>,
     pub display_width: u32,
     pub display_height: u32,
+    pub show_info: bool,
 }
 
 impl Default for ImageState {
@@ -76,6 +77,7 @@ impl Default for ImageState {
             display_handle: None,
             display_width: 0,
             display_height: 0,
+            show_info: false,
         }
     }
 }
