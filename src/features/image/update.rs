@@ -184,6 +184,18 @@ pub fn handle_double_click(app: &mut KglanceApp) -> Task<Message> {
     Task::none()
 }
 
+pub fn handle_toggle_info(app: &mut KglanceApp) -> Task<Message> {
+    if !app.state.image.exif_content.is_empty() {
+        app.state.image.show_info = !app.state.image.show_info;
+    }
+    Task::none()
+}
+
+pub fn handle_close_info(app: &mut KglanceApp) -> Task<Message> {
+    app.state.image.show_info = false;
+    Task::none()
+}
+
 pub fn handle_video_thumbnail_loaded(app: &mut KglanceApp, data: Vec<u8>) -> Task<Message> {
     if let Some(PreviewData::Media {
         ref mut thumbnail_or_waveform,

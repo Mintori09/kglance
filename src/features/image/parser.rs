@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::features::common::parser::traits::{ParseError, PreviewParser};
 use crate::features::common::parser::types::ParsedContent;
-use crate::features::image::types::{ExifData, ImageFormat};
+use crate::features::image::types::{ImageFormat, ImageMetadata};
 
 pub struct ImageParser;
 
@@ -47,27 +47,53 @@ impl PreviewParser for ImageParser {
     }
 }
 
-fn extract_exif(path: &Path) -> Option<Box<ExifData>> {
+pub(crate) fn extract_exif(path: &Path) -> Option<Box<ImageMetadata>> {
+    let file = std::fs::File::open(path).ok()?;
+    let mut buf_reader = std::io::BufReader::new(file);
+    let exif_reader = exif::Reader::new();
+    if let Ok(reader) = exif_reader.read_from_container(&mut buf_reader) {
+        return Some(Box::new(exif_from_reader(&reader)));
+    }
+
     let mut file = std::fs::File::open(path).ok()?;
     let mut buf = Vec::new();
     file.read_to_end(&mut buf).ok()?;
-    let exif_reader = exif::Reader::new();
-    let reader = exif_reader.read_raw(buf).ok()?;
+    extract_exif_from_bytes(&buf)
+}
 
+pub(crate) fn extract_exif_from_bytes(bytes: &[u8]) -> Option<Box<ImageMetadata>> {
+    let exif_reader = exif::Reader::new();
+    let mut cursor = std::io::Cursor::new(bytes);
+    if let Ok(reader) = exif_reader.read_from_container(&mut cursor) {
+        return Some(Box::new(exif_from_reader(&reader)));
+    }
+    if let Ok(reader) = exif_reader.read_raw(bytes.to_vec()) {
+        return Some(Box::new(exif_from_reader(&reader)));
+    }
+    None
+}
+
+fn exif_from_reader(reader: &exif::Exif) -> ImageMetadata {
     let fmt_val = |tag: exif::Tag| {
-        reader
-            .get_field(tag, exif::In::PRIMARY)
-            .map(|f| f.value.display_as(f.tag).to_string())
+        reader.get_field(tag, exif::In::PRIMARY).map(|f| {
+            let s = f.value.display_as(f.tag).to_string();
+            s.trim_matches('"').trim().to_string()
+        })
     };
 
     let gps_val = |tag: exif::Tag| {
         reader.get_field(tag, exif::In::PRIMARY).and_then(|f| {
             let v = f.value.display_as(f.tag).to_string();
-            if v.is_empty() { None } else { Some(v) }
+            let trimmed = v.trim_matches('"').trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
         })
     };
 
-    Some(Box::new(ExifData {
+    ImageMetadata {
         camera_make: fmt_val(exif::Tag::Make),
         camera_model: fmt_val(exif::Tag::Model),
         date_taken: fmt_val(exif::Tag::DateTimeOriginal),
@@ -77,7 +103,8 @@ fn extract_exif(path: &Path) -> Option<Box<ExifData>> {
         f_number: fmt_val(exif::Tag::FNumber),
         iso: fmt_val(exif::Tag::ISOSpeed),
         focal_length: fmt_val(exif::Tag::FocalLength),
-    }))
+        ..Default::default()
+    }
 }
 
 #[cfg(test)]

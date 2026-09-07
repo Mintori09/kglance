@@ -1,7 +1,7 @@
 use crate::features::{
     archive::types::ArchiveEntry,
     folder::types::DirEntry,
-    image::types::{ExifData, ImageFormat, ImageRef},
+    image::types::{ImageFormat, ImageMetadata, ImageRef},
     json::parser::types::JsonNode,
     markdown::parser::Block,
     office::types::SheetData,
@@ -23,7 +23,7 @@ pub enum ParsedContent {
         width: u32,
         height: u32,
         format: ImageFormat,
-        exif: Option<Box<ExifData>>,
+        exif: Option<Box<ImageMetadata>>,
     },
     Pdf {
         page_count: u32,

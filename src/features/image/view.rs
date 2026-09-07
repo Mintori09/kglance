@@ -14,8 +14,116 @@ pub fn is_loaded(state: &ImageState) -> bool {
     state.handle.is_some() || state.preview_handle.is_some() || state.display_handle.is_some()
 }
 
-pub fn view_image<'a>(state: &'a ImageState) -> Element<'a, Message> {
-    render_image(state)
+pub fn view_image<'a>(state: &'a ImageState, font_family: Option<&str>) -> Element<'a, Message> {
+    let canvas = render_image(state);
+
+    if state.show_info && !state.exif_content.is_empty() {
+        let card = render_info_card(state, font_family);
+        iced::widget::Stack::new()
+            .push(canvas)
+            .push(
+                container(card)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .padding(16)
+                    .align_x(iced::alignment::Horizontal::Right)
+                    .align_y(iced::alignment::Vertical::Top),
+            )
+            .into()
+    } else {
+        canvas
+    }
+}
+
+fn render_info_card<'a>(state: &'a ImageState, font_family: Option<&str>) -> Element<'a, Message> {
+    use iced::widget::{button, column, row};
+    use iced::{Border, Padding, Shadow, Vector};
+
+    let font = crate::ui::theme::font::get_main_font(font_family);
+
+    let title_row = row![
+        text("Image Info")
+            .size(13)
+            .font(font)
+            .style(|theme: &iced::Theme| {
+                let palette = theme.extended_palette();
+                iced::widget::text::Style {
+                    color: Some(palette.primary.base.color),
+                }
+            }),
+        iced::widget::Space::new().width(Length::Fill),
+        button(text("✕").size(11).font(font))
+            .on_press(crate::app::messages::ImageMsg::CloseInfo.into())
+            .style(iced::widget::button::text)
+            .padding([0, 4]),
+    ]
+    .align_y(iced::Alignment::Center);
+
+    let mut lines_col = column![title_row].spacing(6);
+
+    for line in state.exif_content.lines() {
+        if let Some((k, v)) = line.split_once(':') {
+            let row = row![
+                text(format!("{}:", k.trim()))
+                    .size(11)
+                    .font(font)
+                    .style(|theme: &iced::Theme| {
+                        let palette = theme.extended_palette();
+                        iced::widget::text::Style {
+                            color: Some(palette.background.weak.text),
+                        }
+                    }),
+                text(v.trim())
+                    .size(11)
+                    .font(font)
+                    .style(|theme: &iced::Theme| {
+                        let palette = theme.extended_palette();
+                        iced::widget::text::Style {
+                            color: Some(palette.background.base.text),
+                        }
+                    }),
+            ]
+            .spacing(6);
+            lines_col = lines_col.push(row);
+        } else {
+            lines_col = lines_col.push(text(line).size(11).font(font));
+        }
+    }
+
+    container(lines_col)
+        .padding(Padding {
+            top: 10.0,
+            right: 14.0,
+            bottom: 12.0,
+            left: 14.0,
+        })
+        .max_width(320.0)
+        .style(|theme: &iced::Theme| {
+            let palette = theme.extended_palette();
+            let mut bg = palette.background.base.color;
+            bg.a = 0.92;
+            container::Style {
+                background: Some(bg.into()),
+                text_color: Some(palette.background.base.text),
+                border: Border {
+                    radius: 8.0.into(),
+                    width: 1.0,
+                    color: palette.background.strong.color,
+                },
+                shadow: Shadow {
+                    offset: Vector::new(0.0, 3.0),
+                    blur_radius: 10.0,
+                    color: iced::Color {
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a: 0.35,
+                    },
+                },
+                ..Default::default()
+            }
+        })
+        .into()
 }
 
 pub fn calculate_window_size(
@@ -81,5 +189,18 @@ mod tests {
         let size = calculate_window_size(1000.0, 800.0, 500, 400);
         assert_eq!(size.width, 500.0);
         assert_eq!(size.height, 400.0 + HEADER_HEIGHT);
+    }
+
+    #[test]
+    fn test_view_image_with_and_without_info() {
+        let mut state = ImageState {
+            exif_content: "Camera Make: Nikon\nCamera Model: Z6".to_string(),
+            show_info: false,
+            ..Default::default()
+        };
+        let _ = view_image(&state, None);
+
+        state.show_info = true;
+        let _ = view_image(&state, Some("Noto Sans"));
     }
 }

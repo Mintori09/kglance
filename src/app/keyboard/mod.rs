@@ -91,6 +91,10 @@ impl super::KglanceApp {
             return Task::none();
         }
 
+        if self.state.image.show_info && matches!(key, iced::keyboard::Key::Named(Named::Escape)) {
+            return self.update(crate::app::messages::ImageMsg::CloseInfo.into());
+        }
+
         if let Some(task) = self.handle_close_shortcuts(&key) {
             return task;
         }
@@ -99,10 +103,16 @@ impl super::KglanceApp {
             return task;
         }
 
-        if matches!(&key, iced::keyboard::Key::Character(c) if c == "=")
-            && matches!(self.current_content, Some(PreviewData::Image { .. }))
-        {
-            return self.update(crate::app::messages::ImageMsg::FitToWindow.into());
+        if matches!(self.current_content, Some(PreviewData::Image { .. })) {
+            match &key {
+                iced::keyboard::Key::Character(c) if c == "=" => {
+                    return self.update(crate::app::messages::ImageMsg::FitToWindow.into());
+                }
+                iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("i") => {
+                    return self.update(crate::app::messages::ImageMsg::ToggleInfo.into());
+                }
+                _ => {}
+            }
         }
 
         Task::none()

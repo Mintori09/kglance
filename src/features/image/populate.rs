@@ -42,6 +42,7 @@ pub fn populate_state(
         display_width: prev_display_width,
         display_height: prev_display_height,
         camera: prev_camera,
+        show_info: false,
     };
 
     state.file_type_text = format_info.to_string();

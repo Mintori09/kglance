@@ -69,6 +69,7 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     let counter = playlist_position_button(state);
     let page_counter = page_indicator(state);
     let typst = typst_toggle_button(state);
+    let info = image_info_button(state);
 
     let left_row = row![
         counter,
@@ -81,6 +82,7 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     let right_row = row![
         text(right).size(11).style(metadata_style),
         typst,
+        info,
         setting_button(),
     ]
     .spacing(8)
@@ -166,6 +168,25 @@ fn setting_button<'a>() -> Element<'a, Message> {
         .style(iced::widget::button::secondary)
         .padding([2, 6])
         .into()
+}
+
+fn image_info_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
+    if !state.image.exif_content.is_empty() {
+        let style = if state.image.show_info {
+            iced::widget::button::primary
+        } else {
+            iced::widget::button::secondary
+        };
+        Some(
+            iced::widget::button(text("ℹ").size(12))
+                .on_press(crate::app::messages::ImageMsg::ToggleInfo.into())
+                .style(style)
+                .padding([2, 6])
+                .into(),
+        )
+    } else {
+        None
+    }
 }
 
 fn typst_toggle_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
