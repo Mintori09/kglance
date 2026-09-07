@@ -86,7 +86,9 @@ fn is_valid_rgba_frame(data: &[u8]) -> bool {
     }
     // Alpha channel should be 255 (opaque) for most pixels
     let alpha_pixels: usize = data
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| c[3])
         .filter(|&a| a == 255)
         .count();
@@ -560,7 +562,12 @@ fn test_rgba_alpha_channel_integrity() {
         assert_eq!(stdout.len(), expected_size, "frame size at {pos}s");
 
         // Check alpha: at least 50% of pixels should have alpha=255
-        let opaque = stdout.chunks_exact(4).filter(|c| c[3] == 255).count();
+        let opaque = stdout
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|c| c[3] == 255)
+            .count();
         let ratio = opaque as f64 / (stdout.len() / 4) as f64;
         assert!(
             ratio > 0.8,
