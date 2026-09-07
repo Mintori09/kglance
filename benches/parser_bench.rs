@@ -393,7 +393,7 @@ fn bench_image_pipeline(c: &mut Criterion) {
                 let data_len = raw.len();
                 // Simulate pixel copy into SharedPixelBuffer
                 let mut copy = vec![0u8; data_len];
-                for (i, p) in copy.chunks_exact_mut(4).enumerate() {
+                for (i, p) in copy.as_chunks_mut::<4>().0.iter_mut().enumerate() {
                     let offset = i * 4;
                     p[0] = raw[offset];
                     p[1] = raw[offset + 1];
@@ -424,7 +424,7 @@ fn bench_image_pixel_copy(c: &mut Criterion) {
             b.iter(|| {
                 let len = raw.len();
                 let mut copy = vec![0u8; len];
-                for (i, chunk) in copy.chunks_exact_mut(4).enumerate() {
+                for (i, chunk) in copy.as_chunks_mut::<4>().0.iter_mut().enumerate() {
                     let offset = i * 4;
                     chunk[0] = raw[offset];
                     chunk[1] = raw[offset + 1];
