@@ -160,25 +160,29 @@ impl KglanceApp {
     }
 
     pub(crate) fn restore_read_position_for(&mut self, path: &str) -> Task<Message> {
-        let Some(pos) = self.state.read_positions.get(path) else {
-            return Task::none();
-        };
-        let scroll_y = pos.scroll_y;
-        match &self.current_content {
+        let pos = self.state.read_positions.get(path);
+        let scroll_y = pos.map(|p| p.scroll_y).unwrap_or(0.0);
+        let chapter = pos.map(|p| p.chapter).unwrap_or(0);
+
+        let applies_content_scroll = match &self.current_content {
             Some(crate::core::PreviewData::Text { .. }) => {
                 self.state.text.scroll_y = scroll_y;
+                true
             }
             Some(crate::core::PreviewData::Markdown { .. }) => {
                 self.state.markdown.scroll_y = scroll_y;
+                true
             }
             Some(crate::core::PreviewData::Epub { .. }) => {
                 let max = self.state.epub.chapters.len().max(1);
-                self.state.epub.active_chapter = pos.chapter.min(max - 1);
+                self.state.epub.active_chapter = chapter.min(max - 1);
                 self.state.epub.markdown_state.scroll_y = scroll_y;
+                true
             }
-            _ => return Task::none(),
-        }
-        if scroll_y > 0.0 {
+            _ => false,
+        };
+
+        if applies_content_scroll {
             iced::widget::operation::scroll_to(
                 "content_scroll",
                 iced::widget::operation::AbsoluteOffset {

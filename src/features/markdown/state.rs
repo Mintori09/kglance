@@ -86,7 +86,6 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
     let chars = full_text.chars().count();
     let mins = (words as f32 / 200.0).ceil() as usize;
 
-    let old_scroll_y = state.markdown.scroll_y;
     let old_toc_visible = state.markdown.toc_visible;
     let old_collapsed = std::mem::take(&mut state.markdown.collapsed_headings);
     let old_mermaid = std::mem::take(&mut state.markdown.cached_mermaid_handles);
@@ -120,7 +119,7 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
         sidebar_drag_start_x: None,
         sidebar_drag_start_width: 220.0,
         collapsed_headings: old_collapsed,
-        scroll_y: old_scroll_y,
+        scroll_y: 0.0,
         cached_mermaid_handles: old_mermaid,
         cached_image_handles: old_image_h,
         cached_image_sizes: old_image_s,
