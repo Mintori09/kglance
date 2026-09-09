@@ -251,9 +251,12 @@ pub fn render_inlines<'a>(
         inlines.len(),
     );
 
+    let wrap_spacing = crate::ui::theme::scale_spacing(STYLE.inline.wrap_spacing, font_size, 2.0);
+    let wrap_line_spacing =
+        crate::ui::theme::scale_spacing(STYLE.inline.wrap_line_spacing, font_size, 2.0);
     let mut wrap = iced_aw::Wrap::new()
-        .spacing(STYLE.inline.wrap_spacing)
-        .line_spacing(STYLE.inline.wrap_line_spacing);
+        .spacing(wrap_spacing)
+        .line_spacing(wrap_line_spacing);
     for el in elements {
         wrap = wrap.push(el);
     }

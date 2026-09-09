@@ -5,19 +5,19 @@ use iced::{Border, Color, Shadow};
 
 pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
     general: GeneralStyle {
-        content_padding: spacing::L,
-        section_spacing: spacing::XS,
+        content_padding: spacing::XL,
+        section_spacing: 6.0,
         item_spacing_small: spacing::XXS,
         divider_height: border::THIN,
         button_border_radius: radius::SMALL,
     },
-    paragraph: ParagraphStyle { padding: [2, 0] },
+    paragraph: ParagraphStyle { padding: [3, 0] },
     inline: InlineStyle {
         inline_code_color: primitive::MD_INLINE_CODE,
         image_alt_color: primitive::GRAY_500,
         link_button_border_width: 0.0,
-        wrap_spacing: spacing::XS,
-        wrap_line_spacing: spacing::XS,
+        wrap_spacing: 5.0,
+        wrap_line_spacing: 5.0,
         tooltip_gap: spacing::S,
         tooltip_font_size: 12.0,
         tooltip_padding: [4, 8],
@@ -39,8 +39,8 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
     },
     list: ListStyle {
         bullet_color: primitive::GRAY_500,
-        item_spacing: spacing::S,
-        item_padding: spacing::XXS,
+        item_spacing: 6.0,
+        item_padding: 3.0,
         sub_block_left_padding: spacing::XL,
     },
     quote: QuoteStyle {
@@ -68,18 +68,18 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
     },
     block: BlockMarginStyle {
         heading_h1: spacing::XL,
-        heading_h2: spacing::L,
+        heading_h2: 18.0,
         heading_default: spacing::L,
         horizontal_rule: spacing::XL,
-        code: spacing::L,
-        table: spacing::L,
-        quote: spacing::L,
-        image: spacing::L,
-        mermaid: spacing::L,
-        list: spacing::M,
-        paragraph: spacing::S,
-        html: spacing::S,
-        math: spacing::L,
+        code: 18.0,
+        table: 18.0,
+        quote: 18.0,
+        image: 18.0,
+        mermaid: 18.0,
+        list: 14.0,
+        paragraph: 12.0,
+        html: 10.0,
+        math: 18.0,
     },
     toc: TocStyle {
         scroll_offset_margin: 50.0,
@@ -233,12 +233,24 @@ pub(crate) struct TocStyle {
     pub sidebar_border_width: f32,
 }
 
-pub(crate) fn heading_layout(level: u8) -> (f32, f32, f32) {
-    match level {
-        1 => (32.0, 24.0, 12.0),
-        2 => (24.0, 20.0, 8.0),
-        3 => (20.0, 12.0, 4.0),
-        _ => (16.0, 8.0, 4.0),
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct HeadingLayout {
+    pub font_size: f32,
+    pub padding_top: f32,
+    pub padding_bottom: f32,
+}
+
+pub(crate) fn heading_layout(level: u8, user_font_size: f32) -> HeadingLayout {
+    let (base_size, base_pt, base_pb) = match level {
+        1 => (28.0, 28.0, 14.0),
+        2 => (22.0, 22.0, 10.0),
+        3 => (18.0, 16.0, 8.0),
+        _ => (15.0, 12.0, 6.0),
+    };
+    HeadingLayout {
+        font_size: crate::ui::theme::scale_size(base_size, user_font_size),
+        padding_top: crate::ui::theme::scale_size(base_pt, user_font_size),
+        padding_bottom: crate::ui::theme::scale_size(base_pb, user_font_size),
     }
 }
 

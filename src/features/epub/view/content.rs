@@ -41,7 +41,7 @@ pub(crate) fn build_epub_content<'a>(
             &state.markdown_state,
             &block_ctx,
         );
-        let margin_bottom = crate::features::markdown::view::block_margin(block);
+        let margin_bottom = crate::features::markdown::view::block_margin(block, ctx.font_size);
         container(inner)
             .padding(Padding {
                 top: 0.0,
@@ -53,7 +53,8 @@ pub(crate) fn build_epub_content<'a>(
             .into()
     });
 
-    scrollable_content(elements, max_text_width, CONTENT_SPACING, "content_scroll")
+    let content_padding = crate::ui::theme::scale_size(CONTENT_SPACING, ctx.font_size);
+    scrollable_content(elements, max_text_width, content_padding, "content_scroll")
         .on_scroll(|v| {
             crate::app::messages::MarkdownMsg::Scrolled {
                 y: v.absolute_offset().y,
