@@ -1,6 +1,6 @@
 use iced::alignment::{Horizontal, Vertical};
 use iced::highlighter::Theme as HighlightTheme;
-use iced::widget::text_editor::{Action, Content};
+use iced::widget::text_editor::{Action, Binding, Content, KeyPress};
 use iced::widget::{container, row, text, text_editor};
 use iced::{Alignment, Element, Font, Length};
 
@@ -109,6 +109,16 @@ pub fn code_editor<'a>(
             iced::widget::text::Wrapping::None
         })
         .on_action(on_action)
+        .key_binding(|key_press: KeyPress| {
+            use iced::keyboard::key::Named;
+            if matches!(
+                key_press.key.as_ref(),
+                iced::keyboard::Key::Named(Named::PageUp | Named::PageDown)
+            ) {
+                return None;
+            }
+            Binding::from_key_press(key_press)
+        })
         .style(default_text_editor);
 
     if word_wrap {
