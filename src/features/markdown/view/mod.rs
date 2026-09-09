@@ -164,7 +164,7 @@ fn build_scrollable_content<'a>(
                 ..*ctx
             };
             let element = render_block(i, block, state, &block_ctx);
-            let margin = block_margin(block);
+            let margin = block_margin(block, ctx.font_size);
             els.push(
                 container(element)
                     .padding(Padding {
@@ -198,7 +198,7 @@ fn build_scrollable_content<'a>(
                     ..*ctx
                 };
                 let element = render_block(index, block, state, &block_ctx);
-                let margin = block_margin(block);
+                let margin = block_margin(block, ctx.font_size);
                 container(element)
                     .padding(Padding {
                         top: 0.0,
@@ -212,20 +212,17 @@ fn build_scrollable_content<'a>(
             .collect()
     };
 
-    scrollable_content(
-        elements,
-        max_text_width,
-        STYLE.general.content_padding,
-        SCROLL_PANE_ID,
-    )
-    .on_scroll(|v| {
-        crate::app::messages::MarkdownMsg::Scrolled {
-            y: v.absolute_offset().y,
-            viewport_height: v.bounds().height,
-        }
-        .into()
-    })
-    .build()
+    let content_padding =
+        crate::ui::theme::scale_size(STYLE.general.content_padding, ctx.font_size);
+    scrollable_content(elements, max_text_width, content_padding, SCROLL_PANE_ID)
+        .on_scroll(|v| {
+            crate::app::messages::MarkdownMsg::Scrolled {
+                y: v.absolute_offset().y,
+                viewport_height: v.bounds().height,
+            }
+            .into()
+        })
+        .build()
 }
 
 fn build_content_area<'a>(
