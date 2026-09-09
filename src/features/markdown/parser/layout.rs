@@ -13,9 +13,9 @@ pub fn estimated_block_height(
     image_sizes: &HashMap<usize, (u32, u32)>,
     content_width: f32,
 ) -> f32 {
-    let scale = |s: f32| (s * font_size / 14.0).round().max(8.0);
+    let scale = |s: f32| scale_size(s, font_size);
     let line = font_size * 1.5;
-    let margin = block_margin(block);
+    let margin = block_margin(block, font_size);
     let effective_width = if content_width > 0.0 {
         content_width
     } else {
@@ -24,14 +24,13 @@ pub fn estimated_block_height(
 
     match block {
         Block::Heading { level, .. } => {
-            let (raw_size, pt, pb) = heading_layout(*level);
-            let h = scale_size(raw_size, font_size);
+            let layout = heading_layout(*level, font_size);
             let div = if *level == 1 || *level == 2 {
                 STYLE.general.divider_height + STYLE.general.section_spacing
             } else {
                 0.0
             };
-            pt + h + pb + div + margin
+            layout.padding_top + layout.font_size + layout.padding_bottom + div + margin
         }
         Block::Paragraph(inlines) => {
             let text = flatten_inlines_toc(inlines);

@@ -13,6 +13,12 @@ pub(crate) fn scale_size(design_size: f32, user_font_size: f32) -> f32 {
         .max(MIN_SCALED_SIZE)
 }
 
+pub(crate) fn scale_spacing(base_spacing: f32, user_font_size: f32, min_spacing: f32) -> f32 {
+    (base_spacing * user_font_size / BASE_FONT_SIZE)
+        .round()
+        .max(min_spacing)
+}
+
 pub use color::{AppTheme, ColorPalette, DARK_PALETTE, LIGHT_PALETTE};
 pub use default::{
     default_button, default_button_primary, default_card, default_checkbox, default_grid_card,
