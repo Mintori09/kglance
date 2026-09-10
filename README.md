@@ -151,21 +151,33 @@ The resulting binary will be at `target/release/kglance`.
 
 > **Prerequisite**: Ensure `kglance` is in your `PATH` or set `BIN=/path/to/kglance`.
 
-To enable pressing **Space** in Dolphin to preview files, use the setup script:
+Use the setup script to install the Dolphin context menu plugin:
 
 ```bash
-# If you have the repo cloned:
+# Basic install (context menu only):
 ./scripts/dolphin-setup.sh install
 
 # Or fetch directly from GitHub:
 bash <(curl -s https://raw.githubusercontent.com/Mintori09/kglance/main/scripts/dolphin-setup.sh) install
 ```
 
+#### Optional: Auto-configure Keyboard Shortcut (`--shortcut`)
+
+If you want the script to automatically register a shortcut (defaults to **Space**) in `dolphinui.rc` without manual setup:
+
+```bash
+# Automatically bind Space:
+./scripts/dolphin-setup.sh install --shortcut
+
+# Or fetch directly from GitHub:
+bash <(curl -s https://raw.githubusercontent.com/Mintori09/kglance/main/scripts/dolphin-setup.sh) install --shortcut
+```
+
 Restart Dolphin (`killall dolphin`) or log out and back in to apply the changes.
 
-### 3. Configure Dolphin Keyboard Shortcut (Option)
+### 3. Configure Dolphin Keyboard Shortcut (Manual Alternative)
 
-To preview files by pressing **Space**:
+If you ran `install` without `--shortcut`, you can still configure the shortcut manually in Dolphin:
 
 1. Open Dolphin → **Settings** → **Configure Keyboard Shortcuts**…
 2. Search for `Quick Preview` or `Quick Preview (KIO)`
@@ -173,7 +185,7 @@ To preview files by pressing **Space**:
 
 Now select any supported file and press **Space** to preview.
 
-To remove:
+To remove the integration and shortcut:
 
 ```bash
 ./scripts/dolphin-setup.sh uninstall
