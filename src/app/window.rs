@@ -54,6 +54,10 @@ impl KglanceApp {
             self.state.read_positions_dirty = false;
         }
 
+        if self.state.window_width > 0.0 && self.state.window_height > 0.0 {
+            crate::core::window_state::save(self.state.window_width, self.state.window_height);
+        }
+
         self.video = None;
 
         if self.is_daemon {
@@ -150,6 +154,8 @@ impl KglanceApp {
             WindowEvent::CloseRequested => self.handle_window_close_requested(window_id),
             WindowEvent::Resized(size) => {
                 if size.width > 0.0 && size.height > 0.0 {
+                    self.state.window_width = size.width;
+                    self.state.window_height = size.height;
                     self.update_grid_cols(size.width, size.height);
                 }
                 Task::none()
@@ -179,6 +185,8 @@ impl KglanceApp {
             self.state.window_default_size.height
         };
 
+        self.state.window_width = width;
+        self.state.window_height = height;
         self.update_grid_cols(width, height);
 
         if let Some(content) = self
@@ -196,6 +204,9 @@ impl KglanceApp {
     }
 
     fn handle_window_close_requested(&mut self, window_id: window::Id) -> Task<Message> {
+        if self.state.window_width > 0.0 && self.state.window_height > 0.0 {
+            crate::core::window_state::save(self.state.window_width, self.state.window_height);
+        }
         self.video = None;
         if self.is_daemon {
             self.current_content = None;

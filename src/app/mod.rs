@@ -84,10 +84,13 @@ impl KglanceApp {
             font_family_mono: config.ui.font_family_mono,
             epub_font_family: config.ui.epub_font_family,
             max_text_width: config.ui.max_text_width,
-            window_default_size: iced::Size::new(
-                config.ui.default_width as f32,
-                config.ui.default_height as f32,
-            ),
+            window_default_size: {
+                let saved = crate::core::window_state::load();
+                iced::Size::new(
+                    saved.as_ref().map_or(config.ui.default_width as f32, |s| s.width),
+                    saved.as_ref().map_or(config.ui.default_height as f32, |s| s.height),
+                )
+            },
             window_min_size: iced::Size::new(
                 config.ui.min_width as f32,
                 config.ui.min_height as f32,
