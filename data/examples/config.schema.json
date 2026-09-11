@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AppConfig",
+  "type": "object",
+  "required": [
+    "ui"
+  ],
+  "properties": {
+    "$schema": {
+      "default": "https://raw.githubusercontent.com/Mintori09/kglance/main/data/examples/config.schema.json",
+      "type": "string"
+    },
+    "ui": {
+      "$ref": "#/definitions/UiConfig"
+    }
+  },
+  "definitions": {
+    "UiConfig": {
+      "type": "object",
+      "required": [
+        "default_height",
+        "default_width",
+        "font_size"
+      ],
+      "properties": {
+        "default_height": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "default_width": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "epub_font_family": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "font_family": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "font_family_mono": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "font_size": {
+          "type": "number",
+          "format": "float"
+        },
+        "json_tree_view": {
+          "default": true,
+          "type": "boolean"
+        },
+        "max_text_width": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "min_height": {
+          "default": 600,
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "min_width": {
+          "default": 800,
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "prefer_mermaid_cli": {
+          "default": false,
+          "type": "boolean"
+        },
+        "theme": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "word_wrap": {
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
