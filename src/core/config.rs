@@ -23,6 +23,8 @@ pub struct UiConfig {
     pub word_wrap: bool,
     #[serde(default = "default_json_tree_view")]
     pub json_tree_view: bool,
+    #[serde(default)]
+    pub max_preview_size_mb: Option<u64>,
 }
 
 fn default_json_tree_view() -> bool {
@@ -88,6 +90,7 @@ impl Default for UiConfig {
             prefer_mermaid_cli: false,
             word_wrap: false,
             json_tree_view: default_json_tree_view(),
+            max_preview_size_mb: None,
         }
     }
 }

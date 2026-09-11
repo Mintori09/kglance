@@ -268,7 +268,8 @@ The config file is auto-created with defaults on first run. See `data/examples/c
     "max_text_width": 820.0,
     "prefer_mermaid_cli": false,
     "word_wrap": false,
-    "json_tree_view": false
+    "json_tree_view": false,
+    "max_preview_size_mb": null
   }
 }
 ```

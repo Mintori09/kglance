@@ -324,6 +324,7 @@ pub fn view_window<'a>(
                 prefer_mermaid_cli: state.prefer_mermaid_cli,
                 word_wrap: state.word_wrap,
                 json_tree_view: state.json_tree_view,
+                max_preview_size_mb: None,
             }));
 
         let static_fonts: &'static [String] =
