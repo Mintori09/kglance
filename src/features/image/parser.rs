@@ -19,8 +19,11 @@ impl PreviewParser for ImageParser {
         file.read_to_end(&mut data)
             .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
-        let (width, height) =
-            image::image_dimensions(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        let (width, height) = image::ImageReader::new(std::io::Cursor::new(&data))
+            .with_guessed_format()
+            .map_err(|e| ParseError::ParseFailed(e.to_string()))?
+            .into_dimensions()
+            .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
         let format = match path
             .extension()
             .and_then(|e| e.to_str())
@@ -35,7 +38,7 @@ impl PreviewParser for ImageParser {
             _ => ImageFormat::Png,
         };
 
-        let exif = extract_exif(path);
+        let exif = extract_exif_from_bytes(&data);
 
         Ok(ParsedContent::Image {
             data,
@@ -47,27 +50,18 @@ impl PreviewParser for ImageParser {
     }
 }
 
-pub(crate) fn extract_exif(path: &Path) -> Option<Box<ImageMetadata>> {
-    let file = std::fs::File::open(path).ok()?;
-    let mut buf_reader = std::io::BufReader::new(file);
-    let exif_reader = exif::Reader::new();
-    if let Ok(reader) = exif_reader.read_from_container(&mut buf_reader) {
-        return Some(Box::new(exif_from_reader(&reader)));
-    }
-
-    let mut file = std::fs::File::open(path).ok()?;
-    let mut buf = Vec::new();
-    file.read_to_end(&mut buf).ok()?;
-    extract_exif_from_bytes(&buf)
-}
-
 pub(crate) fn extract_exif_from_bytes(bytes: &[u8]) -> Option<Box<ImageMetadata>> {
     let exif_reader = exif::Reader::new();
     let mut cursor = std::io::Cursor::new(bytes);
     if let Ok(reader) = exif_reader.read_from_container(&mut cursor) {
         return Some(Box::new(exif_from_reader(&reader)));
     }
-    if let Ok(reader) = exif_reader.read_raw(bytes.to_vec()) {
+    // EXIF metadata is stored in the file header, typically within the
+    // first 128 KiB. Limit the fallback buffer to avoid cloning the
+    // entire image (which can be tens of megabytes for large files).
+    const MAX_EXIF_HEADER: usize = 128 * 1024;
+    let header = &bytes[..bytes.len().min(MAX_EXIF_HEADER)];
+    if let Ok(reader) = exif_reader.read_raw(header.to_vec()) {
         return Some(Box::new(exif_from_reader(&reader)));
     }
     None
