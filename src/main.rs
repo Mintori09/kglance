@@ -131,6 +131,7 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
         KglanceApp::view_daemon,
     )
     .default_font(default_font)
+    .title(KglanceApp::title_daemon)
     .subscription(KglanceApp::subscription)
     .theme(KglanceApp::theme_daemon)
     .run()?;
