@@ -1,6 +1,7 @@
 mod flatten;
 mod handle;
 mod layout;
+pub mod layout_constants;
 mod mermaid;
 mod types;
 
@@ -11,7 +12,9 @@ pub use flatten::{
     flatten_inlines, flatten_inlines_plain, flatten_inlines_toc, flatten_inlines_visual,
 };
 pub use handle::{parse_markdown, parse_to_blocks};
-pub use layout::{estimated_block_height, extract_toc, rescale_markdown_scroll_y, slugify};
+pub use layout::{
+    block_margin, estimated_block_height, extract_toc, rescale_markdown_scroll_y, slugify,
+};
 pub use mermaid::render_mermaid_to_png;
 pub use types::{AlertKind, Block, Inline, ListItem, TableBlock, TableCell};
 

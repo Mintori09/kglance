@@ -1,5 +1,4 @@
 use crate::app::Message;
-use crate::features::markdown::view::components::style::STYLE;
 use crate::features::markdown::view::components::{
     render_alert, render_code_block, render_footnote_definition, render_frontmatter,
     render_heading, render_horizontal_rule, render_html, render_inline_image, render_list,
@@ -39,24 +38,4 @@ pub(crate) fn render_block<'a>(
     }
 }
 
-pub(crate) fn block_margin(block: &Block, font_size: f32) -> f32 {
-    let base = match block {
-        Block::Heading { level, .. } if *level == 1 => STYLE.block.heading_h1,
-        Block::Heading { level, .. } if *level == 2 => STYLE.block.heading_h2,
-        Block::Heading { .. } => STYLE.block.heading_default,
-        Block::HorizontalRule => STYLE.block.horizontal_rule,
-        Block::CodeBlock { .. } => STYLE.block.code,
-        Block::Table(_) => STYLE.block.table,
-        Block::Quote(_) => STYLE.block.quote,
-        Block::Alert { .. } => STYLE.block.quote,
-        Block::FootnoteDefinition { .. } => STYLE.block.paragraph,
-        Block::Frontmatter(_) => STYLE.block.heading_h1,
-        Block::Image { .. } => STYLE.block.image,
-        Block::Mermaid { .. } => STYLE.block.mermaid,
-        Block::List { .. } => STYLE.block.list,
-        Block::Paragraph(_) => STYLE.block.paragraph,
-        Block::Html(_) => STYLE.block.html,
-        Block::Math(_) => STYLE.block.math,
-    };
-    crate::ui::theme::scale_size(base, font_size)
-}
+pub(crate) use crate::parsers::markdown::block_margin;
