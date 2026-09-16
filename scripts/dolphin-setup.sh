@@ -27,12 +27,27 @@ download_file() {
     fi
 }
 
+prompt_kill_dolphin() {
+    if pgrep -x dolphin >/dev/null 2>&1; then
+        read -r -p "Dolphin is currently running. Close Dolphin to apply changes? [Y/n] " response
+        case "${response:-y}" in
+            [yY][eE][sS] | [yY])
+                echo "Stopping Dolphin..."
+                killall dolphin >/dev/null 2>&1 || true
+                ;;
+            *)
+                echo "Skipped closing Dolphin. You may need to restart Dolphin manually to apply changes."
+                ;;
+        esac
+    fi
+}
+
 configure_shortcut() {
     local shortcut="$1"
     mkdir -p "$DOLPHIN_UI_DIR"
 
     # Terminate running Dolphin instances so configuration is not overwritten
-    killall dolphin >/dev/null 2>&1 || true
+    prompt_kill_dolphin
 
     if [ ! -f "$DOLPHIN_UI_FILE" ]; then
         cat <<EOF >"$DOLPHIN_UI_FILE"
@@ -60,7 +75,7 @@ EOF
 
 remove_shortcut() {
     if [ -f "$DOLPHIN_UI_FILE" ]; then
-        killall dolphin >/dev/null 2>&1 || true
+        prompt_kill_dolphin
         sed -i "/${ACTION_NAME}/d" "$DOLPHIN_UI_FILE"
         echo "Removed shortcut configuration from $DOLPHIN_UI_FILE"
     fi
