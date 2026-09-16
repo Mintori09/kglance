@@ -274,7 +274,16 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                     }
                 }
 
-                let exif_content = Some(lines.join("\n"));
+                // Always include format and dimensions; additional EXIF fields
+                // are appended only when present.  Only expose exif_content
+                // (and thus the info button) when there is more than just the
+                // basic format/dimension line, so images without EXIF metadata
+                // do not show an empty info card.
+                let exif_content = if lines.len() > 2 {
+                    Some(lines.join("\n"))
+                } else {
+                    None
+                };
                 crate::core::preview::PreviewData::Image {
                     data,
                     width,
