@@ -83,14 +83,19 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::NavigationMsg::SiblingFilesLoaded(files) => {
                 navigation::handle_sibling_files_loaded(app, files)
             }
+            crate::app::messages::NavigationMsg::DirectorySyncCompleted {
+                dir,
+                files,
+                generation_id,
+            } => file::handle_directory_sync_completed(app, &dir, files, generation_id),
             crate::app::messages::NavigationMsg::ToggleViewMode => {
                 grid::handle_toggle_view_mode(app)
             }
             crate::app::messages::NavigationMsg::FileClickedInGrid(idx) => {
                 navigation::handle_file_clicked_in_grid(app, idx)
             }
-            crate::app::messages::NavigationMsg::GridThumbnailLoaded { index, handle } => {
-                grid::handle_grid_thumbnail_loaded(app, index, handle)
+            crate::app::messages::NavigationMsg::GridThumbnailLoaded { path, handle } => {
+                grid::handle_grid_thumbnail_loaded(app, &path, handle)
             }
             crate::app::messages::NavigationMsg::PreloadCompleted {
                 path,
