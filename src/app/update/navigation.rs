@@ -60,25 +60,14 @@ pub fn handle_sibling_files_loaded(app: &mut KglanceApp, files: Vec<String>) -> 
         } else {
             app.state.current_index = 0;
         }
-        if matches!(app.state.view_mode, crate::core::ViewMode::Grid(_)) {
-            let thumbnails: Vec<crate::core::GridThumbnail> = app
-                .state
-                .playlist
-                .iter()
-                .map(|p| {
-                    let name = std::path::Path::new(p)
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                        .unwrap_or_else(|| p.clone());
-                    crate::core::GridThumbnail {
-                        path: p.clone(),
-                        name,
-                        thumbnail_handle: None,
-                        is_loading: true,
-                    }
-                })
-                .collect();
-            app.state.view_mode = crate::core::ViewMode::Grid(thumbnails);
+        if let crate::core::ViewMode::Grid(old_thumbnails) = &app.state.view_mode {
+            let (updated_thumbnails, thumb_tasks) =
+                crate::app::update::grid::sync_grid_thumbnails(old_thumbnails, &app.state.playlist);
+            app.state.view_mode = crate::core::ViewMode::Grid(updated_thumbnails);
+            let preload_task = app.trigger_preload();
+            let mut tasks = thumb_tasks;
+            tasks.push(preload_task);
+            return Task::batch(tasks);
         }
         return app.trigger_preload();
     }

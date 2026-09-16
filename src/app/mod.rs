@@ -272,6 +272,9 @@ impl KglanceApp {
 
     fn invalidate_render_generations(&self) {
         self.state.generation_id.fetch_add(1, Ordering::Relaxed);
+        self.state
+            .dir_sync_generation_id
+            .fetch_add(1, Ordering::Relaxed);
         self.state.pdf.generation_id.fetch_add(1, Ordering::Relaxed);
         self.state
             .typst
@@ -400,6 +403,12 @@ impl KglanceApp {
 
     fn update_loaded_file_state(&mut self, path: &str, content: &PreviewData) {
         self.state.file_name = path.to_string();
+        let path_obj = std::path::Path::new(path);
+        if path_obj.is_dir() {
+            self.state.active_dir = Some(path_obj.to_path_buf());
+        } else if let Some(parent) = path_obj.parent() {
+            self.state.active_dir = Some(parent.to_path_buf());
+        }
         self.state.content_ready = true;
 
         if let Some(ref watcher) = self.file_watcher {
