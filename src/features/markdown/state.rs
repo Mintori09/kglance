@@ -1,5 +1,5 @@
 use crate::core::types::{KglanceState, MarkdownState};
-use crate::features::markdown::view::STYLE;
+use crate::parsers::markdown::layout_constants as lc;
 use crate::parsers::markdown::{Block, estimated_block_height, extract_toc, flatten_inlines};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -17,7 +17,7 @@ pub fn effective_content_width(
             1000.0
         };
         let sb = if sidebar_visible { sidebar_width } else { 0.0 };
-        (win_w - sb - STYLE.general.content_padding * 2.0).max(300.0)
+        (win_w - sb - lc::CONTENT_PADDING * 2.0).max(300.0)
     })
 }
 
@@ -175,7 +175,7 @@ mod tests {
 
     #[test]
     fn test_effective_content_width_sidebar_behavior() {
-        let padding = STYLE.general.content_padding * 2.0;
+        let padding = lc::CONTENT_PADDING * 2.0;
 
         // Sidebar visible
         let w_with_sb = effective_content_width(None, 1200.0, true, 220.0);
@@ -193,7 +193,7 @@ mod tests {
         assert_eq!(w_min, 300.0);
 
         // Window width 0.0 triggers 1000.0 fallback
-        let padding = STYLE.general.content_padding * 2.0;
+        let padding = lc::CONTENT_PADDING * 2.0;
         let w_zero = effective_content_width(None, 0.0, false, 0.0);
         assert_eq!(w_zero, 1000.0 - padding);
     }

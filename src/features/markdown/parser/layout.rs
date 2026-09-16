@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use super::Block;
 use super::flatten::flatten_inlines_toc;
+use super::layout_constants::{self as lc, heading_layout, scale_size};
 use crate::core::TocEntry;
-use crate::features::markdown::view::{STYLE, block_margin, heading_layout};
-use crate::ui::theme::scale_size;
 
 pub fn estimated_block_height(
     block: &Block,
@@ -26,7 +25,7 @@ pub fn estimated_block_height(
         Block::Heading { level, .. } => {
             let layout = heading_layout(*level, font_size);
             let div = if *level == 1 || *level == 2 {
-                STYLE.general.divider_height + STYLE.general.section_spacing
+                lc::DIVIDER_HEIGHT + lc::SECTION_SPACING
             } else {
                 0.0
             };
@@ -39,17 +38,17 @@ pub fn estimated_block_height(
             let chars_per_line = (available_w / (font_size * 0.55)).max(20.0) as usize;
             let wrapped_lines = (text.len() / chars_per_line).max(1);
             let num_lines = explicit_lines.max(wrapped_lines) as f32;
-            let pad_v = (STYLE.paragraph.padding[0] * 2) as f32;
+            let pad_v = (lc::PARAGRAPH_PADDING_V * 2) as f32;
             num_lines * line + pad_v + margin
         }
         Block::CodeBlock { lang: _, code, .. } => {
             let n = code.lines().count().max(1) as f32;
-            let button_font_h = scale_size(STYLE.code.label_button_font_size, font_size);
+            let button_font_h = scale_size(lc::CODE_LABEL_BUTTON_FONT_SIZE, font_size);
             let top_bar = button_font_h
-                + (STYLE.code.button_padding[0] * 2).max(STYLE.code.top_bar_padding[0] * 2) as f32;
-            let code_font_size = scale_size(STYLE.code.line_font_size, font_size);
+                + (lc::CODE_BUTTON_PADDING_V * 2).max(lc::CODE_TOP_BAR_PADDING_V * 2) as f32;
+            let code_font_size = scale_size(lc::CODE_LINE_FONT_SIZE, font_size);
             let code_line_h = code_font_size * 1.35;
-            let pad_v = (STYLE.code.padding * 2) as f32;
+            let pad_v = (lc::CODE_PADDING * 2) as f32;
             top_bar + pad_v + n * code_line_h + margin
         }
         Block::Table(t) => {
@@ -95,7 +94,7 @@ pub fn estimated_block_height(
             }
 
             let separator_h = if !t.rows.is_empty() {
-                STYLE.general.divider_height
+                lc::DIVIDER_HEIGHT
             } else {
                 0.0
             };
@@ -103,14 +102,14 @@ pub fn estimated_block_height(
         }
         Block::List { items, .. } => {
             let mut total_h = 0.0;
-            let available_w = (effective_width - STYLE.list.sub_block_left_padding).max(100.0);
+            let available_w = (effective_width - lc::LIST_SUB_BLOCK_LEFT_PADDING).max(100.0);
             let chars_per_line = (available_w / (font_size * 0.55)).max(20.0) as usize;
             for item in items {
                 let text = flatten_inlines_toc(&item.content);
                 let explicit_lines = text.lines().count().max(1);
                 let wrapped_lines = (text.len() / chars_per_line).max(1);
                 let n = explicit_lines.max(wrapped_lines) as f32;
-                let item_pad = STYLE.list.item_padding * 2.0;
+                let item_pad = lc::LIST_ITEM_PADDING * 2.0;
                 total_h += n * line + item_pad;
             }
             total_h.max(line) + margin
@@ -123,7 +122,7 @@ pub fn estimated_block_height(
                         * 0.9
                 })
                 .sum();
-            let pad_v = (STYLE.quote.content_padding[0] * 2) as f32;
+            let pad_v = (lc::QUOTE_CONTENT_PADDING_V * 2) as f32;
             h + pad_v + margin
         }
         Block::Alert { content, .. } => {
@@ -150,12 +149,12 @@ pub fn estimated_block_height(
             pad_v + n * scale(20.0) + margin
         }
         Block::HorizontalRule => {
-            let pad_v = (STYLE.hr.padding[0] * 2) as f32;
-            STYLE.general.divider_height + pad_v + margin
+            let pad_v = (lc::HR_PADDING_V * 2) as f32;
+            lc::DIVIDER_HEIGHT + pad_v + margin
         }
         Block::Image { .. } => {
-            let max_w = STYLE.image.max_width;
-            let pad_v = (STYLE.image.padding[0] * 2) as f32;
+            let max_w = lc::IMAGE_MAX_WIDTH;
+            let pad_v = (lc::IMAGE_PADDING_V * 2) as f32;
             if let Some(&(w, h)) = image_sizes.get(&block_index) {
                 let display_w = if w as f32 > max_w { max_w } else { w as f32 };
                 let display_h = if w > 0 {
@@ -170,16 +169,44 @@ pub fn estimated_block_height(
         }
         Block::Mermaid { .. } => 250.0 + margin,
         Block::Html(_) => {
-            let pad_v = (STYLE.paragraph.padding[0] * 2) as f32;
-            STYLE.html.font_size * 1.5 + pad_v + margin
+            let pad_v = (lc::PARAGRAPH_PADDING_V * 2) as f32;
+            lc::HTML_FONT_SIZE * 1.5 + pad_v + margin
         }
         Block::Math(latex) => {
             let n = latex.lines().count().max(1) as f32;
-            let pad_v = (STYLE.math.padding * 2) as f32;
-            let math_font_size = scale_size(font_size * STYLE.math.font_scale, font_size);
+            let pad_v = (lc::MATH_PADDING * 2) as f32;
+            let math_font_size = scale_size(font_size * lc::MATH_FONT_SCALE, font_size);
             pad_v + n * math_font_size * 1.5 + margin
         }
     }
+}
+
+/// Returns the bottom margin for a block, matching the view-layer spacing.
+///
+/// Defined here (mirroring `view::blocks::block_margin`) so that the parser
+/// can estimate block heights without importing from the UI layer.
+pub fn block_margin(block: &Block, font_size: f32) -> f32 {
+    let base = match block {
+        Block::Heading { level, .. } => match level {
+            1 => lc::MARGIN_HEADING_H1,
+            2 => lc::MARGIN_HEADING_H2,
+            _ => lc::MARGIN_HEADING_DEFAULT,
+        },
+        Block::HorizontalRule => lc::MARGIN_HORIZONTAL_RULE,
+        Block::CodeBlock { .. } => lc::MARGIN_CODE,
+        Block::Table(_) => lc::MARGIN_TABLE,
+        Block::Quote(_) => lc::MARGIN_QUOTE,
+        Block::Alert { .. } => lc::MARGIN_ALERT,
+        Block::FootnoteDefinition { .. } => lc::MARGIN_FOOTNOTE,
+        Block::Frontmatter(_) => lc::MARGIN_FRONTMATTER,
+        Block::Image { .. } => lc::MARGIN_IMAGE,
+        Block::Mermaid { .. } => lc::MARGIN_MERMAID,
+        Block::List { .. } => lc::MARGIN_LIST,
+        Block::Paragraph(_) => lc::MARGIN_PARAGRAPH,
+        Block::Html(_) => lc::MARGIN_HTML,
+        Block::Math(_) => lc::MARGIN_MATH,
+    };
+    scale_size(base, font_size)
 }
 
 pub fn slugify(text: &str) -> String {
