@@ -61,33 +61,29 @@ fn render_info_card<'a>(state: &'a ImageState, font_family: Option<&str>) -> Ele
 
     let mut lines_col = column![title_row].spacing(6);
 
-    for line in state.exif_content.lines() {
-        if let Some((k, v)) = line.split_once(':') {
-            let row = row![
-                text(format!("{}:", k.trim()))
-                    .size(11)
-                    .font(font)
-                    .style(|theme: &iced::Theme| {
-                        let palette = theme.extended_palette();
-                        iced::widget::text::Style {
-                            color: Some(palette.background.weak.text),
-                        }
-                    }),
-                text(v.trim())
-                    .size(11)
-                    .font(font)
-                    .style(|theme: &iced::Theme| {
-                        let palette = theme.extended_palette();
-                        iced::widget::text::Style {
-                            color: Some(palette.background.base.text),
-                        }
-                    }),
-            ]
-            .spacing(6);
-            lines_col = lines_col.push(row);
-        } else {
-            lines_col = lines_col.push(text(line).size(11).font(font));
-        }
+    for (k, v) in &state.exif_parsed_lines {
+        let row = row![
+            text(format!("{}:", k))
+                .size(11)
+                .font(font)
+                .style(|theme: &iced::Theme| {
+                    let palette = theme.extended_palette();
+                    iced::widget::text::Style {
+                        color: Some(palette.background.weak.text),
+                    }
+                }),
+            text(v.as_str())
+                .size(11)
+                .font(font)
+                .style(|theme: &iced::Theme| {
+                    let palette = theme.extended_palette();
+                    iced::widget::text::Style {
+                        color: Some(palette.background.base.text),
+                    }
+                }),
+        ]
+        .spacing(6);
+        lines_col = lines_col.push(row);
     }
 
     container(lines_col)
