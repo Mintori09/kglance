@@ -50,6 +50,7 @@ pub struct FolderRowState {
 #[derive(Debug, Clone)]
 pub struct ImageState {
     pub exif_content: String,
+    pub exif_parsed_lines: Vec<(String, String)>,
     pub image_bytes: Vec<u8>,
     pub handle: Option<image::Handle>,
     pub preview_handle: Option<image::Handle>,
@@ -67,6 +68,7 @@ impl Default for ImageState {
     fn default() -> Self {
         Self {
             exif_content: String::new(),
+            exif_parsed_lines: Vec::new(),
             image_bytes: Vec::new(),
             handle: None,
             preview_handle: None,
