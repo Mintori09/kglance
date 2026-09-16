@@ -32,6 +32,7 @@ pub struct KglanceApp {
     pub is_daemon: bool,
     pub is_gui_open: Arc<std::sync::atomic::AtomicBool>,
     pub window_id: Option<iced::window::Id>,
+    pub is_window_opening: bool,
     pub current_content: Option<PreviewData>,
     pub video: Option<iced_video_player::Video>,
     pub ctrl_held: bool,
@@ -50,6 +51,7 @@ impl Default for KglanceApp {
             is_daemon: false,
             is_gui_open: Arc::new(AtomicBool::new(false)),
             window_id: None,
+            is_window_opening: false,
             current_content: None,
             video: None,
             ctrl_held: false,
@@ -114,6 +116,7 @@ impl KglanceApp {
             is_daemon,
             is_gui_open,
             window_id: None,
+            is_window_opening: false,
             current_content: None,
             video: None,
             ctrl_held: false,
@@ -736,8 +739,11 @@ impl KglanceApp {
                     iced::window::set_mode(id, iced::window::Mode::Windowed),
                     iced::window::gain_focus(id),
                 ]
-            } else {
+            } else if !self.is_window_opening {
+                self.is_window_opening = true;
                 vec![self.create_new_window()]
+            } else {
+                vec![]
             }
         } else if let Some(id) = self.window_id {
             vec![iced::window::gain_focus(id)]
@@ -982,6 +988,7 @@ pub(crate) mod test_util {
             is_daemon: false,
             is_gui_open: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             window_id: None,
+            is_window_opening: false,
             current_content: content,
             video: None,
             ctrl_held: false,

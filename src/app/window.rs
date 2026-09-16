@@ -24,6 +24,10 @@ impl KglanceApp {
         }
     }
 
+    pub fn title_daemon(&self, _window_id: iced::window::Id) -> String {
+        self.title()
+    }
+
     fn update_grid_cols(&mut self, window_width: f32, window_height: f32) {
         self.state.window_width = window_width;
         self.state.window_height = window_height;
@@ -58,6 +62,7 @@ impl KglanceApp {
 
         if self.is_daemon {
             self.current_content = None;
+            self.is_window_opening = false;
             self.is_gui_open
                 .store(false, std::sync::atomic::Ordering::Release);
             self.window_id.take().map_or_else(Task::none, window::close)
@@ -110,8 +115,11 @@ impl KglanceApp {
                 window::set_mode(window_id, Mode::Windowed),
                 window::gain_focus(window_id),
             ])
-        } else {
+        } else if !self.is_window_opening {
+            self.is_window_opening = true;
             self.create_new_window()
+        } else {
+            Task::none()
         }
     }
 
@@ -160,6 +168,7 @@ impl KglanceApp {
 
     fn handle_window_opened(&mut self, window_id: window::Id, size: Size) -> Task<Message> {
         self.window_id = Some(window_id);
+        self.is_window_opening = false;
         self.is_gui_open
             .store(true, std::sync::atomic::Ordering::Release);
 
@@ -200,6 +209,7 @@ impl KglanceApp {
         if self.is_daemon {
             self.current_content = None;
             self.window_id = None;
+            self.is_window_opening = false;
             self.is_gui_open
                 .store(false, std::sync::atomic::Ordering::Release);
             window::close(window_id)
@@ -237,5 +247,26 @@ mod tests {
         // Window close requested
         let _task = app.handle_window_close_requested(window_id);
         assert!(!app.is_gui_open.load(std::sync::atomic::Ordering::Acquire));
+    }
+
+    #[test]
+    fn test_prevent_duplicate_window_creation_when_opening() {
+        let mut app = test_app(None);
+        app.is_daemon = true;
+        assert!(!app.is_window_opening);
+
+        // First call should set is_window_opening = true
+        let _tasks = app.prepare_window_tasks();
+        assert!(app.is_window_opening);
+
+        // Subsequent call while still opening should NOT create another window task
+        let tasks2 = app.prepare_window_tasks();
+        assert!(tasks2.is_empty());
+
+        // Once window is opened, is_window_opening should reset to false
+        let window_id = iced::window::Id::unique();
+        let _task = app.handle_window_opened(window_id, iced::Size::new(800.0, 600.0));
+        assert!(!app.is_window_opening);
+        assert_eq!(app.window_id, Some(window_id));
     }
 }
