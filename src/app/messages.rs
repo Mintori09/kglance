@@ -7,10 +7,15 @@ pub enum NavigationMsg {
     HistoryBack,
     HistoryForward,
     SiblingFilesLoaded(Vec<String>),
+    DirectorySyncCompleted {
+        dir: std::path::PathBuf,
+        files: Vec<String>,
+        generation_id: usize,
+    },
     ToggleViewMode,
     FileClickedInGrid(usize),
     GridThumbnailLoaded {
-        index: usize,
+        path: String,
         handle: Option<iced::widget::image::Handle>,
     },
     PreloadCompleted {
