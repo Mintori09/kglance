@@ -28,6 +28,13 @@ fn markdown_block_y_offset(
     image_sizes: &std::collections::HashMap<usize, (u32, u32)>,
     content_width: f32,
 ) -> f32 {
+    // This is an O(n) fallback that should never fire in practice:
+    // block_y_offsets is always populated before any search navigation.
+    // If this assertion fires, it means block_y_offsets was empty or stale.
+    crate::log_debug!(
+        "markdown_block_y_offset O(n) fallback fired for index {target_index}; \
+         block_y_offsets should have been populated"
+    );
     let mut y: f32 = 15.0;
     for (i, block) in blocks.iter().enumerate() {
         if i == target_index {

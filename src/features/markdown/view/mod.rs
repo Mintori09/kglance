@@ -44,7 +44,7 @@ pub(crate) fn build_selectable<'a>(
 }
 
 pub(crate) use blocks::{block_margin, render_block};
-pub(crate) use components::{STYLE, heading_layout};
+pub(crate) use components::STYLE;
 const SCROLL_PANE_ID: &str = "content_scroll";
 
 pub fn view_markdown<'a>(

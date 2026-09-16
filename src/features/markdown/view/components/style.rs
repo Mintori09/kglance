@@ -66,21 +66,6 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
         stroke_width: 0.35,
         padding: 8,
     },
-    block: BlockMarginStyle {
-        heading_h1: spacing::XL,
-        heading_h2: 18.0,
-        heading_default: spacing::L,
-        horizontal_rule: spacing::XL,
-        code: 18.0,
-        table: 18.0,
-        quote: 18.0,
-        image: 18.0,
-        mermaid: 18.0,
-        list: 14.0,
-        paragraph: 12.0,
-        html: 10.0,
-        math: 18.0,
-    },
     toc: TocStyle {
         scroll_offset_margin: 50.0,
         indent_per_level: crate::ui::components::sidebar::INDENT_PER_LEVEL,
@@ -110,7 +95,6 @@ pub(crate) struct MarkdownStyle {
     pub html: HtmlStyle,
     pub hr: HrStyle,
     pub math: MathStyle,
-    pub block: BlockMarginStyle,
     pub toc: TocStyle,
 }
 
@@ -205,23 +189,6 @@ pub(crate) struct MathStyle {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct BlockMarginStyle {
-    pub heading_h1: f32,
-    pub heading_h2: f32,
-    pub heading_default: f32,
-    pub horizontal_rule: f32,
-    pub code: f32,
-    pub table: f32,
-    pub quote: f32,
-    pub image: f32,
-    pub mermaid: f32,
-    pub list: f32,
-    pub paragraph: f32,
-    pub html: f32,
-    pub math: f32,
-}
-
-#[derive(Clone, Copy)]
 pub(crate) struct TocStyle {
     pub scroll_offset_margin: f32,
     pub indent_per_level: f32,
@@ -233,26 +200,7 @@ pub(crate) struct TocStyle {
     pub sidebar_border_width: f32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct HeadingLayout {
-    pub font_size: f32,
-    pub padding_top: f32,
-    pub padding_bottom: f32,
-}
-
-pub(crate) fn heading_layout(level: u8, user_font_size: f32) -> HeadingLayout {
-    let (base_size, base_pt, base_pb) = match level {
-        1 => (28.0, 28.0, 14.0),
-        2 => (22.0, 22.0, 10.0),
-        3 => (18.0, 16.0, 8.0),
-        _ => (15.0, 12.0, 6.0),
-    };
-    HeadingLayout {
-        font_size: crate::ui::theme::scale_size(base_size, user_font_size),
-        padding_top: crate::ui::theme::scale_size(base_pt, user_font_size),
-        padding_bottom: crate::ui::theme::scale_size(base_pb, user_font_size),
-    }
-}
+pub(crate) use crate::parsers::markdown::layout_constants::heading_layout;
 
 pub(super) fn code_block_style(theme: AppTheme) -> container::Style {
     let p = theme.palette().base;
@@ -365,5 +313,37 @@ pub(super) fn mermaid_badge_style(theme: AppTheme) -> container::Style {
             radius: STYLE.code.border_radius.into(),
         },
         ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parsers::markdown::layout_constants as lc;
+
+    #[test]
+    fn test_layout_constants_match_visual_style() {
+        assert_eq!(STYLE.general.content_padding, lc::CONTENT_PADDING);
+        assert_eq!(STYLE.general.divider_height, lc::DIVIDER_HEIGHT);
+        assert_eq!(STYLE.general.section_spacing, lc::SECTION_SPACING);
+        assert_eq!(STYLE.paragraph.padding[0], lc::PARAGRAPH_PADDING_V);
+        assert_eq!(
+            STYLE.code.label_button_font_size,
+            lc::CODE_LABEL_BUTTON_FONT_SIZE
+        );
+        assert_eq!(STYLE.code.line_font_size, lc::CODE_LINE_FONT_SIZE);
+        assert_eq!(STYLE.code.padding, lc::CODE_PADDING);
+        assert_eq!(STYLE.quote.content_padding[0], lc::QUOTE_CONTENT_PADDING_V);
+        assert_eq!(STYLE.image.max_width, lc::IMAGE_MAX_WIDTH);
+        assert_eq!(STYLE.image.padding[0], lc::IMAGE_PADDING_V);
+        assert_eq!(STYLE.hr.padding[0], lc::HR_PADDING_V);
+        assert_eq!(STYLE.math.font_scale, lc::MATH_FONT_SCALE);
+        assert_eq!(STYLE.math.padding, lc::MATH_PADDING);
+        assert_eq!(STYLE.list.item_padding, lc::LIST_ITEM_PADDING);
+        assert_eq!(
+            STYLE.list.sub_block_left_padding,
+            lc::LIST_SUB_BLOCK_LEFT_PADDING
+        );
+        assert_eq!(STYLE.html.font_size, lc::HTML_FONT_SIZE);
     }
 }
