@@ -30,11 +30,26 @@ pub fn populate_state(
     let prev_display_height = state.image.display_height;
     let prev_camera = state.image.camera;
 
+    let exif_str = exif_content.unwrap_or_default();
+    let exif_parsed_lines: Vec<(String, String)> = exif_str
+        .lines()
+        .map(|line| {
+            if let Some((k, v)) = line.split_once(':') {
+                let key = k.trim().trim_end_matches(':');
+                (key.to_string(), v.trim().to_string())
+            } else {
+                (line.trim().to_string(), String::new())
+            }
+        })
+        .filter(|(k, _)| !k.is_empty())
+        .collect();
+
     state.image = ImageState {
         handle: previous_handle,
         preview_handle: None,
         image_bytes: bytes,
-        exif_content: exif_content.unwrap_or_default().to_string(),
+        exif_content: exif_str.to_string(),
+        exif_parsed_lines,
         format_info: format_info.to_string(),
         load_state: ImageLoadState::Loading,
         load_id: shared_load_id,
