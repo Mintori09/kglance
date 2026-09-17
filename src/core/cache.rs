@@ -70,6 +70,56 @@ impl CachedContent {
             _ => None,
         }
     }
+
+    pub fn estimated_bytes(&self) -> usize {
+        match self {
+            Self::Preview(p) => match p.as_ref() {
+                PreviewData::Image { data, .. } => data.len() + 128,
+                PreviewData::Text {
+                    content,
+                    line_numbers,
+                    ..
+                } => content.len() + line_numbers.len() + 256,
+                PreviewData::Markdown { raw_text, .. } => (raw_text.len() * 2).max(512),
+                PreviewData::Pdf { data, .. } => data.len() + 1024,
+                PreviewData::Typst { data, source, .. } => data.len() + source.len() + 512,
+                PreviewData::Media {
+                    thumbnail_or_waveform,
+                    metadata,
+                    ..
+                } => thumbnail_or_waveform.len() + metadata.len() + 256,
+                PreviewData::Folder { rows, .. } => rows.len() * 256 + 128,
+                PreviewData::Spreadsheet { sheets, .. } => {
+                    let mut cell_bytes = 0;
+                    for s in sheets {
+                        for row in &s.rows {
+                            for cell in row {
+                                cell_bytes += cell.len() + 8;
+                            }
+                        }
+                    }
+                    cell_bytes.max(512)
+                }
+                PreviewData::Json {
+                    content, pretty, ..
+                } => content.len() + pretty.len() + 512,
+                PreviewData::Epub { images, .. } => {
+                    let img_bytes: usize = images.values().map(|b| b.len()).sum();
+                    img_bytes + 4096
+                }
+                PreviewData::Font { sample, .. } => sample.len() + 256,
+                PreviewData::Error(msg) => msg.len() + 64,
+            },
+            Self::DecodedImage { width, height, .. } => (*width as usize) * (*height as usize) * 4,
+            Self::ParsedJson { nodes, pretty, .. } => {
+                pretty.len() + nodes.len() * std::mem::size_of::<JsonNode>() + 128
+            }
+            Self::MediaThumbnail { width, height, .. } => {
+                (*width as usize) * (*height as usize) * 4
+            }
+            Self::FontSample { width, height, .. } => (*width as usize) * (*height as usize) * 4,
+        }
+    }
 }
 
 impl From<PreviewData> for CachedContent {
@@ -86,16 +136,114 @@ impl From<Arc<PreviewData>> for CachedContent {
     }
 }
 
+use lru::LruCache;
+use std::num::NonZeroUsize;
+
+#[derive(Debug)]
+pub struct MemoryCache {
+    lru: LruCache<String, CachedContent>,
+    current_bytes: usize,
+    max_bytes: usize,
+}
+
+impl MemoryCache {
+    pub const DEFAULT_MAX_FILES: usize = 10_000;
+
+    pub fn new(max_bytes: usize) -> Self {
+        let cap = NonZeroUsize::new(Self::DEFAULT_MAX_FILES).unwrap();
+        Self {
+            lru: LruCache::new(cap),
+            current_bytes: 0,
+            max_bytes,
+        }
+    }
+
+    #[inline]
+    pub fn current_bytes(&self) -> usize {
+        self.current_bytes
+    }
+
+    #[inline]
+    pub fn max_bytes(&self) -> usize {
+        self.max_bytes
+    }
+
+    #[inline]
+    pub fn set_max_bytes(&mut self, max_bytes: usize) {
+        self.max_bytes = max_bytes;
+        self.trim_to_budget();
+    }
+
+    #[inline]
+    pub fn is_full(&self) -> bool {
+        self.current_bytes >= self.max_bytes
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.lru.is_empty()
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.lru.len()
+    }
+
+    #[inline]
+    pub fn contains(&self, key: &str) -> bool {
+        self.lru.contains(key)
+    }
+
+    #[inline]
+    pub fn get(&mut self, key: &str) -> Option<&CachedContent> {
+        self.lru.get(key)
+    }
+
+    #[inline]
+    pub fn peek(&self, key: &str) -> Option<&CachedContent> {
+        self.lru.peek(key)
+    }
+
+    pub fn put(&mut self, key: String, content: CachedContent) {
+        let new_bytes = content.estimated_bytes();
+
+        if let Some(old) = self.lru.put(key, content) {
+            self.current_bytes = self.current_bytes.saturating_sub(old.estimated_bytes());
+        }
+        self.current_bytes = self.current_bytes.saturating_add(new_bytes);
+
+        self.trim_to_budget();
+    }
+
+    pub fn clear(&mut self) {
+        self.lru.clear();
+        self.current_bytes = 0;
+    }
+
+    fn trim_to_budget(&mut self) {
+        while self.current_bytes > self.max_bytes {
+            if let Some((_k, evicted)) = self.lru.pop_lru() {
+                self.current_bytes = self.current_bytes.saturating_sub(evicted.estimated_bytes());
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+impl Default for MemoryCache {
+    fn default() -> Self {
+        Self::new(crate::core::config::DEFAULT_CACHE_MAX_MEMORY_MB * 1024 * 1024)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lru::LruCache;
-    use std::num::NonZeroUsize;
 
     #[test]
     fn test_cached_content_conversion_and_lru() {
-        let mut cache: LruCache<String, CachedContent> =
-            LruCache::new(NonZeroUsize::new(5).unwrap());
+        let mut cache = MemoryCache::new(1024 * 1024);
         let preview = Arc::new(PreviewData::Text {
             content: "hello".to_string(),
             line_numbers: "1".to_string(),
@@ -108,5 +256,47 @@ mod tests {
 
         let entry = cache.get("file1.txt").expect("should exist");
         assert!(entry.as_preview().is_some());
+        assert!(cache.current_bytes() > 0);
+    }
+
+    #[test]
+    fn test_memory_cache_eviction_on_budget_exceeded() {
+        let mut cache = MemoryCache::new(500); // 500 bytes budget
+
+        let preview1 = Arc::new(PreviewData::Text {
+            content: "a".repeat(200),
+            line_numbers: "1".to_string(),
+            language: "text".to_string(),
+        });
+        cache.put(
+            "file1.txt".to_string(),
+            CachedContent::from_preview(preview1),
+        );
+        assert!(cache.contains("file1.txt"));
+
+        let preview2 = Arc::new(PreviewData::Text {
+            content: "b".repeat(200),
+            line_numbers: "1".to_string(),
+            language: "text".to_string(),
+        });
+        cache.put(
+            "file2.txt".to_string(),
+            CachedContent::from_preview(preview2),
+        );
+        assert!(cache.contains("file2.txt"));
+
+        // Third item pushes total over 500 bytes, file1 (oldest) should be evicted
+        let preview3 = Arc::new(PreviewData::Text {
+            content: "c".repeat(200),
+            line_numbers: "1".to_string(),
+            language: "text".to_string(),
+        });
+        cache.put(
+            "file3.txt".to_string(),
+            CachedContent::from_preview(preview3),
+        );
+
+        assert!(!cache.contains("file1.txt"));
+        assert!(cache.contains("file3.txt"));
     }
 }
