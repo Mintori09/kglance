@@ -67,6 +67,7 @@ pub enum Block {
     Image {
         alt: String,
         path: String,
+        link_url: Option<String>,
     },
     List {
         ordered: bool,

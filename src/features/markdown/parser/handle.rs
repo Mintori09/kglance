@@ -192,13 +192,28 @@ impl<'a> EventStream<'a> {
             Event::Start(Tag::Paragraph) => {
                 let content = self.parse_inlines();
                 let _ = self.iter.next();
-                if content.len() == 1
-                    && let Inline::Image { ref alt, ref url } = content[0]
-                {
-                    vec![Block::Image {
-                        alt: alt.clone(),
-                        path: url.clone(),
-                    }]
+                if content.len() == 1 {
+                    match &content[0] {
+                        Inline::Image { alt, url } => vec![Block::Image {
+                            alt: alt.clone(),
+                            path: url.clone(),
+                            link_url: None,
+                        }],
+                        Inline::Link { text, url }
+                            if text.len() == 1 && matches!(&text[0], Inline::Image { .. }) =>
+                        {
+                            let Inline::Image { alt, url: img_url } = &text[0] else {
+                                unreachable!();
+                            };
+
+                            vec![Block::Image {
+                                alt: alt.clone(),
+                                path: img_url.clone(),
+                                link_url: Some(url.clone()),
+                            }]
+                        }
+                        _ => split_inlines_by_display_math(content),
+                    }
                 } else {
                     split_inlines_by_display_math(content)
                 }
