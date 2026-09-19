@@ -11,6 +11,8 @@ use crate::features::{
     },
 };
 
+pub type ParsedEpubChapter = (String, u8, Option<String>, String, Vec<Block>);
+
 #[derive(Debug)]
 pub enum ParsedContent {
     Text {
@@ -77,7 +79,7 @@ pub enum ParsedContent {
     Epub {
         title: String,
         author: String,
-        chapters: Vec<(String, u8, Option<String>, Vec<Block>)>,
+        chapters: Vec<ParsedEpubChapter>,
         images: std::collections::HashMap<String, Vec<u8>>,
     },
     Spreadsheet {

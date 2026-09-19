@@ -4,7 +4,6 @@ use crate::core::types::EpubState;
 use crate::features::epub::view::constants::{
     CHAPTER_TITLE_SIZE_LEVEL_ONE, CHAPTER_TITLE_SIZE_OTHER, MAX_INDENT,
 };
-use crate::ui::components::sidebar::INDENT_PER_LEVEL;
 use crate::ui::theme::color::primitive;
 
 pub fn clamp_active_chapter(state: &EpubState) -> usize {
@@ -13,8 +12,10 @@ pub fn clamp_active_chapter(state: &EpubState) -> usize {
         .min(state.chapters.len().saturating_sub(1))
 }
 
+pub const EPUB_INDENT_PER_LEVEL: f32 = 16.0;
+
 pub fn calculate_indent(level: u8) -> f32 {
-    ((level.saturating_sub(1)) as f32 * INDENT_PER_LEVEL).min(MAX_INDENT)
+    ((level.saturating_sub(1)) as f32 * EPUB_INDENT_PER_LEVEL).min(MAX_INDENT)
 }
 
 pub fn entry_font_weight(level: u8) -> iced::font::Weight {

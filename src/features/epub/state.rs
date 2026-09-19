@@ -62,6 +62,16 @@ pub fn populate_state(
     // Lazy / On-demand: only decode images for the active chapter
     ensure_chapter_images(&mut markdown_state, chapters, active_chapter, images);
 
+    if let Some(active_ch) = chapters.get(active_chapter) {
+        let content_width = state.epub_content_width();
+        crate::features::markdown::recompute_markdown_layout(
+            &mut markdown_state,
+            &active_ch.blocks,
+            state.font_size,
+            content_width,
+        );
+    }
+
     let old_sidebar_width = state.epub.sidebar_width;
     state.epub = EpubState {
         title: title.to_string(),
@@ -106,18 +116,22 @@ mod tests {
                 title: "Ch 0".to_string(),
                 level: 1,
                 anchor: None,
+                file_href: "ch0.xhtml".to_string(),
                 blocks: vec![Block::Image {
                     path: "img_ch0.png".to_string(),
                     alt: "Image 0".to_string(),
+                    link_url: None,
                 }],
             },
             EpubChapterInfo {
                 title: "Ch 1".to_string(),
                 level: 1,
                 anchor: None,
+                file_href: "ch1.xhtml".to_string(),
                 blocks: vec![Block::Image {
                     path: "img_ch1.png".to_string(),
                     alt: "Image 1".to_string(),
+                    link_url: None,
                 }],
             },
         ];

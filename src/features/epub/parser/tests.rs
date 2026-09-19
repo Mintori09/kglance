@@ -40,15 +40,24 @@ fn test_extract_ncx_navpoints() {
             <navPoint id="n2">
               <navLabel><text>CHƯƠNG 1 - NHỮNG NGUYÊN TẮC CƠ BẢN</text></navLabel>
               <content src="index_split_001.html#filepos32808"/>
+              <navPoint id="n2_1">
+                <navLabel><text>Phần 1.1 - Chi tiết</text></navLabel>
+                <content src="index_split_001.html#filepos35000"/>
+              </navPoint>
             </navPoint>
           </navMap>
         </ncx>
     "#;
     let navpoints = extract_ncx_navpoints(ncx_xml);
-    assert_eq!(navpoints.len(), 2);
+    assert_eq!(navpoints.len(), 3);
     assert_eq!(navpoints[0].0, "LỜI NÓI ĐẦU");
+    assert_eq!(navpoints[0].1, 1);
     assert_eq!(navpoints[1].0, "CHƯƠNG 1 - NHỮNG NGUYÊN TẮC CƠ BẢN");
+    assert_eq!(navpoints[1].1, 1);
     assert_eq!(navpoints[1].3.as_deref(), Some("filepos32808"));
+    assert_eq!(navpoints[2].0, "Phần 1.1 - Chi tiết");
+    assert_eq!(navpoints[2].1, 2);
+    assert_eq!(navpoints[2].3.as_deref(), Some("filepos35000"));
 }
 
 #[test]
@@ -100,6 +109,88 @@ fn test_parse_epub_with_embedded_image() {
     } else {
         panic!("Expected ParsedContent::Epub variant");
     }
+
+    let _ = std::fs::remove_file(test_epub_path);
+}
+
+#[test]
+fn test_lazy_spine_parsing_and_on_demand_content() {
+    let temp_dir = std::env::temp_dir();
+    let test_epub_path = temp_dir.join("test_kglance_lazy.epub");
+
+    let file = File::create(&test_epub_path).unwrap();
+    let mut zip = ::zip::ZipWriter::new(file);
+
+    let options = ::zip::write::SimpleFileOptions::default();
+
+    zip.start_file("META-INF/container.xml", options).unwrap();
+    zip.write_all(r#"<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#.as_bytes()).unwrap();
+
+    zip.start_file("OEBPS/content.opf", options).unwrap();
+    zip.write_all(r#"<?xml version="1.0"?><package><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Lazy Test</dc:title><meta name="cover" content="cov-img"/></metadata><manifest><item id="cov-img" href="images/cover.png" media-type="image/png"/><item id="item1" href="ch1.xhtml" media-type="application/xhtml+xml"/><item id="item2" href="ch2.xhtml" media-type="application/xhtml+xml"/><item id="img2" href="images/ch2_img.png" media-type="image/png"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="ncx"><itemref idref="item1"/><itemref idref="item2"/></spine></package>"#.as_bytes()).unwrap();
+
+    zip.start_file("OEBPS/toc.ncx", options).unwrap();
+    zip.write_all(r#"<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap><navPoint id="np1"><navLabel><text>First Chapter</text></navLabel><content src="ch1.xhtml"/></navPoint><navPoint id="np2"><navLabel><text>Second Chapter</text></navLabel><content src="ch2.xhtml#part2"/></navPoint></navMap></ncx>"#.as_bytes()).unwrap();
+
+    zip.start_file("OEBPS/ch1.xhtml", options).unwrap();
+    zip.write_all(
+        r#"<html><body><h1>First Chapter</h1><p>Content of first chapter.</p></body></html>"#
+            .as_bytes(),
+    )
+    .unwrap();
+
+    zip.start_file("OEBPS/ch2.xhtml", options).unwrap();
+    zip.write_all(r#"<html><body><h1 id="part2">Second Chapter</h1><p><img src="images/ch2_img.png" alt="Ch2"/></p></body></html>"#.as_bytes()).unwrap();
+
+    zip.start_file("OEBPS/images/cover.png", options).unwrap();
+    zip.write_all(&[1, 2, 3, 4]).unwrap();
+
+    zip.start_file("OEBPS/images/ch2_img.png", options).unwrap();
+    zip.write_all(&[5, 6, 7, 8]).unwrap();
+
+    zip.finish().unwrap();
+
+    let parser = EpubParser;
+    let result = parser.parse(&test_epub_path).unwrap();
+
+    if let ParsedContent::Epub {
+        chapters, images, ..
+    } = &result
+    {
+        assert_eq!(chapters.len(), 2);
+        assert_eq!(chapters[0].0, "First Chapter");
+        assert_eq!(chapters[0].3, "ch1.xhtml");
+        assert!(!chapters[0].4.is_empty(), "Chapter 0 must be parsed");
+
+        assert_eq!(chapters[1].0, "Second Chapter");
+        assert_eq!(chapters[1].3, "ch2.xhtml");
+        assert_eq!(chapters[1].2.as_deref(), Some("part2"));
+        assert!(
+            chapters[1].4.is_empty(),
+            "Chapter 1 must be lazy and empty initially"
+        );
+
+        // Selective images: cover must be extracted, but ch2_img.png must NOT be extracted
+        assert!(images.contains_key("images/cover.png") || images.contains_key("cover.png"));
+        assert!(!images.contains_key("images/ch2_img.png") && !images.contains_key("ch2_img.png"));
+    } else {
+        panic!("Expected ParsedContent::Epub");
+    }
+
+    // Now test parse_chapter_content on demand for chapter 2
+    let file = File::open(&test_epub_path).unwrap();
+    let mut archive = ::zip::ZipArchive::new(file).unwrap();
+    let ch2_blocks = parse_chapter_content(
+        &mut archive,
+        "OEBPS/content.opf",
+        "ch2.xhtml",
+        Some("part2"),
+    )
+    .unwrap();
+
+    assert!(!ch2_blocks.is_empty());
+    let ch2_imgs = extract_images_from_blocks(&ch2_blocks);
+    assert_eq!(ch2_imgs, vec!["images/ch2_img.png"]);
 
     let _ = std::fs::remove_file(test_epub_path);
 }
