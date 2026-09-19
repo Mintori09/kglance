@@ -73,29 +73,29 @@ impl HtmlToMarkdownConverter {
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(ref e)) => {
-                    let name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
+                    let name = e.name().as_ref().to_ascii_lowercase();
                     self.handle_start_tag(&name, e);
                 }
                 Ok(Event::End(ref e)) => {
-                    let name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
+                    let name = e.name().as_ref().to_ascii_lowercase();
                     self.handle_end_tag(&name);
                 }
                 Ok(Event::Empty(ref e)) => {
-                    let name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
+                    let name = e.name().as_ref().to_ascii_lowercase();
                     self.handle_empty_tag(&name, e);
                 }
                 Ok(Event::Text(ref e)) => {
-                    let raw_str = String::from_utf8_lossy(e.as_ref());
-                    self.handle_text(&raw_str);
+                    let raw_str = e.as_ref();
+                    self.handle_text(raw_str);
                 }
                 Ok(Event::CData(ref e)) => {
-                    let raw_str = String::from_utf8_lossy(e.as_ref());
-                    self.handle_text(&raw_str);
+                    let raw_str = e.as_ref();
+                    self.handle_text(raw_str);
                 }
                 Ok(Event::GeneralRef(ref e)) => {
-                    let raw = String::from_utf8_lossy(e.as_ref());
+                    let raw = e.as_ref();
                     if raw.starts_with('&') && raw.ends_with(';') {
-                        self.handle_text(&raw);
+                        self.handle_text(raw);
                     } else {
                         self.handle_text(&format!("&{raw};"));
                     }
@@ -196,8 +196,8 @@ impl HtmlToMarkdownConverter {
                     "h6" => "######",
                     _ => "#",
                 };
-                let id_attr = extract_attr_from_event(e, b"id")
-                    .or_else(|| extract_attr_from_event(e, b"name"));
+                let id_attr =
+                    extract_attr_from_event(e, "id").or_else(|| extract_attr_from_event(e, "name"));
                 if let Some(id) = id_attr {
                     self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n{hashes} "));
                 } else {
@@ -205,8 +205,8 @@ impl HtmlToMarkdownConverter {
                 }
             }
             "p" | "div" | "blockquote" => {
-                let id_attr = extract_attr_from_event(e, b"id")
-                    .or_else(|| extract_attr_from_event(e, b"name"));
+                let id_attr =
+                    extract_attr_from_event(e, "id").or_else(|| extract_attr_from_event(e, "name"));
                 if let Some(id) = id_attr {
                     self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n"));
                 }
@@ -379,11 +379,10 @@ impl HtmlToMarkdownConverter {
                 let mut alt = String::from("image");
 
                 for attr in e.attributes().flatten() {
-                    let key = String::from_utf8_lossy(attr.key.as_ref()).to_lowercase();
-                    if key == "src" {
-                        src = String::from_utf8_lossy(&attr.value).to_string();
-                    } else if key == "alt" {
-                        alt = String::from_utf8_lossy(&attr.value).to_string();
+                    if attr.key.as_ref().eq_ignore_ascii_case("src") {
+                        src = attr.value.to_string();
+                    } else if attr.key.as_ref().eq_ignore_ascii_case("alt") {
+                        alt = attr.value.to_string();
                     }
                 }
 
@@ -505,12 +504,10 @@ fn clean_table_cell(raw: &str) -> String {
 
 fn has_class_or_attr(e: &quick_xml::events::BytesStart, attr_name: &str, target_val: &str) -> bool {
     for attr in e.attributes().flatten() {
-        let key = String::from_utf8_lossy(attr.key.as_ref()).to_lowercase();
-        if key == attr_name {
-            let val = String::from_utf8_lossy(&attr.value).to_lowercase();
-            if val.contains(target_val) {
-                return true;
-            }
+        if attr.key.as_ref().eq_ignore_ascii_case(attr_name)
+            && attr.value.to_ascii_lowercase().contains(target_val)
+        {
+            return true;
         }
     }
     false
@@ -518,9 +515,8 @@ fn has_class_or_attr(e: &quick_xml::events::BytesStart, attr_name: &str, target_
 
 fn has_tex_encoding(e: &quick_xml::events::BytesStart) -> bool {
     for attr in e.attributes().flatten() {
-        let key = String::from_utf8_lossy(attr.key.as_ref()).to_lowercase();
-        if key == "encoding" {
-            let val = String::from_utf8_lossy(&attr.value).to_lowercase();
+        if attr.key.as_ref().eq_ignore_ascii_case("encoding") {
+            let val = attr.value.to_ascii_lowercase();
             if val.contains("tex") || val.contains("latex") {
                 return true;
             }
@@ -532,8 +528,8 @@ fn has_tex_encoding(e: &quick_xml::events::BytesStart) -> bool {
 fn extract_code_lang(e: &quick_xml::events::BytesStart) -> Option<String> {
     for attr in e.attributes().flatten() {
         let key = attr.key.as_ref();
-        if key.eq_ignore_ascii_case(b"class") {
-            let val = String::from_utf8_lossy(&attr.value);
+        if key.eq_ignore_ascii_case("class") {
+            let val = attr.value.as_ref();
             for part in val.split_whitespace() {
                 let trimmed = part.trim_matches('"').trim_matches('\'');
                 if let Some(lang) = trimmed.strip_prefix("language-") {
@@ -549,11 +545,11 @@ fn extract_code_lang(e: &quick_xml::events::BytesStart) -> Option<String> {
                     return Some(clean_lang_token(trimmed));
                 }
             }
-        } else if key.eq_ignore_ascii_case(b"data-lang")
-            || key.eq_ignore_ascii_case(b"data-language")
-            || key.eq_ignore_ascii_case(b"data-code-language")
+        } else if key.eq_ignore_ascii_case("data-lang")
+            || key.eq_ignore_ascii_case("data-language")
+            || key.eq_ignore_ascii_case("data-code-language")
         {
-            let val = String::from_utf8_lossy(&attr.value);
+            let val = attr.value.as_ref();
             let trimmed = val.trim();
             if !trimmed.is_empty() {
                 return Some(clean_lang_token(trimmed));
@@ -850,7 +846,7 @@ pub fn extract_headings_from_html(html: &str) -> Vec<HtmlHeading> {
                 let name = e.name();
                 if let Some(level) = parse_heading_tag(name.as_ref()) {
                     current_heading_level = Some(level);
-                    current_heading_id = extract_attr_from_event(e, b"id");
+                    current_heading_id = extract_attr_from_event(e, "id");
                     current_heading_text.clear();
                 }
             }
@@ -873,10 +869,8 @@ pub fn extract_headings_from_html(html: &str) -> Vec<HtmlHeading> {
                 }
             }
             Ok(Event::Text(ref e)) => {
-                if current_heading_level.is_some()
-                    && let Ok(txt) = e.decode()
-                {
-                    current_heading_text.push_str(&txt);
+                if current_heading_level.is_some() {
+                    current_heading_text.push_str(e.as_ref());
                 }
             }
             Ok(Event::Eof) => break,
@@ -889,22 +883,22 @@ pub fn extract_headings_from_html(html: &str) -> Vec<HtmlHeading> {
     headings
 }
 
-fn parse_heading_tag(name: &[u8]) -> Option<u8> {
+fn parse_heading_tag(name: &str) -> Option<u8> {
     match name {
-        b"h1" | b"H1" => Some(1),
-        b"h2" | b"H2" => Some(2),
-        b"h3" | b"H3" => Some(3),
-        b"h4" | b"H4" => Some(4),
-        b"h5" | b"H5" => Some(5),
-        b"h6" | b"H6" => Some(6),
+        "h1" | "H1" => Some(1),
+        "h2" | "H2" => Some(2),
+        "h3" | "H3" => Some(3),
+        "h4" | "H4" => Some(4),
+        "h5" | "H5" => Some(5),
+        "h6" | "H6" => Some(6),
         _ => None,
     }
 }
 
-fn extract_attr_from_event(e: &quick_xml::events::BytesStart, attr_name: &[u8]) -> Option<String> {
+fn extract_attr_from_event(e: &quick_xml::events::BytesStart, attr_name: &str) -> Option<String> {
     for attr in e.attributes().flatten() {
         if attr.key.as_ref().eq_ignore_ascii_case(attr_name) {
-            return String::from_utf8(attr.value.to_vec()).ok();
+            return Some(attr.value.to_string());
         }
     }
     None

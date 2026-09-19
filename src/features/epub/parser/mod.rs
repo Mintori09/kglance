@@ -5,13 +5,13 @@ mod opf;
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
 use crate::features::common::parser::traits::{ParseError, PreviewParser};
-use crate::features::common::parser::types::ParsedContent;
+use crate::features::common::parser::types::{ParsedContent, ParsedEpubChapter};
 use crate::features::markdown::parser::{Block, Inline, flatten_inlines, parse_to_blocks};
 
 use html::{
@@ -20,8 +20,8 @@ use html::{
 };
 use ncx::{NcxNavPoint, extract_epub3_navpoints, extract_ncx_navpoints};
 use opf::{
-    extract_nav_href, extract_ncx_href, extract_opf_path, extract_spine_items,
-    resolve_relative_path,
+    extract_cover_image_href, extract_nav_href, extract_ncx_href, extract_opf_path,
+    extract_spine_items, resolve_relative_path,
 };
 
 const DEFAULT_TITLE: &str = "Unknown Title";
@@ -29,13 +29,62 @@ const DEFAULT_AUTHOR: &str = "Unknown Author";
 
 pub struct EpubParser;
 
-struct SpineEntry {
-    blocks: Vec<Block>,
-    headings: Vec<html::HtmlHeading>,
-    chapter_title: Option<String>,
+pub fn parse_chapter_content<R: Read + std::io::Seek>(
+    archive: &mut zip::ZipArchive<R>,
+    opf_path: &str,
+    file_href: &str,
+    anchor: Option<&str>,
+) -> Result<Vec<Block>, ParseError> {
+    let resolved_path = resolve_relative_path(opf_path, file_href);
+    let html = read_archive_entry_string(archive, &resolved_path)?;
+    let md = convert_html_to_markdown(&html);
+    let blocks = parse_to_blocks(&md);
+
+    if let Some(anc) = anchor
+        && !anc.is_empty()
+        && let Some(start_idx) = find_block_index(&blocks, Some(anc), None)
+    {
+        return Ok(blocks[start_idx..].to_vec());
+    }
+
+    Ok(blocks)
 }
 
-type SpineCache = HashMap<String, SpineEntry>;
+pub type LoadedChapterContent = (Vec<Block>, HashMap<String, Vec<u8>>);
+
+pub fn load_chapter_content_and_images_from_epub(
+    path: &Path,
+    file_href: &str,
+    anchor: Option<&str>,
+) -> Result<LoadedChapterContent, ParseError> {
+    let file = File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let opf_path = read_container_opf_path(&mut archive)?;
+    let blocks = parse_chapter_content(&mut archive, &opf_path, file_href, anchor)?;
+    let images = extract_selective_images(&mut archive, &opf_path, None, &blocks);
+    Ok((blocks, images))
+}
+
+pub fn load_chapter_from_epub(
+    path: &Path,
+    file_href: &str,
+    anchor: Option<&str>,
+) -> Result<Vec<Block>, ParseError> {
+    let file = File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let opf_path = read_container_opf_path(&mut archive)?;
+    parse_chapter_content(&mut archive, &opf_path, file_href, anchor)
+}
+
+pub fn load_images_for_blocks_from_epub(
+    archive: &mut zip::ZipArchive<impl Read + std::io::Seek>,
+    opf_path: &str,
+    blocks: &[Block],
+) -> HashMap<String, Vec<u8>> {
+    extract_selective_images(archive, opf_path, None, blocks)
+}
 
 impl PreviewParser for EpubParser {
     fn supported_extensions(&self) -> &[&str] {
@@ -76,17 +125,24 @@ impl PreviewParser for EpubParser {
             }
         }
 
-        let spine_cache = cache_spine_contents(&mut archive, &opf_path, &spine_items, &title);
+        let mut chapters = if !nav_entries.is_empty() {
+            build_lazy_chapters_from_ncx(&mut archive, &opf_path, &nav_entries)
+        } else {
+            build_lazy_chapters_from_spine(&mut archive, &opf_path, &spine_items, &title)
+        };
 
-        let mut chapters = build_chapters_from_ncx(&nav_entries, &spine_cache);
-        if chapters.is_empty() {
-            chapters = build_chapters_from_spine(&spine_items, &spine_cache);
-        }
         if chapters.is_empty() {
             chapters.push(create_fallback_chapter());
         }
 
-        let images = extract_images_from_archive(&mut archive);
+        let cover_href = extract_cover_image_href(&opf_xml);
+        let initial_blocks = chapters.first().map(|ch| ch.4.as_slice()).unwrap_or(&[]);
+        let images = extract_selective_images(
+            &mut archive,
+            &opf_path,
+            cover_href.as_deref(),
+            initial_blocks,
+        );
 
         Ok(ParsedContent::Epub {
             title,
@@ -123,98 +179,117 @@ fn read_archive_entry_string<R: Read + std::io::Seek>(
     Ok(read_bytes_to_string(&bytes))
 }
 
-fn cache_spine_contents<R: Read + std::io::Seek>(
+fn build_lazy_chapters_from_ncx<R: Read + std::io::Seek>(
     archive: &mut zip::ZipArchive<R>,
     opf_path: &str,
-    spine_items: &[String],
-    book_title: &str,
-) -> SpineCache {
-    let mut cache = HashMap::new();
-
-    for (index, item_path) in spine_items.iter().enumerate() {
-        let resolved_path = resolve_relative_path(opf_path, item_path);
-        if let Ok(html) = read_archive_entry_string(archive, &resolved_path) {
-            let markdown_text = convert_html_to_markdown(&html);
-            let blocks = parse_to_blocks(&markdown_text);
-            let headings = extract_headings_from_html(&html);
-            let chapter_title = if headings.is_empty() {
-                extract_chapter_title_from_html(&html, book_title)
-                    .map(|t| decode_html_entities(&t))
-                    .or_else(|| Some(format!("Chapter {}", index + 1)))
-            } else {
-                None
-            };
-            let filename = extract_filename(item_path);
-
-            cache.insert(
-                filename,
-                SpineEntry {
-                    blocks,
-                    headings,
-                    chapter_title,
-                },
-            );
-        }
-    }
-
-    cache
-}
-
-fn build_chapters_from_ncx(
     ncx_entries: &[NcxNavPoint],
-    spine_cache: &SpineCache,
-) -> Vec<(String, u8, Option<String>, Vec<Block>)> {
+) -> Vec<ParsedEpubChapter> {
     let mut chapters = Vec::new();
-    let total_entries = ncx_entries.len();
 
-    for index in 0..total_entries {
-        let (label, level, file_part, anchor) = &ncx_entries[index];
-        let filename = extract_filename(file_part);
-
-        let Some(entry) = spine_cache.get(&filename) else {
-            continue;
-        };
-
-        if entry.blocks.is_empty() {
-            continue;
-        }
-
+    for (index, entry) in ncx_entries.iter().enumerate() {
+        let (label, level, file_part, anchor) = entry;
         let clean_title = decode_html_entities(label);
-        let start_idx =
-            find_block_index(&entry.blocks, anchor.as_deref(), Some(&clean_title)).unwrap_or(0);
 
-        let next_entry = ncx_entries.get(index + 1);
-        let end_idx = calculate_next_ncx_end_index(next_entry, &filename, &entry.blocks, start_idx);
-
-        let chapter_blocks = match end_idx {
-            Some(end) if end > start_idx => entry.blocks[start_idx..end].to_vec(),
-            _ => entry.blocks[start_idx..].to_vec(),
+        let blocks = if index == 0 {
+            parse_chapter_content(archive, opf_path, file_part, anchor.as_deref())
+                .unwrap_or_default()
+        } else {
+            Vec::new()
         };
 
-        if !chapter_blocks.is_empty() {
-            chapters.push((clean_title, *level, anchor.clone(), chapter_blocks));
-        }
+        chapters.push((
+            clean_title,
+            *level,
+            anchor.clone(),
+            file_part.clone(),
+            blocks,
+        ));
     }
 
     chapters
 }
 
-fn calculate_next_ncx_end_index(
-    next_entry: Option<&NcxNavPoint>,
-    current_filename: &str,
-    blocks: &[Block],
-    start_idx: usize,
-) -> Option<usize> {
-    let (_next_label, _next_level, next_file_part, next_anchor) = next_entry?;
-    let next_filename = extract_filename(next_file_part);
+fn build_lazy_chapters_from_spine<R: Read + std::io::Seek>(
+    archive: &mut zip::ZipArchive<R>,
+    opf_path: &str,
+    spine_items: &[String],
+    book_title: &str,
+) -> Vec<ParsedEpubChapter> {
+    let mut chapters = Vec::new();
 
-    if next_filename == current_filename {
-        let next_anc = next_anchor.as_deref()?;
-        find_block_index(&blocks[start_idx..], Some(next_anc), None)
-            .map(|offset| start_idx + offset)
-    } else {
-        None
+    for (index, item_path) in spine_items.iter().enumerate() {
+        if index == 0 {
+            let resolved_path = resolve_relative_path(opf_path, item_path);
+            if let Ok(html) = read_archive_entry_string(archive, &resolved_path) {
+                let markdown_text = convert_html_to_markdown(&html);
+                let blocks = parse_to_blocks(&markdown_text);
+                let headings = extract_headings_from_html(&html);
+
+                if !headings.is_empty() {
+                    let total_headings = headings.len();
+                    let mut last_end = 0;
+
+                    for h_idx in 0..total_headings {
+                        let h = &headings[h_idx];
+                        let start_idx =
+                            find_block_index(&blocks[last_end..], h.id.as_deref(), Some(&h.title))
+                                .map(|offset| last_end + offset)
+                                .unwrap_or(last_end);
+
+                        let end_idx = if h_idx + 1 < total_headings {
+                            let next_h = &headings[h_idx + 1];
+                            find_block_index(
+                                &blocks[start_idx..],
+                                next_h.id.as_deref(),
+                                Some(&next_h.title),
+                            )
+                            .map(|offset| start_idx + offset)
+                        } else {
+                            None
+                        };
+
+                        let chapter_blocks = match end_idx {
+                            Some(end) if end > start_idx => {
+                                last_end = end;
+                                blocks[start_idx..end].to_vec()
+                            }
+                            _ => {
+                                last_end = blocks.len();
+                                blocks[start_idx..].to_vec()
+                            }
+                        };
+
+                        chapters.push((
+                            h.title.clone(),
+                            h.level,
+                            h.id.clone(),
+                            item_path.clone(),
+                            chapter_blocks,
+                        ));
+                    }
+                } else {
+                    let clean_title = extract_chapter_title_from_html(&html, book_title)
+                        .map(|t| decode_html_entities(&t))
+                        .unwrap_or_else(|| "Chapter 1".to_string());
+
+                    chapters.push((clean_title, 1, None, item_path.clone(), blocks));
+                }
+            } else {
+                chapters.push((
+                    "Chapter 1".to_string(),
+                    1,
+                    None,
+                    item_path.clone(),
+                    Vec::new(),
+                ));
+            }
+        } else {
+            let clean_title = format!("Chapter {}", index + 1);
+            chapters.push((clean_title, 1, None, item_path.clone(), Vec::new()));
+        }
     }
+
+    chapters
 }
 
 fn find_block_index(blocks: &[Block], anchor: Option<&str>, title: Option<&str>) -> Option<usize> {
@@ -235,99 +310,130 @@ fn extract_text_from_block(block: &Block) -> String {
     }
 }
 
-fn build_chapters_from_spine(
-    spine_items: &[String],
-    spine_cache: &SpineCache,
-) -> Vec<(String, u8, Option<String>, Vec<Block>)> {
-    let mut chapters = Vec::new();
-
-    for (index, item_path) in spine_items.iter().enumerate() {
-        let filename = extract_filename(item_path);
-
-        if let Some(entry) = spine_cache.get(&filename) {
-            if entry.blocks.is_empty() {
-                continue;
-            }
-
-            if !entry.headings.is_empty() {
-                let total_headings = entry.headings.len();
-                let mut last_end = 0;
-
-                for h_idx in 0..total_headings {
-                    let h = &entry.headings[h_idx];
-                    let start_idx = find_block_index(
-                        &entry.blocks[last_end..],
-                        h.id.as_deref(),
-                        Some(&h.title),
-                    )
-                    .map(|offset| last_end + offset)
-                    .unwrap_or(last_end);
-
-                    let end_idx = if h_idx + 1 < total_headings {
-                        let next_h = &entry.headings[h_idx + 1];
-                        find_block_index(
-                            &entry.blocks[start_idx..],
-                            next_h.id.as_deref(),
-                            Some(&next_h.title),
-                        )
-                        .map(|offset| start_idx + offset)
-                    } else {
-                        None
-                    };
-
-                    let chapter_blocks = match end_idx {
-                        Some(end) if end > start_idx => {
-                            last_end = end;
-                            entry.blocks[start_idx..end].to_vec()
-                        }
-                        _ => {
-                            last_end = entry.blocks.len();
-                            entry.blocks[start_idx..].to_vec()
-                        }
-                    };
-
-                    if !chapter_blocks.is_empty() {
-                        chapters.push((h.title.clone(), h.level, h.id.clone(), chapter_blocks));
-                    }
-                }
-            } else {
-                let clean_title = entry
-                    .chapter_title
-                    .clone()
-                    .unwrap_or_else(|| format!("Chapter {}", index + 1));
-
-                chapters.push((clean_title, 1, None, entry.blocks.clone()));
-            }
-        }
-    }
-
-    chapters
-}
-
-fn create_fallback_chapter() -> (String, u8, Option<String>, Vec<Block>) {
+fn create_fallback_chapter() -> ParsedEpubChapter {
     (
         "Chapter 1".to_string(),
         1,
         None,
+        String::new(),
         vec![Block::Paragraph(vec![Inline::Text(
             "[No readable content found in EPUB]".to_string(),
         )])],
     )
 }
 
-fn extract_images_from_archive<R: Read + std::io::Seek>(
+pub fn extract_images_from_blocks(blocks: &[Block]) -> Vec<String> {
+    let mut image_paths = Vec::new();
+    collect_images_from_blocks(blocks, &mut image_paths);
+    image_paths
+}
+
+fn collect_images_from_blocks(blocks: &[Block], paths: &mut Vec<String>) {
+    for block in blocks {
+        match block {
+            Block::Image { path, .. } => {
+                paths.push(path.clone());
+            }
+            Block::Paragraph(inlines)
+            | Block::Heading {
+                content: inlines, ..
+            } => {
+                collect_images_from_inlines(inlines, paths);
+            }
+            Block::Quote(sub_blocks)
+            | Block::Alert {
+                content: sub_blocks,
+                ..
+            }
+            | Block::FootnoteDefinition {
+                content: sub_blocks,
+                ..
+            } => {
+                collect_images_from_blocks(sub_blocks, paths);
+            }
+            Block::List { items, .. } => {
+                for item in items {
+                    collect_images_from_inlines(&item.content, paths);
+                    collect_images_from_blocks(&item.sub_blocks, paths);
+                }
+            }
+            Block::Table(table) => {
+                for header in &table.headers {
+                    collect_images_from_inlines(&header.content, paths);
+                }
+                for row in &table.rows {
+                    for cell in row {
+                        collect_images_from_inlines(&cell.content, paths);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn collect_images_from_inlines(inlines: &[Inline], paths: &mut Vec<String>) {
+    for inline in inlines {
+        match inline {
+            Inline::Image { url, .. } => {
+                paths.push(url.clone());
+            }
+            Inline::Bold(subs)
+            | Inline::Italic(subs)
+            | Inline::Strikethrough(subs)
+            | Inline::Link { text: subs, .. } => {
+                collect_images_from_inlines(subs, paths);
+            }
+            _ => {}
+        }
+    }
+}
+
+pub fn extract_selective_images<R: Read + std::io::Seek>(
     archive: &mut zip::ZipArchive<R>,
+    opf_path: &str,
+    cover_href: Option<&str>,
+    blocks: &[Block],
 ) -> HashMap<String, Vec<u8>> {
     let mut images = HashMap::new();
+    let mut target_names: HashSet<String> = HashSet::new();
+
+    if let Some(href) = cover_href {
+        let resolved = resolve_relative_path(opf_path, href);
+        target_names.insert(resolved.clone());
+        target_names.insert(href.to_string());
+        target_names.insert(extract_filename(href));
+    }
+
+    let block_imgs = extract_images_from_blocks(blocks);
+    for img in block_imgs {
+        let resolved = resolve_relative_path(opf_path, &img);
+        target_names.insert(resolved);
+        let filename = extract_filename(&img);
+        target_names.insert(filename);
+        target_names.insert(img);
+    }
+
+    let mut found_cover = cover_href.is_some();
 
     for index in 0..archive.len() {
-        if let Ok(mut file) = archive.by_index(index) {
-            let name = file.name().to_string();
+        let Ok(file) = archive.by_index(index) else {
+            continue;
+        };
+        let name = file.name().to_string();
+        let filename = extract_filename(&name);
 
-            if is_image_extension(&name) {
+        let matches_target = target_names.contains(&name) || target_names.contains(&filename);
+        let matches_cover = is_potential_cover_image(&name, found_cover);
+
+        if is_image_extension(&name) && (matches_target || matches_cover) {
+            drop(file);
+            if let Ok(mut file) = archive.by_index(index) {
                 let mut buffer = Vec::new();
                 if file.read_to_end(&mut buffer).is_ok() {
-                    let filename = extract_filename(&name);
+                    if matches_cover && !found_cover {
+                        found_cover = true;
+                    }
                     if filename != name {
                         images.insert(filename, buffer.clone());
                     }
@@ -338,6 +444,10 @@ fn extract_images_from_archive<R: Read + std::io::Seek>(
     }
 
     images
+}
+
+fn is_potential_cover_image(name: &str, already_found_cover: bool) -> bool {
+    !already_found_cover && name.to_ascii_lowercase().contains("cover")
 }
 
 fn is_image_extension(filename: &str) -> bool {

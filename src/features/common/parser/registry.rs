@@ -185,12 +185,15 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
             } => {
                 let epub_chapters = chapters
                     .into_iter()
-                    .map(|(t, lvl, anc, b)| crate::core::types::EpubChapterInfo {
-                        title: t,
-                        level: lvl,
-                        anchor: anc,
-                        blocks: b,
-                    })
+                    .map(
+                        |(t, lvl, anc, href, b)| crate::core::types::EpubChapterInfo {
+                            title: t,
+                            level: lvl,
+                            anchor: anc,
+                            file_href: href,
+                            blocks: b,
+                        },
+                    )
                     .collect();
                 crate::core::preview::PreviewData::Epub {
                     title,

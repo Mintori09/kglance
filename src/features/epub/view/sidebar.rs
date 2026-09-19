@@ -143,6 +143,7 @@ fn build_sidebar_chapter_list<'a>(state: &'a EpubState, theme: AppTheme) -> Elem
     .build()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_chapter_entry<'a>(
     index: usize,
     chapter: &'a EpubChapterInfo,

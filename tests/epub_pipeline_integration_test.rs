@@ -150,8 +150,8 @@ fn test_epub_parser_registry_integration() {
             "Chapter 1 should contain blocks"
         );
         assert!(
-            !chapters[1].blocks.is_empty(),
-            "Chapter 2 should contain blocks"
+            chapters[1].blocks.is_empty(),
+            "Chapter 2 blocks should be empty initially (lazy loading)"
         );
 
         let mut state = KglanceState::default();

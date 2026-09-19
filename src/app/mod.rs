@@ -178,7 +178,8 @@ impl KglanceApp {
             }
             Some(crate::core::PreviewData::Epub { .. }) => {
                 let max = self.state.epub.chapters.len().max(1);
-                self.state.epub.active_chapter = chapter.min(max - 1);
+                let target_ch = chapter.min(max - 1);
+                crate::features::epub::update::ensure_chapter_loaded(self, target_ch);
                 self.state.epub.markdown_state.scroll_y = scroll_y;
                 true
             }
@@ -1023,6 +1024,7 @@ pub(crate) mod test_util {
                 title: t.to_string(),
                 level: 1,
                 anchor: None,
+                file_href: "chapter.xhtml".to_string(),
                 blocks: crate::parsers::markdown::parse_to_blocks(t),
             })
             .collect();
