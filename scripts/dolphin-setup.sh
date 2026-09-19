@@ -46,9 +46,6 @@ configure_shortcut() {
     local shortcut="$1"
     mkdir -p "$DOLPHIN_UI_DIR"
 
-    # Terminate running Dolphin instances so configuration is not overwritten
-    prompt_kill_dolphin
-
     if [ ! -f "$DOLPHIN_UI_FILE" ]; then
         cat <<EOF >"$DOLPHIN_UI_FILE"
 <?xml version='1.0'?>
@@ -71,13 +68,16 @@ EOF
     fi
 
     echo "Configured Dolphin shortcut '$shortcut' for Kglance in $DOLPHIN_UI_FILE"
+
+    # Terminate running Dolphin instances so configuration is not overwritten
+    prompt_kill_dolphin
 }
 
 remove_shortcut() {
     if [ -f "$DOLPHIN_UI_FILE" ]; then
-        prompt_kill_dolphin
         sed -i "/${ACTION_NAME}/d" "$DOLPHIN_UI_FILE"
         echo "Removed shortcut configuration from $DOLPHIN_UI_FILE"
+        prompt_kill_dolphin
     fi
 }
 
