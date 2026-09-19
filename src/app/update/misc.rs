@@ -3,6 +3,7 @@ use crate::app::messages::Message;
 use crate::features::markdown::update as markdown;
 use crate::features::pdf::update::active_pdf_state_mut;
 use iced::Task;
+use url::Url;
 
 pub fn handle_copy_code(app: &mut KglanceApp, code: String) -> Task<Message> {
     let toast = app.show_toast("Copied!");
@@ -10,8 +11,30 @@ pub fn handle_copy_code(app: &mut KglanceApp, code: String) -> Task<Message> {
 }
 
 pub fn handle_open_link(url: String) -> Task<Message> {
-    let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+    if is_allowed_link(&url) {
+        let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+    }
     Task::none()
+}
+
+fn is_allowed_link(link: &str) -> bool {
+    match Url::parse(link) {
+        Ok(url) => match url.scheme() {
+            "http" | "https" | "mailto" => true,
+            "file" => {
+                if let Ok(path) = url.to_file_path() {
+                    path.is_file()
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        },
+        Err(_) => {
+            let path = std::path::Path::new(link);
+            path.is_absolute() && path.is_file()
+        }
+    }
 }
 
 pub fn handle_theme_toggled(app: &mut KglanceApp) -> Task<Message> {
@@ -222,7 +245,6 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
 mod tests {
     use super::*;
     use crate::app::test_util::{epub_content, test_app};
-    use crate::features::markdown::update::handle_selection_drag_start;
 
     #[test]
     fn drag_start_sets_resizing_and_clears_anchor() {

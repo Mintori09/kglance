@@ -4,11 +4,12 @@ use crate::core::PreviewData;
 use crate::features::image::{png_to_rgba_handle, png_to_rgba_handle_with_size};
 use crate::features::markdown::Block;
 use crate::log_debug;
-use iced::widget::{column, container, image};
-use iced::{Element, Length, Task};
+use iced::widget::{button, column, container, image};
+use iced::{Border, Color, Element, Length, Shadow, Task};
 
 pub(crate) fn render_inline_image<'a>(
     index: usize,
+    link_url: Option<&'a str>,
     state: &'a crate::core::MarkdownState,
 ) -> Element<'a, Message> {
     let Some(handle) = state.cached_image_handles.get(&index) else {
@@ -23,7 +24,30 @@ pub(crate) fn render_inline_image<'a>(
         _ => img.width(Length::Shrink),
     };
 
-    container(img)
+    let content: Element<'a, Message> = if let Some(url) = link_url {
+        let url_clone = url.to_string();
+        button(img)
+            .on_press(crate::app::messages::SystemMsg::OpenLink(url_clone).into())
+            .style(
+                |_theme: &iced::Theme, _status: button::Status| button::Style {
+                    background: None,
+                    text_color: Color::TRANSPARENT,
+                    border: Border {
+                        width: 0.0,
+                        color: Color::TRANSPARENT,
+                        radius: 0.0.into(),
+                    },
+                    shadow: Shadow::default(),
+                    snap: false,
+                },
+            )
+            .padding(0)
+            .into()
+    } else {
+        img.into()
+    };
+
+    container(content)
         .center_x(Length::Fill)
         .padding(STYLE.image.padding)
         .width(Length::Fill)
