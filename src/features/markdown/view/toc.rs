@@ -17,6 +17,8 @@ pub fn render_toc_sidebar<'a>(
     let active_block_index = find_active_block_index(toc, scroll_y);
     let visible_entries = filter_visible_entries(toc, state);
 
+    let has_hierarchy = toc.iter().any(|entry| entry_has_children(toc, entry));
+
     let entries: Vec<Element<'a, Message>> = visible_entries
         .into_iter()
         .map(|entry| {
@@ -24,7 +26,14 @@ pub fn render_toc_sidebar<'a>(
             let has_children = entry_has_children(toc, entry);
             let is_collapsed = state.collapsed_headings.contains(&entry.block_index);
 
-            render_toc_entry(entry, is_active, has_children, is_collapsed, theme)
+            render_toc_entry(
+                entry,
+                is_active,
+                has_children,
+                is_collapsed,
+                has_hierarchy,
+                theme,
+            )
         })
         .collect();
 
@@ -97,20 +106,13 @@ fn render_toc_entry<'a>(
     is_active: bool,
     has_children: bool,
     is_collapsed: bool,
+    has_subheadings: bool,
     theme: AppTheme,
 ) -> Element<'a, Message> {
-    let indent_amount = (entry.level as f32 - 1.0) * STYLE.toc.indent_per_level;
-
-    let leading_control: Element<'a, Message> = if has_children {
-        collapse_arrow(
-            is_collapsed,
-            theme,
-            crate::app::messages::MarkdownMsg::TocToggleCollapse(entry.block_index).into(),
-        )
+    let indent_amount = if has_subheadings {
+        (entry.level as f32 - 1.0) * STYLE.toc.indent_per_level
     } else {
-        Space::new()
-            .width(STYLE.toc.chevron_placeholder_width)
-            .into()
+        0.0
     };
 
     let heading_label = text(&entry.text).size(STYLE.toc.entry_font_size);
@@ -120,9 +122,29 @@ fn render_toc_entry<'a>(
         .style(move |iced_theme, status| sidebar_entry_style(iced_theme, status, is_active, theme))
         .padding(STYLE.toc.entry_padding);
 
-    let item_row = row![leading_control, heading_button]
-        .align_y(Alignment::Center)
-        .spacing(STYLE.toc.item_spacing);
+    // Only add leading control (arrow or placeholder) when the document has subheadings.
+    // Without subheadings, there are no arrows to align against, so the extra Space only adds
+    // unwanted padding.
+    let item_row: Element<'a, Message> = if has_subheadings {
+        let leading_control: Element<'a, Message> = if has_children {
+            collapse_arrow(
+                is_collapsed,
+                theme,
+                crate::app::messages::MarkdownMsg::TocToggleCollapse(entry.block_index).into(),
+            )
+        } else {
+            Space::new()
+                .width(STYLE.toc.chevron_placeholder_width)
+                .into()
+        };
+
+        row![leading_control, heading_button]
+            .align_y(Alignment::Center)
+            .spacing(STYLE.toc.item_spacing)
+            .into()
+    } else {
+        heading_button.into()
+    };
 
     container(item_row)
         .padding(Padding {
