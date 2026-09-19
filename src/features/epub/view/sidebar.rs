@@ -99,6 +99,8 @@ fn build_sidebar_chapter_list<'a>(state: &'a EpubState, theme: AppTheme) -> Elem
     let mut entries: Vec<Element<'a, Message>> = Vec::new();
     let mut skip_until_level: Option<u8> = None;
 
+    let has_hierarchy = state.chapters.windows(2).any(|w| w[1].level > w[0].level);
+
     for (index, chapter) in state.chapters.iter().enumerate() {
         if let Some(target_level) = skip_until_level {
             if chapter.level > target_level {
@@ -125,6 +127,7 @@ fn build_sidebar_chapter_list<'a>(state: &'a EpubState, theme: AppTheme) -> Elem
             is_active,
             has_children,
             is_collapsed,
+            has_hierarchy,
             is_light_background,
             theme,
         );
@@ -146,10 +149,15 @@ fn build_chapter_entry<'a>(
     is_active: bool,
     has_children: bool,
     is_collapsed: bool,
+    has_hierarchy: bool,
     is_light_background: bool,
     theme: AppTheme,
 ) -> Element<'a, Message> {
-    let indent = calculate_indent(chapter.level);
+    let indent = if has_hierarchy {
+        calculate_indent(chapter.level)
+    } else {
+        0.0
+    };
     let font_weight = entry_font_weight(chapter.level);
     let title_font_size = entry_font_size(chapter.level);
     let text_color = entry_text_color(is_active, is_light_background, chapter.level);
@@ -163,10 +171,17 @@ fn build_chapter_entry<'a>(
         .spacing(CHAPTER_ENTRY_SPACING)
         .align_y(iced::Alignment::Center);
 
-    if has_children {
-        let collapse_message = crate::app::messages::EpubMsg::ChapterToggleCollapse(index).into();
-        let arrow = collapse_arrow(is_collapsed, theme, collapse_message);
-        row_content = row_content.push(arrow);
+    if has_hierarchy {
+        if has_children {
+            let collapse_message =
+                crate::app::messages::EpubMsg::ChapterToggleCollapse(index).into();
+            let arrow = collapse_arrow(is_collapsed, theme, collapse_message);
+            row_content = row_content.push(arrow);
+        } else {
+            // Reserve exact same width as collapse_arrow (ARROW_FONT_SIZE + padding) for alignment
+            let spacer = iced::widget::Space::new().width(Length::Fixed(18.0));
+            row_content = row_content.push(spacer);
+        }
     }
 
     row_content = row_content.push(label);
