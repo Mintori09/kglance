@@ -103,9 +103,14 @@ fn parses_image_block_from_markdown() {
     let blocks = parse_to_blocks("![alt text](path/to/image.png)");
     assert_eq!(blocks.len(), 1);
     match &blocks[0] {
-        Block::Image { alt, path } => {
+        Block::Image {
+            alt,
+            path,
+            link_url,
+        } => {
             assert_eq!(alt, "alt text");
             assert_eq!(path, "path/to/image.png");
+            assert_eq!(*link_url, None);
         }
         _ => panic!("expected Block::Image, got {:?}", blocks[0]),
     }
@@ -116,9 +121,39 @@ fn parses_image_with_remote_url() {
     let blocks = parse_to_blocks("![remote](https://example.com/image.png)");
     assert_eq!(blocks.len(), 1);
     match &blocks[0] {
-        Block::Image { alt, path } => {
+        Block::Image {
+            alt,
+            path,
+            link_url,
+        } => {
             assert_eq!(alt, "remote");
             assert_eq!(path, "https://example.com/image.png");
+            assert_eq!(*link_url, None);
+        }
+        _ => panic!("expected Block::Image, got {:?}", blocks[0]),
+    }
+}
+
+#[test]
+fn parses_image_wrapped_in_link() {
+    let md = "[![](https://substackcdn.com/image/fetch/$s_!Iv61!,w_1456,c_limit,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2Fd4156dcc-b807-40e7-bb9f-772755365378_3024x3024.jpeg)](https://substackcdn.com/image/fetch/%24s_%21Iv61%21%2Cf_auto%2Cq_auto%3Agood%2Cfl_progressive%3Asteep/https%3A//substack-post-media.s3.amazonaws.com/public/images/d4156dcc-b807-40e7-bb9f-772755365378_3024x3024.jpeg)";
+    let blocks = parse_to_blocks(md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Image {
+            alt,
+            path,
+            link_url,
+        } => {
+            assert_eq!(alt, "");
+            assert!(path.contains("d4156dcc-b807-40e7-bb9f-772755365378"));
+            assert!(link_url.is_some());
+            assert!(
+                link_url
+                    .as_ref()
+                    .unwrap()
+                    .contains("d4156dcc-b807-40e7-bb9f-772755365378")
+            );
         }
         _ => panic!("expected Block::Image, got {:?}", blocks[0]),
     }
