@@ -1,6 +1,6 @@
 # Markdown Test Suite
 
-Tài liệu này dùng để kiểm tra renderer Markdown.
+This document is used to test the Markdown renderer.
 
 ---
 
@@ -22,15 +22,15 @@ Tài liệu này dùng để kiểm tra renderer Markdown.
 
 ## Paragraphs
 
-Đây là một đoạn văn bình thường.
+This is a normal paragraph.
 
-Đây là đoạn văn thứ hai.
+This is the second paragraph.
 
-Dòng này được viết
-trên nhiều dòng
-trong source markdown.
+This line is written
+across multiple lines
+in the Markdown source.
 
-Đây là một đoạn rất dài để kiểm tra khả năng wrap text của renderer. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+This is a very long paragraph to test the renderer's text wrapping capability. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
 
 ---
 
@@ -46,11 +46,11 @@ _Italic Text_
 
 `inline code`
 
-**Bold với `inline code` bên trong**
+**Bold with `inline code` inside**
 
 Link: [Rust Language](https://www.rust-lang.org)
 
-Link khác: [GitHub](https://github.com)
+Another link: [GitHub](https://github.com)
 
 ---
 
@@ -248,11 +248,11 @@ stateDiagram-v2
 
 ## Escaping
 
-\*Not italic\*
+_Not italic_
 
-\# Not heading
+# Not heading
 
-\`Not code\`
+`Not code`
 
 ---
 
@@ -286,13 +286,13 @@ pub struct Example {
 
 ## Unicode Test
 
-Tiếng Việt có dấu.
+Vietnamese with diacritics.
 
-日本語のテスト。
+Japanese test.
 
-한국어 테스트.
+Korean test.
 
-中文测试。
+Chinese test.
 
 😀 😎 🚀 🎉
 

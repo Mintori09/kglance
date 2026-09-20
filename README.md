@@ -1,6 +1,9 @@
 # Kglance (Oxiview)
 
-![image](./data/image.png)
+<p align="center">
+  <img src="data/images/Screenshot_20260920_141409.png" width="49%" />
+  <img src="data/images/Screenshot_20260920_141428.png" width="49%" />
+</p>
 
 A high-performance file preview application for **KDE Plasma 6** built in Rust and Iced. Inspired by macOS QuickLook, Kglance provides near-instantaneous file previews via a single keypress.
 
