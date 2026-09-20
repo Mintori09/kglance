@@ -171,22 +171,26 @@ impl From<Arc<PreviewData>> for CachedContent {
 }
 
 use lru::LruCache;
-use std::num::NonZeroUsize;
+
+/// Entry stored in the LRU cache, pairing content with its precomputed byte size
+/// to avoid O(N) recomputation on eviction.
+#[derive(Debug, Clone)]
+struct CacheEntry {
+    content: CachedContent,
+    size_bytes: usize,
+}
 
 #[derive(Debug)]
 pub struct MemoryCache {
-    lru: LruCache<String, CachedContent>,
+    lru: LruCache<String, CacheEntry>,
     current_bytes: usize,
     max_bytes: usize,
 }
 
 impl MemoryCache {
-    pub const DEFAULT_MAX_FILES: usize = 10_000;
-
     pub fn new(max_bytes: usize) -> Self {
-        let cap = NonZeroUsize::new(Self::DEFAULT_MAX_FILES).unwrap();
         Self {
-            lru: LruCache::new(cap),
+            lru: LruCache::unbounded(),
             current_bytes: 0,
             max_bytes,
         }
@@ -230,19 +234,23 @@ impl MemoryCache {
 
     #[inline]
     pub fn get(&mut self, key: &str) -> Option<&CachedContent> {
-        self.lru.get(key)
+        self.lru.get(key).map(|entry| &entry.content)
     }
 
     #[inline]
     pub fn peek(&self, key: &str) -> Option<&CachedContent> {
-        self.lru.peek(key)
+        self.lru.peek(key).map(|entry| &entry.content)
     }
 
     pub fn put(&mut self, key: String, content: CachedContent) {
         let new_bytes = content.estimated_bytes();
+        let entry = CacheEntry {
+            content,
+            size_bytes: new_bytes,
+        };
 
-        if let Some(old) = self.lru.put(key, content) {
-            self.current_bytes = self.current_bytes.saturating_sub(old.estimated_bytes());
+        if let Some(old) = self.lru.put(key, entry) {
+            self.current_bytes = self.current_bytes.saturating_sub(old.size_bytes);
         }
         self.current_bytes = self.current_bytes.saturating_add(new_bytes);
 
@@ -257,7 +265,7 @@ impl MemoryCache {
     fn trim_to_budget(&mut self) {
         while self.current_bytes > self.max_bytes {
             if let Some((_k, evicted)) = self.lru.pop_lru() {
-                self.current_bytes = self.current_bytes.saturating_sub(evicted.estimated_bytes());
+                self.current_bytes = self.current_bytes.saturating_sub(evicted.size_bytes);
             } else {
                 break;
             }
