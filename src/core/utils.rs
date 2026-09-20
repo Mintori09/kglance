@@ -1,3 +1,9 @@
+use std::path::Component;
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
+
 pub fn human_time(datetime: std::time::SystemTime) -> String {
     let now = chrono::Local::now();
     let dt = chrono::DateTime::<chrono::Local>::from(datetime);
@@ -41,5 +47,137 @@ pub fn human_size(bytes: u64) -> String {
         format!("{} B", bytes)
     } else {
         format!("{:.1} {}", size, UNITS[unit_idx])
+    }
+}
+
+pub(crate) fn resolve_path(path: &str, file_path: &str) -> PathBuf {
+    let path = path.trim();
+
+    let expanded = if path == "~" || path == "$HOME" {
+        env::var_os("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(path))
+    } else if let Some(rest) = path.strip_prefix("~/") {
+        env::var_os("HOME")
+            .map(|home| PathBuf::from(home).join(rest))
+            .unwrap_or_else(|| PathBuf::from(path))
+    } else if let Some(rest) = path.strip_prefix("$HOME/") {
+        env::var_os("HOME")
+            .map(|home| PathBuf::from(home).join(rest))
+            .unwrap_or_else(|| PathBuf::from(path))
+    } else {
+        PathBuf::from(path)
+    };
+
+    let joined = if expanded.is_absolute() {
+        expanded
+    } else {
+        Path::new(file_path)
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(expanded)
+    };
+
+    let mut result = PathBuf::new();
+
+    for component in joined.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                let last = result.components().next_back();
+                match last {
+                    Some(Component::Normal(_)) => {
+                        result.pop();
+                    }
+                    Some(Component::RootDir) => {}
+                    _ => result.push(component),
+                }
+            }
+            _ => result.push(component),
+        }
+    }
+
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+    use std::path::PathBuf;
+
+    const HOME: &str = "/home/user";
+    const FILE: &str = "/home/user/Documents/project/document.md";
+
+    fn resolve(path: &str) -> PathBuf {
+        // SAFETY: tests run single-threaded for this environment variable.
+        unsafe { env::set_var("HOME", HOME) };
+        resolve_path(path, FILE)
+    }
+
+    #[test]
+    fn absolute_path() {
+        assert_eq!(resolve("/tmp/image.png"), PathBuf::from("/tmp/image.png"));
+    }
+
+    #[test]
+    fn relative_path() {
+        assert_eq!(
+            resolve("image.png"),
+            PathBuf::from("/home/user/Documents/project/image.png")
+        );
+    }
+
+    #[test]
+    fn current_directory() {
+        assert_eq!(
+            resolve("./image.png"),
+            PathBuf::from("/home/user/Documents/project/image.png")
+        );
+    }
+
+    #[test]
+    fn parent_directory() {
+        assert_eq!(
+            resolve("../image.png"),
+            PathBuf::from("/home/user/Documents/image.png")
+        );
+    }
+
+    #[test]
+    fn multiple_parent_directories() {
+        assert_eq!(
+            resolve("../../image.png"),
+            PathBuf::from("/home/user/image.png")
+        );
+    }
+
+    #[test]
+    fn tilde() {
+        assert_eq!(
+            resolve("~/Pictures/image.png"),
+            PathBuf::from("/home/user/Pictures/image.png")
+        );
+    }
+
+    #[test]
+    fn home_variable() {
+        assert_eq!(
+            resolve("$HOME/Pictures/image.png"),
+            PathBuf::from("/home/user/Pictures/image.png")
+        );
+    }
+
+    #[test]
+    fn home_itself() {
+        assert_eq!(resolve("~"), PathBuf::from("/home/user"));
+    }
+
+    #[test]
+    fn whitespace() {
+        assert_eq!(
+            resolve("  ./image.png  "),
+            PathBuf::from("/home/user/Documents/project/image.png")
+        );
     }
 }
