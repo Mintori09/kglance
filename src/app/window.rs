@@ -59,19 +59,24 @@ impl KglanceApp {
         }
 
         self.video = None;
+        self.current_content = None;
+        self.state.reset_content_state();
+        self.invalidate_render_generations();
+        self.is_window_opening = false;
+        self.is_gui_open
+            .store(false, std::sync::atomic::Ordering::Release);
+        crate::core::utils::trim_process_memory();
 
         if self.is_daemon {
-            self.current_content = None;
-            self.state.cache.clear();
-            self.state.pending_preloads.clear();
-            self.invalidate_render_generations();
-            self.is_window_opening = false;
-            self.is_gui_open
-                .store(false, std::sync::atomic::Ordering::Release);
             self.window_id.take().map_or_else(Task::none, window::close)
         } else {
             let _ = std::io::Write::flush(&mut std::io::stdout());
-            std::process::exit(0);
+            self.window_id.take().map_or_else(
+                || {
+                    std::process::exit(0);
+                },
+                window::close,
+            )
         }
     }
 
@@ -211,13 +216,13 @@ impl KglanceApp {
         self.video = None;
         if self.is_daemon {
             self.current_content = None;
-            self.state.cache.clear();
-            self.state.pending_preloads.clear();
+            self.state.reset_content_state();
             self.invalidate_render_generations();
             self.window_id = None;
             self.is_window_opening = false;
             self.is_gui_open
                 .store(false, std::sync::atomic::Ordering::Release);
+            crate::core::utils::trim_process_memory();
             window::close(window_id)
         } else {
             self.close_current()

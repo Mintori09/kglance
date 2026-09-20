@@ -50,6 +50,21 @@ pub fn human_size(bytes: u64) -> String {
     }
 }
 
+#[cfg(target_os = "linux")]
+#[inline]
+pub fn trim_process_memory() {
+    unsafe extern "C" {
+        fn malloc_trim(pad: usize) -> i32;
+    }
+    unsafe {
+        malloc_trim(0);
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+#[inline]
+pub fn trim_process_memory() {}
+
 pub(crate) fn resolve_path(path: &str, file_path: &str) -> PathBuf {
     let path = path.trim();
 
