@@ -45,3 +45,24 @@ fn test_calculate_dynamic_lookahead_ratios() {
     // Edge case: max_bytes is 0
     assert_eq!(calculate_dynamic_lookahead(0, 0), 4);
 }
+
+#[test]
+fn test_preloader_throttles_during_rapid_navigation() {
+    let now = std::time::Instant::now();
+    assert!(kglance::core::preloader::is_rapid_navigating(Some(now)));
+
+    let past = now.checked_sub(std::time::Duration::from_millis(500));
+    assert!(!kglance::core::preloader::is_rapid_navigating(past));
+    assert!(!kglance::core::preloader::is_rapid_navigating(None));
+}
+
+#[test]
+fn test_calculate_dynamic_lookahead_when_cache_is_full() {
+    use kglance::core::preloader::calculate_dynamic_lookahead;
+
+    let max = 500 * 1024 * 1024;
+    // Exactly full
+    assert_eq!(calculate_dynamic_lookahead(max, max), 4);
+    // Over capacity
+    assert_eq!(calculate_dynamic_lookahead(max + 1000, max), 4);
+}
