@@ -57,6 +57,7 @@ fn test_config_serialization_round_trip() {
             word_wrap: false,
             json_tree_view: false,
         },
+        ..Default::default()
     };
     let json = serde_json::to_string_pretty(&config).unwrap();
     let deserialized: AppConfig = serde_json::from_str(&json).unwrap();
@@ -70,6 +71,7 @@ fn test_get_theme_light() {
             theme: Some("Light".into()),
             ..Default::default()
         },
+        ..Default::default()
     };
     assert_eq!(ConfigManager::get_theme_setting(&config), "Light");
     assert_eq!(ConfigManager::resolve_theme("Light"), AppTheme::Light);
@@ -82,6 +84,7 @@ fn test_get_theme_dark() {
             theme: Some("Dark".into()),
             ..Default::default()
         },
+        ..Default::default()
     };
     assert_eq!(ConfigManager::get_theme_setting(&config), "Dark");
     assert_eq!(ConfigManager::resolve_theme("Dark"), AppTheme::Dark);
@@ -94,6 +97,7 @@ fn test_get_theme_nord() {
             theme: Some("Nord".into()),
             ..Default::default()
         },
+        ..Default::default()
     };
     assert_eq!(ConfigManager::get_theme_setting(&config), "Nord");
     assert_eq!(ConfigManager::resolve_theme("Nord"), AppTheme::Nord);
@@ -106,6 +110,7 @@ fn test_get_theme_auto() {
             theme: Some("auto".into()),
             ..Default::default()
         },
+        ..Default::default()
     };
     let theme_setting = ConfigManager::get_theme_setting(&config);
     assert_eq!(theme_setting, "auto");
@@ -152,6 +157,7 @@ fn test_save_load_and_create_default() {
                 font_family: Some("Fira Sans".into()),
                 ..Default::default()
             },
+            ..Default::default()
         };
 
         ConfigManager::save(&original).unwrap();
@@ -218,4 +224,36 @@ fn test_load_or_create_legacy_config_without_min_fields() {
         assert_eq!(config.ui.min_width, 800);
         assert_eq!(config.ui.min_height, 600);
     });
+}
+
+#[test]
+fn test_cache_config_default() {
+    let config = AppConfig::default();
+    assert_eq!(
+        config.cache.max_memory_mb,
+        kglance::core::config::DEFAULT_CACHE_MAX_MEMORY_MB
+    );
+    assert_eq!(config.cache.max_memory_mb, 512);
+}
+
+#[test]
+fn test_cache_config_deserialization() {
+    let mut config = AppConfig::default();
+    config.cache.max_memory_mb = 256;
+    let json_custom = serde_json::to_string(&config).unwrap();
+    let parsed: AppConfig = serde_json::from_str(&json_custom).expect("failed to parse config");
+    assert_eq!(parsed.cache.max_memory_mb, 256);
+
+    // Test legacy JSON without "cache" field
+    let legacy_json = r#"{
+        "ui": {
+            "theme": "Dark",
+            "font_size": 14.0,
+            "default_width": 1024,
+            "default_height": 768
+        }
+    }"#;
+    let parsed_legacy: AppConfig =
+        serde_json::from_str(legacy_json).expect("failed to parse legacy config");
+    assert_eq!(parsed_legacy.cache.max_memory_mb, 512);
 }
