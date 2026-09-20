@@ -79,6 +79,10 @@ pub fn handle_next_file(app: &mut KglanceApp) -> Task<Message> {
         return Task::none();
     }
 
+    let is_rapid = crate::core::preloader::is_rapid_navigating(app.state.last_navigated_at);
+    app.state.is_rapid_navigating = is_rapid;
+    app.state.last_navigated_at = Some(std::time::Instant::now());
+
     let next_idx = (app.state.current_index + 1) % app.state.playlist.len();
     app.state.current_index = next_idx;
     let next_path = app.state.playlist[next_idx].clone();
@@ -111,6 +115,10 @@ pub fn handle_next_file(app: &mut KglanceApp) -> Task<Message> {
 
 pub fn handle_prev_file(app: &mut KglanceApp) -> Task<Message> {
     if !app.state.playlist.is_empty() {
+        let is_rapid = crate::core::preloader::is_rapid_navigating(app.state.last_navigated_at);
+        app.state.is_rapid_navigating = is_rapid;
+        app.state.last_navigated_at = Some(std::time::Instant::now());
+
         let prev_idx = if app.state.current_index == 0 {
             app.state.playlist.len() - 1
         } else {
@@ -317,5 +325,55 @@ mod tests {
         assert_eq!(app.state.current_index, 1);
         assert_eq!(app.state.generation_id.load(Ordering::Relaxed), 1);
         assert!(!app.state.cache.contains(&file2));
+    }
+
+    #[test]
+    fn test_navigation_triggers_background_preload() {
+        let temp_dir = tempfile::tempdir().expect("tempdir failed");
+        let file1 = temp_dir.path().join("file1.txt");
+        let file2 = temp_dir.path().join("file2.txt");
+        let file3 = temp_dir.path().join("file3.txt");
+        std::fs::write(&file1, "content1").unwrap();
+        std::fs::write(&file2, "content2").unwrap();
+        std::fs::write(&file3, "content3").unwrap();
+
+        let s1 = file1.to_string_lossy().to_string();
+        let s2 = file2.to_string_lossy().to_string();
+        let s3 = file3.to_string_lossy().to_string();
+
+        let playlist = vec![s1.clone(), s2.clone(), s3.clone()];
+        let cache = vec![(s2.clone(), dummy_preview_data())];
+
+        let mut app = create_test_app(playlist, 0, cache);
+        let _task = handle_next_file(&mut app);
+
+        assert_eq!(app.state.current_index, 1);
+        assert!(
+            app.state.pending_preloads.contains(&s1) || app.state.pending_preloads.contains(&s3),
+            "Background preloading must queue adjacent files during navigation"
+        );
+    }
+
+    #[test]
+    fn test_rapid_navigation_flag_set() {
+        let file1 = "file1.txt".to_string();
+        let file2 = "file2.txt".to_string();
+        let file3 = "file3.txt".to_string();
+        let playlist = vec![file1.clone(), file2.clone(), file3.clone()];
+        let cache = vec![
+            (file1.clone(), dummy_preview_data()),
+            (file2.clone(), dummy_preview_data()),
+            (file3.clone(), dummy_preview_data()),
+        ];
+
+        let mut app = create_test_app(playlist, 0, cache);
+
+        // First navigation: not rapid
+        let _ = handle_next_file(&mut app);
+        assert!(!app.state.is_rapid_navigating);
+
+        // Immediate second navigation: rapid navigation detected
+        let _ = handle_next_file(&mut app);
+        assert!(app.state.is_rapid_navigating);
     }
 }

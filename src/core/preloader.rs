@@ -59,3 +59,10 @@ pub fn calculate_dynamic_lookahead(current_bytes: usize, max_bytes: usize) -> us
         MIN_PRELOAD_LOOKAHEAD
     }
 }
+
+#[inline]
+pub fn is_rapid_navigating(last_navigated_at: Option<std::time::Instant>) -> bool {
+    last_navigated_at
+        .map(|t| t.elapsed() < std::time::Duration::from_millis(250))
+        .unwrap_or(false)
+}
