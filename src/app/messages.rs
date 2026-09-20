@@ -41,6 +41,7 @@ pub enum ImageMsg {
     Decoded {
         load_id: u64,
         handle: iced::widget::image::Handle,
+        cached_preview: Option<(iced::widget::image::Handle, u32, u32)>,
         width: u32,
         height: u32,
     },

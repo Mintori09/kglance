@@ -125,11 +125,17 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::ImageMsg::Decoded {
                 load_id,
                 handle,
+                cached_preview,
                 width,
                 height,
-            } => {
-                crate::features::image::update::handle_decoded(app, load_id, handle, width, height)
-            }
+            } => crate::features::image::update::handle_decoded(
+                app,
+                load_id,
+                handle,
+                cached_preview,
+                width,
+                height,
+            ),
             crate::app::messages::ImageMsg::ToggleInfo => {
                 crate::features::image::update::handle_toggle_info(app)
             }

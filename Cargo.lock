@@ -3167,7 +3167,7 @@ dependencies = [
 
 [[package]]
 name = "kglance"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "calamine",
  "chrono",
@@ -3206,6 +3206,7 @@ dependencies = [
  "url",
  "zbus",
  "zip",
+ "zune-jpeg 0.5.15",
 ]
 
 [[package]]
