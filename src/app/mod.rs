@@ -10,7 +10,6 @@ mod window;
 use crate::core::{FilePreviewer, KglanceState, PreviewData};
 use crate::dbus::DaemonCommand;
 use crate::features::common::parser::traits::ParserRegistry;
-use crate::features::image::png_to_rgba_handle_with_size;
 use crate::features::json;
 use crate::features::markdown::Block;
 use crate::log_debug;
@@ -100,6 +99,10 @@ impl KglanceApp {
 
             ..Default::default()
         };
+
+        state
+            .cache
+            .set_max_bytes(config.cache.max_memory_mb.saturating_mul(1024 * 1024));
 
         state.read_positions = crate::core::ReadPositions::load();
         state.json.tree_mode = config.ui.json_tree_view;
@@ -200,12 +203,24 @@ impl KglanceApp {
     }
 
     pub fn trigger_preload(&mut self) -> Task<Message> {
+        if self.state.cache.max_bytes() == 0 {
+            return Task::none();
+        }
+
+        let is_rapid = self.state.is_rapid_navigating;
+
+        let lookahead = crate::core::preloader::calculate_dynamic_lookahead(
+            self.state.cache.current_bytes(),
+            self.state.cache.max_bytes(),
+        );
+
         let indices = crate::core::preloader::calculate_preload_window(
             self.state.current_index,
             self.state.playlist.len(),
+            lookahead,
         );
 
-        let mut tasks = Vec::new();
+        let mut paths_to_preload = Vec::new();
         for idx in indices {
             if idx < self.state.playlist.len() {
                 let path = self.state.playlist[idx].clone();
@@ -214,64 +229,137 @@ impl KglanceApp {
                     && crate::core::preloader::should_preload_file(&path)
                 {
                     self.state.pending_preloads.insert(path.clone());
-                    let reg = self.registry.clone();
-                    let target_path = path.clone();
-
-                    let target_path_clone = path.clone();
-                    let current_gen = self.state.generation_id.load(Ordering::Relaxed);
-                    let generation_id = self.state.generation_id.clone();
-
-                    tasks.push(Task::perform(
-                        async move {
-                            let content = tokio::task::spawn_blocking(move || {
-                                if generation_id.load(Ordering::Relaxed) != current_gen {
-                                    return None;
-                                }
-                                let parsed =
-                                    FilePreviewer::parse(&*reg, Path::new(&target_path)).ok()?;
-
-                                if let PreviewData::Image { ref data, .. } = parsed
-                                    && let Some((handle, width, height)) =
-                                        png_to_rgba_handle_with_size(data.clone())
-                                {
-                                    return Some((
-                                        parsed,
-                                        Some(crate::core::CachedContent::DecodedImage {
-                                            handle,
-                                            width,
-                                            height,
-                                        }),
-                                    ));
-                                }
-
-                                Some((parsed, None))
-                            })
-                            .await
-                            .ok()
-                            .flatten()?;
-
-                            let (preview_data, decoded_cache) = content;
-
-                            Some(
-                                crate::app::messages::NavigationMsg::PreloadCompleted {
-                                    path: target_path_clone,
-                                    content: std::sync::Arc::new(preview_data),
-                                    decoded_cache,
-                                }
-                                .into(),
-                            )
-                        },
-                        |msg| {
-                            msg.unwrap_or(crate::app::messages::SystemMsg::ToastDismissed(0).into())
-                        },
-                    ));
+                    paths_to_preload.push(path);
                 }
             }
         }
-        Task::batch(tasks)
+
+        if paths_to_preload.is_empty() {
+            return Task::none();
+        }
+
+        crate::log_debug!(
+            "trigger_preload: queueing {} files for sequential background preload: {:?}",
+            paths_to_preload.len(),
+            paths_to_preload
+        );
+
+        let reg = self.registry.clone();
+        let current_gen = self.state.generation_id.load(Ordering::Relaxed);
+        let generation_id = self.state.generation_id.clone();
+
+        let stream = iced::stream::channel(
+            10,
+            move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                use iced::futures::SinkExt;
+
+                if is_rapid {
+                    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                    if generation_id.load(Ordering::Relaxed) != current_gen {
+                        return;
+                    }
+                }
+
+                for target_path in paths_to_preload {
+                    if generation_id.load(Ordering::Relaxed) != current_gen {
+                        break;
+                    }
+
+                    let _permit = crate::features::image::decode_semaphore()
+                        .acquire()
+                        .await
+                        .ok();
+
+                    if generation_id.load(Ordering::Relaxed) != current_gen {
+                        break;
+                    }
+
+                    let reg_clone = reg.clone();
+                    let path_clone = target_path.clone();
+                    let gen_clone = generation_id.clone();
+
+                    let content = tokio::task::spawn_blocking(move || {
+                        if gen_clone.load(Ordering::Relaxed) != current_gen {
+                            return None;
+                        }
+                        let parsed =
+                            FilePreviewer::parse(&*reg_clone, Path::new(&path_clone)).ok()?;
+
+                        if gen_clone.load(Ordering::Relaxed) != current_gen {
+                            return None;
+                        }
+
+                        if let PreviewData::Image {
+                            ref data,
+                            width,
+                            height,
+                            ..
+                        } = parsed
+                        {
+                            if gen_clone.load(Ordering::Relaxed) != current_gen {
+                                return None;
+                            }
+
+                            let (handle, dec_w, dec_h) =
+                                crate::features::image::decode_to_rgba_handle_downsampled(
+                                    data,
+                                    crate::features::image::MAX_PREVIEW_WIDTH,
+                                    crate::features::image::MAX_PREVIEW_HEIGHT,
+                                )
+                                .unwrap_or_else(|| {
+                                    (
+                                        iced::widget::image::Handle::from_bytes(data.clone()),
+                                        width,
+                                        height,
+                                    )
+                                });
+                            if gen_clone.load(Ordering::Relaxed) != current_gen {
+                                return None;
+                            }
+                            let preview = std::sync::Arc::new(parsed);
+                            return Some((
+                                preview.clone(),
+                                Some(crate::core::CachedContent::DecodedImage {
+                                    preview: Some(preview),
+                                    handle,
+                                    width: dec_w,
+                                    height: dec_h,
+                                }),
+                            ));
+                        }
+
+                        Some((std::sync::Arc::new(parsed), None))
+                    })
+                    .await
+                    .ok()
+                    .flatten();
+
+                    drop(_permit);
+
+                    if generation_id.load(Ordering::Relaxed) != current_gen {
+                        break;
+                    }
+
+                    if let Some((preview_arc, decoded_cache)) = content {
+                        let msg = crate::app::messages::NavigationMsg::PreloadCompleted {
+                            path: target_path,
+                            content: preview_arc,
+                            decoded_cache,
+                        }
+                        .into();
+
+                        if output.send(msg).await.is_err() {
+                            break;
+                        }
+                    }
+                }
+            },
+        );
+
+        Task::run(stream, |msg| msg)
     }
 
-    fn invalidate_render_generations(&self) {
+    pub fn invalidate_render_generations(&self) {
         self.state.generation_id.fetch_add(1, Ordering::Relaxed);
         self.state
             .dir_sync_generation_id
@@ -314,38 +402,48 @@ impl KglanceApp {
             tasks.push(task);
         }
 
-        if let PreviewData::Image { .. } = content {
-            let cache_hit = self
-                .state
-                .cache
-                .get(path)
-                .and_then(|c| c.as_decoded_image())
-                .map(|(h, w, ht)| (h.clone(), w, ht));
+        if let PreviewData::Image {
+            data,
+            width,
+            height,
+            ..
+        } = content
+        {
+            if self.state.image.display_handle.is_none() {
+                // Either downsampled preview is active (needs upgrade) or uncached (needs decode)
+                let is_rapid_navigating = self.state.is_rapid_navigating;
 
-            if let Some((handle, w, h)) = cache_hit {
-                log_debug!("Image decode cache HIT for {}", path);
-                self.state.image.handle = Some(handle.clone());
-                self.state.image.load_state = crate::features::image::ImageLoadState::Ready;
-                self.state.image.display_handle = Some(handle);
-                self.state.image.display_width = w;
-                self.state.image.display_height = h;
-                self.state.image.camera = crate::features::image::Camera::new();
-            } else {
-                let load_id_val = self
-                    .state
-                    .image
-                    .load_id
-                    .load(std::sync::atomic::Ordering::Relaxed);
+                let delay_ms = if self.state.image.preview_handle.is_some() {
+                    // Downsampled preview is already displayed on screen (<3ms).
+                    // Debounce upgrade to full resolution (200ms) so rapid navigation skips it.
+                    200
+                } else if is_rapid_navigating {
+                    // Uncached image during rapid navigation: debounce to avoid decoding skipped files
+                    150
+                } else {
+                    0
+                };
 
-                log_debug!("Spawning decode task for {}", path);
-                let bytes = self.state.image.image_bytes.clone();
+                let load_id_val = self.state.image.load_id.load(Ordering::Relaxed);
                 let load_id_arc = self.state.image.load_id.clone();
-
-                tasks.push(crate::features::image::update::spawn_decode_task(
-                    bytes,
+                tasks.push(crate::features::image::spawn_decode_task_delayed(
+                    data.clone(),
                     load_id_val,
                     load_id_arc,
+                    delay_ms,
                 ));
+            } else if !self.state.cache.contains(path)
+                && let Some(ref handle) = self.state.image.display_handle
+            {
+                self.state.cache.put(
+                    path.to_string(),
+                    crate::core::CachedContent::DecodedImage {
+                        preview: Some(std::sync::Arc::new(content.clone())),
+                        handle: handle.clone(),
+                        width: *width,
+                        height: *height,
+                    },
+                );
             }
         }
 
@@ -371,6 +469,7 @@ impl KglanceApp {
                 self.state.cache.put(
                     path.to_string(),
                     crate::core::CachedContent::ParsedJson {
+                        preview: Some(std::sync::Arc::new(content.clone())),
                         nodes: nodes.clone(),
                         pretty: pretty.clone(),
                         has_error: *has_parse_error,
@@ -386,14 +485,26 @@ impl KglanceApp {
             }
         }
 
+        match content {
+            PreviewData::Image { .. } | PreviewData::Json { .. } => {}
+            _ => {
+                if !self.state.cache.contains(path) {
+                    self.state.cache.put(
+                        path.to_string(),
+                        crate::core::CachedContent::Preview(std::sync::Arc::new(content.clone())),
+                    );
+                }
+            }
+        }
+
         tasks
     }
 
     pub fn handle_file_loaded(&mut self, path: String, content: PreviewData) -> Task<Message> {
+        self.state.pending_preloads.clear();
         self.invalidate_render_generations();
         self.save_current_read_position();
         self.update_loaded_file_state(&path, &content);
-        self.state.read_positions_dirty = true;
 
         let mut tasks = self.prepare_file_tasks(&path, &content);
         tasks.push(self.restore_read_position_for(&path));
@@ -488,14 +599,8 @@ impl KglanceApp {
                                 |msg| msg,
                             ));
                         } else {
-                            let resolved = if Path::new(&path_str).is_absolute() {
-                                std::path::PathBuf::from(&path_str)
-                            } else {
-                                Path::new(file_path)
-                                    .parent()
-                                    .unwrap_or(Path::new("."))
-                                    .join(&path_str)
-                            };
+                            let resolved = crate::core::utils::resolve_path(&path_str, file_path);
+
                             tasks.push(Task::perform(
                                 async move {
                                     let bytes = tokio::task::spawn_blocking(move || {
@@ -786,8 +891,16 @@ impl KglanceApp {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let (preview_body, is_media) = if let Some(content) = &self.current_content {
-            let is_media = matches!(content, PreviewData::Media { .. });
+        let (preview_body, edge_to_edge) = if let Some(content) = &self.current_content {
+            let edge_to_edge = matches!(
+                content,
+                PreviewData::Media { .. }
+                    | PreviewData::Image { .. }
+                    | PreviewData::Pdf { .. }
+                    | PreviewData::Typst { .. }
+                    | PreviewData::Markdown { .. }
+                    | PreviewData::Epub { .. }
+            );
             let body: Element<'_, Message> = match content {
                 PreviewData::Text { .. } => crate::ui::views::view_text(
                     &self.state.text,
@@ -863,7 +976,7 @@ impl KglanceApp {
                 ),
                 PreviewData::Error(err) => iced::widget::text(err).size(18).into(),
             };
-            (body, is_media)
+            (body, edge_to_edge)
         } else {
             (iced::widget::text("No file loaded.").size(18).into(), false)
         };
@@ -872,7 +985,7 @@ impl KglanceApp {
         let preview_body =
             crate::ui::components::scroll_pane::ScrollFilter::new(preview_body, is_mod).into();
 
-        crate::ui::window::view_window(&self.state, preview_body, is_media)
+        crate::ui::window::view_window(&self.state, preview_body, edge_to_edge)
     }
 
     /// Variant for [`iced::daemon`] which requires a `window::Id` parameter.

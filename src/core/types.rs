@@ -838,6 +838,8 @@ pub struct KglanceState {
 
     pub read_positions: crate::core::ReadPositions,
     pub read_positions_dirty: bool,
+    pub last_navigated_at: Option<std::time::Instant>,
+    pub is_rapid_navigating: bool,
 }
 
 impl Default for KglanceState {
@@ -861,6 +863,8 @@ impl Default for KglanceState {
             pending_preloads: std::collections::HashSet::new(),
             generation_id: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             dir_sync_generation_id: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            last_navigated_at: None,
+            is_rapid_navigating: false,
             image: ImageState::default(),
             text: TextState::default(),
             pdf: PdfState::default(),
@@ -903,6 +907,37 @@ impl Default for KglanceState {
 }
 
 impl KglanceState {
+    pub fn reset_content_state(&mut self) {
+        self.file_name.clear();
+        self.title_text.clear();
+        self.status_text.clear();
+        self.file_size_text.clear();
+        self.file_modified_text.clear();
+        self.file_type_text.clear();
+        self.show_file_info = false;
+        self.content_ready = false;
+        self.show_back_button = false;
+        self.back_target = None;
+        self.active_dir = None;
+        self.playlist.clear();
+        self.current_index = 0;
+        self.view_mode = ViewMode::Detail;
+        self.cache.clear();
+        self.pending_preloads.clear();
+
+        self.image = ImageState::default();
+        self.text = TextState::default();
+        self.pdf = PdfState::default();
+        self.typst = TypstState::default();
+        self.folder = FolderState::default();
+        self.spreadsheet = SpreadsheetState::default();
+        self.media = MediaState::default();
+        self.dir = DirState::default();
+        self.markdown = MarkdownState::default();
+        self.epub = EpubState::default();
+        self.json = JsonState::default();
+    }
+
     pub fn markdown_content_width(&self) -> f32 {
         crate::features::markdown::effective_content_width(
             self.max_text_width,
