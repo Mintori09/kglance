@@ -1,10 +1,8 @@
 use crate::features::image::{Camera, ImageLoadState};
 use crate::features::json::JsonNode;
 use iced::widget::image;
-use lru::LruCache;
 use rustc_hash::FxHashSet;
 use std::collections::HashMap;
-use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
 
@@ -793,7 +791,7 @@ pub struct KglanceState {
     pub playlist: Vec<String>,
     pub current_index: usize,
     pub view_mode: ViewMode,
-    pub cache: LruCache<String, crate::core::CachedContent>,
+    pub cache: crate::core::MemoryCache,
     pub pending_preloads: std::collections::HashSet<String>,
     pub generation_id: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     pub dir_sync_generation_id: std::sync::Arc<std::sync::atomic::AtomicUsize>,
@@ -842,11 +840,6 @@ pub struct KglanceState {
     pub read_positions_dirty: bool,
 }
 
-const CACHE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(7) {
-    Some(cap) => cap,
-    None => unreachable!(),
-};
-
 impl Default for KglanceState {
     fn default() -> Self {
         Self {
@@ -864,7 +857,7 @@ impl Default for KglanceState {
             playlist: Vec::new(),
             current_index: 0,
             view_mode: ViewMode::Detail,
-            cache: LruCache::new(CACHE_CAPACITY),
+            cache: crate::core::MemoryCache::default(),
             pending_preloads: std::collections::HashSet::new(),
             generation_id: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             dir_sync_generation_id: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),

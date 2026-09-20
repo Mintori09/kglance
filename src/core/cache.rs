@@ -9,24 +9,28 @@ pub enum CachedContent {
     Preview(Arc<PreviewData>),
 
     DecodedImage {
+        preview: Option<Arc<PreviewData>>,
         handle: image::Handle,
         width: u32,
         height: u32,
     },
 
     ParsedJson {
+        preview: Option<Arc<PreviewData>>,
         nodes: Vec<JsonNode>,
         pretty: String,
         has_error: bool,
     },
 
     MediaThumbnail {
+        preview: Option<Arc<PreviewData>>,
         handle: image::Handle,
         width: u32,
         height: u32,
     },
 
     FontSample {
+        preview: Option<Arc<PreviewData>>,
         handle: image::Handle,
         width: u32,
         height: u32,
@@ -43,7 +47,10 @@ impl CachedContent {
     pub fn as_preview(&self) -> Option<&Arc<PreviewData>> {
         match self {
             Self::Preview(data) => Some(data),
-            _ => None,
+            Self::DecodedImage { preview, .. } => preview.as_ref(),
+            Self::ParsedJson { preview, .. } => preview.as_ref(),
+            Self::MediaThumbnail { preview, .. } => preview.as_ref(),
+            Self::FontSample { preview, .. } => preview.as_ref(),
         }
     }
 
@@ -54,6 +61,7 @@ impl CachedContent {
                 handle,
                 width,
                 height,
+                ..
             } => Some((handle, *width, *height)),
             _ => None,
         }
@@ -66,58 +74,84 @@ impl CachedContent {
                 nodes,
                 pretty,
                 has_error,
+                ..
             } => Some((nodes.as_slice(), pretty.as_str(), *has_error)),
             _ => None,
         }
     }
 
     pub fn estimated_bytes(&self) -> usize {
+        let preview_bytes = self.as_preview().map_or(0, |p| p.estimated_bytes());
         match self {
-            Self::Preview(p) => match p.as_ref() {
-                PreviewData::Image { data, .. } => data.len() + 128,
-                PreviewData::Text {
-                    content,
-                    line_numbers,
-                    ..
-                } => content.len() + line_numbers.len() + 256,
-                PreviewData::Markdown { raw_text, .. } => (raw_text.len() * 2).max(512),
-                PreviewData::Pdf { data, .. } => data.len() + 1024,
-                PreviewData::Typst { data, source, .. } => data.len() + source.len() + 512,
-                PreviewData::Media {
-                    thumbnail_or_waveform,
-                    metadata,
-                    ..
-                } => thumbnail_or_waveform.len() + metadata.len() + 256,
-                PreviewData::Folder { rows, .. } => rows.len() * 256 + 128,
-                PreviewData::Spreadsheet { sheets, .. } => {
-                    let mut cell_bytes = 0;
-                    for s in sheets {
-                        for row in &s.rows {
-                            for cell in row {
-                                cell_bytes += cell.len() + 8;
-                            }
+            Self::Preview(_) => preview_bytes,
+            Self::DecodedImage { width, height, .. }
+            | Self::MediaThumbnail { width, height, .. }
+            | Self::FontSample { width, height, .. } => {
+                let raw = (*width as usize)
+                    .saturating_mul(*height as usize)
+                    .saturating_mul(4);
+                raw.saturating_add(preview_bytes)
+            }
+            Self::ParsedJson { nodes, pretty, .. } => {
+                let json_bytes = pretty
+                    .len()
+                    .saturating_add(nodes.len().saturating_mul(std::mem::size_of::<JsonNode>()))
+                    .saturating_add(128);
+                json_bytes.saturating_add(preview_bytes)
+            }
+        }
+    }
+}
+
+impl PreviewData {
+    pub fn estimated_bytes(&self) -> usize {
+        match self {
+            PreviewData::Image { data, .. } => data.len().saturating_add(128),
+            PreviewData::Text {
+                content,
+                line_numbers,
+                ..
+            } => content
+                .len()
+                .saturating_add(line_numbers.len())
+                .saturating_add(256),
+            PreviewData::Markdown { raw_text, .. } => (raw_text.len().saturating_mul(2)).max(512),
+            PreviewData::Pdf { data, .. } => data.len().saturating_add(1024),
+            PreviewData::Typst { data, source, .. } => {
+                data.len().saturating_add(source.len()).saturating_add(512)
+            }
+            PreviewData::Media {
+                thumbnail_or_waveform,
+                metadata,
+                ..
+            } => thumbnail_or_waveform
+                .len()
+                .saturating_add(metadata.len())
+                .saturating_add(256),
+            PreviewData::Folder { rows, .. } => rows.len().saturating_mul(256).saturating_add(128),
+            PreviewData::Spreadsheet { sheets, .. } => {
+                let mut cell_bytes = 0usize;
+                for s in sheets {
+                    for row in &s.rows {
+                        for cell in row {
+                            cell_bytes = cell_bytes.saturating_add(cell.len().saturating_add(8));
                         }
                     }
-                    cell_bytes.max(512)
                 }
-                PreviewData::Json {
-                    content, pretty, ..
-                } => content.len() + pretty.len() + 512,
-                PreviewData::Epub { images, .. } => {
-                    let img_bytes: usize = images.values().map(|b| b.len()).sum();
-                    img_bytes + 4096
-                }
-                PreviewData::Font { sample, .. } => sample.len() + 256,
-                PreviewData::Error(msg) => msg.len() + 64,
-            },
-            Self::DecodedImage { width, height, .. } => (*width as usize) * (*height as usize) * 4,
-            Self::ParsedJson { nodes, pretty, .. } => {
-                pretty.len() + nodes.len() * std::mem::size_of::<JsonNode>() + 128
+                cell_bytes.max(512)
             }
-            Self::MediaThumbnail { width, height, .. } => {
-                (*width as usize) * (*height as usize) * 4
+            PreviewData::Json {
+                content, pretty, ..
+            } => content
+                .len()
+                .saturating_add(pretty.len())
+                .saturating_add(512),
+            PreviewData::Epub { images, .. } => {
+                let img_bytes: usize = images.values().map(|b| b.len()).sum();
+                img_bytes.saturating_add(4096)
             }
-            Self::FontSample { width, height, .. } => (*width as usize) * (*height as usize) * 4,
+            PreviewData::Font { sample, .. } => sample.len().saturating_add(256),
+            PreviewData::Error(msg) => msg.len().saturating_add(64),
         }
     }
 }

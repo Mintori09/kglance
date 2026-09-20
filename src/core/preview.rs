@@ -131,6 +131,8 @@ impl PreviewData {
             }
             PreviewData::Image {
                 data,
+                width,
+                height,
                 format_info,
                 exif_content,
                 ..
@@ -138,6 +140,8 @@ impl PreviewData {
                 crate::features::image::populate_image_state(
                     state,
                     data,
+                    *width,
+                    *height,
                     format_info,
                     exif_content.as_deref(),
                 );
@@ -277,11 +281,10 @@ mod tests {
 
     #[test]
     fn test_populate_state_metadata() {
-        let temp_dir = std::env::temp_dir().join("kglance-meta-test");
-        let _ = std::fs::create_dir_all(&temp_dir);
-        let test_file = temp_dir.join("sample.txt");
+        let temp_dir = tempfile::TempDir::new().expect("failed to create temp dir");
+        let test_file = temp_dir.path().join("sample.txt");
         let test_content = b"Hello, metadata test!";
-        std::fs::write(&test_file, test_content).unwrap();
+        std::fs::write(&test_file, test_content).expect("failed to write test file");
 
         let mut state = KglanceState {
             file_name: test_file.to_string_lossy().to_string(),
@@ -305,16 +308,13 @@ mod tests {
             state.file_size_text.contains("B"),
             "file_size_text should display bytes"
         );
-
-        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 
     #[test]
     fn test_font_preview_populate_state() {
-        let temp_dir = std::env::temp_dir().join("kglance-font-populate-test");
-        let _ = std::fs::create_dir_all(&temp_dir);
-        let test_file = temp_dir.join("font.ttf");
-        std::fs::write(&test_file, b"dummy").unwrap();
+        let temp_dir = tempfile::TempDir::new().expect("failed to create temp dir");
+        let test_file = temp_dir.path().join("font.ttf");
+        std::fs::write(&test_file, b"dummy").expect("failed to write test file");
 
         let mut state = KglanceState {
             file_name: test_file.to_string_lossy().to_string(),
@@ -337,7 +337,5 @@ mod tests {
         assert_eq!(state.image.exif_content, "Name: TestFont");
         assert!(state.image.handle.is_some());
         assert_eq!(state.image.image_bytes, sample);
-
-        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }

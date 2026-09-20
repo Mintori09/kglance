@@ -11,9 +11,18 @@ pub fn handle_preload_completed(
     decoded_cache: Option<crate::core::CachedContent>,
 ) -> Task<Message> {
     app.state.pending_preloads.remove(&path);
+    if app.is_daemon && !app.is_gui_open.load(std::sync::atomic::Ordering::Acquire) {
+        crate::log_debug!(
+            "Preload completed for {} but daemon window is closed, dropping cache",
+            path
+        );
+        return Task::none();
+    }
     if let Some(decoded) = decoded_cache {
+        crate::log_debug!("Preload completed & cached (with decoded data): {}", path);
         app.state.cache.put(path, decoded);
     } else {
+        crate::log_debug!("Preload completed & cached (preview only): {}", path);
         app.state
             .cache
             .put(path, crate::core::CachedContent::Preview(content));

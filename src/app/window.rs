@@ -62,6 +62,9 @@ impl KglanceApp {
 
         if self.is_daemon {
             self.current_content = None;
+            self.state.cache.clear();
+            self.state.pending_preloads.clear();
+            self.invalidate_render_generations();
             self.is_window_opening = false;
             self.is_gui_open
                 .store(false, std::sync::atomic::Ordering::Release);
@@ -208,6 +211,9 @@ impl KglanceApp {
         self.video = None;
         if self.is_daemon {
             self.current_content = None;
+            self.state.cache.clear();
+            self.state.pending_preloads.clear();
+            self.invalidate_render_generations();
             self.window_id = None;
             self.is_window_opening = false;
             self.is_gui_open
@@ -244,9 +250,35 @@ mod tests {
         let _task = app.handle_window_opened(window_id, iced::Size::new(800.0, 600.0));
         assert!(app.is_gui_open.load(std::sync::atomic::Ordering::Acquire));
 
+        app.state.cache.put(
+            "dummy_path.txt".to_string(),
+            crate::core::CachedContent::from_preview(std::sync::Arc::new(
+                crate::core::PreviewData::Text {
+                    content: "hello".to_string(),
+                    line_numbers: "1".to_string(),
+                    language: "text".to_string(),
+                },
+            )),
+        );
+        assert!(!app.state.cache.is_empty());
+
         // Window close requested
         let _task = app.handle_window_close_requested(window_id);
         assert!(!app.is_gui_open.load(std::sync::atomic::Ordering::Acquire));
+        assert!(app.state.cache.is_empty());
+
+        // Background preload completion while closed should not repopulate cache
+        let _ = crate::app::update::file::handle_preload_completed(
+            &mut app,
+            "stale_preload.txt".to_string(),
+            std::sync::Arc::new(crate::core::PreviewData::Text {
+                content: "stale".to_string(),
+                line_numbers: "1".to_string(),
+                language: "text".to_string(),
+            }),
+            None,
+        );
+        assert!(app.state.cache.is_empty());
     }
 
     #[test]
