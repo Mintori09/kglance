@@ -84,20 +84,25 @@ pub fn handle_next_file(app: &mut KglanceApp) -> Task<Message> {
     let next_path = app.state.playlist[next_idx].clone();
 
     if let Some(cached) = app.state.cache.get(&next_path)
-        && let Some(cached_data) = cached.as_preview()
+        && let Some(cached_data) = cached.as_preview().cloned()
     {
+        crate::log_debug!("Navigation NEXT: Cache HIT for {}", next_path);
         let gen_id = app
             .state
             .generation_id
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
             + 1;
-        let msg = crate::app::messages::SystemMsg::FileLoaded {
-            path: next_path,
-            content: (**cached_data).clone(),
-            generation_id: gen_id,
-        };
-        return Task::done(msg.into());
+        return app.update(
+            crate::app::messages::SystemMsg::FileLoaded {
+                path: next_path,
+                content: (*cached_data).clone(),
+                generation_id: gen_id,
+            }
+            .into(),
+        );
     }
+
+    crate::log_debug!("Navigation NEXT: Cache MISS for {}", next_path);
 
     load_file_task(app, next_path, |path| {
         crate::app::messages::SystemMsg::FilePreviewError(path).into()
@@ -117,6 +122,7 @@ pub fn handle_prev_file(app: &mut KglanceApp) -> Task<Message> {
         if let Some(cached) = app.state.cache.get(&prev_path)
             && let Some(cached_data) = cached.as_preview().cloned()
         {
+            crate::log_debug!("Navigation PREV: Cache HIT for {}", prev_path);
             let gen_id = app
                 .state
                 .generation_id
@@ -131,6 +137,8 @@ pub fn handle_prev_file(app: &mut KglanceApp) -> Task<Message> {
                 .into(),
             );
         }
+
+        crate::log_debug!("Navigation PREV: Cache MISS for {}", prev_path);
 
         return load_file_task(app, prev_path, |path| {
             crate::app::messages::SystemMsg::FilePreviewError(path).into()
@@ -147,6 +155,25 @@ pub fn handle_file_clicked_in_grid(app: &mut KglanceApp, idx: usize) -> Task<Mes
     if let Some(target_path) = target_path {
         app.state.current_index = idx;
         app.state.view_mode = crate::core::ViewMode::Detail;
+
+        if let Some(cached) = app.state.cache.get(&target_path)
+            && let Some(cached_data) = cached.as_preview().cloned()
+        {
+            let gen_id = app
+                .state
+                .generation_id
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                + 1;
+            return app.update(
+                crate::app::messages::SystemMsg::FileLoaded {
+                    path: target_path,
+                    content: (*cached_data).clone(),
+                    generation_id: gen_id,
+                }
+                .into(),
+            );
+        }
+
         return load_file_task(app, target_path, |path| {
             crate::app::messages::SystemMsg::FilePreviewError(path).into()
         });
@@ -272,7 +299,7 @@ mod tests {
         let _task = handle_next_file(&mut app);
 
         assert_eq!(app.state.current_index, 1);
-        assert_eq!(app.state.generation_id.load(Ordering::Relaxed), 1);
+        assert_eq!(app.state.generation_id.load(Ordering::Relaxed), 2);
         assert!(app.state.cache.contains(&file2));
     }
 

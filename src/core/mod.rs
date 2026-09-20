@@ -11,7 +11,7 @@ pub mod read_positions;
 pub mod types;
 pub mod utils;
 
-pub use cache::CachedContent;
+pub use cache::{CachedContent, MemoryCache};
 pub use preview::{FilePreviewer, PreviewData};
 pub use read_positions::{ReadPosition, ReadPositions};
 pub use types::{
