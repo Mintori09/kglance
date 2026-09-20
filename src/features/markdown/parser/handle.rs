@@ -140,9 +140,10 @@ impl<'a> EventStream<'a> {
                 Event::FootnoteReference(label) => {
                     result.push(Inline::FootnoteReference(label.to_string()));
                 }
-                _ => {
-                    self.iter.next();
+                Event::InlineHtml(t) | Event::Html(t) => {
+                    result.push(Inline::Text(t.to_string()));
                 }
+                _ => {}
             }
         }
         result
