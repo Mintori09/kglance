@@ -62,7 +62,7 @@ pub fn load_chapter_content_and_images_from_epub(
         zip::ZipArchive::new(file).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     let opf_path = read_container_opf_path(&mut archive)?;
     let blocks = parse_chapter_content(&mut archive, &opf_path, file_href, anchor)?;
-    let images = extract_selective_images(&mut archive, &opf_path, None, &blocks);
+    let images = extract_selective_images(&mut archive, &opf_path, None, &blocks, Some(file_href));
     Ok((blocks, images))
 }
 
@@ -82,8 +82,9 @@ pub fn load_images_for_blocks_from_epub(
     archive: &mut zip::ZipArchive<impl Read + std::io::Seek>,
     opf_path: &str,
     blocks: &[Block],
+    chapter_file_href: Option<&str>,
 ) -> HashMap<String, Vec<u8>> {
-    extract_selective_images(archive, opf_path, None, blocks)
+    extract_selective_images(archive, opf_path, None, blocks, chapter_file_href)
 }
 
 impl PreviewParser for EpubParser {
@@ -136,12 +137,15 @@ impl PreviewParser for EpubParser {
         }
 
         let cover_href = extract_cover_image_href(&opf_xml);
-        let initial_blocks = chapters.first().map(|ch| ch.4.as_slice()).unwrap_or(&[]);
+        let first_chapter = chapters.first();
+        let initial_blocks = first_chapter.map(|ch| ch.4.as_slice()).unwrap_or(&[]);
+        let first_chapter_href = first_chapter.map(|ch| ch.3.as_str());
         let images = extract_selective_images(
             &mut archive,
             &opf_path,
             cover_href.as_deref(),
             initial_blocks,
+            first_chapter_href,
         );
 
         Ok(ParsedContent::Epub {
@@ -293,14 +297,111 @@ fn build_lazy_chapters_from_spine<R: Read + std::io::Seek>(
 }
 
 fn find_block_index(blocks: &[Block], anchor: Option<&str>, title: Option<&str>) -> Option<usize> {
-    blocks.iter().position(|block| {
-        let text = extract_text_from_block(block);
+    if let Some(anc) = anchor
+        && !anc.is_empty()
+    {
+        for (i, block) in blocks.iter().enumerate() {
+            if block_contains_anchor(block, anc) {
+                if is_standalone_anchor_block(block) && i + 1 < blocks.len() {
+                    return Some(i + 1);
+                }
+                return Some(i);
+            }
+        }
+    }
 
-        let matches_anchor = anchor.is_some_and(|anc| !anc.is_empty() && text.contains(anc));
-        let matches_title = title.is_some_and(|t| !t.is_empty() && text.contains(t));
+    if let Some(t) = title
+        && !t.is_empty()
+    {
+        for (i, block) in blocks.iter().enumerate() {
+            let text = extract_text_from_block(block);
+            if text.contains(t) {
+                return Some(i);
+            }
+        }
+    }
 
-        matches_anchor || matches_title
-    })
+    None
+}
+
+fn is_standalone_anchor_block(block: &Block) -> bool {
+    match block {
+        Block::Html(h) => is_empty_anchor_html(h),
+        Block::Paragraph(content) => {
+            let text = flatten_inlines(content);
+            is_empty_anchor_html(&text)
+        }
+        _ => false,
+    }
+}
+
+fn is_empty_anchor_html(html: &str) -> bool {
+    let trimmed = html.trim();
+
+    let is_anchor = trimmed == "<a>"
+        || trimmed.starts_with("<a ")
+        || trimmed.starts_with("<a\n")
+        || trimmed.starts_with("<a\t");
+
+    if !is_anchor {
+        return false;
+    }
+
+    // <a id="toc-C0"/>
+    if trimmed.ends_with("/>") {
+        return true;
+    }
+
+    // <a id="toc-C0"></a>
+    if !trimmed.ends_with("</a>") {
+        return false;
+    }
+
+    let Some(open_end) = trimmed.find('>') else {
+        return false;
+    };
+
+    let inner_start = open_end + 1;
+    let inner_end = trimmed.len() - "</a>".len();
+
+    inner_start <= inner_end && trimmed[inner_start..inner_end].trim().is_empty()
+}
+
+fn html_contains_anchor(html: &str, anchor: &str) -> bool {
+    let id_double = format!("id=\"{anchor}\"");
+    let id_single = format!("id='{anchor}'");
+    let name_double = format!("name=\"{anchor}\"");
+    let name_single = format!("name='{anchor}'");
+    html.contains(&id_double)
+        || html.contains(&id_single)
+        || html.contains(&name_double)
+        || html.contains(&name_single)
+}
+
+fn block_contains_anchor(block: &Block, anchor: &str) -> bool {
+    if anchor.is_empty() {
+        return false;
+    }
+    match block {
+        Block::Html(h) => html_contains_anchor(h, anchor),
+        Block::Heading { content, .. } | Block::Paragraph(content) => {
+            let text = flatten_inlines(content);
+            html_contains_anchor(&text, anchor) || text.contains(anchor)
+        }
+        Block::Quote(sub) | Block::Alert { content: sub, .. } => {
+            sub.iter().any(|b| block_contains_anchor(b, anchor))
+        }
+        Block::List { items, .. } => items.iter().any(|item| {
+            let text = flatten_inlines(&item.content);
+            html_contains_anchor(&text, anchor)
+                || text.contains(anchor)
+                || item
+                    .sub_blocks
+                    .iter()
+                    .any(|b| block_contains_anchor(b, anchor))
+        }),
+        _ => false,
+    }
 }
 
 fn extract_text_from_block(block: &Block) -> String {
@@ -394,6 +495,7 @@ pub fn extract_selective_images<R: Read + std::io::Seek>(
     opf_path: &str,
     cover_href: Option<&str>,
     blocks: &[Block],
+    chapter_file_href: Option<&str>,
 ) -> HashMap<String, Vec<u8>> {
     let mut images = HashMap::new();
     let mut target_names: HashSet<String> = HashSet::new();
@@ -405,9 +507,28 @@ pub fn extract_selective_images<R: Read + std::io::Seek>(
         target_names.insert(extract_filename(href));
     }
 
+    let mut target_to_orig: HashMap<String, Vec<String>> = HashMap::new();
     let block_imgs = extract_images_from_blocks(blocks);
     for img in block_imgs {
+        if let Some(ch_href) = chapter_file_href {
+            let ch_resolved = resolve_relative_path(ch_href, &img);
+            let full_resolved = resolve_relative_path(opf_path, &ch_resolved);
+            target_to_orig
+                .entry(full_resolved.clone())
+                .or_default()
+                .push(img.clone());
+            target_to_orig
+                .entry(ch_resolved.clone())
+                .or_default()
+                .push(img.clone());
+            target_names.insert(full_resolved);
+            target_names.insert(ch_resolved);
+        }
         let resolved = resolve_relative_path(opf_path, &img);
+        target_to_orig
+            .entry(resolved.clone())
+            .or_default()
+            .push(img.clone());
         target_names.insert(resolved);
         let filename = extract_filename(&img);
         target_names.insert(filename);
@@ -435,7 +556,14 @@ pub fn extract_selective_images<R: Read + std::io::Seek>(
                         found_cover = true;
                     }
                     if filename != name {
-                        images.insert(filename, buffer.clone());
+                        images.insert(filename.clone(), buffer.clone());
+                    }
+                    if let Some(origs) = target_to_orig.get(&name) {
+                        for orig in origs {
+                            if orig != &name && orig != &filename {
+                                images.insert(orig.clone(), buffer.clone());
+                            }
+                        }
                     }
                     images.insert(name, buffer);
                 }
@@ -469,4 +597,12 @@ fn read_bytes_to_string(bytes: &[u8]) -> String {
     };
 
     String::from_utf8_lossy(data).into_owned()
+}
+
+#[test]
+fn test_standalone_anchor_block() {
+    assert!(is_empty_anchor_html(r#"<a id="toc-C0"></a>"#));
+    assert!(is_empty_anchor_html(r#"<a id="toc-C0"/>"#));
+
+    assert!(!is_empty_anchor_html(r#"<a id="toc-C0">Chapter 1</a>"#));
 }

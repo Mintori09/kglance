@@ -339,3 +339,81 @@ fn test_convert_html_pre_span_highlight_codeblock() {
     assert!(md.contains("class AuthenticationService {"));
     assert!(md.contains("async authenticateUser(credentials: LoginCredentials): Promise<Result<AuthenticatedUser, AuthenticationError>> {"));
 }
+
+#[test]
+fn test_epub_anchor_find_block_index() {
+    let html = r#"
+        <html>
+        <body>
+            <p>Intro paragraph before section</p>
+            <h1 id="sec2">Section 2 Title</h1>
+            <p>Content of section 2</p>
+            <div id="sub_sec">
+                <h2>Sub section</h2>
+            </div>
+        </body>
+        </html>
+    "#;
+
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+
+    // Anchor "sec2" should find the block index of the heading or directly after
+    let idx = super::find_block_index(&blocks, Some("sec2"), None);
+    assert!(idx.is_some(), "Anchor 'sec2' must be found");
+    let target_block = &blocks[idx.unwrap()];
+    if let Block::Heading { content, .. } = target_block {
+        let text = flatten_inlines(content);
+        assert_eq!(text, "Section 2 Title");
+    } else {
+        panic!("Expected Heading block, got {:?}", target_block);
+    }
+
+    // Anchor "sub_sec" inside div should be found
+    let sub_idx = super::find_block_index(&blocks, Some("sub_sec"), None);
+    assert!(sub_idx.is_some(), "Anchor 'sub_sec' must be found");
+}
+
+#[test]
+fn test_epub_nested_directory_image_resolution() {
+    use crate::features::epub::parser::load_chapter_content_and_images_from_epub;
+
+    let temp_dir = std::env::temp_dir();
+    let test_epub_path = temp_dir.join(format!("test_nested_img_{}.epub", std::process::id()));
+
+    let file = File::create(&test_epub_path).unwrap();
+    let mut zip = ::zip::ZipWriter::new(file);
+    let options = ::zip::write::SimpleFileOptions::default();
+
+    zip.start_file("META-INF/container.xml", options).unwrap();
+    zip.write_all(br#"<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#).unwrap();
+
+    zip.start_file("OEBPS/content.opf", options).unwrap();
+    zip.write_all(br#"<?xml version="1.0"?><package><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Nested</dc:title></metadata><manifest><item id="ch1" href="text/ch1.xhtml" media-type="application/xhtml+xml"/><item id="fig" href="images/fig1.png" media-type="image/png"/></manifest><spine><itemref idref="ch1"/></spine></package>"#).unwrap();
+
+    // Chapter in OEBPS/text/ch1.xhtml referencing ../images/fig1.png
+    zip.start_file("OEBPS/text/ch1.xhtml", options).unwrap();
+    zip.write_all(br#"<html><body><h1>Chapter 1</h1><p><img src="../images/fig1.png" alt="Fig 1"/></p></body></html>"#).unwrap();
+
+    let sample_png = vec![137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13];
+    zip.start_file("OEBPS/images/fig1.png", options).unwrap();
+    zip.write_all(&sample_png).unwrap();
+
+    zip.finish().unwrap();
+
+    let loaded = load_chapter_content_and_images_from_epub(&test_epub_path, "text/ch1.xhtml", None);
+    assert!(
+        loaded.is_ok(),
+        "Chapter and images should load successfully"
+    );
+    let (blocks, images) = loaded.unwrap();
+    assert!(!blocks.is_empty());
+    assert!(
+        images.contains_key("OEBPS/images/fig1.png")
+            || images.contains_key("../images/fig1.png")
+            || images.contains_key("fig1.png"),
+        "Nested relative image ../images/fig1.png must be correctly extracted into images"
+    );
+
+    let _ = std::fs::remove_file(test_epub_path);
+}
