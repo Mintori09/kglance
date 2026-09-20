@@ -21,7 +21,7 @@ clippy:
     cargo clippy --all-targets --all-features
 
 fmt-check:
-    cargo +nightly fmt --all -- --check
+    cargo fmt --all -- --check
     @echo formatting check done
 
 kglance:
