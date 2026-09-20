@@ -1,6 +1,6 @@
 [package]
 name = "kglance"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2024"
 license = "AGPL-3.0-only"
 description = "A high-performance file preview system for KDE Plasma 6"
@@ -19,6 +19,7 @@ image = { version = "0.25.10", default-features = false, features = [
   "gif",
   "bmp",
 ] }
+zune-jpeg = "0.5.15"
 kamadak-exif = "0.6.1"
 resvg = "0.48.1"
 

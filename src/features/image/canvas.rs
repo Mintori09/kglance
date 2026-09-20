@@ -116,20 +116,24 @@ where
                     mouse::ScrollDelta::Lines { y, .. } => {
                         if *y > 0.0 {
                             1.15
-                        } else {
+                        } else if *y < 0.0 {
                             1.0 / 1.15
+                        } else {
+                            1.0
                         }
                     }
                     mouse::ScrollDelta::Pixels { y, .. } => {
-                        if *y > 0.0 {
-                            1.15
+                        if y.abs() < 0.001 {
+                            1.0
                         } else {
-                            1.0 / 1.15
+                            1.0 + (y * 0.005).clamp(-0.3, 0.3)
                         }
                     }
                 };
 
-                if let Some(ref on_zoom) = self.on_zoom {
+                if (factor - 1.0).abs() > 0.0001
+                    && let Some(ref on_zoom) = self.on_zoom
+                {
                     shell.publish(on_zoom(factor, cursor_position));
                 }
             }
