@@ -545,6 +545,7 @@ pub struct EpubChapterInfo {
     pub title: String,
     pub level: u8,
     pub anchor: Option<String>,
+    pub file_href: String,
     pub blocks: Vec<crate::parsers::markdown::Block>,
 }
 
@@ -925,5 +926,27 @@ impl KglanceState {
             self.epub.sidebar_visible,
             self.epub.sidebar_width,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_epub_chapter_info_fields() {
+        let chapter = EpubChapterInfo {
+            title: "Chapter 1".to_string(),
+            level: 1,
+            anchor: Some("section-1".to_string()),
+            file_href: "text/chapter1.xhtml".to_string(),
+            blocks: Vec::new(),
+        };
+
+        assert_eq!(chapter.title, "Chapter 1");
+        assert_eq!(chapter.level, 1);
+        assert_eq!(chapter.anchor.as_deref(), Some("section-1"));
+        assert_eq!(chapter.file_href, "text/chapter1.xhtml");
+        assert!(chapter.blocks.is_empty());
     }
 }
