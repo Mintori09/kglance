@@ -76,17 +76,14 @@ fn parse_document_info_xml(xml: &str) -> Option<ImageMetadata> {
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(ref e)) => {
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
-                current_tag = name;
+                current_tag.clear();
+                current_tag.push_str(e.name().as_ref());
             }
             Ok(Event::End(_)) => {
                 current_tag.clear();
             }
             Ok(Event::Text(ref e)) => {
-                let text = match e.decode() {
-                    Ok(txt) => txt.trim().to_string(),
-                    Err(_) => continue,
-                };
+                let text = e.trim().to_string();
                 if text.is_empty() {
                     continue;
                 }

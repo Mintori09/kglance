@@ -9,7 +9,6 @@ use iced::widget::{button, column, container, image, row, text};
 use iced::{Alignment, Border, Element, Length, Padding};
 
 const PAGE_SPACING: f32 = spacing::S;
-const MAIN_COLUMN_PADDING: f32 = spacing::M;
 
 const EMPTY_STATE_TEXT_SIZE: f32 = 14.0;
 const PLACEHOLDER_TEXT_SIZE: f32 = 12.0;
@@ -216,15 +215,9 @@ pub fn view_pdf_pages<'a>(
         .center_x(Length::Fill)
         .width(Length::Fill);
 
-    let content_scroll = scroll_pane(scroll_id, centered)
+    scroll_pane(scroll_id, centered)
         .on_scroll(on_scroll)
-        .build();
-
-    container(content_scroll)
-        .padding(MAIN_COLUMN_PADDING)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+        .build()
 }
 
 fn render_pdf_sidebar<'a>(

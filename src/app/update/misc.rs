@@ -245,6 +245,7 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
 mod tests {
     use super::*;
     use crate::app::test_util::{epub_content, test_app};
+    use crate::features::markdown::update::handle_selection_drag_start;
 
     #[test]
     fn drag_start_sets_resizing_and_clears_anchor() {
