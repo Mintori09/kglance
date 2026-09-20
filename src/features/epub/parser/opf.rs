@@ -125,14 +125,33 @@ pub fn extract_spine_items(xml: &str) -> Vec<String> {
     hrefs
 }
 
-pub fn resolve_relative_path(base_opf: &str, relative: &str) -> String {
-    if let Some(parent) = Path::new(base_opf).parent() {
-        if parent.as_os_str().is_empty() {
-            relative.to_string()
-        } else {
-            format!("{}/{}", parent.to_string_lossy(), relative)
-        }
+pub fn resolve_relative_path(base_file: &str, relative: &str) -> String {
+    use std::path::Component;
+
+    let parent = Path::new(base_file)
+        .parent()
+        .unwrap_or_else(|| Path::new(""));
+    let joined = if parent.as_os_str().is_empty() {
+        Path::new(relative).to_path_buf()
     } else {
-        relative.to_string()
+        parent.join(relative)
+    };
+
+    let mut result = Vec::new();
+    for component in joined.components() {
+        match component {
+            Component::Normal(c) => {
+                if let Some(s) = c.to_str() {
+                    result.push(s);
+                }
+            }
+            Component::ParentDir => {
+                result.pop();
+            }
+            Component::CurDir => {}
+            _ => {}
+        }
     }
+
+    result.join("/")
 }

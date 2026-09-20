@@ -199,12 +199,12 @@ impl HtmlToMarkdownConverter {
                 let id_attr =
                     extract_attr_from_event(e, "id").or_else(|| extract_attr_from_event(e, "name"));
                 if let Some(id) = id_attr {
-                    self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n{hashes} "));
+                    self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n{hashes} "));
                 } else {
                     self.append_str(&format!("\n\n{hashes} "));
                 }
             }
-            "p" | "div" | "blockquote" => {
+            "p" | "div" | "blockquote" | "section" | "a" => {
                 let id_attr =
                     extract_attr_from_event(e, "id").or_else(|| extract_attr_from_event(e, "name"));
                 if let Some(id) = id_attr {
