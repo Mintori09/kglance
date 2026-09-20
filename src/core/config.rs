@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+pub const DEFAULT_CACHE_MAX_MEMORY_MB: usize = 512;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct UiConfig {
     pub theme: Option<String>,
@@ -92,9 +94,29 @@ impl Default for UiConfig {
     }
 }
 
+fn default_cache_max_memory_mb() -> usize {
+    DEFAULT_CACHE_MAX_MEMORY_MB
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CacheConfig {
+    #[serde(default = "default_cache_max_memory_mb")]
+    pub max_memory_mb: usize,
+}
+
+impl Default for CacheConfig {
+    fn default() -> Self {
+        Self {
+            max_memory_mb: DEFAULT_CACHE_MAX_MEMORY_MB,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct AppConfig {
     pub ui: UiConfig,
+    #[serde(default)]
+    pub cache: CacheConfig,
 }
 
 pub struct ConfigManager;
