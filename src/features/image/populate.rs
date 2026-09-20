@@ -5,11 +5,11 @@ use std::sync::atomic::Ordering;
 pub fn populate_state(
     state: &mut KglanceState,
     data: &[u8],
+    width: u32,
+    height: u32,
     format_info: &str,
     exif_content: Option<&str>,
 ) {
-    let bytes = data.to_vec();
-
     let new_load_id = state
         .image
         .load_id
@@ -22,13 +22,7 @@ pub fn populate_state(
         "load_id should equal new_load_id after fetch_add"
     );
 
-    let previous_handle = state.image.handle.clone();
     let shared_load_id = state.image.load_id.clone();
-
-    let prev_display_handle = state.image.display_handle.clone();
-    let prev_display_width = state.image.display_width;
-    let prev_display_height = state.image.display_height;
-    let prev_camera = state.image.camera;
 
     let exif_str = exif_content.unwrap_or_default();
     let exif_parsed_lines: Vec<(String, String)> = exif_str
@@ -44,19 +38,49 @@ pub fn populate_state(
         .filter(|(k, _)| !k.is_empty())
         .collect();
 
+    let cached = state
+        .cache
+        .get(&state.file_name)
+        .and_then(|c| c.as_decoded_image())
+        .map(|(h, w, ht)| (h.clone(), w, ht));
+
+    let (display_handle, preview_handle, load_state) = if let Some((h, cw, ch)) = cached {
+        if cw < width || ch < height {
+            // Cached entry is a downsampled preview
+            (None, Some(h), ImageLoadState::Ready)
+        } else {
+            // Cached entry is full resolution
+            (Some(h), None, ImageLoadState::Ready)
+        }
+    } else if data.len() <= 64 * 1024 {
+        // Small image (<= 64KB, e.g. tests, icons): decode synchronously in <1ms
+        if let Some((h, _, _)) = crate::features::image::decode_to_rgba_handle(data) {
+            (Some(h), None, ImageLoadState::Ready)
+        } else {
+            (
+                Some(iced::widget::image::Handle::from_bytes(data.to_vec())),
+                None,
+                ImageLoadState::Ready,
+            )
+        }
+    } else {
+        // Large image: leave handle as None and let spawn_decode_task decode in background
+        (None, None, ImageLoadState::Loading)
+    };
+
     state.image = ImageState {
-        handle: previous_handle,
-        preview_handle: None,
-        image_bytes: bytes,
+        handle: display_handle.clone().or_else(|| preview_handle.clone()),
+        preview_handle,
+        image_bytes: Vec::new(),
         exif_content: exif_str.to_string(),
         exif_parsed_lines,
         format_info: format_info.to_string(),
-        load_state: ImageLoadState::Loading,
+        load_state,
         load_id: shared_load_id,
-        display_handle: prev_display_handle,
-        display_width: prev_display_width,
-        display_height: prev_display_height,
-        camera: prev_camera,
+        display_handle,
+        display_width: width,
+        display_height: height,
+        camera: crate::features::image::Camera::new(),
         show_info: false,
     };
 
