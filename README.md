@@ -1,4 +1,4 @@
-# Kglance (Oxiview)
+# Kglance
 
 <p align="center">
   <img src="data/images/Screenshot_20260920_141409.png" width="49%" />
@@ -282,7 +282,7 @@ For a full reference, see [`data/examples/config.example.json`](data/examples/co
 
 ## Roadmap
 
-- [x] implement selection text for epub. (without virtual loading)
+- [ ] Implement smooth scroll for markdown and epub.
 
 ---
 
