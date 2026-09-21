@@ -5,6 +5,15 @@ use crate::parsers::markdown::Block;
 use iced::Task;
 use iced::widget::operation;
 
+/// Distance threshold (in pixels) below which smooth scroll snaps to target.
+const SMOOTH_SCROLL_SNAP_THRESHOLD: f32 = 0.8;
+/// Interpolation factor per tick (0.0–1.0). Higher = faster convergence.
+const SMOOTH_SCROLL_LERP_FACTOR: f32 = 0.25;
+/// Multiplier applied to mouse wheel delta for smooth scroll step size.
+pub(crate) const SMOOTH_SCROLL_WHEEL_MULTIPLIER: f32 = 2.5;
+/// Tick interval for smooth scroll animation (~60fps).
+pub(crate) const SMOOTH_SCROLL_TICK_MS: u64 = 16;
+
 pub(crate) fn active_markdown_state(app: &KglanceApp) -> &crate::core::MarkdownState {
     if matches!(app.current_content, Some(PreviewData::Epub { .. })) {
         &app.state.epub.markdown_state
@@ -75,7 +84,8 @@ pub fn handle_toc_heading_clicked(app: &mut KglanceApp, idx: usize) -> Task<Mess
         .find(|e| e.block_index == idx)
         .map(|e| e.y_offset)
         .unwrap_or(0.0);
-    operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y })
+    start_smooth_scroll(&mut app.state.markdown, y);
+    Task::none()
 }
 
 pub fn handle_markdown_scrolled(
@@ -91,6 +101,18 @@ pub fn handle_markdown_scrolled(
     let delta_vh = (state.viewport_height - viewport_height).abs();
     if delta_y < 1.0 && delta_vh < 1.0 {
         return Task::none();
+    }
+    // Cancel smooth scroll if the user manually drags the scrollbar
+    // (scroll position diverges from animation trajectory).
+    if state.smooth_scroll.is_animating {
+        let expected = state.scroll_y;
+        let toward_target = (state.smooth_scroll.target_y - y).abs();
+        let from_expected = (expected - y).abs();
+        // The animation moves smoothly; minor differences occur from virtual chunk adjustments.
+        // A manual drag or significant user interruption will jump much further.
+        if from_expected > 40.0 && toward_target > SMOOTH_SCROLL_SNAP_THRESHOLD {
+            state.smooth_scroll.is_animating = false;
+        }
     }
     state.scroll_y = y;
     state.viewport_height = viewport_height;
@@ -222,7 +244,8 @@ pub fn handle_search_next(app: &mut KglanceApp) -> Task<Message> {
                     0.0
                 }
             });
-        return operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y });
+        start_smooth_scroll(&mut app.state.markdown, y);
+        return Task::none();
     }
     Task::none()
 }
@@ -255,7 +278,8 @@ pub fn handle_search_prev(app: &mut KglanceApp) -> Task<Message> {
                     0.0
                 }
             });
-        return operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y });
+        start_smooth_scroll(&mut app.state.markdown, y);
+        return Task::none();
     }
     Task::none()
 }
@@ -417,6 +441,40 @@ pub fn handle_auto_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
         "content_scroll",
         iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
     )
+}
+
+pub fn start_smooth_scroll(state: &mut crate::core::MarkdownState, target_y: f32) {
+    let max_y = (state.total_content_height - state.viewport_height).max(0.0);
+    state.smooth_scroll.target_y = target_y.clamp(0.0, max_y);
+    state.smooth_scroll.is_animating = true;
+}
+
+pub fn handle_smooth_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
+    let state = active_markdown_state_mut(app);
+    if !state.smooth_scroll.is_animating {
+        return Task::none();
+    }
+
+    let target = state.smooth_scroll.target_y;
+    let current = state.scroll_y;
+    let diff = target - current;
+
+    if diff.abs() < SMOOTH_SCROLL_SNAP_THRESHOLD {
+        state.scroll_y = target;
+        state.smooth_scroll.is_animating = false;
+        iced::widget::operation::scroll_to(
+            "content_scroll",
+            iced::widget::operation::AbsoluteOffset { x: 0.0, y: target },
+        )
+    } else {
+        let step = diff * SMOOTH_SCROLL_LERP_FACTOR;
+        let new_y = current + step;
+        state.scroll_y = new_y;
+        iced::widget::operation::scroll_to(
+            "content_scroll",
+            iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
+        )
+    }
 }
 
 pub(crate) fn update_selected_text_from_range(app: &mut KglanceApp) {
@@ -1048,5 +1106,31 @@ mod tests {
         let text = selected.unwrap();
         assert!(text.contains("cấu trúc thuật toán ANN"));
         assert!(text.contains("⇒"));
+    }
+
+    #[test]
+    fn test_smooth_scroll_step_and_start() {
+        let mut state = crate::core::MarkdownState {
+            total_content_height: 2000.0,
+            viewport_height: 800.0,
+            ..Default::default()
+        };
+
+        // Test start_smooth_scroll clamping
+        start_smooth_scroll(&mut state, 3000.0);
+        assert_eq!(state.smooth_scroll.target_y, 1200.0);
+        assert!(state.smooth_scroll.is_animating);
+
+        start_smooth_scroll(&mut state, -50.0);
+        assert_eq!(state.smooth_scroll.target_y, 0.0);
+        assert!(state.smooth_scroll.is_animating);
+
+        // Test interpolation step
+        let current = 0.0;
+        let target = 100.0;
+        let diff = target - current;
+        let step = diff * 0.25;
+        let next_y = current + step;
+        assert_eq!(next_y, 25.0);
     }
 }

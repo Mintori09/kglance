@@ -147,6 +147,7 @@ pub enum MarkdownMsg {
     SelectionDragEnd,
     SelectionClear,
     AutoScrollTick,
+    SmoothScrollTick,
 }
 
 #[derive(Debug, Clone)]

@@ -703,6 +703,13 @@ pub struct MarkdownState {
     pub viewport_height: f32,
     /// Atomic generation ID specifically for background markdown tasks (mermaid, images).
     pub generation_id: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    pub smooth_scroll: SmoothScrollState,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct SmoothScrollState {
+    pub target_y: f32,
+    pub is_animating: bool,
 }
 
 impl Default for MarkdownState {
@@ -738,6 +745,7 @@ impl Default for MarkdownState {
             total_content_height: 0.0,
             viewport_height: 800.0,
             generation_id: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            smooth_scroll: SmoothScrollState::default(),
         }
     }
 }
@@ -976,5 +984,12 @@ mod tests {
         assert_eq!(chapter.anchor.as_deref(), Some("section-1"));
         assert_eq!(chapter.file_href, "text/chapter1.xhtml");
         assert!(chapter.blocks.is_empty());
+    }
+
+    #[test]
+    fn test_smooth_scroll_state_default() {
+        let state = SmoothScrollState::default();
+        assert_eq!(state.target_y, 0.0);
+        assert!(!state.is_animating);
     }
 }

@@ -72,6 +72,12 @@ pub fn populate_state(
         );
     }
 
+    if state.window_height > 0.0 {
+        markdown_state.viewport_height = state.window_height;
+    } else if state.epub.markdown_state.viewport_height > 0.0 {
+        markdown_state.viewport_height = state.epub.markdown_state.viewport_height;
+    }
+
     let old_sidebar_width = state.epub.sidebar_width;
     state.epub = EpubState {
         title: title.to_string(),

@@ -226,6 +226,19 @@ impl super::KglanceApp {
                     },
                 )
             }
+        } else if self.is_smooth_scrollable() {
+            let state = crate::features::markdown::update::active_markdown_state_mut(self);
+            let base_target = if state.smooth_scroll.is_animating {
+                state.smooth_scroll.target_y
+            } else {
+                state.scroll_y
+            };
+            // Invert scroll_val: wheel down produces negative y, so we subtract to increase Y
+            let step =
+                -scroll_val * crate::features::markdown::update::SMOOTH_SCROLL_WHEEL_MULTIPLIER;
+            let new_target = base_target + step;
+            crate::features::markdown::update::start_smooth_scroll(state, new_target);
+            Task::none()
         } else {
             Task::none()
         }
