@@ -1066,6 +1066,19 @@ impl KglanceApp {
             Subscription::none()
         };
 
+        let smooth_scroll_sub = if self.is_smooth_scrollable()
+            && crate::features::markdown::update::active_markdown_state(self)
+                .smooth_scroll
+                .is_animating
+        {
+            iced::time::every(std::time::Duration::from_millis(
+                crate::features::markdown::update::SMOOTH_SCROLL_TICK_MS,
+            ))
+            .map(|_| crate::app::messages::MarkdownMsg::SmoothScrollTick.into())
+        } else {
+            Subscription::none()
+        };
+
         let read_positions_sub = if self.state.read_positions_dirty {
             iced::time::every(std::time::Duration::from_secs(1))
                 .map(|_| crate::app::messages::SystemMsg::ReadPositionsTick.into())
@@ -1080,6 +1093,7 @@ impl KglanceApp {
             global_event_sub,
             file_watcher_sub,
             auto_scroll_sub,
+            smooth_scroll_sub,
             read_positions_sub,
         ])
     }

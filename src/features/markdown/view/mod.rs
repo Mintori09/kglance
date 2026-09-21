@@ -113,21 +113,8 @@ fn build_scrollable_content<'a>(
             .partition_point(|&y| y <= view_bottom)
             .min(blocks.len());
 
-        let remaining_blocks = blocks.len().saturating_sub(raw_last);
-        let dist_to_bottom = state.total_content_height - (state.scroll_y + state.viewport_height);
-        let is_near_bottom = remaining_blocks <= CHUNK_SIZE * 3 || dist_to_bottom <= buffer * 1.5;
-
-        let (first_visible, last_visible) = if is_near_bottom {
-            let clamped_last = (raw_last + CHUNK_SIZE * 3).min(blocks.len());
-            let min_rendered = (CHUNK_SIZE * 3).min(blocks.len());
-            let max_first = clamped_last.saturating_sub(min_rendered);
-            let first = (raw_first / CHUNK_SIZE) * CHUNK_SIZE;
-            (first.min(max_first), clamped_last)
-        } else {
-            let first = (raw_first / CHUNK_SIZE) * CHUNK_SIZE;
-            let last = (raw_last.div_ceil(CHUNK_SIZE) * CHUNK_SIZE).min(blocks.len());
-            (first, last)
-        };
+        let first_visible = (raw_first / CHUNK_SIZE) * CHUNK_SIZE;
+        let last_visible = (raw_last.div_ceil(CHUNK_SIZE) * CHUNK_SIZE).min(blocks.len());
 
         let top_height = if first_visible > 0 {
             offsets[first_visible] - offsets[0]
@@ -215,6 +202,7 @@ fn build_scrollable_content<'a>(
     let content_padding =
         crate::ui::theme::scale_size(STYLE.general.content_padding, ctx.font_size);
     scrollable_content(elements, max_text_width, content_padding, SCROLL_PANE_ID)
+        .filter_wheel(true)
         .on_scroll(|v| {
             crate::app::messages::MarkdownMsg::Scrolled {
                 y: v.absolute_offset().y,

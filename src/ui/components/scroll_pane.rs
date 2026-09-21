@@ -19,6 +19,7 @@ pub fn scroll_pane<'a, Message: 'static>(
         on_scroll: None,
         height: Length::Fill,
         container_padding: None,
+        filter_wheel: false,
     }
 }
 
@@ -28,6 +29,7 @@ pub struct ScrollPaneBuilder<'a, Message> {
     on_scroll: Option<Box<dyn Fn(scrollable::Viewport) -> Message + 'static>>,
     height: Length,
     container_padding: Option<Padding>,
+    filter_wheel: bool,
 }
 
 impl<'a, Message: 'static> ScrollPaneBuilder<'a, Message> {
@@ -46,6 +48,11 @@ impl<'a, Message: 'static> ScrollPaneBuilder<'a, Message> {
 
     pub fn container_padding(mut self, padding: impl Into<Padding>) -> Self {
         self.container_padding = Some(padding.into());
+        self
+    }
+
+    pub fn filter_wheel(mut self, filter: bool) -> Self {
+        self.filter_wheel = filter;
         self
     }
 
@@ -74,7 +81,12 @@ impl<'a, Message: 'static> ScrollPaneBuilder<'a, Message> {
             scroll = scroll.on_scroll(f);
         }
 
-        scroll.into()
+        let el: Element<'a, Message> = scroll.into();
+        if self.filter_wheel {
+            ScrollFilter::new(el, true).into()
+        } else {
+            el
+        }
     }
 }
 

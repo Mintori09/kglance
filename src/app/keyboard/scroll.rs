@@ -58,6 +58,18 @@ impl KglanceApp {
     fn scroll_by(&mut self, vertical_offset: f32) -> Task<Message> {
         self.reset_scroll_pending();
 
+        if self.is_smooth_scrollable() {
+            let state = crate::features::markdown::update::active_markdown_state_mut(self);
+            let base_target = if state.smooth_scroll.is_animating {
+                state.smooth_scroll.target_y
+            } else {
+                state.scroll_y
+            };
+            let new_target = base_target + vertical_offset;
+            crate::features::markdown::update::start_smooth_scroll(state, new_target);
+            return Task::none();
+        }
+
         operation::scroll_by(
             CONTENT_SCROLL_ID,
             AbsoluteOffset {
@@ -92,11 +104,26 @@ impl KglanceApp {
     }
 
     fn snap_to_top(&mut self) -> Task<Message> {
+        if self.is_smooth_scrollable() {
+            let state = crate::features::markdown::update::active_markdown_state_mut(self);
+            crate::features::markdown::update::start_smooth_scroll(state, 0.0);
+            return Task::none();
+        }
+
         operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 0.0 })
     }
 
     fn snap_to_bottom(&mut self) -> Task<Message> {
         self.reset_scroll_pending();
+
+        if self.is_smooth_scrollable() {
+            let state = crate::features::markdown::update::active_markdown_state_mut(self);
+            crate::features::markdown::update::start_smooth_scroll(
+                state,
+                state.total_content_height,
+            );
+            return Task::none();
+        }
 
         operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 1.0 })
     }

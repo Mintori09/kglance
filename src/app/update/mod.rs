@@ -317,6 +317,9 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::MarkdownMsg::AutoScrollTick => {
                 crate::features::markdown::update::handle_auto_scroll_tick(app)
             }
+            crate::app::messages::MarkdownMsg::SmoothScrollTick => {
+                crate::features::markdown::update::handle_smooth_scroll_tick(app)
+            }
         },
         Message::Epub(msg) => match msg {
             crate::app::messages::EpubMsg::SidebarToggled => {

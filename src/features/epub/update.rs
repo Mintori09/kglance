@@ -89,6 +89,7 @@ pub fn handle_chapter_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message>
         ensure_chapter_loaded(app, idx);
         app.record_read_position();
         app.state.epub.markdown_state.scroll_y = 0.0;
+        app.state.epub.markdown_state.smooth_scroll.is_animating = false;
 
         return operation::snap_to(
             "content_scroll",

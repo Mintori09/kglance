@@ -17,6 +17,13 @@ impl super::KglanceApp {
             || self.state.file_type_text.contains("EPUB")
     }
 
+    pub(crate) fn is_smooth_scrollable(&self) -> bool {
+        matches!(
+            self.current_content,
+            Some(PreviewData::Markdown { .. }) | Some(PreviewData::Epub { .. })
+        )
+    }
+
     pub fn handle_key_pressed(
         &mut self,
         key: iced::keyboard::Key,

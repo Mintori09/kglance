@@ -128,7 +128,13 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
         reading_time_mins: mins,
         block_y_offsets,
         total_content_height,
-        viewport_height: 800.0,
+        viewport_height: if state.window_height > 0.0 {
+            state.window_height
+        } else if state.markdown.viewport_height > 0.0 {
+            state.markdown.viewport_height
+        } else {
+            800.0
+        },
         generation_id: old_gen,
         search_visible: false,
         search_query: String::new(),
@@ -142,6 +148,7 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
         is_mouse_held: false,
         auto_scroll_delta: None,
         drag_last_y: 0.0,
+        smooth_scroll: crate::core::types::SmoothScrollState::default(),
     };
 
     for (i, block) in blocks.iter().enumerate() {
