@@ -103,6 +103,8 @@ pub fn handle_mouse_pressed(app: &mut KglanceApp, _x: f32, _y: f32) -> Task<Mess
     s.selection_range = None;
     s.selected_text = None;
     s.auto_scroll_delta = None;
+    s.smooth_scroll.is_animating = false;
+    s.smooth_scroll.velocity = 0.0;
     Task::none()
 }
 
@@ -223,6 +225,8 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
         app.state.current_window_size.height = height;
         app.state.window_width = width;
         app.state.window_height = height;
+        app.state.markdown.viewport_height = height;
+        app.state.epub.markdown_state.viewport_height = height;
     }
 
     let pdf = active_pdf_state_mut(app);

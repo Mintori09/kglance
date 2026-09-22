@@ -27,14 +27,10 @@ impl KglanceApp {
             Key::Character(character) if character == "k" => {
                 Some(self.scroll_by(-SCROLL_LINE_AMOUNT))
             }
-            Key::Named(Named::PageDown) => Some(self.scroll_by(SCROLL_HALF_PAGE_AMOUNT)),
-            Key::Character(character) if character == "d" => {
-                Some(self.scroll_by(SCROLL_HALF_PAGE_AMOUNT))
-            }
-            Key::Named(Named::PageUp) => Some(self.scroll_by(-SCROLL_HALF_PAGE_AMOUNT)),
-            Key::Character(character) if character == "u" => {
-                Some(self.scroll_by(-SCROLL_HALF_PAGE_AMOUNT))
-            }
+            Key::Named(Named::PageDown) => Some(self.scroll_page(1.0)),
+            Key::Character(character) if character == "d" => Some(self.scroll_page(1.0)),
+            Key::Named(Named::PageUp) => Some(self.scroll_page(-1.0)),
+            Key::Character(character) if character == "u" => Some(self.scroll_page(-1.0)),
             Key::Character(character) if character == "g" && !modifiers.shift() => {
                 self.handle_g_shortcut()
             }
@@ -55,18 +51,58 @@ impl KglanceApp {
         }
     }
 
+    fn scroll_page(&mut self, direction: f32) -> Task<Message> {
+        self.reset_scroll_pending();
+
+        if self.is_smooth_scrollable() {
+            let state = crate::features::markdown::update::active_markdown_state_mut(self);
+            if state.viewport_height <= 0.0 {
+                return Task::none();
+            }
+            let max_y = crate::core::scroll::max_scroll_y(
+                state.total_content_height,
+                state.viewport_height,
+            );
+            // Page scroll uses 85% of viewport height to preserve reading context
+            let page_delta = state.viewport_height * 0.85 * direction;
+            let base_y = if state.smooth_scroll.is_animating
+                && (state.smooth_scroll.target_y - state.scroll_y).signum() == direction.signum()
+            {
+                state.smooth_scroll.target_y
+            } else {
+                state.scroll_y
+            };
+            let target_y = crate::core::scroll::clamp_target(base_y + page_delta, max_y);
+            state
+                .smooth_scroll
+                .start_navigation(state.scroll_y, target_y, max_y);
+            return Task::none();
+        }
+
+        operation::scroll_by(
+            CONTENT_SCROLL_ID,
+            AbsoluteOffset {
+                x: 0.0,
+                y: SCROLL_HALF_PAGE_AMOUNT * direction,
+            },
+        )
+    }
+
     fn scroll_by(&mut self, vertical_offset: f32) -> Task<Message> {
         self.reset_scroll_pending();
 
         if self.is_smooth_scrollable() {
             let state = crate::features::markdown::update::active_markdown_state_mut(self);
-            let base_target = if state.smooth_scroll.is_animating {
-                state.smooth_scroll.target_y
-            } else {
-                state.scroll_y
-            };
-            let new_target = base_target + vertical_offset;
-            crate::features::markdown::update::start_smooth_scroll(state, new_target);
+            if state.viewport_height <= 0.0 {
+                return Task::none();
+            }
+            let max_y = crate::core::scroll::max_scroll_y(
+                state.total_content_height,
+                state.viewport_height,
+            );
+            state
+                .smooth_scroll
+                .start_interactive(state.scroll_y, vertical_offset, max_y);
             return Task::none();
         }
 
@@ -93,23 +129,30 @@ impl KglanceApp {
 
     fn handle_home_shortcut(&mut self) -> Option<Task<Message>> {
         self.pending_g = false;
-
-        if self.pending_home {
-            self.pending_home = false;
-            Some(self.snap_to_top())
-        } else {
-            self.pending_home = true;
-            None
-        }
+        self.pending_home = false;
+        Some(self.snap_to_top())
     }
 
     fn snap_to_top(&mut self) -> Task<Message> {
+        self.reset_scroll_pending();
+
         if self.is_smooth_scrollable() {
             let state = crate::features::markdown::update::active_markdown_state_mut(self);
-            crate::features::markdown::update::start_smooth_scroll(state, 0.0);
+            if state.scroll_y <= 1.0 {
+                self.record_read_position();
+                return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 0.0 });
+            }
+            let max_y = crate::core::scroll::max_scroll_y(
+                state.total_content_height,
+                state.viewport_height,
+            );
+            state
+                .smooth_scroll
+                .start_navigation(state.scroll_y, 0.0, max_y);
             return Task::none();
         }
 
+        self.record_read_position();
         operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 0.0 })
     }
 
@@ -118,13 +161,21 @@ impl KglanceApp {
 
         if self.is_smooth_scrollable() {
             let state = crate::features::markdown::update::active_markdown_state_mut(self);
-            crate::features::markdown::update::start_smooth_scroll(
-                state,
+            let max_y = crate::core::scroll::max_scroll_y(
                 state.total_content_height,
+                state.viewport_height,
             );
+            if (max_y - state.scroll_y).abs() <= 1.0 {
+                self.record_read_position();
+                return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 1.0 });
+            }
+            state
+                .smooth_scroll
+                .start_navigation(state.scroll_y, max_y, max_y);
             return Task::none();
         }
 
+        self.record_read_position();
         operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 1.0 })
     }
 
@@ -265,5 +316,159 @@ impl KglanceApp {
                 self.state.json.active_node = Some(parent);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::app::test_util::{markdown_content, test_app};
+
+    #[test]
+    fn test_scroll_page_triggers_smooth_navigation() {
+        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
+        let state = crate::features::markdown::update::active_markdown_state_mut(&mut app);
+        state.viewport_height = 800.0;
+        state.total_content_height = 3000.0;
+        state.scroll_y = 100.0;
+
+        let _ = app.scroll_page(1.0);
+
+        let state = crate::features::markdown::update::active_markdown_state(&app);
+        assert!(state.smooth_scroll.is_animating);
+        assert_eq!(
+            state.smooth_scroll.mode(),
+            crate::core::SmoothScrollMode::Navigation
+        );
+        // 100.0 + 800.0 * 0.85 = 780.0
+        assert_eq!(state.smooth_scroll.target_y(), 780.0);
+    }
+
+    #[test]
+    fn test_scroll_page_up_clamps_at_top() {
+        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
+        let state = crate::features::markdown::update::active_markdown_state_mut(&mut app);
+        state.viewport_height = 800.0;
+        state.total_content_height = 3000.0;
+        state.scroll_y = 200.0;
+
+        let _ = app.scroll_page(-1.0);
+
+        let state = crate::features::markdown::update::active_markdown_state(&app);
+        assert!(state.smooth_scroll.is_animating);
+        assert_eq!(state.smooth_scroll.target_y(), 0.0);
+    }
+
+    #[test]
+    fn test_scroll_page_accumulates_rapid_keystrokes() {
+        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
+        let state = crate::features::markdown::update::active_markdown_state_mut(&mut app);
+        state.viewport_height = 1000.0;
+        state.total_content_height = 5000.0;
+        state.scroll_y = 0.0;
+
+        // First PageDown: target = 0 + 850 = 850
+        let _ = app.scroll_page(1.0);
+        assert_eq!(
+            crate::features::markdown::update::active_markdown_state(&app)
+                .smooth_scroll
+                .target_y(),
+            850.0
+        );
+
+        // While in flight (simulated current scroll_y = 200), second PageDown arrives
+        crate::features::markdown::update::active_markdown_state_mut(&mut app).scroll_y = 200.0;
+        let _ = app.scroll_page(1.0);
+
+        // Target accumulates to 850 + 850 = 1700
+        assert_eq!(
+            crate::features::markdown::update::active_markdown_state(&app)
+                .smooth_scroll
+                .target_y(),
+            1700.0
+        );
+    }
+
+    #[test]
+    fn test_snap_to_top_and_bottom_triggers_smooth_navigation() {
+        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
+        let state = crate::features::markdown::update::active_markdown_state_mut(&mut app);
+        state.viewport_height = 800.0;
+        state.total_content_height = 3000.0;
+        state.scroll_y = 500.0;
+
+        // Snap to top (gg or Home)
+        let _ = app.snap_to_top();
+        let state = crate::features::markdown::update::active_markdown_state(&app);
+        assert_eq!(state.smooth_scroll.target_y(), 0.0);
+        assert_eq!(
+            state.smooth_scroll.mode(),
+            crate::core::SmoothScrollMode::Navigation
+        );
+        assert!(state.smooth_scroll.is_animating);
+
+        // Snap to bottom (G or End)
+        let _ = app.snap_to_bottom();
+        let state = crate::features::markdown::update::active_markdown_state(&app);
+        assert_eq!(state.smooth_scroll.target_y(), 2200.0); // 3000.0 - 800.0
+        assert_eq!(
+            state.smooth_scroll.mode(),
+            crate::core::SmoothScrollMode::Navigation
+        );
+        assert!(state.smooth_scroll.is_animating);
+    }
+
+    #[test]
+    fn test_scroll_down_to_end_with_j() {
+        let md = std::fs::read_to_string("testing-file/markdown.md").unwrap();
+        let mut app = test_app(Some(markdown_content(&md)));
+        let state = crate::features::markdown::update::active_markdown_state_mut(&mut app);
+        state.viewport_height = 800.0;
+        let total_h = state.total_content_height;
+        let max_scroll = total_h - 800.0;
+
+        let mut now = std::time::Instant::now();
+        for _ in 0..200 {
+            let _ = app.scroll_by(super::SCROLL_LINE_AMOUNT);
+            for _ in 0..10 {
+                now += std::time::Duration::from_millis(16);
+                let _ = crate::features::markdown::update::handle_smooth_scroll_tick(&mut app, now);
+            }
+        }
+        let state = crate::features::markdown::update::active_markdown_state(&app);
+        assert!(
+            (state.scroll_y - max_scroll).abs() < 1.0,
+            "Expected scroll_y to reach max_scroll {max_scroll}, got {}",
+            state.scroll_y
+        );
+    }
+
+    #[test]
+    fn test_snap_to_top_and_bottom_reaches_boundaries() {
+        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
+        let state = crate::features::markdown::update::active_markdown_state_mut(&mut app);
+        state.viewport_height = 800.0;
+        state.total_content_height = 3000.0;
+        state.scroll_y = 1500.0;
+
+        // Snap to bottom (G)
+        let _ = app.snap_to_bottom();
+        let mut now = std::time::Instant::now();
+        for _ in 0..50 {
+            now += std::time::Duration::from_millis(16);
+            let _ = crate::features::markdown::update::handle_smooth_scroll_tick(&mut app, now);
+        }
+        let state = crate::features::markdown::update::active_markdown_state(&app);
+        assert_eq!(state.scroll_y, 2200.0);
+        assert!(!state.smooth_scroll.is_animating);
+
+        // Snap to top (gg)
+        let _ = app.snap_to_top();
+        for _ in 0..50 {
+            now += std::time::Duration::from_millis(16);
+            let _ = crate::features::markdown::update::handle_smooth_scroll_tick(&mut app, now);
+        }
+        let state = crate::features::markdown::update::active_markdown_state(&app);
+        assert_eq!(state.scroll_y, 0.0);
+        assert!(!state.smooth_scroll.is_animating);
     }
 }

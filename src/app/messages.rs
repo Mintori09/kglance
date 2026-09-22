@@ -118,6 +118,7 @@ pub enum MarkdownMsg {
     Scrolled {
         y: f32,
         viewport_height: f32,
+        content_height: f32,
     },
     SearchToggle,
     SearchQueryChanged(String),
@@ -147,7 +148,8 @@ pub enum MarkdownMsg {
     SelectionDragEnd,
     SelectionClear,
     AutoScrollTick,
-    SmoothScrollTick,
+    SmoothScrollTick(std::time::Instant),
+    SmoothWheelScrolled(iced::mouse::ScrollDelta),
 }
 
 #[derive(Debug, Clone)]

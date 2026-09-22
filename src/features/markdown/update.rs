@@ -5,14 +5,8 @@ use crate::parsers::markdown::Block;
 use iced::Task;
 use iced::widget::operation;
 
-/// Distance threshold (in pixels) below which smooth scroll snaps to target.
-const SMOOTH_SCROLL_SNAP_THRESHOLD: f32 = 0.8;
-/// Interpolation factor per tick (0.0–1.0). Higher = faster convergence.
-const SMOOTH_SCROLL_LERP_FACTOR: f32 = 0.25;
-/// Multiplier applied to mouse wheel delta for smooth scroll step size.
-pub(crate) const SMOOTH_SCROLL_WHEEL_MULTIPLIER: f32 = 2.5;
-/// Tick interval for smooth scroll animation (~60fps).
-pub(crate) const SMOOTH_SCROLL_TICK_MS: u64 = 16;
+/// Tick interval for smooth scroll animation (~125fps).
+pub(crate) const SMOOTH_SCROLL_TICK_MS: u64 = 8;
 
 pub(crate) fn active_markdown_state(app: &KglanceApp) -> &crate::core::MarkdownState {
     if matches!(app.current_content, Some(PreviewData::Epub { .. })) {
@@ -44,7 +38,10 @@ fn markdown_block_y_offset(
         "markdown_block_y_offset O(n) fallback fired for index {target_index}; \
          block_y_offsets should have been populated"
     );
-    let mut y: f32 = 15.0;
+    let mut y: f32 = crate::ui::theme::scale_size(
+        crate::features::markdown::parser::layout_constants::CONTENT_PADDING,
+        font_size,
+    );
     for (i, block) in blocks.iter().enumerate() {
         if i == target_index {
             return y;
@@ -84,7 +81,12 @@ pub fn handle_toc_heading_clicked(app: &mut KglanceApp, idx: usize) -> Task<Mess
         .find(|e| e.block_index == idx)
         .map(|e| e.y_offset)
         .unwrap_or(0.0);
-    start_smooth_scroll(&mut app.state.markdown, y);
+    let state = &mut app.state.markdown;
+    let max_y =
+        crate::core::scroll::max_scroll_y(state.total_content_height, state.viewport_height);
+    state
+        .smooth_scroll
+        .start_navigation(state.scroll_y, y, max_y);
     Task::none()
 }
 
@@ -92,6 +94,7 @@ pub fn handle_markdown_scrolled(
     app: &mut KglanceApp,
     y: f32,
     viewport_height: f32,
+    content_height: f32,
 ) -> Task<Message> {
     if app.ctrl_held {
         return Task::none();
@@ -102,20 +105,14 @@ pub fn handle_markdown_scrolled(
     if delta_y < 1.0 && delta_vh < 1.0 {
         return Task::none();
     }
-    // Cancel smooth scroll if the user manually drags the scrollbar
-    // (scroll position diverges from animation trajectory).
-    if state.smooth_scroll.is_animating {
-        let expected = state.scroll_y;
-        let toward_target = (state.smooth_scroll.target_y - y).abs();
-        let from_expected = (expected - y).abs();
-        // The animation moves smoothly; minor differences occur from virtual chunk adjustments.
-        // A manual drag or significant user interruption will jump much further.
-        if from_expected > 40.0 && toward_target > SMOOTH_SCROLL_SNAP_THRESHOLD {
-            state.smooth_scroll.is_animating = false;
-        }
+    if state.smooth_scroll.is_animating && state.is_mouse_held {
+        state.smooth_scroll.check_interruption(y);
     }
     state.scroll_y = y;
     state.viewport_height = viewport_height;
+    if content_height > 0.0 && state.block_y_offsets.len() <= 20 {
+        state.total_content_height = content_height;
+    }
     app.record_read_position();
     let toc = &app.state.markdown.toc;
     if let Some(active_pos) = toc.iter().rposition(|e| e.y_offset <= y + 50.0) {
@@ -221,16 +218,15 @@ pub fn handle_search_query_changed(app: &mut KglanceApp, query: String) -> Task<
 }
 
 pub fn handle_search_next(app: &mut KglanceApp) -> Task<Message> {
-    let s = &mut app.state.markdown;
-    if s.search_match_count > 0 {
+    if app.state.markdown.search_match_count > 0 {
+        let s = &mut app.state.markdown;
         s.search_match_index = (s.search_match_index + 1) % s.search_match_count;
         s.search_info = format!("{}/{}", s.search_match_index + 1, s.search_match_count);
         let block_idx = s.search_match_blocks[s.search_match_index];
-        let y = s
-            .block_y_offsets
-            .get(block_idx)
-            .copied()
-            .unwrap_or_else(|| {
+        let y = s.block_y_offsets.get(block_idx).copied();
+        let y = match y {
+            Some(y) => y,
+            None => {
                 if let Some(PreviewData::Markdown { blocks, .. }) = &app.current_content {
                     let cw = app.state.markdown_content_width();
                     markdown_block_y_offset(
@@ -243,16 +239,19 @@ pub fn handle_search_next(app: &mut KglanceApp) -> Task<Message> {
                 } else {
                     0.0
                 }
-            });
-        start_smooth_scroll(&mut app.state.markdown, y);
+            }
+        };
+        let s = &mut app.state.markdown;
+        let max_y = crate::core::scroll::max_scroll_y(s.total_content_height, s.viewport_height);
+        s.smooth_scroll.start_navigation(s.scroll_y, y, max_y);
         return Task::none();
     }
     Task::none()
 }
 
 pub fn handle_search_prev(app: &mut KglanceApp) -> Task<Message> {
-    let s = &mut app.state.markdown;
-    if s.search_match_count > 0 {
+    if app.state.markdown.search_match_count > 0 {
+        let s = &mut app.state.markdown;
         s.search_match_index = if s.search_match_index == 0 {
             s.search_match_count - 1
         } else {
@@ -260,11 +259,10 @@ pub fn handle_search_prev(app: &mut KglanceApp) -> Task<Message> {
         };
         s.search_info = format!("{}/{}", s.search_match_index + 1, s.search_match_count);
         let block_idx = s.search_match_blocks[s.search_match_index];
-        let y = s
-            .block_y_offsets
-            .get(block_idx)
-            .copied()
-            .unwrap_or_else(|| {
+        let y = s.block_y_offsets.get(block_idx).copied();
+        let y = match y {
+            Some(y) => y,
+            None => {
                 if let Some(PreviewData::Markdown { blocks, .. }) = &app.current_content {
                     let cw = app.state.markdown_content_width();
                     markdown_block_y_offset(
@@ -277,8 +275,11 @@ pub fn handle_search_prev(app: &mut KglanceApp) -> Task<Message> {
                 } else {
                     0.0
                 }
-            });
-        start_smooth_scroll(&mut app.state.markdown, y);
+            }
+        };
+        let s = &mut app.state.markdown;
+        let max_y = crate::core::scroll::max_scroll_y(s.total_content_height, s.viewport_height);
+        s.smooth_scroll.start_navigation(s.scroll_y, y, max_y);
         return Task::none();
     }
     Task::none()
@@ -444,36 +445,119 @@ pub fn handle_auto_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
 }
 
 pub fn start_smooth_scroll(state: &mut crate::core::MarkdownState, target_y: f32) {
-    let max_y = (state.total_content_height - state.viewport_height).max(0.0);
-    state.smooth_scroll.target_y = target_y.clamp(0.0, max_y);
-    state.smooth_scroll.is_animating = true;
+    let max_y =
+        crate::core::scroll::max_scroll_y(state.total_content_height, state.viewport_height);
+    state
+        .smooth_scroll
+        .start_navigation(state.scroll_y, target_y, max_y);
 }
 
-pub fn handle_smooth_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
-    let state = active_markdown_state_mut(app);
-    if !state.smooth_scroll.is_animating {
+pub fn handle_smooth_wheel_scrolled(
+    app: &mut KglanceApp,
+    delta: iced::mouse::ScrollDelta,
+) -> Task<Message> {
+    if app.ctrl_held {
         return Task::none();
     }
+    let state = active_markdown_state_mut(app);
+    if state.viewport_height <= 0.0 {
+        return Task::none();
+    }
+    let vh = state.viewport_height;
+    let max_y = crate::core::scroll::max_scroll_y(state.total_content_height, vh);
 
-    let target = state.smooth_scroll.target_y;
-    let current = state.scroll_y;
-    let diff = target - current;
+    match delta {
+        iced::mouse::ScrollDelta::Lines { y, .. } => {
+            if y.abs() > f32::EPSILON {
+                let line_height =
+                    (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION).clamp(40.0, 120.0);
+                let step = -y * line_height;
+                state
+                    .smooth_scroll
+                    .start_interactive(state.scroll_y, step, max_y);
+            }
+            Task::none()
+        }
+        iced::mouse::ScrollDelta::Pixels { y, .. } => {
+            if y.abs() > f32::EPSILON {
+                // Direct scrolling for touchpads: 1:1 displacement without smoothing accumulation lag/acceleration
+                state.smooth_scroll.is_animating = false;
+                state.smooth_scroll.velocity = 0.0;
+                let new_y = crate::core::scroll::clamp_target(state.scroll_y - y, max_y);
+                state.scroll_y = new_y;
+                state.smooth_scroll.target_y = new_y;
+                state.smooth_scroll.last_applied_y = new_y;
+                iced::widget::operation::scroll_to(
+                    "content_scroll",
+                    iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
+                )
+            } else {
+                Task::none()
+            }
+        }
+    }
+}
 
-    if diff.abs() < SMOOTH_SCROLL_SNAP_THRESHOLD {
-        state.scroll_y = target;
-        state.smooth_scroll.is_animating = false;
-        iced::widget::operation::scroll_to(
-            "content_scroll",
-            iced::widget::operation::AbsoluteOffset { x: 0.0, y: target },
-        )
+pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) -> Task<Message> {
+    let state = active_markdown_state_mut(app);
+    let max_y =
+        crate::core::scroll::max_scroll_y(state.total_content_height, state.viewport_height);
+    let prev_mode = state.smooth_scroll.mode();
+    let target_y = state.smooth_scroll.target_y();
+
+    if let Some(next_y) = state.smooth_scroll.tick(state.scroll_y, now, max_y) {
+        state.scroll_y = next_y;
+        let is_finished = !state.smooth_scroll.is_animating;
+        if is_finished {
+            app.record_read_position();
+        }
+
+        let scroll_task =
+            if is_finished && prev_mode == crate::core::scroll::SmoothScrollMode::Navigation {
+                if target_y >= max_y - 1.0 {
+                    operation::snap_to(
+                        "content_scroll",
+                        operation::RelativeOffset { x: 0.0, y: 1.0 },
+                    )
+                } else if target_y <= 1.0 {
+                    operation::snap_to(
+                        "content_scroll",
+                        operation::RelativeOffset { x: 0.0, y: 0.0 },
+                    )
+                } else {
+                    iced::widget::operation::scroll_to(
+                        "content_scroll",
+                        iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
+                    )
+                }
+            } else {
+                iced::widget::operation::scroll_to(
+                    "content_scroll",
+                    iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
+                )
+            };
+
+        let toc_task = if is_finished {
+            let toc = &app.state.markdown.toc;
+            if let Some(active_pos) = toc.iter().rposition(|e| e.y_offset <= next_y + 50.0) {
+                let target_y = (active_pos as f32 * 28.0 - 100.0).max(0.0);
+                operation::scroll_to(
+                    "toc_scroll",
+                    operation::AbsoluteOffset {
+                        x: 0.0,
+                        y: target_y,
+                    },
+                )
+            } else {
+                Task::none()
+            }
+        } else {
+            Task::none()
+        };
+
+        Task::batch([scroll_task, toc_task])
     } else {
-        let step = diff * SMOOTH_SCROLL_LERP_FACTOR;
-        let new_y = current + step;
-        state.scroll_y = new_y;
-        iced::widget::operation::scroll_to(
-            "content_scroll",
-            iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
-        )
+        Task::none()
     }
 }
 
@@ -1121,16 +1205,66 @@ mod tests {
         assert_eq!(state.smooth_scroll.target_y, 1200.0);
         assert!(state.smooth_scroll.is_animating);
 
+        // When starting navigation to -50.0 (clamped to 0.0) with non-zero scroll_y:
+        state.scroll_y = 500.0;
         start_smooth_scroll(&mut state, -50.0);
         assert_eq!(state.smooth_scroll.target_y, 0.0);
         assert!(state.smooth_scroll.is_animating);
 
-        // Test interpolation step
-        let current = 0.0;
-        let target = 100.0;
-        let diff = target - current;
-        let step = diff * 0.25;
-        let next_y = current + step;
-        assert_eq!(next_y, 25.0);
+        // When target distance is below threshold, animation is skipped
+        state.scroll_y = 0.0;
+        start_smooth_scroll(&mut state, 0.0);
+        assert!(!state.smooth_scroll.is_animating);
+    }
+
+    #[test]
+    fn test_smooth_scroll_reaches_target() {
+        let mut scroller = crate::core::scroll::SmoothScroller::default();
+        let mut current = 0.0;
+        let target = 500.0;
+        let max_y = 1000.0;
+        scroller.start_navigation(current, target, max_y);
+
+        let start = std::time::Instant::now();
+        for step in 1..=50 {
+            let now = start + std::time::Duration::from_millis(step * 16);
+            if let Some(next_y) = scroller.tick(current, now, max_y) {
+                current = next_y;
+            } else {
+                break;
+            }
+        }
+        assert!(
+            (current - target).abs() < 0.1,
+            "Scroller should reach target {target}, got {current}"
+        );
+        assert!(!scroller.is_animating);
+    }
+
+    #[test]
+    fn test_handle_smooth_wheel_scrolled_lines_and_pixels() {
+        use crate::app::test_util::{markdown_content, test_app};
+
+        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
+        app.state.markdown.viewport_height = 800.0;
+        app.state.markdown.total_content_height = 3000.0;
+        app.state.markdown.scroll_y = 100.0;
+
+        // Lines: 1 notch down (-1.0) -> step = 1.0 * (800 * 0.08) = 64.0 px
+        let delta_lines = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -1.0 };
+        let _ = handle_smooth_wheel_scrolled(&mut app, delta_lines);
+        assert_eq!(app.state.markdown.smooth_scroll.target_y, 164.0);
+        assert!(app.state.markdown.smooth_scroll.is_animating);
+
+        // Pixels: trackpad swipe down (-25.0) -> direct step = 25.0 px (no smooth animation lag)
+        let delta_pixels = iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -25.0 };
+        let _ = handle_smooth_wheel_scrolled(&mut app, delta_pixels);
+        assert_eq!(app.state.markdown.scroll_y, 125.0);
+        assert!(!app.state.markdown.smooth_scroll.is_animating);
+
+        // Ctrl held down: ignores wheel scrolling
+        app.ctrl_held = true;
+        let _ = handle_smooth_wheel_scrolled(&mut app, delta_lines);
+        assert_eq!(app.state.markdown.scroll_y, 125.0);
     }
 }
