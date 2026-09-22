@@ -237,7 +237,7 @@ pub fn extract_toc(
     content_width: f32,
 ) -> Vec<TocEntry> {
     let mut toc = Vec::new();
-    let mut y: f32 = 15.0;
+    let mut y: f32 = scale_size(lc::CONTENT_PADDING, font_size);
     for (i, block) in blocks.iter().enumerate() {
         if let Block::Heading { level, content } = block {
             let text = flatten_inlines_toc(content);
@@ -265,7 +265,7 @@ pub fn rescale_markdown_scroll_y(
         return 0.0;
     }
 
-    let mut current_y = 15.0;
+    let mut current_y = scale_size(lc::CONTENT_PADDING, old_font_size);
     let mut target_block_idx = 0;
     let mut progress = 0.0;
 
@@ -284,7 +284,7 @@ pub fn rescale_markdown_scroll_y(
         current_y += h;
     }
 
-    let mut new_y = 15.0;
+    let mut new_y = scale_size(lc::CONTENT_PADDING, new_font_size);
     for (i, block) in blocks.iter().enumerate() {
         let new_h = estimated_block_height(block, new_font_size, i, image_sizes, content_width);
         if i == target_block_idx {
