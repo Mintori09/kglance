@@ -706,11 +706,7 @@ pub struct MarkdownState {
     pub smooth_scroll: SmoothScrollState,
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct SmoothScrollState {
-    pub target_y: f32,
-    pub is_animating: bool,
-}
+pub type SmoothScrollState = crate::core::scroll::SmoothScroller;
 
 impl Default for MarkdownState {
     fn default() -> Self {

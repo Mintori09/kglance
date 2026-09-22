@@ -8,12 +8,14 @@ pub mod net;
 pub mod preloader;
 pub mod preview;
 pub mod read_positions;
+pub mod scroll;
 pub mod types;
 pub mod utils;
 
 pub use cache::{CachedContent, MemoryCache};
 pub use preview::{FilePreviewer, PreviewData};
 pub use read_positions::{ReadPosition, ReadPositions};
+pub use scroll::{SmoothScrollMode, SmoothScroller, max_scroll_y};
 pub use types::{
     DirState, FolderRowState, FolderState, GridThumbnail, HistoryState, ImageState, KglanceState,
     MarkdownState, MediaState, PageCacheEntry, PdfSidebarMode, PdfState, SelectionPoint,
