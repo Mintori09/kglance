@@ -32,23 +32,42 @@ pub(crate) fn build_epub_content<'a>(
     let use_virtual =
         chapter_blocks.len() > VIRTUAL_THRESHOLD && offsets.len() == chapter_blocks.len();
 
+    let content_padding = crate::ui::theme::scale_size(CONTENT_SPACING, ctx.font_size);
+
     let elements: Vec<Element<'a, Message>> = if use_virtual {
         let md_state = &state.markdown_state;
-        let min_buf = md_state.viewport_height.max(600.0);
-        let max_buf = (md_state.viewport_height * 4.0).max(3000.0);
-        let buffer = (md_state.viewport_height * 2.0).clamp(min_buf, max_buf);
+        let vh = md_state.viewport_height.max(600.0);
+        let overscan_px = (vh * 1.5 + md_state.smooth_scroll.velocity.abs() * 0.12)
+            .clamp(vh, (vh * 5.0).max(3000.0));
         const CHUNK_SIZE: usize = 32;
+        const OVERSCAN_CHUNKS: usize = 1;
 
-        let view_top = (md_state.scroll_y - buffer).max(0.0);
-        let view_bottom = md_state.scroll_y + md_state.viewport_height + buffer;
+        let view_top = (md_state.scroll_y - overscan_px).max(0.0);
+        let view_bottom = md_state.scroll_y + md_state.viewport_height + overscan_px;
 
         let raw_first = offsets.partition_point(|&y| y < view_top).saturating_sub(1);
         let raw_last = offsets
             .partition_point(|&y| y <= view_bottom)
             .min(chapter_blocks.len());
 
-        let first_visible = (raw_first / CHUNK_SIZE) * CHUNK_SIZE;
-        let last_visible = (raw_last.div_ceil(CHUNK_SIZE) * CHUNK_SIZE).min(chapter_blocks.len());
+        let remaining_blocks = chapter_blocks.len().saturating_sub(raw_last);
+        let dist_to_bottom =
+            md_state.total_content_height - (md_state.scroll_y + md_state.viewport_height);
+        let is_near_bottom =
+            remaining_blocks <= CHUNK_SIZE * 2 || dist_to_bottom <= overscan_px * 1.5;
+
+        let first_visible =
+            raw_first.saturating_sub(OVERSCAN_CHUNKS * CHUNK_SIZE) / CHUNK_SIZE * CHUNK_SIZE;
+
+        let last_visible = if is_near_bottom {
+            chapter_blocks.len()
+        } else {
+            (raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE)
+                .min(chapter_blocks.len())
+                .div_ceil(CHUNK_SIZE)
+                * CHUNK_SIZE
+        };
+        let last_visible = last_visible.min(chapter_blocks.len());
 
         let top_height = if first_visible > 0 {
             offsets[first_visible] - offsets[0]
@@ -57,7 +76,7 @@ pub(crate) fn build_epub_content<'a>(
         };
 
         let bottom_height = if last_visible < chapter_blocks.len() {
-            (md_state.total_content_height - offsets[last_visible]).max(0.0)
+            ((md_state.total_content_height - content_padding) - offsets[last_visible]).max(0.0)
         } else {
             0.0
         };
@@ -152,13 +171,14 @@ pub(crate) fn build_epub_content<'a>(
             .collect()
     };
 
-    let content_padding = crate::ui::theme::scale_size(CONTENT_SPACING, ctx.font_size);
     scrollable_content(elements, max_text_width, content_padding, "content_scroll")
         .filter_wheel(true)
+        .on_wheel(|delta| crate::app::messages::MarkdownMsg::SmoothWheelScrolled(delta).into())
         .on_scroll(|v| {
             crate::app::messages::MarkdownMsg::Scrolled {
                 y: v.absolute_offset().y,
                 viewport_height: v.bounds().height,
+                content_height: v.content_bounds().height,
             }
             .into()
         })

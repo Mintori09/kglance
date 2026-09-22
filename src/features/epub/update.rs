@@ -89,7 +89,7 @@ pub fn handle_chapter_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message>
         ensure_chapter_loaded(app, idx);
         app.record_read_position();
         app.state.epub.markdown_state.scroll_y = 0.0;
-        app.state.epub.markdown_state.smooth_scroll.is_animating = false;
+        app.state.epub.markdown_state.smooth_scroll.reset();
 
         return operation::snap_to(
             "content_scroll",
@@ -112,6 +112,19 @@ pub fn handle_chapter_toggle_collapse(app: &mut KglanceApp, idx: usize) -> Task<
 mod tests {
     use super::*;
     use crate::app::test_util::{epub_content, test_app};
+
+    #[test]
+    fn test_chapter_clicked_resets_smooth_scroll_completely() {
+        let mut app = test_app(Some(epub_content(&["Ch 1", "Ch 2"])));
+        app.state.epub.markdown_state.smooth_scroll.target_y = 400.0;
+        app.state.epub.markdown_state.smooth_scroll.is_animating = true;
+        app.state.epub.markdown_state.scroll_y = 200.0;
+
+        let _ = handle_chapter_clicked(&mut app, 1);
+        assert_eq!(app.state.epub.markdown_state.scroll_y, 0.0);
+        assert_eq!(app.state.epub.markdown_state.smooth_scroll.target_y, 0.0);
+        assert!(!app.state.epub.markdown_state.smooth_scroll.is_animating);
+    }
 
     #[test]
     fn test_handle_chapter_clicked_switches_active_chapter() {

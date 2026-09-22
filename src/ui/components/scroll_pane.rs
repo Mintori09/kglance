@@ -20,6 +20,7 @@ pub fn scroll_pane<'a, Message: 'static>(
         height: Length::Fill,
         container_padding: None,
         filter_wheel: false,
+        on_wheel: None,
     }
 }
 
@@ -27,6 +28,7 @@ pub struct ScrollPaneBuilder<'a, Message> {
     id: &'static str,
     content: Element<'a, Message>,
     on_scroll: Option<Box<dyn Fn(scrollable::Viewport) -> Message + 'static>>,
+    on_wheel: Option<Box<dyn Fn(mouse::ScrollDelta) -> Message + 'static>>,
     height: Length,
     container_padding: Option<Padding>,
     filter_wheel: bool,
@@ -38,6 +40,14 @@ impl<'a, Message: 'static> ScrollPaneBuilder<'a, Message> {
         F: Fn(scrollable::Viewport) -> Message + 'static,
     {
         self.on_scroll = Some(Box::new(f));
+        self
+    }
+
+    pub fn on_wheel<F>(mut self, f: F) -> Self
+    where
+        F: Fn(mouse::ScrollDelta) -> Message + 'static,
+    {
+        self.on_wheel = Some(Box::new(f));
         self
     }
 
@@ -71,7 +81,10 @@ impl<'a, Message: 'static> ScrollPaneBuilder<'a, Message> {
         let mut scroll = scrollable(inner)
             .id(self.id)
             .direction(scrollable::Direction::Vertical(
-                scrollable::Scrollbar::new().width(4).margin(2),
+                scrollable::Scrollbar::new()
+                    .width(4)
+                    .scroller_width(4)
+                    .margin(2),
             ))
             .style(default_scrollable)
             .width(Length::Fill)
@@ -83,7 +96,11 @@ impl<'a, Message: 'static> ScrollPaneBuilder<'a, Message> {
 
         let el: Element<'a, Message> = scroll.into();
         if self.filter_wheel {
-            ScrollFilter::new(el, true).into()
+            let mut filter = ScrollFilter::new(el, true);
+            if let Some(on_wheel) = self.on_wheel {
+                filter = filter.on_wheel(on_wheel);
+            }
+            filter.into()
         } else {
             el
         }
@@ -93,6 +110,7 @@ impl<'a, Message: 'static> ScrollPaneBuilder<'a, Message> {
 pub struct ScrollFilter<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer> {
     content: Element<'a, Message, Theme, Renderer>,
     filter_wheel: bool,
+    on_wheel: Option<Box<dyn Fn(mouse::ScrollDelta) -> Message + 'a>>,
 }
 
 impl<'a, Message, Theme, Renderer> ScrollFilter<'a, Message, Theme, Renderer> {
@@ -103,7 +121,16 @@ impl<'a, Message, Theme, Renderer> ScrollFilter<'a, Message, Theme, Renderer> {
         Self {
             content: content.into(),
             filter_wheel,
+            on_wheel: None,
         }
+    }
+
+    pub fn on_wheel<F>(mut self, f: F) -> Self
+    where
+        F: Fn(mouse::ScrollDelta) -> Message + 'a,
+    {
+        self.on_wheel = Some(Box::new(f));
+        self
     }
 }
 
@@ -183,7 +210,19 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        if self.filter_wheel && matches!(event, Event::Mouse(mouse::Event::WheelScrolled { .. })) {
+        if self.filter_wheel
+            && let Event::Mouse(mouse::Event::WheelScrolled { delta }) = event
+            && cursor.is_over(layout.bounds())
+        {
+            let dy = match delta {
+                mouse::ScrollDelta::Lines { y, .. } => *y,
+                mouse::ScrollDelta::Pixels { y, .. } => *y,
+            };
+            if dy.abs() > f32::EPSILON
+                && let Some(on_wheel) = &self.on_wheel
+            {
+                shell.publish(on_wheel(*delta));
+            }
             return;
         }
 

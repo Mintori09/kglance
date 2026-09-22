@@ -99,22 +99,41 @@ fn build_scrollable_content<'a>(
     let offsets = &state.block_y_offsets;
     let use_virtual = blocks.len() > VIRTUAL_THRESHOLD && offsets.len() == blocks.len();
 
+    let content_padding =
+        crate::ui::theme::scale_size(STYLE.general.content_padding, ctx.font_size);
     let elements: Vec<Element<'a, Message>> = if use_virtual {
-        let min_buf = state.viewport_height.max(600.0);
-        let max_buf = (state.viewport_height * 4.0).max(3000.0);
-        let buffer = (state.viewport_height * 2.0).clamp(min_buf, max_buf);
+        // Dynamic overscan in pixels based on scrolling velocity
+        let vh = state.viewport_height.max(600.0);
+        let overscan_px = (vh * 1.5 + state.smooth_scroll.velocity.abs() * 0.12)
+            .clamp(vh, (vh * 5.0).max(3000.0));
         const CHUNK_SIZE: usize = 32;
+        const OVERSCAN_CHUNKS: usize = 1;
 
-        let view_top = (state.scroll_y - buffer).max(0.0);
-        let view_bottom = state.scroll_y + state.viewport_height + buffer;
+        let view_top = (state.scroll_y - overscan_px).max(0.0);
+        let view_bottom = state.scroll_y + state.viewport_height + overscan_px;
 
         let raw_first = offsets.partition_point(|&y| y < view_top).saturating_sub(1);
         let raw_last = offsets
             .partition_point(|&y| y <= view_bottom)
             .min(blocks.len());
 
-        let first_visible = (raw_first / CHUNK_SIZE) * CHUNK_SIZE;
-        let last_visible = (raw_last.div_ceil(CHUNK_SIZE) * CHUNK_SIZE).min(blocks.len());
+        let remaining_blocks = blocks.len().saturating_sub(raw_last);
+        let dist_to_bottom = state.total_content_height - (state.scroll_y + state.viewport_height);
+        let is_near_bottom =
+            remaining_blocks <= CHUNK_SIZE * 2 || dist_to_bottom <= overscan_px * 1.5;
+
+        let first_visible =
+            raw_first.saturating_sub(OVERSCAN_CHUNKS * CHUNK_SIZE) / CHUNK_SIZE * CHUNK_SIZE;
+
+        let last_visible = if is_near_bottom {
+            blocks.len()
+        } else {
+            (raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE)
+                .min(blocks.len())
+                .div_ceil(CHUNK_SIZE)
+                * CHUNK_SIZE
+        };
+        let last_visible = last_visible.min(blocks.len());
 
         let top_height = if first_visible > 0 {
             offsets[first_visible] - offsets[0]
@@ -123,7 +142,7 @@ fn build_scrollable_content<'a>(
         };
 
         let bottom_height = if last_visible < blocks.len() {
-            (state.total_content_height - offsets[last_visible]).max(0.0)
+            ((state.total_content_height - content_padding) - offsets[last_visible]).max(0.0)
         } else {
             0.0
         };
@@ -199,14 +218,14 @@ fn build_scrollable_content<'a>(
             .collect()
     };
 
-    let content_padding =
-        crate::ui::theme::scale_size(STYLE.general.content_padding, ctx.font_size);
     scrollable_content(elements, max_text_width, content_padding, SCROLL_PANE_ID)
         .filter_wheel(true)
+        .on_wheel(|delta| crate::app::messages::MarkdownMsg::SmoothWheelScrolled(delta).into())
         .on_scroll(|v| {
             crate::app::messages::MarkdownMsg::Scrolled {
                 y: v.absolute_offset().y,
                 viewport_height: v.bounds().height,
+                content_height: v.content_bounds().height,
             }
             .into()
         })
