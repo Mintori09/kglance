@@ -77,3 +77,69 @@ fn test_markdown_direct_block_parsing_and_math() {
     assert!(matches!(blocks[1], Block::Paragraph(_)));
     assert!(matches!(blocks[2], Block::CodeBlock { .. }));
 }
+
+#[test]
+fn test_virtual_scroll_height_invariance() {
+    let padding = 24.0f32;
+    let block_count = 500;
+    let block_h = 50.0f32;
+
+    let mut offsets = Vec::with_capacity(block_count);
+    let mut y = padding;
+    for _ in 0..block_count {
+        offsets.push(y);
+        y += block_h;
+    }
+    let total_content_height = y + padding;
+
+    let vh: f32 = 800.0;
+    const CHUNK_SIZE: usize = 32;
+    const OVERSCAN_CHUNKS: usize = 1;
+
+    for scroll_y in [0.0f32, 500.0, 1500.0, 5000.0, 12000.0, 20000.0, 24000.0] {
+        let overscan_px = (vh * 1.5f32).clamp(vh, (vh * 5.0f32).max(3000.0f32));
+        let view_top = (scroll_y - overscan_px).max(0.0f32);
+        let view_bottom = scroll_y + vh + overscan_px;
+
+        let raw_first = offsets.partition_point(|&y| y < view_top).saturating_sub(1);
+        let raw_last = offsets
+            .partition_point(|&y| y <= view_bottom)
+            .min(block_count);
+
+        let remaining_blocks = block_count.saturating_sub(raw_last);
+        let dist_to_bottom = total_content_height - (scroll_y + vh);
+        let is_near_bottom =
+            remaining_blocks <= CHUNK_SIZE * 2 || dist_to_bottom <= overscan_px * 1.5;
+
+        let first_visible =
+            raw_first.saturating_sub(OVERSCAN_CHUNKS * CHUNK_SIZE) / CHUNK_SIZE * CHUNK_SIZE;
+        let last_visible = if is_near_bottom {
+            block_count
+        } else {
+            (raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE)
+                .min(block_count)
+                .div_ceil(CHUNK_SIZE)
+                * CHUNK_SIZE
+        };
+        let last_visible = last_visible.min(block_count);
+
+        let top_height = if first_visible > 0 {
+            offsets[first_visible] - offsets[0]
+        } else {
+            0.0
+        };
+        let bottom_height = if last_visible < block_count {
+            ((total_content_height - padding) - offsets[last_visible]).max(0.0)
+        } else {
+            0.0
+        };
+
+        let rendered_height = (last_visible - first_visible) as f32 * block_h;
+        let total_inner_column = padding + top_height + rendered_height + bottom_height + padding;
+
+        assert_eq!(
+            total_inner_column, total_content_height,
+            "Total virtual column height must equal total_content_height at scroll_y={scroll_y}"
+        );
+    }
+}

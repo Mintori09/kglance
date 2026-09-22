@@ -18,6 +18,7 @@ You are a senior Rust engineer developing Kglance (Oxiview), a high-performance 
 - Never auto commit except i tell you do it.
 - Use cargo nextest instead of cargo test with under 3 thread per run.
 - Run `just release` after finishing (normally takes 2m30s).
+- Never poll a backgrounded job (`sleep` / `ps` / `pgrep` / `top` / status polling loops) — do other work or stop calling tools/end your reply; the harness will wake you with its output when finished.
 
 ## File Deletion
 
@@ -43,8 +44,11 @@ unless explicitly requested by the user.
 - Prefer proper ownership and borrowing
 - Minimize unnecessary clones and allocations
 - Handle errors with `Result` or `Option`
-- Favor pattern matching
-- Keep modules small with clear responsibility
+- Favor pattern matching; make `match` statements exhaustive on domain types and avoid wildcard `_` arms where variants can evolve
+- Always inline variables into formatting strings (e.g. `format!("{var}")`)
+- Prefer method references over redundant closures (e.g. `.map(Type::func)`)
+- Avoid boolean or ambiguous `Option` parameters (e.g. `foo(false)`); prefer enums, newtypes, or builder methods that keep callsites self-documenting
+- Keep modules small with clear responsibility (target under 500 LoC, split before exceeding ~800 LoC)
 
 ### Forbidden
 
@@ -52,6 +56,24 @@ unless explicitly requested by the user.
 - Dead code or redundant logic
 - `unwrap()` / `expect()` in normal control flow
 - Adding new dependencies when `std` suffices
+- Single-use micro-helpers that scatter trivial 1–2 line logic
+- Leaking test-only helper functions into production structs or modules
+- Wildcard `_` matches that silently swallow unhandled enum variants
+
+### Module & Change Size Guidance
+
+- Target Rust modules under 500 LoC, excluding tests.
+- If a file exceeds roughly 800 LoC, add new functionality in a new submodule rather than extending the existing file (applies especially to central orchestration files like `src/app/` or `src/core/preview.rs`).
+- Unless the change is mechanical, keep total changed lines under 500 lines of diff. For larger changes, explore splitting into reviewable stages.
+
+### External Surface Protection
+
+Treat the following as public contracts:
+- DBus interfaces (`zbus` services, methods, signals)
+- CLI flags and arguments
+- Configuration schema and file parsing
+
+Search for and avoid breaking changes to these surfaces without explicit user approval.
 
 ---
 
@@ -261,6 +283,17 @@ Every new dependency must have a clear rationale.
 
 ---
 
+# Testing Guidelines
+
+- Prefer `cargo nextest run -j 3` instead of standard `cargo test`.
+- Assert deep equality of entire objects/structs (`assert_eq!`) rather than testing fields one by one.
+- For test modules exceeding ~100 LoC, move them into a sibling test file using `#[path = "..._tests.rs"] mod tests;` to keep source files lean.
+- Do not add tests for values that are statically defined or logic that was intentionally removed.
+- Avoid test-only helpers inside production structs.
+- Avoid mutating process environment variables in tests; pass configuration explicitly.
+
+---
+
 # Benchmark
 
 Use benchmarks in:
@@ -383,7 +416,7 @@ cargo clippy --all-targets -- -D warnings
 cargo check
 cargo fmt
 cargo clippy --all-targets --all-features -- -D warnings
-cargo test
+cargo nextest run -j 3
 ```
 
 ---
