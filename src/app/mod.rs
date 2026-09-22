@@ -1074,7 +1074,10 @@ impl KglanceApp {
             iced::time::every(std::time::Duration::from_millis(
                 crate::features::markdown::update::SMOOTH_SCROLL_TICK_MS,
             ))
-            .map(|_| crate::app::messages::MarkdownMsg::SmoothScrollTick.into())
+            .map(|_| {
+                crate::app::messages::MarkdownMsg::SmoothScrollTick(std::time::Instant::now())
+                    .into()
+            })
         } else {
             Subscription::none()
         };

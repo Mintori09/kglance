@@ -268,9 +268,16 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::MarkdownMsg::TocToggleCollapse(idx) => {
                 crate::features::markdown::update::handle_toc_toggle_collapse(app, idx)
             }
-            crate::app::messages::MarkdownMsg::Scrolled { y, viewport_height } => {
-                crate::features::markdown::update::handle_markdown_scrolled(app, y, viewport_height)
-            }
+            crate::app::messages::MarkdownMsg::Scrolled {
+                y,
+                viewport_height,
+                content_height,
+            } => crate::features::markdown::update::handle_markdown_scrolled(
+                app,
+                y,
+                viewport_height,
+                content_height,
+            ),
             crate::app::messages::MarkdownMsg::SearchToggle => {
                 crate::features::markdown::update::handle_search_toggle(app)
             }
@@ -317,8 +324,11 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::MarkdownMsg::AutoScrollTick => {
                 crate::features::markdown::update::handle_auto_scroll_tick(app)
             }
-            crate::app::messages::MarkdownMsg::SmoothScrollTick => {
-                crate::features::markdown::update::handle_smooth_scroll_tick(app)
+            crate::app::messages::MarkdownMsg::SmoothScrollTick(now) => {
+                crate::features::markdown::update::handle_smooth_scroll_tick(app, now)
+            }
+            crate::app::messages::MarkdownMsg::SmoothWheelScrolled(delta) => {
+                crate::features::markdown::update::handle_smooth_wheel_scrolled(app, delta)
             }
         },
         Message::Epub(msg) => match msg {
