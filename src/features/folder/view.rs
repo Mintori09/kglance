@@ -75,6 +75,7 @@ pub fn view_folder<'a>(state: &'a FolderState, theme: AppTheme) -> Element<'a, M
         summary_block,
         folder_header,
         scrollable(rows_list)
+            .id("content_scroll")
             .style(default_scrollable)
             .height(Length::Fill)
     ]

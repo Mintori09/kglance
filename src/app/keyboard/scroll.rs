@@ -133,7 +133,7 @@ impl KglanceApp {
         Some(self.snap_to_top())
     }
 
-    fn snap_to_top(&mut self) -> Task<Message> {
+    pub(super) fn snap_to_top(&mut self) -> Task<Message> {
         self.reset_scroll_pending();
 
         if self.is_smooth_scrollable() {
@@ -156,7 +156,7 @@ impl KglanceApp {
         operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 0.0 })
     }
 
-    fn snap_to_bottom(&mut self) -> Task<Message> {
+    pub(super) fn snap_to_bottom(&mut self) -> Task<Message> {
         self.reset_scroll_pending();
 
         if self.is_smooth_scrollable() {
@@ -466,6 +466,55 @@ mod tests {
         for _ in 0..50 {
             now += std::time::Duration::from_millis(16);
             let _ = crate::features::markdown::update::handle_smooth_scroll_tick(&mut app, now);
+        }
+        let state = crate::features::markdown::update::active_markdown_state(&app);
+        assert_eq!(state.scroll_y, 0.0);
+        assert!(!state.smooth_scroll.is_animating);
+    }
+
+    #[test]
+    fn test_gg_and_g_key_press_with_scrolled_events() {
+        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
+        let state = crate::features::markdown::update::active_markdown_state_mut(&mut app);
+        state.viewport_height = 800.0;
+        state.total_content_height = 3000.0;
+        state.scroll_y = 0.0;
+
+        let g_key = iced::keyboard::Key::Character("g".into());
+        let cap_g_key = iced::keyboard::Key::Character("G".into());
+        let empty_mod = iced::keyboard::Modifiers::default();
+
+        // 1. Press 'G' to go to bottom
+        let _ = app.handle_key_pressed(cap_g_key, empty_mod);
+        let mut now = std::time::Instant::now();
+        for _ in 0..50 {
+            now += std::time::Duration::from_millis(16);
+            let _ = crate::features::markdown::update::handle_smooth_scroll_tick(&mut app, now);
+            let current_y = crate::features::markdown::update::active_markdown_state(&app).scroll_y;
+            // Simulate Iced emitting Scrolled event on each frame
+            let _ = crate::features::markdown::update::handle_markdown_scrolled(
+                &mut app, current_y, 800.0, 3000.0,
+            );
+        }
+        let state = crate::features::markdown::update::active_markdown_state(&app);
+        assert_eq!(state.scroll_y, 2200.0);
+        assert!(!state.smooth_scroll.is_animating);
+
+        // 2. Press 'g' once -> sets pending_g
+        let _ = app.handle_key_pressed(g_key.clone(), empty_mod);
+        assert!(app.pending_g);
+
+        // 3. Press 'g' twice -> triggers snap_to_top
+        let _ = app.handle_key_pressed(g_key, empty_mod);
+        assert!(!app.pending_g);
+
+        for _ in 0..50 {
+            now += std::time::Duration::from_millis(16);
+            let _ = crate::features::markdown::update::handle_smooth_scroll_tick(&mut app, now);
+            let current_y = crate::features::markdown::update::active_markdown_state(&app).scroll_y;
+            let _ = crate::features::markdown::update::handle_markdown_scrolled(
+                &mut app, current_y, 800.0, 3000.0,
+            );
         }
         let state = crate::features::markdown::update::active_markdown_state(&app);
         assert_eq!(state.scroll_y, 0.0);
