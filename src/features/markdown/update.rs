@@ -100,19 +100,23 @@ pub fn handle_markdown_scrolled(
         return Task::none();
     }
     let state = active_markdown_state_mut(app);
-    let delta_y = (state.scroll_y - y).abs();
     let delta_vh = (state.viewport_height - viewport_height).abs();
-    if delta_y < 1.0 && delta_vh < 1.0 {
-        return Task::none();
-    }
-    state.smooth_scroll.check_interruption(y);
-    state.smooth_scroll.target_y = y;
-    state.smooth_scroll.last_applied_y = y;
-    state.scroll_y = y;
     state.viewport_height = viewport_height;
     if content_height > 0.0 && state.block_y_offsets.len() <= 20 {
         state.total_content_height = content_height;
     }
+
+    if state.smooth_scroll.is_animating {
+        return Task::none();
+    }
+
+    let delta_y = (state.scroll_y - y).abs();
+    if delta_y < 1.0 && delta_vh < 1.0 {
+        return Task::none();
+    }
+
+    state.smooth_scroll.stop(y);
+    state.scroll_y = y;
     app.record_read_position();
     let toc = &app.state.markdown.toc;
     if let Some(active_pos) = toc.iter().rposition(|e| e.y_offset <= y + 50.0) {
@@ -1350,20 +1354,28 @@ mod tests {
     }
 
     #[test]
-    fn test_markdown_scrolled_cancels_running_animation_cleanly() {
+    fn test_markdown_scrolled_preserves_animation_and_handles_manual_scroll() {
         use crate::app::test_util::{markdown_content, test_app};
 
         let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
         app.state.markdown.smooth_scroll.is_animating = true;
         app.state.markdown.smooth_scroll.target_y = 1000.0;
         app.state.markdown.smooth_scroll.last_applied_y = 100.0;
+        app.state.markdown.scroll_y = 100.0;
         app.state.markdown.viewport_height = 800.0;
         app.state.markdown.total_content_height = 3000.0;
 
+        // While animating, asynchronous on_scroll does not clobber target_y or scroll_y
         let _ = handle_markdown_scrolled(&mut app, 250.0, 800.0, 3000.0);
-        assert_eq!(app.state.markdown.scroll_y, 250.0);
-        assert_eq!(app.state.markdown.smooth_scroll.target_y, 250.0);
-        assert_eq!(app.state.markdown.smooth_scroll.last_applied_y, 250.0);
+        assert_eq!(app.state.markdown.scroll_y, 100.0);
+        assert_eq!(app.state.markdown.smooth_scroll.target_y, 1000.0);
+        assert!(app.state.markdown.smooth_scroll.is_animating);
+
+        // When not animating, on_scroll (e.g. manual scrollbar drag) updates scroll_y
+        app.state.markdown.smooth_scroll.is_animating = false;
+        let _ = handle_markdown_scrolled(&mut app, 400.0, 800.0, 3000.0);
+        assert_eq!(app.state.markdown.scroll_y, 400.0);
+        assert_eq!(app.state.markdown.smooth_scroll.target_y, 400.0);
         assert!(!app.state.markdown.smooth_scroll.is_animating);
     }
 }

@@ -81,6 +81,7 @@ fn render_spreadsheet_body<'a>(
     let rows_list = render_table_rows(&sorted_rows, sheet.headers.len(), theme);
 
     let scrollable_area = scrollable(rows_list)
+        .id("content_scroll")
         .style(default_scrollable)
         .height(Length::Fill);
 

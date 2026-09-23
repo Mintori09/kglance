@@ -27,18 +27,43 @@ impl KglanceApp {
                 self.move_selection_up();
                 Some(Task::none())
             }
+            iced::keyboard::Key::Character(c) if c == "j" => {
+                self.move_selection_down();
+                Some(Task::none())
+            }
+            iced::keyboard::Key::Character(c) if c == "k" => {
+                self.move_selection_up();
+                Some(Task::none())
+            }
+            iced::keyboard::Key::Character(c) if c == "g" => {
+                if self.pending_g {
+                    self.pending_g = false;
+                    self.state.folder.selected_index = Some(0);
+                    Some(self.snap_to_top())
+                } else {
+                    self.pending_g = true;
+                    None
+                }
+            }
+            iced::keyboard::Key::Character(c) if c == "G" => {
+                self.pending_g = false;
+                let last = self.folder_row_count().saturating_sub(1);
+                self.state.folder.selected_index = Some(last);
+                Some(self.snap_to_bottom())
+            }
             iced::keyboard::Key::Named(Named::ArrowLeft) => self.navigate_to_parent_folder(),
             iced::keyboard::Key::Named(Named::ArrowRight)
             | iced::keyboard::Key::Named(Named::Enter) => self.open_selected_row(),
             iced::keyboard::Key::Named(Named::Home) => {
                 self.pending_home = false;
                 self.state.folder.selected_index = Some(0);
-                Some(Task::none())
+                Some(self.snap_to_top())
             }
             iced::keyboard::Key::Named(Named::End) => {
                 self.pending_home = false;
-                self.state.folder.selected_index = Some(self.folder_row_count() - 1);
-                Some(Task::none())
+                let last = self.folder_row_count().saturating_sub(1);
+                self.state.folder.selected_index = Some(last);
+                Some(self.snap_to_bottom())
             }
             iced::keyboard::Key::Named(Named::PageUp) => {
                 self.move_selection_by(-FOLDER_PAGE_STEP);
