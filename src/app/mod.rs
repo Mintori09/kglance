@@ -1040,8 +1040,11 @@ impl KglanceApp {
             }
             iced::Event::Mouse(iced::mouse::Event::WheelScrolled { delta }) => {
                 let (dx, dy) = match delta {
-                    iced::mouse::ScrollDelta::Lines { x, y } => (x * 40.0, y * 40.0),
-                    iced::mouse::ScrollDelta::Pixels { x, y } => (x, y),
+                    iced::mouse::ScrollDelta::Lines { x, y } => (x * 80.0, y * 80.0),
+                    iced::mouse::ScrollDelta::Pixels { x, y } => (
+                        x * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER,
+                        y * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER,
+                    ),
                 };
                 Some(Message::ScrollDelta { x: dx, y: dy })
             }
