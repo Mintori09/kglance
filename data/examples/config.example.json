@@ -12,6 +12,14 @@
     "max_text_width": 820.0,
     "prefer_mermaid_cli": false,
     "word_wrap": false,
-    "json_tree_view": false
+    "json_tree_view": true
+  },
+  "cache": {
+    "max_memory_mb": 512
+  },
+  "scroll": {
+    "smooth_scroll_enabled": true,
+    "friction": 1.8,
+    "spring_stiffness": 180.0
   }
 }
