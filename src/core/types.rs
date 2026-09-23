@@ -707,12 +707,18 @@ pub struct MarkdownState {
     pub is_mouse_held: bool,
     pub auto_scroll_delta: Option<f32>,
     pub drag_last_y: f32,
+    /// `block_layouts[i]` stores the estimated and measured height for block `i`.
+    pub block_layouts: Vec<crate::parsers::markdown::BlockLayout>,
     /// `block_y_offsets[i]` is the pixel Y where block `i` starts.
     pub block_y_offsets: Vec<f32>,
     /// Total estimated height of all content (sum of all block heights).
     pub total_content_height: f32,
     /// Height of the visible scroll viewport; updated on scroll events.
     pub viewport_height: f32,
+    /// Content width used when current block layouts were computed.
+    pub layout_content_width: f32,
+    /// Font size used when current block layouts were computed.
+    pub layout_font_size: f32,
     /// Atomic generation ID specifically for background markdown tasks (mermaid, images).
     pub generation_id: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     pub smooth_scroll: SmoothScrollState,
@@ -751,9 +757,12 @@ impl Default for MarkdownState {
             is_mouse_held: false,
             auto_scroll_delta: None,
             drag_last_y: 0.0,
+            block_layouts: Vec::new(),
             block_y_offsets: Vec::new(),
             total_content_height: 0.0,
             viewport_height: 800.0,
+            layout_content_width: 0.0,
+            layout_font_size: 0.0,
             generation_id: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             smooth_scroll: SmoothScrollState::default(),
             touchpad_tracker: crate::core::scroll::TouchpadGestureTracker::default(),

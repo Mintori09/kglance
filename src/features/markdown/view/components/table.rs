@@ -17,14 +17,23 @@ pub(crate) fn render_table<'a>(
     let header_size = scale_size(STYLE.table.header_font_size, ctx.font_size);
     let cell_size = scale_size(STYLE.table.cell_font_size, ctx.font_size);
 
-    let get_column_width = |index: usize| -> Length {
-        table
-            .column_weights
-            .get(index)
-            .map_or(Length::FillPortion(1), |&weight| {
-                Length::FillPortion(weight)
-            })
+    let col_count = if table.headers.is_empty() {
+        table.rows.first().map_or(1, |r| r.len())
+    } else {
+        table.headers.len()
     };
+    let num_cols = if col_count == 0 { 1 } else { col_count };
+
+    let col_widths: Vec<Length> = (0..num_cols)
+        .map(|i| {
+            table
+                .column_weights
+                .get(i)
+                .map_or(Length::FillPortion(1), |&weight| {
+                    Length::FillPortion(weight)
+                })
+        })
+        .collect();
 
     let header_cells: Vec<Element<'a, Message>> = table
         .headers
@@ -36,9 +45,10 @@ pub(crate) fn render_table<'a>(
                 ..*ctx
             };
             let cell = render_inlines(&header.content, header_size, &cell_ctx);
+            let width = col_widths.get(i).copied().unwrap_or(Length::FillPortion(1));
             container(cell)
                 .padding(STYLE.table.header_padding)
-                .width(get_column_width(i))
+                .width(width)
                 .into()
         })
         .collect();
@@ -57,13 +67,6 @@ pub(crate) fn render_table<'a>(
         children.push(separator.into());
     }
 
-    let col_count = if table.headers.is_empty() {
-        table.rows.first().map_or(1, |r| r.len())
-    } else {
-        table.headers.len()
-    };
-    let num_cols = if col_count == 0 { 1 } else { col_count };
-
     for (row_index, row_data) in table.rows.iter().enumerate() {
         let cells: Vec<Element<'a, Message>> = row_data
             .iter()
@@ -74,9 +77,10 @@ pub(crate) fn render_table<'a>(
                     ..*ctx
                 };
                 let cell_content = render_inlines(&cell.content, cell_size, &cell_ctx);
+                let width = col_widths.get(j).copied().unwrap_or(Length::FillPortion(1));
                 container(cell_content)
                     .padding(STYLE.table.cell_padding)
-                    .width(get_column_width(j))
+                    .width(width)
                     .into()
             })
             .collect();

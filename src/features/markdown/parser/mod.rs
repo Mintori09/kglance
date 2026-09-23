@@ -16,7 +16,7 @@ pub use layout::{
     block_margin, estimated_block_height, extract_toc, rescale_markdown_scroll_y, slugify,
 };
 pub use mermaid::render_mermaid_to_png;
-pub use types::{AlertKind, Block, Inline, ListItem, TableBlock, TableCell};
+pub use types::{AlertKind, Block, BlockLayout, Inline, ListItem, TableBlock, TableCell};
 
 use std::path::Path;
 

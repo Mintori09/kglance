@@ -19,8 +19,10 @@ fn theme_set() -> &'static ThemeSet {
 
 use crate::ui::theme::AppTheme;
 use crate::ui::theme::color::primitive::syntect_to_iced_color;
+use rustc_hash::FxHasher;
+use std::hash::Hasher;
 
-type HighlightCacheKey = (Option<String>, String, AppTheme);
+type HighlightCacheKey = (Option<String>, u64, AppTheme);
 type HighlightSpanRanges = Vec<Vec<(Color, usize, usize)>>;
 
 fn highlight_cache() -> &'static Mutex<LruCache<HighlightCacheKey, HighlightSpanRanges>> {
@@ -38,7 +40,12 @@ pub(crate) fn highlight_code<'a>(
     code: &'a str,
     app_theme: AppTheme,
 ) -> Vec<Vec<(Color, &'a str)>> {
-    let cache_key = (lang.clone(), code.to_string(), app_theme);
+    let code_hash = {
+        let mut hasher = FxHasher::default();
+        hasher.write(code.as_bytes());
+        hasher.finish()
+    };
+    let cache_key = (lang.clone(), code_hash, app_theme);
 
     if let Ok(mut cache) = highlight_cache().lock()
         && let Some(ranges) = cache.get(&cache_key)
