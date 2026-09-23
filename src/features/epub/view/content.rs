@@ -37,8 +37,12 @@ pub(crate) fn build_epub_content<'a>(
     let elements: Vec<Element<'a, Message>> = if use_virtual {
         let md_state = &state.markdown_state;
         let vh = md_state.viewport_height.max(600.0);
-        let overscan_px = (vh * 1.5 + md_state.smooth_scroll.velocity.abs() * 0.12)
-            .clamp(vh, (vh * 5.0).max(3000.0));
+        let velocity = if md_state.scroll_controller.is_animating() {
+            md_state.scroll_controller.velocity()
+        } else {
+            md_state.smooth_scroll.velocity
+        };
+        let overscan_px = (vh * 1.5 + velocity.abs() * 0.12).clamp(vh, (vh * 5.0).max(3000.0));
         const CHUNK_SIZE: usize = 32;
         const OVERSCAN_CHUNKS: usize = 1;
 

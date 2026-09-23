@@ -60,6 +60,158 @@ pub fn promote_page_from_disk_if_cached(
     false
 }
 
+pub fn handle_wheel_scrolled(
+    app: &mut KglanceApp,
+    delta: iced::mouse::ScrollDelta,
+) -> Task<Message> {
+    if app.ctrl_held {
+        return Task::none();
+    }
+    let pdf_state = active_pdf_state_mut(app);
+    if pdf_state.viewport_height <= 0.0 {
+        return Task::none();
+    }
+    let vh = pdf_state.viewport_height;
+    let extent = crate::core::scroll::ViewportExtent {
+        content_height: pdf_state.total_content_height,
+        viewport_height: vh,
+    };
+    let max_y = extent.max_scroll_y();
+
+    match delta {
+        iced::mouse::ScrollDelta::Lines { y, .. } => {
+            if y.abs() > f32::EPSILON {
+                let line_height =
+                    (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION).clamp(40.0, 120.0);
+                let step = -y * line_height;
+                pdf_state
+                    .smooth_scroll
+                    .start_interactive(pdf_state.scroll_y, step, max_y);
+            }
+            Task::none()
+        }
+        iced::mouse::ScrollDelta::Pixels { x, y } => {
+            let now = std::time::Instant::now();
+            let scaled_delta_y = -y * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
+            let scaled_delta_x = -x * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
+
+            pdf_state
+                .scroll_controller
+                .set_position_y(pdf_state.scroll_y);
+            pdf_state.scroll_controller.handle_input(
+                crate::core::scroll::ScrollInput::Motion {
+                    delta_x: scaled_delta_x,
+                    delta_y: scaled_delta_y,
+                    time: now,
+                },
+                extent,
+            );
+
+            let new_y = pdf_state.scroll_controller.position_y();
+            pdf_state.scroll_y = new_y;
+            pdf_state.smooth_scroll.stop(new_y);
+
+            let count = pdf_state.page_count;
+            if count > 0 && !pdf_state.page_y_offsets.is_empty() {
+                let page_index = crate::features::pdf::viewport::find_visible_page(
+                    &pdf_state.page_y_offsets,
+                    new_y,
+                    vh,
+                    0.3,
+                );
+                pdf_state
+                    .visible_page
+                    .store(page_index, std::sync::atomic::Ordering::Relaxed);
+                let start = page_index.saturating_sub(2);
+                let end = (page_index + 2).min(count.saturating_sub(1));
+                for p in start..=end {
+                    promote_page_from_disk_if_cached(pdf_state, p);
+                }
+                evict_distant_pages(pdf_state, page_index);
+            }
+
+            iced::widget::operation::scroll_to(
+                "content_scroll",
+                iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
+            )
+        }
+    }
+}
+
+pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) -> Task<Message> {
+    let pdf_state = active_pdf_state_mut(app);
+    let extent = crate::core::scroll::ViewportExtent {
+        content_height: pdf_state.total_content_height,
+        viewport_height: pdf_state.viewport_height,
+    };
+    let max_y = extent.max_scroll_y();
+
+    // 1. ScrollController check
+    if (pdf_state.scroll_controller.is_animating()
+        || pdf_state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging)
+        && let Some(next_y) = pdf_state.scroll_controller.update(now, extent)
+    {
+        pdf_state.scroll_y = next_y;
+        pdf_state.smooth_scroll.stop(next_y);
+
+        let count = pdf_state.page_count;
+        if count > 0 && !pdf_state.page_y_offsets.is_empty() {
+            let page_index = crate::features::pdf::viewport::find_visible_page(
+                &pdf_state.page_y_offsets,
+                next_y,
+                pdf_state.viewport_height,
+                0.3,
+            );
+            pdf_state
+                .visible_page
+                .store(page_index, std::sync::atomic::Ordering::Relaxed);
+            let start = page_index.saturating_sub(2);
+            let end = (page_index + 2).min(count.saturating_sub(1));
+            for p in start..=end {
+                promote_page_from_disk_if_cached(pdf_state, p);
+            }
+            evict_distant_pages(pdf_state, page_index);
+        }
+
+        return iced::widget::operation::scroll_to(
+            "content_scroll",
+            iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
+        );
+    }
+
+    // 2. SmoothScroller check
+    if let Some(next_y) = pdf_state.smooth_scroll.tick(pdf_state.scroll_y, now, max_y) {
+        pdf_state.scroll_y = next_y;
+        pdf_state.scroll_controller.set_position_y(next_y);
+
+        let count = pdf_state.page_count;
+        if count > 0 && !pdf_state.page_y_offsets.is_empty() {
+            let page_index = crate::features::pdf::viewport::find_visible_page(
+                &pdf_state.page_y_offsets,
+                next_y,
+                pdf_state.viewport_height,
+                0.3,
+            );
+            pdf_state
+                .visible_page
+                .store(page_index, std::sync::atomic::Ordering::Relaxed);
+            let start = page_index.saturating_sub(2);
+            let end = (page_index + 2).min(count.saturating_sub(1));
+            for p in start..=end {
+                promote_page_from_disk_if_cached(pdf_state, p);
+            }
+            evict_distant_pages(pdf_state, page_index);
+        }
+
+        return iced::widget::operation::scroll_to(
+            "content_scroll",
+            iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
+        );
+    }
+
+    Task::none()
+}
+
 pub fn handle_scrolled(
     app: &mut KglanceApp,
     viewport: iced::widget::scrollable::Viewport,
@@ -71,6 +223,9 @@ pub fn handle_scrolled(
     let view_h = viewport.bounds().height;
 
     let pdf_state = active_pdf_state_mut(app);
+    if pdf_state.scroll_controller.is_animating() || pdf_state.smooth_scroll.is_animating {
+        return Task::none();
+    }
 
     let count = pdf_state.page_count;
     if count > 0 && !pdf_state.page_y_offsets.is_empty() {
