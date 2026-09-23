@@ -36,7 +36,21 @@ pub fn estimated_block_height(
             let explicit_lines = text.lines().count().max(1);
             let available_w = effective_width.max(100.0);
             let chars_per_line = (available_w / (font_size * 0.55)).max(20.0) as usize;
-            let wrapped_lines = (text.len() / chars_per_line).max(1);
+            let visual_units = text
+                .chars()
+                .map(|c| {
+                    if ('\u{2E80}'..='\u{9FFF}').contains(&c)
+                        || ('\u{3040}'..='\u{30FF}').contains(&c)
+                        || ('\u{AC00}'..='\u{D7AF}').contains(&c)
+                        || ('\u{FF01}'..='\u{FF60}').contains(&c)
+                    {
+                        2
+                    } else {
+                        1
+                    }
+                })
+                .sum::<usize>();
+            let wrapped_lines = (visual_units / chars_per_line).max(1);
             let num_lines = explicit_lines.max(wrapped_lines) as f32;
             let pad_v = (lc::PARAGRAPH_PADDING_V * 2) as f32;
             num_lines * line + pad_v + margin
@@ -71,7 +85,7 @@ pub fn estimated_block_height(
                     .headers
                     .iter()
                     .map(|cell| {
-                        let len = flatten_inlines_toc(&cell.content).len();
+                        let len = flatten_inlines_toc(&cell.content).chars().count();
                         (len / approx_col_chars + 1) as f32
                     })
                     .fold(1.0, f32::max);
@@ -82,7 +96,7 @@ pub fn estimated_block_height(
                 let row_lines = row
                     .iter()
                     .map(|cell| {
-                        let len = flatten_inlines_toc(&cell.content).len();
+                        let len = flatten_inlines_toc(&cell.content).chars().count();
                         (len / approx_col_chars + 1) as f32
                     })
                     .fold(1.0, f32::max);
@@ -107,10 +121,27 @@ pub fn estimated_block_height(
             for item in items {
                 let text = flatten_inlines_toc(&item.content);
                 let explicit_lines = text.lines().count().max(1);
-                let wrapped_lines = (text.len() / chars_per_line).max(1);
+                let visual_units = text
+                    .chars()
+                    .map(|c| {
+                        if ('\u{2E80}'..='\u{9FFF}').contains(&c)
+                            || ('\u{3040}'..='\u{30FF}').contains(&c)
+                            || ('\u{AC00}'..='\u{D7AF}').contains(&c)
+                            || ('\u{FF01}'..='\u{FF60}').contains(&c)
+                        {
+                            2
+                        } else {
+                            1
+                        }
+                    })
+                    .sum::<usize>();
+                let wrapped_lines = (visual_units / chars_per_line).max(1);
                 let n = explicit_lines.max(wrapped_lines) as f32;
                 let item_pad = lc::LIST_ITEM_PADDING * 2.0;
                 total_h += n * line + item_pad;
+            }
+            if items.len() > 1 {
+                total_h += (items.len() - 1) as f32 * lc::SECTION_SPACING;
             }
             total_h.max(line) + margin
         }
