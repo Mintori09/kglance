@@ -116,8 +116,7 @@ pub fn handle_markdown_scrolled(
     }
 
     state.smooth_scroll.stop(y);
-    state.scroll_controller.stop();
-    state.scroll_controller.set_position_y(y);
+    state.scroll_controller.stop(y);
     state.scroll_y = y;
     app.record_read_position();
     let toc = &app.state.markdown.toc;
@@ -480,7 +479,7 @@ pub fn handle_smooth_wheel_scrolled(
         iced::mouse::ScrollDelta::Lines { y, .. } => {
             if y.abs() > f32::EPSILON {
                 let line_height =
-                    (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION).clamp(40.0, 120.0);
+                    (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION).clamp(50.0, 240.0);
                 let step = -y * line_height;
                 state
                     .smooth_scroll
@@ -1315,16 +1314,16 @@ mod tests {
         app.state.markdown.total_content_height = 3000.0;
         app.state.markdown.scroll_y = 100.0;
 
-        // Lines: 1 notch down (-1.0) -> step = 1.0 * (800 * 0.08) = 64.0 px
+        // Lines: 1 notch down (-1.0) -> step = 1.0 * (800 * 0.15) = 120.0 px
         let delta_lines = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -1.0 };
         let _ = handle_smooth_wheel_scrolled(&mut app, delta_lines);
-        assert_eq!(app.state.markdown.smooth_scroll.target_y, 164.0);
+        assert_eq!(app.state.markdown.smooth_scroll.target_y, 220.0);
         assert!(app.state.markdown.smooth_scroll.is_animating);
 
         // Pixels: trackpad touch events produce direct displacement via scroll_controller
         let delta_pixels = iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -20.0 };
         let _ = handle_smooth_wheel_scrolled(&mut app, delta_pixels);
-        assert_eq!(app.state.markdown.scroll_y, 135.0);
+        assert_eq!(app.state.markdown.scroll_y, 150.0);
         assert_eq!(
             app.state.markdown.scroll_controller.state(),
             crate::core::scroll::GestureState::Dragging
@@ -1334,7 +1333,7 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(15));
         let delta_pixels_fast = iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -30.0 };
         let _ = handle_smooth_wheel_scrolled(&mut app, delta_pixels_fast);
-        assert_eq!(app.state.markdown.scroll_y, 187.5);
+        assert_eq!(app.state.markdown.scroll_y, 225.0);
         assert_eq!(
             app.state.markdown.scroll_controller.state(),
             crate::core::scroll::GestureState::Dragging

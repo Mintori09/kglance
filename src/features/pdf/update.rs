@@ -82,7 +82,7 @@ pub fn handle_wheel_scrolled(
         iced::mouse::ScrollDelta::Lines { y, .. } => {
             if y.abs() > f32::EPSILON {
                 let line_height =
-                    (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION).clamp(40.0, 120.0);
+                    (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION).clamp(50.0, 240.0);
                 let step = -y * line_height;
                 pdf_state
                     .smooth_scroll

@@ -7,7 +7,6 @@ use crate::core::PreviewData;
 
 const CONTENT_SCROLL_ID: &str = "content_scroll";
 const SCROLL_LINE_AMOUNT: f32 = 80.0;
-const SCROLL_HALF_PAGE_AMOUNT: f32 = 600.0;
 
 impl KglanceApp {
     pub(super) fn handle_scroll_shortcuts(
@@ -27,10 +26,10 @@ impl KglanceApp {
             Key::Character(character) if character == "k" => {
                 Some(self.scroll_by(-SCROLL_LINE_AMOUNT))
             }
-            Key::Named(Named::PageDown) => Some(self.scroll_page(1.0)),
-            Key::Character(character) if character == "d" => Some(self.scroll_page(1.0)),
-            Key::Named(Named::PageUp) => Some(self.scroll_page(-1.0)),
-            Key::Character(character) if character == "u" => Some(self.scroll_page(-1.0)),
+            Key::Named(Named::PageDown) => Some(self.scroll_page(0.85)),
+            Key::Character(character) if character == "d" => Some(self.scroll_page(0.5)),
+            Key::Named(Named::PageUp) => Some(self.scroll_page(-0.85)),
+            Key::Character(character) if character == "u" => Some(self.scroll_page(-0.5)),
             Key::Character(character) if character == "g" && !modifiers.shift() => {
                 self.handle_g_shortcut()
             }
@@ -51,7 +50,7 @@ impl KglanceApp {
         }
     }
 
-    fn scroll_page(&mut self, direction: f32) -> Task<Message> {
+    fn scroll_page(&mut self, fraction: f32) -> Task<Message> {
         self.reset_scroll_pending();
 
         if self.is_smooth_scrollable() {
@@ -63,10 +62,9 @@ impl KglanceApp {
                 state.total_content_height,
                 state.viewport_height,
             );
-            // Page scroll uses 85% of viewport height to preserve reading context
-            let page_delta = state.viewport_height * 0.85 * direction;
+            let page_delta = state.viewport_height * fraction;
             let base_y = if state.smooth_scroll.is_animating
-                && (state.smooth_scroll.target_y - state.scroll_y).signum() == direction.signum()
+                && (state.smooth_scroll.target_y - state.scroll_y).signum() == fraction.signum()
             {
                 state.smooth_scroll.target_y
             } else {
@@ -79,11 +77,17 @@ impl KglanceApp {
             return Task::none();
         }
 
+        let vh = if self.state.current_window_size.height > 0.0 {
+            self.state.current_window_size.height
+        } else {
+            768.0
+        };
+
         operation::scroll_by(
             CONTENT_SCROLL_ID,
             AbsoluteOffset {
                 x: 0.0,
-                y: SCROLL_HALF_PAGE_AMOUNT * direction,
+                y: vh * fraction,
             },
         )
     }
@@ -331,7 +335,7 @@ mod tests {
         state.total_content_height = 3000.0;
         state.scroll_y = 100.0;
 
-        let _ = app.scroll_page(1.0);
+        let _ = app.scroll_page(0.85);
 
         let state = crate::features::markdown::update::active_markdown_state(&app);
         assert!(state.smooth_scroll.is_animating);
@@ -344,6 +348,22 @@ mod tests {
     }
 
     #[test]
+    fn test_scroll_half_page_triggers_smooth_navigation() {
+        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
+        let state = crate::features::markdown::update::active_markdown_state_mut(&mut app);
+        state.viewport_height = 800.0;
+        state.total_content_height = 3000.0;
+        state.scroll_y = 100.0;
+
+        let _ = app.scroll_page(0.5);
+
+        let state = crate::features::markdown::update::active_markdown_state(&app);
+        assert!(state.smooth_scroll.is_animating);
+        // 100.0 + 800.0 * 0.5 = 500.0
+        assert_eq!(state.smooth_scroll.target_y(), 500.0);
+    }
+
+    #[test]
     fn test_scroll_page_up_clamps_at_top() {
         let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
         let state = crate::features::markdown::update::active_markdown_state_mut(&mut app);
@@ -351,7 +371,7 @@ mod tests {
         state.total_content_height = 3000.0;
         state.scroll_y = 200.0;
 
-        let _ = app.scroll_page(-1.0);
+        let _ = app.scroll_page(-0.85);
 
         let state = crate::features::markdown::update::active_markdown_state(&app);
         assert!(state.smooth_scroll.is_animating);
@@ -367,7 +387,7 @@ mod tests {
         state.scroll_y = 0.0;
 
         // First PageDown: target = 0 + 850 = 850
-        let _ = app.scroll_page(1.0);
+        let _ = app.scroll_page(0.85);
         assert_eq!(
             crate::features::markdown::update::active_markdown_state(&app)
                 .smooth_scroll
@@ -377,7 +397,7 @@ mod tests {
 
         // While in flight (simulated current scroll_y = 200), second PageDown arrives
         crate::features::markdown::update::active_markdown_state_mut(&mut app).scroll_y = 200.0;
-        let _ = app.scroll_page(1.0);
+        let _ = app.scroll_page(0.85);
 
         // Target accumulates to 850 + 850 = 1700
         assert_eq!(

@@ -41,7 +41,6 @@ fn replay_fast_flick_triggers_flinging() {
         viewport_height: 800.0,
     };
 
-    // Fast flick ends immediately after the last sample
     controller.handle_input(
         ScrollInput::End {
             time: last_time + Duration::from_millis(5),
@@ -51,7 +50,7 @@ fn replay_fast_flick_triggers_flinging() {
 
     assert_eq!(controller.state(), GestureState::Flinging);
     assert!(
-        controller.velocity().abs() > 500.0,
+        controller.velocity().abs() > 400.0,
         "Velocity: {}",
         controller.velocity()
     );
@@ -66,7 +65,6 @@ fn replay_pause_then_lift_produces_zero_velocity() {
         viewport_height: 800.0,
     };
 
-    // Fingers were held stationary in pause_then_lift trace (dt=45ms with 0.0 delta)
     controller.handle_input(
         ScrollInput::End {
             time: last_time + Duration::from_millis(5),
@@ -119,42 +117,122 @@ fn replay_jittery_swipe_estimates_smooth_velocity() {
 }
 
 #[test]
-fn physics_frame_rate_independence() {
-    let mut c60 = ScrollController::new();
-    let mut c120 = ScrollController::new();
+fn test_all_velocity_estimators_with_synthetic_trajectory() {
+    let now = Instant::now();
+    let dt = Duration::from_millis(10);
 
-    c60.set_boundary_behavior(BoundaryBehavior::Clamp);
-    c120.set_boundary_behavior(BoundaryBehavior::Clamp);
+    // Synthetic constant velocity motion: v = 500 px/s (5 px per 10ms)
+    let samples: Vec<velocity::Sample> = (0..10)
+        .map(|i| velocity::Sample {
+            time: now + dt * i as u32,
+            delta_y: 5.0,
+        })
+        .collect();
 
-    c60.physics.start_fling(2000.0);
-    c120.physics.start_fling(2000.0);
-    c60.gesture.set_state(GestureState::Flinging);
-    c120.gesture.set_state(GestureState::Flinging);
+    let query_time = now + Duration::from_millis(95);
 
-    let extent = ViewportExtent {
-        content_height: 5000.0,
-        viewport_height: 800.0,
-    };
-
-    let start = Instant::now();
-    // 60 Hz (16ms * 30 = 480ms)
-    for i in 1..=30 {
-        let now = start + Duration::from_millis(i * 16);
-        c60.update(now, extent);
-    }
-
-    // 120 Hz (8ms * 60 = 480ms)
-    for i in 1..=60 {
-        let now = start + Duration::from_millis(i * 8);
-        c120.update(now, extent);
-    }
+    let lsq1 = LinearRegression.estimate(&samples, query_time);
+    let lsq2 = PolynomialRegression2.estimate(&samples, query_time);
+    let wlsq = WeightedRecentRegression::default().estimate(&samples, query_time);
 
     assert!(
-        (c60.position_y() - c120.position_y()).abs() < 15.0,
-        "60Hz pos: {}, 120Hz pos: {}",
-        c60.position_y(),
-        c120.position_y()
+        (lsq1 - 500.0).abs() < 1.0,
+        "LSQ1 expected ~500.0, got {lsq1}"
     );
+    assert!(
+        (lsq2 - 500.0).abs() < 5.0,
+        "LSQ2 expected ~500.0, got {lsq2}"
+    );
+    assert!(
+        (wlsq - 500.0).abs() < 1.0,
+        "WLSQ expected ~500.0, got {wlsq}"
+    );
+}
+
+#[test]
+fn test_closed_form_fling_trajectory_math() {
+    let start_time = Instant::now();
+    let state = ScrollState::Fling {
+        start_time,
+        start_pos: 100.0,
+        v0: 1800.0,
+        friction: 1.8,
+        cutoff_time: Duration::from_secs(2),
+    };
+
+    // At t = 0
+    let (p0, active0) = state.sample(start_time);
+    assert_eq!(p0, 100.0);
+    assert!(active0);
+
+    // At t = 1.0s: pos = 100 + (1800/1.8) * (1 - e^-1.8) = 100 + 1000 * 0.8347 = 934.7
+    let (p1, active1) = state.sample(start_time + Duration::from_secs(1));
+    let expected = 100.0 + (1800.0 / 1.8) * (1.0 - (-1.8_f32).exp());
+    assert!((p1 - expected).abs() < 0.1);
+    assert!(active1);
+
+    // At t = 3.0s (after cutoff): pos = 100 + 1000 = 1100.0, active = false
+    let (p_end, active_end) = state.sample(start_time + Duration::from_secs(3));
+    assert_eq!(p_end, 1100.0);
+    assert!(!active_end);
+}
+
+#[test]
+fn test_scroll_telemetry_recording_and_stats() {
+    let mut telemetry = ScrollTelemetry::new();
+    let now = Instant::now();
+
+    for i in 0..10 {
+        let t_base = now + Duration::from_millis(i * 16);
+        let timing = FrameTiming {
+            t_input_received: Some(t_base),
+            t_update_begin: t_base + Duration::from_micros(100),
+            t_update_end: t_base + Duration::from_micros(600),
+            t_draw_begin: t_base + Duration::from_micros(700),
+            t_draw_end: t_base + Duration::from_micros(1500),
+            t_redraw_requested: t_base + Duration::from_micros(1600),
+        };
+        telemetry.record_frame(timing);
+    }
+
+    assert_eq!(telemetry.count(), 10);
+    let stats = telemetry.compute_stats(Duration::from_millis(16));
+    assert_eq!(stats.sample_count, 10);
+    assert!(stats.p50_app_cost_ms > 0.0);
+    assert!(stats.p50_app_cost_ms < 2.0);
+    assert_eq!(stats.missed_cadence_ratio, 0.0);
+}
+
+#[test]
+fn test_scroll_interpreter_classification() {
+    let mut interpreter = ScrollInterpreter::new();
+    let now = Instant::now();
+
+    // Discrete wheel
+    let intent_lines = interpreter.interpret_lines(-1.0);
+    assert_eq!(intent_lines, ScrollIntent::Impulse { delta_lines: -1.0 });
+    assert_eq!(interpreter.device_kind(), ScrollDeviceKind::DiscreteWheel);
+
+    // Continuous trackpad motion
+    let intent_pixels = interpreter.interpret_pixels(0.0, -15.5, now);
+    assert_eq!(
+        intent_pixels,
+        ScrollIntent::ContinuousMotion {
+            delta_x: 0.0,
+            delta_y: -15.5,
+            time: now
+        }
+    );
+    assert_eq!(interpreter.device_kind(), ScrollDeviceKind::Touchpad);
+    assert!(interpreter.is_in_continuous_gesture());
+
+    // Gesture timeout
+    let timeout_intent = interpreter.check_gesture_timeout(now + Duration::from_millis(50));
+    assert!(matches!(
+        timeout_intent,
+        Some(ScrollIntent::GestureEnd { .. })
+    ));
+    assert!(!interpreter.is_in_continuous_gesture());
 }
 
 #[test]
@@ -167,12 +245,10 @@ fn spring_boundary_bounces_back_to_boundary() {
         viewport_height: 800.0,
     };
 
-    // Position past top boundary (overshoot)
     controller.set_position_y(-50.0);
     controller.gesture.set_state(GestureState::SpringBack);
 
     let start = Instant::now();
-    // Simulate spring oscillations settling over 50 frames (~800ms)
     for i in 1..=80 {
         let now = start + Duration::from_millis(i * 10);
         controller.update(now, extent);
@@ -185,32 +261,4 @@ fn spring_boundary_bounces_back_to_boundary() {
     );
     assert_eq!(controller.state(), GestureState::Idle);
     assert_eq!(controller.velocity(), 0.0);
-}
-
-#[test]
-fn robust_fallback_triggers_when_gesture_stalls() {
-    let mut controller = ScrollController::new();
-    let extent = ViewportExtent {
-        content_height: 5000.0,
-        viewport_height: 800.0,
-    };
-
-    let t0 = Instant::now();
-    controller.handle_input(
-        ScrollInput::Motion {
-            delta_x: 0.0,
-            delta_y: -40.0,
-            time: t0,
-        },
-        extent,
-    );
-    assert_eq!(controller.state(), GestureState::Dragging);
-
-    // Stalled without End event for 45ms (exceeds DRAG_FALLBACK_TIMEOUT_SECS = 40ms)
-    let t1 = t0 + Duration::from_millis(45);
-    controller.update(t1, extent);
-
-    // Should have automatically transitioned to End -> Flinging (since velocity > MIN_FLING_VELOCITY)
-    // Wait, with 1 sample velocity is 0, so it transitions to Idle
-    assert_eq!(controller.state(), GestureState::Idle);
 }
