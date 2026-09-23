@@ -8,6 +8,13 @@ use crate::core::PreviewData;
 const CONTENT_SCROLL_ID: &str = "content_scroll";
 const SCROLL_LINE_AMOUNT: f32 = 80.0;
 
+struct ActiveScrollTarget<'a> {
+    smooth_scroll: &'a mut crate::core::types::SmoothScrollState,
+    scroll_y: &'a mut f32,
+    total_content_height: f32,
+    viewport_height: f32,
+}
+
 impl KglanceApp {
     pub(super) fn handle_scroll_shortcuts(
         &mut self,
@@ -50,30 +57,63 @@ impl KglanceApp {
         }
     }
 
+    fn active_scroll_target_mut(&mut self) -> Option<ActiveScrollTarget<'_>> {
+        match self.current_content {
+            Some(PreviewData::Markdown { .. }) | Some(PreviewData::Epub { .. }) => {
+                let state = crate::features::markdown::update::active_markdown_state_mut(self);
+                Some(ActiveScrollTarget {
+                    smooth_scroll: &mut state.smooth_scroll,
+                    scroll_y: &mut state.scroll_y,
+                    total_content_height: state.total_content_height,
+                    viewport_height: state.viewport_height,
+                })
+            }
+            Some(PreviewData::Text { .. }) => {
+                let state = &mut self.state.text;
+                Some(ActiveScrollTarget {
+                    smooth_scroll: &mut state.smooth_scroll,
+                    scroll_y: &mut state.scroll_y,
+                    total_content_height: state.total_content_height,
+                    viewport_height: state.viewport_height,
+                })
+            }
+            Some(PreviewData::Pdf { .. }) | Some(PreviewData::Typst { .. }) => {
+                let state = crate::features::pdf::update::active_pdf_state_mut(self);
+                Some(ActiveScrollTarget {
+                    smooth_scroll: &mut state.smooth_scroll,
+                    scroll_y: &mut state.scroll_y,
+                    total_content_height: state.total_content_height,
+                    viewport_height: state.viewport_height,
+                })
+            }
+            _ => None,
+        }
+    }
+
     fn scroll_page(&mut self, fraction: f32) -> Task<Message> {
         self.reset_scroll_pending();
 
-        if self.is_smooth_scrollable() {
-            let state = crate::features::markdown::update::active_markdown_state_mut(self);
-            if state.viewport_height <= 0.0 {
+        if let Some(target) = self.active_scroll_target_mut() {
+            if target.viewport_height <= 0.0 {
                 return Task::none();
             }
             let max_y = crate::core::scroll::max_scroll_y(
-                state.total_content_height,
-                state.viewport_height,
+                target.total_content_height,
+                target.viewport_height,
             );
-            let page_delta = state.viewport_height * fraction;
-            let base_y = if state.smooth_scroll.is_animating
-                && (state.smooth_scroll.target_y - state.scroll_y).signum() == fraction.signum()
+            let page_delta = target.viewport_height * fraction;
+            let current_y = *target.scroll_y;
+            let base_y = if target.smooth_scroll.is_animating
+                && (target.smooth_scroll.target_y - current_y).signum() == fraction.signum()
             {
-                state.smooth_scroll.target_y
+                target.smooth_scroll.target_y
             } else {
-                state.scroll_y
+                current_y
             };
             let target_y = crate::core::scroll::clamp_target(base_y + page_delta, max_y);
-            state
+            target
                 .smooth_scroll
-                .start_navigation(state.scroll_y, target_y, max_y);
+                .start_navigation(current_y, target_y, max_y);
             return Task::none();
         }
 
@@ -95,18 +135,18 @@ impl KglanceApp {
     fn scroll_by(&mut self, vertical_offset: f32) -> Task<Message> {
         self.reset_scroll_pending();
 
-        if self.is_smooth_scrollable() {
-            let state = crate::features::markdown::update::active_markdown_state_mut(self);
-            if state.viewport_height <= 0.0 {
+        if let Some(target) = self.active_scroll_target_mut() {
+            if target.viewport_height <= 0.0 {
                 return Task::none();
             }
             let max_y = crate::core::scroll::max_scroll_y(
-                state.total_content_height,
-                state.viewport_height,
+                target.total_content_height,
+                target.viewport_height,
             );
-            state
+            let current_y = *target.scroll_y;
+            target
                 .smooth_scroll
-                .start_interactive(state.scroll_y, vertical_offset, max_y);
+                .start_interactive(current_y, vertical_offset, max_y);
             return Task::none();
         }
 
@@ -140,19 +180,17 @@ impl KglanceApp {
     pub(super) fn snap_to_top(&mut self) -> Task<Message> {
         self.reset_scroll_pending();
 
-        if self.is_smooth_scrollable() {
-            let state = crate::features::markdown::update::active_markdown_state_mut(self);
-            if state.scroll_y <= 1.0 {
+        if let Some(target) = self.active_scroll_target_mut() {
+            let current_y = *target.scroll_y;
+            if current_y <= 1.0 {
                 self.record_read_position();
                 return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 0.0 });
             }
             let max_y = crate::core::scroll::max_scroll_y(
-                state.total_content_height,
-                state.viewport_height,
+                target.total_content_height,
+                target.viewport_height,
             );
-            state
-                .smooth_scroll
-                .start_navigation(state.scroll_y, 0.0, max_y);
+            target.smooth_scroll.start_navigation(current_y, 0.0, max_y);
             return Task::none();
         }
 
@@ -163,19 +201,19 @@ impl KglanceApp {
     pub(super) fn snap_to_bottom(&mut self) -> Task<Message> {
         self.reset_scroll_pending();
 
-        if self.is_smooth_scrollable() {
-            let state = crate::features::markdown::update::active_markdown_state_mut(self);
+        if let Some(target) = self.active_scroll_target_mut() {
+            let current_y = *target.scroll_y;
             let max_y = crate::core::scroll::max_scroll_y(
-                state.total_content_height,
-                state.viewport_height,
+                target.total_content_height,
+                target.viewport_height,
             );
-            if (max_y - state.scroll_y).abs() <= 1.0 {
+            if (max_y - current_y).abs() <= 1.0 {
                 self.record_read_position();
                 return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 1.0 });
             }
-            state
+            target
                 .smooth_scroll
-                .start_navigation(state.scroll_y, max_y, max_y);
+                .start_navigation(current_y, max_y, max_y);
             return Task::none();
         }
 
@@ -539,5 +577,109 @@ mod tests {
         let state = crate::features::markdown::update::active_markdown_state(&app);
         assert_eq!(state.scroll_y, 0.0);
         assert!(!state.smooth_scroll.is_animating);
+    }
+
+    #[test]
+    fn test_text_scroll_page_and_vim_navigation() {
+        use crate::app::test_util::text_content;
+
+        let code = (0..200)
+            .map(|i| format!("fn line_{i}() {{ println!(\"Hello {i}\"); }}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut app = test_app(Some(text_content(&code, "rs")));
+        app.state.text.viewport_height = 800.0;
+        app.state.text.total_content_height = 4000.0;
+        app.state.text.scroll_y = 0.0;
+
+        // 1. Scroll page down (PageDown or 'd')
+        let _ = app.scroll_page(0.5);
+        assert!(app.state.text.smooth_scroll.is_animating);
+        assert_eq!(app.state.text.smooth_scroll.target_y(), 400.0);
+
+        // 2. Step smooth scroll animation
+        let mut now = std::time::Instant::now();
+        for _ in 0..30 {
+            now += std::time::Duration::from_millis(16);
+            let _ = crate::features::text::update::handle_smooth_scroll_tick(&mut app, now);
+        }
+        assert_eq!(app.state.text.scroll_y, 400.0);
+        assert!(!app.state.text.smooth_scroll.is_animating);
+
+        // 3. Snap to bottom (G)
+        let _ = app.snap_to_bottom();
+        assert_eq!(app.state.text.smooth_scroll.target_y(), 3200.0); // 4000.0 - 800.0
+        for _ in 0..50 {
+            now += std::time::Duration::from_millis(16);
+            let _ = crate::features::text::update::handle_smooth_scroll_tick(&mut app, now);
+        }
+        assert_eq!(app.state.text.scroll_y, 3200.0);
+
+        // 4. Snap to top (gg)
+        let _ = app.snap_to_top();
+        assert_eq!(app.state.text.smooth_scroll.target_y(), 0.0);
+        for _ in 0..50 {
+            now += std::time::Duration::from_millis(16);
+            let _ = crate::features::text::update::handle_smooth_scroll_tick(&mut app, now);
+        }
+        assert_eq!(app.state.text.scroll_y, 0.0);
+    }
+
+    #[test]
+    fn test_text_touchpad_velocity_kinetic_scroll() {
+        use crate::app::test_util::text_content;
+
+        let code = (0..500)
+            .map(|i| format!("fn line_{i}() {{ println!(\"Code Line {i}\"); }}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut app = test_app(Some(text_content(&code, "rs")));
+        app.state.text.viewport_height = 800.0;
+        app.state.text.total_content_height = 10000.0;
+        app.state.text.scroll_y = 0.0;
+
+        // 1. First swipe
+        let _ = crate::features::text::update::handle_wheel_scrolled(
+            &mut app,
+            iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -20.0 },
+        );
+        assert_eq!(app.state.text.scroll_y, 50.0);
+        assert_eq!(
+            app.state.text.scroll_controller.state(),
+            crate::core::scroll::GestureState::Dragging
+        );
+
+        // 2. Second rapid swipe
+        std::thread::sleep(std::time::Duration::from_millis(15));
+        let _ = crate::features::text::update::handle_wheel_scrolled(
+            &mut app,
+            iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -30.0 },
+        );
+        assert_eq!(app.state.text.scroll_y, 125.0);
+        assert_eq!(
+            app.state.text.scroll_controller.state(),
+            crate::core::scroll::GestureState::Dragging
+        );
+
+        // 3. Opportunistic zero delta on finger release
+        let _ = crate::features::text::update::handle_wheel_scrolled(
+            &mut app,
+            iced::mouse::ScrollDelta::Pixels { x: 0.0, y: 0.0 },
+        );
+        assert!(app.state.text.scroll_controller.is_animating());
+        assert_eq!(
+            app.state.text.scroll_controller.state(),
+            crate::core::scroll::GestureState::Flinging
+        );
+
+        // 4. Step physics frames
+        let mut now = std::time::Instant::now();
+        for _ in 0..60 {
+            now += std::time::Duration::from_millis(16);
+            let _ = crate::features::text::update::handle_smooth_scroll_tick(&mut app, now);
+        }
+
+        // Must glide significantly further than swipe displacement
+        assert!(app.state.text.scroll_y > 125.0 + 100.0);
     }
 }

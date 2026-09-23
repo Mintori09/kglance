@@ -55,7 +55,9 @@ pub enum TextMsg {
     SearchPrev,
     SearchClosed,
     WrapToggled,
-    Scrolled(f32),
+    Scrolled(iced::widget::scrollable::Viewport),
+    WheelScrolled(iced::mouse::ScrollDelta),
+    SmoothScrollTick(std::time::Instant),
     ToggleOutline,
     SymbolClicked(usize),
 }

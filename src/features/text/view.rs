@@ -46,10 +46,10 @@ pub fn view_text<'a>(
     );
 
     let scrollable_editor = scroll_pane(SCROLL_PANE_ID, editor_element)
+        .filter_wheel(true)
         .container_padding(SCROLL_PANE_PADDING)
-        .on_scroll(|viewport| {
-            crate::app::messages::TextMsg::Scrolled(viewport.absolute_offset().y).into()
-        })
+        .on_scroll(|viewport| crate::app::messages::TextMsg::Scrolled(viewport).into())
+        .on_wheel(|delta| crate::app::messages::TextMsg::WheelScrolled(delta).into())
         .build();
 
     main_content = main_content.push(scrollable_editor);
