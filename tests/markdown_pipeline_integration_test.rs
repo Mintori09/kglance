@@ -80,17 +80,16 @@ fn test_markdown_direct_block_parsing_and_math() {
 
 #[test]
 fn test_virtual_scroll_height_invariance() {
-    let padding = 24.0f32;
     let block_count = 500;
     let block_h = 50.0f32;
 
     let mut offsets = Vec::with_capacity(block_count);
-    let mut y = padding;
+    let mut y = 0.0f32;
     for _ in 0..block_count {
         offsets.push(y);
         y += block_h;
     }
-    let total_content_height = y + padding;
+    let total_content_height = y;
 
     let vh: f32 = 800.0;
     const CHUNK_SIZE: usize = 32;
@@ -124,22 +123,37 @@ fn test_virtual_scroll_height_invariance() {
         let last_visible = last_visible.min(block_count);
 
         let top_height = if first_visible > 0 {
-            offsets[first_visible] - offsets[0]
+            offsets[first_visible]
         } else {
             0.0
         };
         let bottom_height = if last_visible < block_count {
-            ((total_content_height - padding) - offsets[last_visible]).max(0.0)
+            (total_content_height - offsets[last_visible]).max(0.0)
         } else {
             0.0
         };
 
         let rendered_height = (last_visible - first_visible) as f32 * block_h;
-        let total_inner_column = padding + top_height + rendered_height + bottom_height + padding;
+        let total_inner_column = top_height + rendered_height + bottom_height;
 
         assert_eq!(
             total_inner_column, total_content_height,
             "Total virtual column height must equal total_content_height at scroll_y={scroll_y}"
         );
     }
+}
+
+#[test]
+fn test_block_offsets_padding_consistency() {
+    use kglance::features::markdown::compute_block_y_offsets;
+    use kglance::parsers::markdown::Block;
+    use std::collections::HashMap;
+
+    let blocks = vec![Block::Paragraph(vec![]), Block::Paragraph(vec![])];
+    let (offsets, total_h) = compute_block_y_offsets(&blocks, 14.0, &HashMap::new(), 800.0);
+    assert_eq!(
+        offsets[0], 0.0,
+        "First block should start at 0.0 within the padded column"
+    );
+    assert!(total_h > 0.0);
 }

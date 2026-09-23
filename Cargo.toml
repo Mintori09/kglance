@@ -143,6 +143,10 @@ harness = false
 name = "startup_bench"
 harness = false
 
+[[bench]]
+name = "velocity_estimation"
+harness = false
+
 [[bin]]
 name = "kglance"
 path = "src/main.rs"

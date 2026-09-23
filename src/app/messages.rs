@@ -150,6 +150,7 @@ pub enum MarkdownMsg {
     AutoScrollTick,
     SmoothScrollTick(std::time::Instant),
     SmoothWheelScrolled(iced::mouse::ScrollDelta),
+    TouchpadGestureEnded(std::time::Instant),
 }
 
 #[derive(Debug, Clone)]

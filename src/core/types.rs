@@ -704,6 +704,8 @@ pub struct MarkdownState {
     /// Atomic generation ID specifically for background markdown tasks (mermaid, images).
     pub generation_id: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     pub smooth_scroll: SmoothScrollState,
+    pub touchpad_tracker: crate::core::scroll::TouchpadGestureTracker,
+    pub scroll_controller: crate::core::scroll::ScrollController,
 }
 
 pub type SmoothScrollState = crate::core::scroll::SmoothScroller;
@@ -716,10 +718,10 @@ impl Default for MarkdownState {
             cached_image_sizes: std::collections::HashMap::new(),
             toc: Vec::new(),
             toc_visible: false,
-            sidebar_width: 220.0,
+            sidebar_width: 250.0,
             sidebar_resizing: false,
             sidebar_drag_start_x: None,
-            sidebar_drag_start_width: 220.0,
+            sidebar_drag_start_width: 250.0,
             collapsed_headings: std::collections::HashSet::new(),
             scroll_y: 0.0,
             word_count: 0,
@@ -742,6 +744,8 @@ impl Default for MarkdownState {
             viewport_height: 800.0,
             generation_id: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             smooth_scroll: SmoothScrollState::default(),
+            touchpad_tracker: crate::core::scroll::TouchpadGestureTracker::default(),
+            scroll_controller: crate::core::scroll::ScrollController::default(),
         }
     }
 }

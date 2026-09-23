@@ -136,13 +136,13 @@ fn build_scrollable_content<'a>(
         let last_visible = last_visible.min(blocks.len());
 
         let top_height = if first_visible > 0 {
-            offsets[first_visible] - offsets[0]
+            offsets[first_visible]
         } else {
             0.0
         };
 
         let bottom_height = if last_visible < blocks.len() {
-            ((state.total_content_height - content_padding) - offsets[last_visible]).max(0.0)
+            (state.total_content_height - offsets[last_visible]).max(0.0)
         } else {
             0.0
         };

@@ -330,6 +330,9 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::MarkdownMsg::SmoothWheelScrolled(delta) => {
                 crate::features::markdown::update::handle_smooth_wheel_scrolled(app, delta)
             }
+            crate::app::messages::MarkdownMsg::TouchpadGestureEnded(event_time) => {
+                crate::features::markdown::update::handle_touchpad_gesture_ended(app, event_time)
+            }
         },
         Message::Epub(msg) => match msg {
             crate::app::messages::EpubMsg::SidebarToggled => {
