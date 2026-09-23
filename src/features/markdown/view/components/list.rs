@@ -93,16 +93,19 @@ fn create_list_prefix<'a>(
             .font(get_code_font(ctx.font_family_mono))
             .size(ctx.font_size)
             .color(color)
+            .shaping(iced::widget::text::Shaping::Basic)
             .into()
     } else if ordered {
         text(format!("{}. ", start_number + index as u64))
             .size(ctx.font_size)
             .color(STYLE.list.bullet_color)
+            .shaping(iced::widget::text::Shaping::Basic)
             .into()
     } else {
         text("• ")
             .size(ctx.font_size)
             .color(STYLE.list.bullet_color)
+            .shaping(iced::widget::text::Shaping::Basic)
             .into()
     }
 }

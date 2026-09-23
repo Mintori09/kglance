@@ -109,8 +109,9 @@ fn build_scrollable_content<'a>(
         } else {
             state.smooth_scroll.velocity
         };
-        let overscan_px = (vh * 1.5 + velocity.abs() * 0.12).clamp(vh, (vh * 5.0).max(3000.0));
-        const CHUNK_SIZE: usize = 32;
+        let overscan_px =
+            (vh * 1.0 + velocity.abs() * 0.10).clamp(vh * 0.8, (vh * 4.0).max(2400.0));
+        const CHUNK_SIZE: usize = 4;
         const OVERSCAN_CHUNKS: usize = 1;
 
         let view_top = (state.scroll_y - overscan_px).max(0.0);
@@ -123,8 +124,7 @@ fn build_scrollable_content<'a>(
 
         let remaining_blocks = blocks.len().saturating_sub(raw_last);
         let dist_to_bottom = state.total_content_height - (state.scroll_y + state.viewport_height);
-        let is_near_bottom =
-            remaining_blocks <= CHUNK_SIZE * 2 || dist_to_bottom <= overscan_px * 1.5;
+        let is_near_bottom = dist_to_bottom <= 50.0 || remaining_blocks == 0;
 
         let first_visible =
             raw_first.saturating_sub(OVERSCAN_CHUNKS * CHUNK_SIZE) / CHUNK_SIZE * CHUNK_SIZE;
@@ -154,14 +154,12 @@ fn build_scrollable_content<'a>(
         let visible_count = last_visible.saturating_sub(first_visible);
         let mut els: Vec<Element<'a, Message>> = Vec::with_capacity(visible_count + 2);
 
-        if top_height > 0.0 {
-            els.push(
-                iced::widget::Space::new()
-                    .width(Length::Fill)
-                    .height(top_height)
-                    .into(),
-            );
-        }
+        els.push(
+            iced::widget::Space::new()
+                .width(Length::Fill)
+                .height(top_height)
+                .into(),
+        );
 
         for (i, block) in blocks
             .iter()
@@ -188,14 +186,12 @@ fn build_scrollable_content<'a>(
             );
         }
 
-        if bottom_height > 0.0 {
-            els.push(
-                iced::widget::Space::new()
-                    .width(Length::Fill)
-                    .height(bottom_height)
-                    .into(),
-            );
-        }
+        els.push(
+            iced::widget::Space::new()
+                .width(Length::Fill)
+                .height(bottom_height)
+                .into(),
+        );
 
         els
     } else {
