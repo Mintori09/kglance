@@ -85,6 +85,8 @@ pub enum PdfMsg {
     ThumbnailClicked(usize),
     TocItemClicked(usize),
     SidebarResized(f32),
+    WheelScrolled(iced::mouse::ScrollDelta),
+    SmoothScrollTick(std::time::Instant),
 }
 
 #[derive(Debug, Clone)]

@@ -220,6 +220,12 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::PdfMsg::SidebarResized(w) => {
                 crate::features::pdf::update::handle_sidebar_resized(app, w)
             }
+            crate::app::messages::PdfMsg::WheelScrolled(delta) => {
+                crate::features::pdf::update::handle_wheel_scrolled(app, delta)
+            }
+            crate::app::messages::PdfMsg::SmoothScrollTick(now) => {
+                crate::features::pdf::update::handle_smooth_scroll_tick(app, now)
+            }
         },
         Message::Typst(msg) => match msg {
             crate::app::messages::TypstMsg::Scrolled(vp) => {

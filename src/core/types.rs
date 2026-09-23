@@ -432,6 +432,8 @@ pub struct PdfState {
     pub thumb_generation_id: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     /// Tier 1 session disk cache for compressed PDF page files.
     pub disk_cache: Option<std::sync::Arc<crate::features::pdf::PdfDiskCache>>,
+    pub scroll_controller: crate::core::scroll::ScrollController,
+    pub smooth_scroll: SmoothScrollState,
 }
 
 impl PdfState {
@@ -477,6 +479,8 @@ impl Default for PdfState {
             sidebar_viewport_height: 800.0,
             visible_thumb_page: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             disk_cache: None,
+            scroll_controller: crate::core::scroll::ScrollController::default(),
+            smooth_scroll: SmoothScrollState::default(),
         }
     }
 }

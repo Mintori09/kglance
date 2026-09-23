@@ -106,7 +106,7 @@ pub fn handle_markdown_scrolled(
         state.total_content_height = content_height;
     }
 
-    if state.smooth_scroll.is_animating {
+    if state.smooth_scroll.is_animating || state.scroll_controller.is_animating() {
         return Task::none();
     }
 
@@ -116,6 +116,8 @@ pub fn handle_markdown_scrolled(
     }
 
     state.smooth_scroll.stop(y);
+    state.scroll_controller.stop();
+    state.scroll_controller.set_position_y(y);
     state.scroll_y = y;
     app.record_read_position();
     let toc = &app.state.markdown.toc;
@@ -468,7 +470,11 @@ pub fn handle_smooth_wheel_scrolled(
         return Task::none();
     }
     let vh = state.viewport_height;
-    let max_y = crate::core::scroll::max_scroll_y(state.total_content_height, vh);
+    let extent = crate::core::scroll::ViewportExtent {
+        content_height: state.total_content_height,
+        viewport_height: vh,
+    };
+    let max_y = extent.max_scroll_y();
 
     match delta {
         iced::mouse::ScrollDelta::Lines { y, .. } => {
@@ -482,68 +488,84 @@ pub fn handle_smooth_wheel_scrolled(
             }
             Task::none()
         }
-        iced::mouse::ScrollDelta::Pixels { y, .. } => {
-            if y.abs() > f32::EPSILON {
-                let now = std::time::Instant::now();
-                // Apply touchpad scroll speed multiplier
-                let scaled_delta_y = y * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
-                let scroll_step = -scaled_delta_y; // negative delta_y from wheel means down
+        iced::mouse::ScrollDelta::Pixels { x, y } => {
+            let now = std::time::Instant::now();
+            let scaled_delta_y = -y * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
+            let scaled_delta_x = -x * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
 
-                // Push sample into touchpad gesture tracker
-                state.touchpad_tracker.push_sample(now, scroll_step);
+            state.scroll_controller.set_position_y(state.scroll_y);
+            state.scroll_controller.handle_input(
+                crate::core::scroll::ScrollInput::Motion {
+                    delta_x: scaled_delta_x,
+                    delta_y: scaled_delta_y,
+                    time: now,
+                },
+                extent,
+            );
 
-                // Stop any running kinetic fling if user touches pad and begins active scrolling
-                if state.smooth_scroll.is_animating
-                    && state.smooth_scroll.mode() == crate::core::scroll::SmoothScrollMode::Kinetic
-                {
-                    state.smooth_scroll.stop(state.scroll_y);
-                }
+            let new_y = state.scroll_controller.position_y();
+            state.scroll_y = new_y;
+            state.smooth_scroll.stop(new_y);
 
-                state.smooth_scroll.is_animating = false;
-                state.smooth_scroll.velocity = 0.0;
-                let new_y = crate::core::scroll::clamp_target(state.scroll_y + scroll_step, max_y);
-                state.scroll_y = new_y;
-                state.smooth_scroll.target_y = new_y;
-                state.smooth_scroll.last_applied_y = new_y;
-
-                let scroll_task = iced::widget::operation::scroll_to(
-                    "content_scroll",
-                    iced::widget::operation::AbsoluteOffset {
-                        x: 0.0,
-                        y: state.scroll_y,
-                    },
-                );
-
-                // Schedule a delayed check after GESTURE_TIMEOUT_MS to test if fingers lifted and trigger fling
-                let gesture_task = Task::perform(
-                    async move {
-                        tokio::time::sleep(std::time::Duration::from_millis(
-                            crate::core::scroll::TouchpadGestureTracker::GESTURE_TIMEOUT_MS,
-                        ))
-                        .await;
-                        now
-                    },
-                    |event_time| {
-                        crate::app::messages::MarkdownMsg::TouchpadGestureEnded(event_time).into()
-                    },
-                );
-
-                Task::batch([scroll_task, gesture_task])
-            } else {
-                Task::none()
-            }
+            iced::widget::operation::scroll_to(
+                "content_scroll",
+                iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
+            )
         }
     }
 }
 
 pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) -> Task<Message> {
     let state = active_markdown_state_mut(app);
-    let max_y =
-        crate::core::scroll::max_scroll_y(state.total_content_height, state.viewport_height);
-    let target_y = state.smooth_scroll.target_y();
+    let extent = crate::core::scroll::ViewportExtent {
+        content_height: state.total_content_height,
+        viewport_height: state.viewport_height,
+    };
+    let max_y = extent.max_scroll_y();
 
+    // 1. Check ScrollController (touchpad kinetic fling, spring physics & robust timeout)
+    if (state.scroll_controller.is_animating()
+        || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging)
+        && let Some(next_y) = state.scroll_controller.update(now, extent)
+    {
+        state.scroll_y = next_y;
+        state.smooth_scroll.stop(next_y);
+        let is_finished = !state.scroll_controller.is_animating();
+        if is_finished {
+            app.record_read_position();
+        }
+
+        let scroll_task = iced::widget::operation::scroll_to(
+            "content_scroll",
+            iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
+        );
+
+        let toc_task = if is_finished {
+            let toc = &app.state.markdown.toc;
+            if let Some(active_pos) = toc.iter().rposition(|e| e.y_offset <= next_y + 50.0) {
+                let target_y = (active_pos as f32 * 28.0 - 100.0).max(0.0);
+                operation::scroll_to(
+                    "toc_scroll",
+                    operation::AbsoluteOffset {
+                        x: 0.0,
+                        y: target_y,
+                    },
+                )
+            } else {
+                Task::none()
+            }
+        } else {
+            Task::none()
+        };
+
+        return Task::batch([scroll_task, toc_task]);
+    }
+
+    // 2. Check SmoothScroller (smooth lines and keyboard navigation)
+    let target_y = state.smooth_scroll.target_y();
     if let Some(next_y) = state.smooth_scroll.tick(state.scroll_y, now, max_y) {
         state.scroll_y = next_y;
+        state.scroll_controller.set_position_y(next_y);
         let is_finished = !state.smooth_scroll.is_animating;
         if is_finished {
             app.record_read_position();
@@ -598,30 +620,9 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
 }
 
 pub fn handle_touchpad_gesture_ended(
-    app: &mut KglanceApp,
-    event_time: std::time::Instant,
+    _app: &mut KglanceApp,
+    _event_time: std::time::Instant,
 ) -> Task<Message> {
-    let state = active_markdown_state_mut(app);
-
-    // Only process if this task corresponds to the last event time (debounced)
-    if state.touchpad_tracker.last_event_time() != Some(event_time) {
-        return Task::none();
-    }
-
-    let now = std::time::Instant::now();
-    if let Some(velocity) = state.touchpad_tracker.ended_velocity(now) {
-        // Minimum velocity threshold to trigger kinetic fling
-        if velocity.abs() >= 120.0 {
-            let max_y = crate::core::scroll::max_scroll_y(
-                state.total_content_height,
-                state.viewport_height,
-            );
-            state
-                .smooth_scroll
-                .start_kinetic(state.scroll_y, velocity, max_y);
-        }
-    }
-
     Task::none()
 }
 
@@ -1320,32 +1321,32 @@ mod tests {
         assert_eq!(app.state.markdown.smooth_scroll.target_y, 164.0);
         assert!(app.state.markdown.smooth_scroll.is_animating);
 
-        // Pixels: trackpad touch events produce direct 1:1 displacement without starting kinetic yet
+        // Pixels: trackpad touch events produce direct displacement via scroll_controller
         let delta_pixels = iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -20.0 };
         let _ = handle_smooth_wheel_scrolled(&mut app, delta_pixels);
         assert_eq!(app.state.markdown.scroll_y, 135.0);
-        assert!(!app.state.markdown.smooth_scroll.is_animating);
+        assert_eq!(
+            app.state.markdown.scroll_controller.state(),
+            crate::core::scroll::GestureState::Dragging
+        );
 
-        // Second fast swipe in rapid succession: still in direct touch tracking
+        // Second fast swipe in rapid succession
         std::thread::sleep(std::time::Duration::from_millis(15));
         let delta_pixels_fast = iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -30.0 };
         let _ = handle_smooth_wheel_scrolled(&mut app, delta_pixels_fast);
         assert_eq!(app.state.markdown.scroll_y, 187.5);
-        assert!(!app.state.markdown.smooth_scroll.is_animating);
-
-        // When gesture ends (fingers lifted), handle_touchpad_gesture_ended triggers kinetic fling
-        let last_time = app
-            .state
-            .markdown
-            .touchpad_tracker
-            .last_event_time()
-            .expect("last event time");
-        std::thread::sleep(std::time::Duration::from_millis(85));
-        let _ = handle_touchpad_gesture_ended(&mut app, last_time);
-        assert!(app.state.markdown.smooth_scroll.is_animating);
         assert_eq!(
-            app.state.markdown.smooth_scroll.mode(),
-            crate::core::scroll::SmoothScrollMode::Kinetic
+            app.state.markdown.scroll_controller.state(),
+            crate::core::scroll::GestureState::Dragging
+        );
+
+        // Opportunistic instant fling on zero delta
+        let delta_pixels_zero = iced::mouse::ScrollDelta::Pixels { x: 0.0, y: 0.0 };
+        let _ = handle_smooth_wheel_scrolled(&mut app, delta_pixels_zero);
+        assert!(app.state.markdown.scroll_controller.is_animating());
+        assert_eq!(
+            app.state.markdown.scroll_controller.state(),
+            crate::core::scroll::GestureState::Flinging
         );
 
         // Ctrl held down: ignores wheel scrolling

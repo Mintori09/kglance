@@ -1066,18 +1066,44 @@ impl KglanceApp {
             Subscription::none()
         };
 
-        let smooth_scroll_sub = if self.is_smooth_scrollable()
-            && crate::features::markdown::update::active_markdown_state(self)
-                .smooth_scroll
-                .is_animating
-        {
-            iced::time::every(std::time::Duration::from_millis(
-                crate::features::markdown::update::SMOOTH_SCROLL_TICK_MS,
-            ))
-            .map(|_| {
-                crate::app::messages::MarkdownMsg::SmoothScrollTick(std::time::Instant::now())
-                    .into()
-            })
+        let smooth_scroll_sub = if self.is_smooth_scrollable() {
+            let md_state = crate::features::markdown::update::active_markdown_state(self);
+            if md_state.smooth_scroll.is_animating
+                || md_state.scroll_controller.is_animating()
+                || md_state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+            {
+                iced::time::every(std::time::Duration::from_millis(
+                    crate::features::markdown::update::SMOOTH_SCROLL_TICK_MS,
+                ))
+                .map(|_| {
+                    crate::app::messages::MarkdownMsg::SmoothScrollTick(std::time::Instant::now())
+                        .into()
+                })
+            } else {
+                Subscription::none()
+            }
+        } else {
+            Subscription::none()
+        };
+
+        let pdf_scroll_sub = if matches!(
+            self.current_content,
+            Some(crate::core::PreviewData::Pdf { .. })
+        ) {
+            let pdf = &self.state.pdf;
+            if pdf.smooth_scroll.is_animating
+                || pdf.scroll_controller.is_animating()
+                || pdf.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+            {
+                iced::time::every(std::time::Duration::from_millis(
+                    crate::features::markdown::update::SMOOTH_SCROLL_TICK_MS,
+                ))
+                .map(|_| {
+                    crate::app::messages::PdfMsg::SmoothScrollTick(std::time::Instant::now()).into()
+                })
+            } else {
+                Subscription::none()
+            }
         } else {
             Subscription::none()
         };
@@ -1097,6 +1123,7 @@ impl KglanceApp {
             file_watcher_sub,
             auto_scroll_sub,
             smooth_scroll_sub,
+            pdf_scroll_sub,
             read_positions_sub,
         ])
     }

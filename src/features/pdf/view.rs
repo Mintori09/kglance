@@ -216,6 +216,8 @@ pub fn view_pdf_pages<'a>(
         .width(Length::Fill);
 
     scroll_pane(scroll_id, centered)
+        .filter_wheel(true)
+        .on_wheel(|delta| crate::app::messages::PdfMsg::WheelScrolled(delta).into())
         .on_scroll(on_scroll)
         .build()
 }

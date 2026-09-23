@@ -104,8 +104,12 @@ fn build_scrollable_content<'a>(
     let elements: Vec<Element<'a, Message>> = if use_virtual {
         // Dynamic overscan in pixels based on scrolling velocity
         let vh = state.viewport_height.max(600.0);
-        let overscan_px = (vh * 1.5 + state.smooth_scroll.velocity.abs() * 0.12)
-            .clamp(vh, (vh * 5.0).max(3000.0));
+        let velocity = if state.scroll_controller.is_animating() {
+            state.scroll_controller.velocity()
+        } else {
+            state.smooth_scroll.velocity
+        };
+        let overscan_px = (vh * 1.5 + velocity.abs() * 0.12).clamp(vh, (vh * 5.0).max(3000.0));
         const CHUNK_SIZE: usize = 32;
         const OVERSCAN_CHUNKS: usize = 1;
 
