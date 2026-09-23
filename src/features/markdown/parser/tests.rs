@@ -1067,3 +1067,212 @@ fn test_rescale_markdown_scroll_y() {
     );
     assert!((zoomed_out_y - initial_y).abs() < 1.0);
 }
+
+#[test]
+fn test_virtual_scroll_top_and_bottom_invariants() {
+    use std::collections::HashMap;
+    let path = "/home/mintori/Desktop/Buổi 1.md";
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => {
+            // Fallback synthetic 100-block markdown document
+            let mut s = String::new();
+            for i in 0..100 {
+                s.push_str(&format!(
+                    "## Heading {i}\n\n- Item 1\n- Item 2\n- Item 3\n- Item 4\n\n"
+                ));
+            }
+            s
+        }
+    };
+    let blocks = parse_to_blocks(&content);
+    let image_sizes = HashMap::new();
+    let font_size = 14.0;
+    let (offsets, total_content_height) =
+        crate::features::markdown::compute_block_y_offsets(&blocks, font_size, &image_sizes, 800.0);
+
+    let content_padding = crate::ui::theme::scale_size(
+        crate::features::markdown::view::components::STYLE
+            .general
+            .content_padding,
+        font_size,
+    );
+    let padding_v = content_padding * 2.0;
+    let blocks_total_height = (total_content_height - padding_v).max(0.0);
+
+    let vh = 800.0f32;
+    let max_y = (total_content_height - vh).max(0.0);
+    const CHUNK_SIZE: usize = 8;
+    const OVERSCAN_CHUNKS: usize = 2;
+
+    // Test at top: y = 0
+    {
+        let view_top = 0.0f32;
+        let _view_bottom = vh + vh * 1.2;
+        let raw_first = offsets.partition_point(|&y| y < view_top).saturating_sub(1);
+        let first_visible =
+            raw_first.saturating_sub(OVERSCAN_CHUNKS * CHUNK_SIZE) / CHUNK_SIZE * CHUNK_SIZE;
+        let top_height = if first_visible > 0 {
+            offsets[first_visible]
+        } else {
+            0.0
+        };
+        assert_eq!(
+            first_visible, 0,
+            "Top invariant: first_visible must be 0 at scroll_y=0"
+        );
+        assert_eq!(
+            top_height, 0.0,
+            "Top invariant: top_height must be 0.0 at scroll_y=0"
+        );
+    }
+
+    // Test at bottom: y = max_y
+    {
+        let scroll_y = max_y;
+        let overscan_px = vh * 1.2;
+        let view_bottom = scroll_y + vh + overscan_px;
+        let raw_last = offsets
+            .partition_point(|&y| y <= view_bottom)
+            .min(blocks.len());
+        let remaining_blocks = blocks.len().saturating_sub(raw_last);
+        let dist_to_bottom = total_content_height - (scroll_y + vh);
+        let is_near_bottom = raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE >= blocks.len()
+            || remaining_blocks <= CHUNK_SIZE * 2
+            || dist_to_bottom <= overscan_px * 1.5;
+        let last_visible = if is_near_bottom {
+            blocks.len()
+        } else {
+            (raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE)
+                .min(blocks.len())
+                .div_ceil(CHUNK_SIZE)
+                * CHUNK_SIZE
+        }
+        .min(blocks.len());
+        let bottom_height = if last_visible < blocks.len() {
+            (blocks_total_height - offsets[last_visible]).max(0.0)
+        } else {
+            0.0
+        };
+        assert_eq!(
+            last_visible,
+            blocks.len(),
+            "Bottom invariant: last_visible must reach blocks.len() at max_y"
+        );
+        assert_eq!(
+            bottom_height, 0.0,
+            "Bottom invariant: bottom_height must be 0.0 at max_y"
+        );
+    }
+
+    // Invariance test: Total virtual column height is invariant across all scroll positions
+    let mut prev_total_h: Option<f32> = None;
+    for step in 0..=50 {
+        let scroll_y = max_y * (step as f32 / 50.0);
+        let overscan_px = vh * 1.2;
+        let view_top = (scroll_y - overscan_px).max(0.0);
+        let view_bottom = scroll_y + vh + overscan_px;
+
+        let raw_first = offsets.partition_point(|&y| y < view_top).saturating_sub(1);
+        let raw_last = offsets
+            .partition_point(|&y| y <= view_bottom)
+            .min(blocks.len());
+        let remaining_blocks = blocks.len().saturating_sub(raw_last);
+        let dist_to_bottom = total_content_height - (scroll_y + vh);
+        let is_near_bottom = raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE >= blocks.len()
+            || remaining_blocks <= CHUNK_SIZE * 2
+            || dist_to_bottom <= overscan_px * 1.5;
+
+        let first_visible =
+            raw_first.saturating_sub(OVERSCAN_CHUNKS * CHUNK_SIZE) / CHUNK_SIZE * CHUNK_SIZE;
+        let last_visible = if is_near_bottom {
+            blocks.len()
+        } else {
+            (raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE)
+                .min(blocks.len())
+                .div_ceil(CHUNK_SIZE)
+                * CHUNK_SIZE
+        }
+        .min(blocks.len());
+
+        let top_height = if first_visible > 0 {
+            offsets[first_visible]
+        } else {
+            0.0
+        };
+        let bottom_height = if last_visible < blocks.len() {
+            (blocks_total_height - offsets[last_visible]).max(0.0)
+        } else {
+            0.0
+        };
+
+        let estimated_visible_h = offsets
+            .get(last_visible)
+            .copied()
+            .unwrap_or(blocks_total_height)
+            - offsets[first_visible];
+        let computed_total_blocks_h = top_height + estimated_visible_h + bottom_height;
+        let computed_total_h = computed_total_blocks_h + padding_v;
+
+        assert!(
+            (computed_total_h - total_content_height).abs() < 1.0,
+            "Total virtual column height must remain invariant! Expected {total_content_height}, got {computed_total_h} at scroll_y={scroll_y}"
+        );
+
+        if let Some(prev) = prev_total_h {
+            assert!(
+                (computed_total_h - prev).abs() < 0.01,
+                "Height must not fluctuate between scroll steps"
+            );
+        }
+        prev_total_h = Some(computed_total_h);
+    }
+}
+
+#[test]
+fn test_list_with_nested_sub_blocks_height() {
+    use crate::features::markdown::parser::types::{Block, Inline, ListItem};
+    use crate::parsers::markdown::estimated_block_height;
+    use std::collections::HashMap;
+
+    let font_size = 14.0;
+    let image_sizes = HashMap::new();
+
+    let simple_item = ListItem {
+        is_task: None,
+        content: vec![Inline::Text("Simple item".to_string())],
+        sub_blocks: Vec::new(),
+    };
+    let simple_list = Block::List {
+        ordered: false,
+        start_number: 1,
+        items: vec![simple_item],
+    };
+    let simple_h = estimated_block_height(&simple_list, font_size, 0, &image_sizes, 800.0);
+
+    let nested_item = ListItem {
+        is_task: None,
+        content: vec![Inline::Text("Parent item".to_string())],
+        sub_blocks: vec![
+            Block::Paragraph(vec![Inline::Text(
+                "Nested description paragraph".to_string(),
+            )]),
+            Block::CodeBlock {
+                lang: Some("rust".to_string()),
+                title: None,
+                code: "fn main() {\n    println!(\"hello\");\n}".to_string(),
+            },
+        ],
+    };
+    let nested_list = Block::List {
+        ordered: false,
+        start_number: 1,
+        items: vec![nested_item],
+    };
+    let nested_h = estimated_block_height(&nested_list, font_size, 0, &image_sizes, 800.0);
+
+    assert!(
+        nested_h > simple_h + 50.0,
+        "Nested list with sub_blocks must have significantly larger estimated height than simple list: {nested_h} vs {simple_h}"
+    );
+}
