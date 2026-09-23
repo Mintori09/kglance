@@ -105,9 +105,9 @@ pub fn handle_markdown_scrolled(
     if delta_y < 1.0 && delta_vh < 1.0 {
         return Task::none();
     }
-    if state.smooth_scroll.is_animating && state.is_mouse_held {
-        state.smooth_scroll.check_interruption(y);
-    }
+    state.smooth_scroll.check_interruption(y);
+    state.smooth_scroll.target_y = y;
+    state.smooth_scroll.last_applied_y = y;
     state.scroll_y = y;
     state.viewport_height = viewport_height;
     if content_height > 0.0 && state.block_y_offsets.len() <= 20 {
@@ -480,17 +480,51 @@ pub fn handle_smooth_wheel_scrolled(
         }
         iced::mouse::ScrollDelta::Pixels { y, .. } => {
             if y.abs() > f32::EPSILON {
-                // Direct scrolling for touchpads: 1:1 displacement without smoothing accumulation lag/acceleration
+                let now = std::time::Instant::now();
+                // Apply touchpad scroll speed multiplier
+                let scaled_delta_y = y * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
+                let scroll_step = -scaled_delta_y; // negative delta_y from wheel means down
+
+                // Push sample into touchpad gesture tracker
+                state.touchpad_tracker.push_sample(now, scroll_step);
+
+                // Stop any running kinetic fling if user touches pad and begins active scrolling
+                if state.smooth_scroll.is_animating
+                    && state.smooth_scroll.mode() == crate::core::scroll::SmoothScrollMode::Kinetic
+                {
+                    state.smooth_scroll.stop(state.scroll_y);
+                }
+
                 state.smooth_scroll.is_animating = false;
                 state.smooth_scroll.velocity = 0.0;
-                let new_y = crate::core::scroll::clamp_target(state.scroll_y - y, max_y);
+                let new_y = crate::core::scroll::clamp_target(state.scroll_y + scroll_step, max_y);
                 state.scroll_y = new_y;
                 state.smooth_scroll.target_y = new_y;
                 state.smooth_scroll.last_applied_y = new_y;
-                iced::widget::operation::scroll_to(
+
+                let scroll_task = iced::widget::operation::scroll_to(
                     "content_scroll",
-                    iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
-                )
+                    iced::widget::operation::AbsoluteOffset {
+                        x: 0.0,
+                        y: state.scroll_y,
+                    },
+                );
+
+                // Schedule a delayed check after GESTURE_TIMEOUT_MS to test if fingers lifted and trigger fling
+                let gesture_task = Task::perform(
+                    async move {
+                        tokio::time::sleep(std::time::Duration::from_millis(
+                            crate::core::scroll::TouchpadGestureTracker::GESTURE_TIMEOUT_MS,
+                        ))
+                        .await;
+                        now
+                    },
+                    |event_time| {
+                        crate::app::messages::MarkdownMsg::TouchpadGestureEnded(event_time).into()
+                    },
+                );
+
+                Task::batch([scroll_task, gesture_task])
             } else {
                 Task::none()
             }
@@ -502,7 +536,6 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
     let state = active_markdown_state_mut(app);
     let max_y =
         crate::core::scroll::max_scroll_y(state.total_content_height, state.viewport_height);
-    let prev_mode = state.smooth_scroll.mode();
     let target_y = state.smooth_scroll.target_y();
 
     if let Some(next_y) = state.smooth_scroll.tick(state.scroll_y, now, max_y) {
@@ -512,30 +545,29 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             app.record_read_position();
         }
 
-        let scroll_task =
-            if is_finished && prev_mode == crate::core::scroll::SmoothScrollMode::Navigation {
-                if target_y >= max_y - 1.0 {
-                    operation::snap_to(
-                        "content_scroll",
-                        operation::RelativeOffset { x: 0.0, y: 1.0 },
-                    )
-                } else if target_y <= 1.0 {
-                    operation::snap_to(
-                        "content_scroll",
-                        operation::RelativeOffset { x: 0.0, y: 0.0 },
-                    )
-                } else {
-                    iced::widget::operation::scroll_to(
-                        "content_scroll",
-                        iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
-                    )
-                }
+        let scroll_task = if is_finished {
+            if target_y >= max_y - 1.0 {
+                operation::snap_to(
+                    "content_scroll",
+                    operation::RelativeOffset { x: 0.0, y: 1.0 },
+                )
+            } else if target_y <= 1.0 {
+                operation::snap_to(
+                    "content_scroll",
+                    operation::RelativeOffset { x: 0.0, y: 0.0 },
+                )
             } else {
                 iced::widget::operation::scroll_to(
                     "content_scroll",
                     iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
                 )
-            };
+            }
+        } else {
+            iced::widget::operation::scroll_to(
+                "content_scroll",
+                iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
+            )
+        };
 
         let toc_task = if is_finished {
             let toc = &app.state.markdown.toc;
@@ -559,6 +591,34 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
     } else {
         Task::none()
     }
+}
+
+pub fn handle_touchpad_gesture_ended(
+    app: &mut KglanceApp,
+    event_time: std::time::Instant,
+) -> Task<Message> {
+    let state = active_markdown_state_mut(app);
+
+    // Only process if this task corresponds to the last event time (debounced)
+    if state.touchpad_tracker.last_event_time() != Some(event_time) {
+        return Task::none();
+    }
+
+    let now = std::time::Instant::now();
+    if let Some(velocity) = state.touchpad_tracker.ended_velocity(now) {
+        // Minimum velocity threshold to trigger kinetic fling
+        if velocity.abs() >= 120.0 {
+            let max_y = crate::core::scroll::max_scroll_y(
+                state.total_content_height,
+                state.viewport_height,
+            );
+            state
+                .smooth_scroll
+                .start_kinetic(state.scroll_y, velocity, max_y);
+        }
+    }
+
+    Task::none()
 }
 
 pub(crate) fn update_selected_text_from_range(app: &mut KglanceApp) {
@@ -1220,9 +1280,9 @@ mod tests {
     #[test]
     fn test_smooth_scroll_reaches_target() {
         let mut scroller = crate::core::scroll::SmoothScroller::default();
-        let mut current = 0.0;
-        let target = 500.0;
-        let max_y = 1000.0;
+        let mut current: f32 = 0.0;
+        let target: f32 = 500.0;
+        let max_y: f32 = 1000.0;
         scroller.start_navigation(current, target, max_y);
 
         let start = std::time::Instant::now();
@@ -1256,15 +1316,54 @@ mod tests {
         assert_eq!(app.state.markdown.smooth_scroll.target_y, 164.0);
         assert!(app.state.markdown.smooth_scroll.is_animating);
 
-        // Pixels: trackpad swipe down (-25.0) -> direct step = 25.0 px (no smooth animation lag)
-        let delta_pixels = iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -25.0 };
+        // Pixels: trackpad touch events produce direct 1:1 displacement without starting kinetic yet
+        let delta_pixels = iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -20.0 };
         let _ = handle_smooth_wheel_scrolled(&mut app, delta_pixels);
-        assert_eq!(app.state.markdown.scroll_y, 125.0);
+        assert_eq!(app.state.markdown.scroll_y, 135.0);
         assert!(!app.state.markdown.smooth_scroll.is_animating);
+
+        // Second fast swipe in rapid succession: still in direct touch tracking
+        std::thread::sleep(std::time::Duration::from_millis(15));
+        let delta_pixels_fast = iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -30.0 };
+        let _ = handle_smooth_wheel_scrolled(&mut app, delta_pixels_fast);
+        assert_eq!(app.state.markdown.scroll_y, 187.5);
+        assert!(!app.state.markdown.smooth_scroll.is_animating);
+
+        // When gesture ends (fingers lifted), handle_touchpad_gesture_ended triggers kinetic fling
+        let last_time = app
+            .state
+            .markdown
+            .touchpad_tracker
+            .last_event_time()
+            .expect("last event time");
+        std::thread::sleep(std::time::Duration::from_millis(85));
+        let _ = handle_touchpad_gesture_ended(&mut app, last_time);
+        assert!(app.state.markdown.smooth_scroll.is_animating);
+        assert_eq!(
+            app.state.markdown.smooth_scroll.mode(),
+            crate::core::scroll::SmoothScrollMode::Kinetic
+        );
 
         // Ctrl held down: ignores wheel scrolling
         app.ctrl_held = true;
         let _ = handle_smooth_wheel_scrolled(&mut app, delta_lines);
-        assert_eq!(app.state.markdown.scroll_y, 125.0);
+    }
+
+    #[test]
+    fn test_markdown_scrolled_cancels_running_animation_cleanly() {
+        use crate::app::test_util::{markdown_content, test_app};
+
+        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
+        app.state.markdown.smooth_scroll.is_animating = true;
+        app.state.markdown.smooth_scroll.target_y = 1000.0;
+        app.state.markdown.smooth_scroll.last_applied_y = 100.0;
+        app.state.markdown.viewport_height = 800.0;
+        app.state.markdown.total_content_height = 3000.0;
+
+        let _ = handle_markdown_scrolled(&mut app, 250.0, 800.0, 3000.0);
+        assert_eq!(app.state.markdown.scroll_y, 250.0);
+        assert_eq!(app.state.markdown.smooth_scroll.target_y, 250.0);
+        assert_eq!(app.state.markdown.smooth_scroll.last_applied_y, 250.0);
+        assert!(!app.state.markdown.smooth_scroll.is_animating);
     }
 }

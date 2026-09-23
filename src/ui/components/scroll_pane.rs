@@ -214,13 +214,7 @@ where
             && let Event::Mouse(mouse::Event::WheelScrolled { delta }) = event
             && cursor.is_over(layout.bounds())
         {
-            let dy = match delta {
-                mouse::ScrollDelta::Lines { y, .. } => *y,
-                mouse::ScrollDelta::Pixels { y, .. } => *y,
-            };
-            if dy.abs() > f32::EPSILON
-                && let Some(on_wheel) = &self.on_wheel
-            {
+            if let Some(on_wheel) = &self.on_wheel {
                 shell.publish(on_wheel(*delta));
             }
             return;

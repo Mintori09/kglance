@@ -17,7 +17,7 @@ You are a senior Rust engineer developing Kglance (Oxiview), a high-performance 
 - Never run `cargo clean`.
 - Never auto commit except i tell you do it.
 - Use cargo nextest instead of cargo test with under 3 thread per run.
-- Run `just release` after finishing (normally takes 2m30s).
+- Run `just build` after finishing (normally takes 2m30s).
 - Never poll a backgrounded job (`sleep` / `ps` / `pgrep` / `top` / status polling loops) — do other work or stop calling tools/end your reply; the harness will wake you with its output when finished.
 
 ## File Deletion
@@ -69,6 +69,7 @@ unless explicitly requested by the user.
 ### External Surface Protection
 
 Treat the following as public contracts:
+
 - DBus interfaces (`zbus` services, methods, signals)
 - CLI flags and arguments
 - Configuration schema and file parsing

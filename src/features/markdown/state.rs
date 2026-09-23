@@ -61,14 +61,12 @@ pub fn compute_block_y_offsets(
     content_width: f32,
 ) -> (Vec<f32>, f32) {
     let mut offsets = Vec::with_capacity(blocks.len());
-    let padding = crate::ui::theme::scale_size(lc::CONTENT_PADDING, font_size);
-    let mut y: f32 = padding;
+    let mut y: f32 = 0.0;
     for (i, block) in blocks.iter().enumerate() {
         offsets.push(y);
         y += estimated_block_height(block, font_size, i, image_sizes, content_width);
     }
-    let total_h = y + padding;
-    (offsets, total_h)
+    (offsets, y)
 }
 
 pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
@@ -151,6 +149,8 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
         auto_scroll_delta: None,
         drag_last_y: 0.0,
         smooth_scroll: crate::core::types::SmoothScrollState::default(),
+        touchpad_tracker: crate::core::scroll::TouchpadGestureTracker::default(),
+        scroll_controller: crate::core::scroll::ScrollController::default(),
     };
 
     for (i, block) in blocks.iter().enumerate() {

@@ -70,13 +70,13 @@ pub(crate) fn build_epub_content<'a>(
         let last_visible = last_visible.min(chapter_blocks.len());
 
         let top_height = if first_visible > 0 {
-            offsets[first_visible] - offsets[0]
+            offsets[first_visible]
         } else {
             0.0
         };
 
         let bottom_height = if last_visible < chapter_blocks.len() {
-            ((md_state.total_content_height - content_padding) - offsets[last_visible]).max(0.0)
+            (md_state.total_content_height - offsets[last_visible]).max(0.0)
         } else {
             0.0
         };
