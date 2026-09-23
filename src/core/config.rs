@@ -112,11 +112,45 @@ impl Default for CacheConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ScrollConfigOptions {
+    #[serde(default = "default_smooth_scroll_enabled")]
+    pub smooth_scroll_enabled: bool,
+    #[serde(default = "default_scroll_friction")]
+    pub friction: f32,
+    #[serde(default = "default_scroll_spring_stiffness")]
+    pub spring_stiffness: f32,
+}
+
+fn default_smooth_scroll_enabled() -> bool {
+    true
+}
+
+fn default_scroll_friction() -> f32 {
+    crate::core::scroll::KINETIC_FRICTION_COEFFICIENT
+}
+
+fn default_scroll_spring_stiffness() -> f32 {
+    180.0
+}
+
+impl Default for ScrollConfigOptions {
+    fn default() -> Self {
+        Self {
+            smooth_scroll_enabled: default_smooth_scroll_enabled(),
+            friction: default_scroll_friction(),
+            spring_stiffness: default_scroll_spring_stiffness(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct AppConfig {
     pub ui: UiConfig,
     #[serde(default)]
     pub cache: CacheConfig,
+    #[serde(default)]
+    pub scroll: ScrollConfigOptions,
 }
 
 pub struct ConfigManager;

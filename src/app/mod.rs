@@ -106,6 +106,12 @@ impl KglanceApp {
 
         state.read_positions = crate::core::ReadPositions::load();
         state.json.tree_mode = config.ui.json_tree_view;
+        state
+            .markdown
+            .scroll_controller
+            .apply_config(&config.scroll);
+        state.pdf.scroll_controller.apply_config(&config.scroll);
+        state.text.scroll_controller.apply_config(&config.scroll);
 
         if !initial_paths.is_empty() {
             state.playlist = initial_paths.to_vec();
@@ -1111,6 +1117,29 @@ impl KglanceApp {
             Subscription::none()
         };
 
+        let text_scroll_sub = if matches!(
+            self.current_content,
+            Some(crate::core::PreviewData::Text { .. })
+        ) {
+            let text = &self.state.text;
+            if text.smooth_scroll.is_animating
+                || text.scroll_controller.is_animating()
+                || text.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+            {
+                iced::time::every(std::time::Duration::from_millis(
+                    crate::features::markdown::update::SMOOTH_SCROLL_TICK_MS,
+                ))
+                .map(|_| {
+                    crate::app::messages::TextMsg::SmoothScrollTick(std::time::Instant::now())
+                        .into()
+                })
+            } else {
+                Subscription::none()
+            }
+        } else {
+            Subscription::none()
+        };
+
         let read_positions_sub = if self.state.read_positions_dirty {
             iced::time::every(std::time::Duration::from_secs(1))
                 .map(|_| crate::app::messages::SystemMsg::ReadPositionsTick.into())
@@ -1127,6 +1156,7 @@ impl KglanceApp {
             auto_scroll_sub,
             smooth_scroll_sub,
             pdf_scroll_sub,
+            text_scroll_sub,
             read_positions_sub,
         ])
     }
@@ -1194,6 +1224,17 @@ pub(crate) mod test_util {
             chapters,
             active_chapter: 0,
             images: std::collections::HashMap::new(),
+        }
+    }
+
+    pub fn text_content(content: &str, lang: &str) -> PreviewData {
+        let lines: Vec<String> = (1..=content.lines().count())
+            .map(|n| n.to_string())
+            .collect();
+        PreviewData::Text {
+            content: content.to_string(),
+            line_numbers: lines.join("\n"),
+            language: lang.to_string(),
         }
     }
 

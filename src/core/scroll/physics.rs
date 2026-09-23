@@ -42,6 +42,7 @@ impl Default for BoundaryBehavior {
 pub struct ScrollPhysics {
     pub velocity: f32,
     pub boundary_behavior: BoundaryBehavior,
+    pub friction_coefficient: f32,
 }
 
 impl Default for ScrollPhysics {
@@ -49,6 +50,7 @@ impl Default for ScrollPhysics {
         Self {
             velocity: 0.0,
             boundary_behavior: BoundaryBehavior::default(),
+            friction_coefficient: KINETIC_FRICTION_COEFFICIENT,
         }
     }
 }
@@ -76,7 +78,7 @@ impl ScrollPhysics {
             BoundaryBehavior::Clamp => {
                 let step = self.velocity * dt;
                 let next_y = (current_y + step).clamp(0.0, max_y);
-                self.velocity *= (-KINETIC_FRICTION_COEFFICIENT * dt).exp();
+                self.velocity *= (-self.friction_coefficient * dt).exp();
 
                 let hit_boundary = (next_y <= 0.0 && self.velocity <= 0.0)
                     || (next_y >= max_y && self.velocity >= 0.0);
@@ -92,10 +94,10 @@ impl ScrollPhysics {
                 let mut next_y = current_y + step;
                 if next_y < 0.0 || next_y > max_y {
                     // Fast dissipation on boundary
-                    self.velocity *= (-KINETIC_FRICTION_COEFFICIENT * 8.0 * dt).exp();
+                    self.velocity *= (-self.friction_coefficient * 8.0 * dt).exp();
                     next_y = next_y.clamp(0.0, max_y);
                 } else {
-                    self.velocity *= (-KINETIC_FRICTION_COEFFICIENT * dt).exp();
+                    self.velocity *= (-self.friction_coefficient * dt).exp();
                 }
 
                 if self.velocity.abs() < KINETIC_VELOCITY_CUTOFF {
@@ -140,7 +142,7 @@ impl ScrollPhysics {
                     // Normal friction decay
                     let step = self.velocity * dt;
                     let next_y = current_y + step;
-                    self.velocity *= (-KINETIC_FRICTION_COEFFICIENT * dt).exp();
+                    self.velocity *= (-self.friction_coefficient * dt).exp();
 
                     if (0.0..=max_y).contains(&next_y)
                         && self.velocity.abs() < KINETIC_VELOCITY_CUTOFF

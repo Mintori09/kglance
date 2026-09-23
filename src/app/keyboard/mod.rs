@@ -20,7 +20,11 @@ impl super::KglanceApp {
     pub(crate) fn is_smooth_scrollable(&self) -> bool {
         matches!(
             self.current_content,
-            Some(PreviewData::Markdown { .. }) | Some(PreviewData::Epub { .. })
+            Some(PreviewData::Markdown { .. })
+                | Some(PreviewData::Epub { .. })
+                | Some(PreviewData::Text { .. })
+                | Some(PreviewData::Pdf { .. })
+                | Some(PreviewData::Typst { .. })
         )
     }
 

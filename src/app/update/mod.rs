@@ -153,8 +153,14 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::TextMsg::SearchPrev => Task::none(),
             crate::app::messages::TextMsg::SearchClosed => Task::none(),
             crate::app::messages::TextMsg::WrapToggled => Task::none(),
-            crate::app::messages::TextMsg::Scrolled(y) => {
-                crate::features::text::update::handle_text_scrolled(app, y)
+            crate::app::messages::TextMsg::Scrolled(viewport) => {
+                crate::features::text::update::handle_text_scrolled(app, viewport)
+            }
+            crate::app::messages::TextMsg::WheelScrolled(delta) => {
+                crate::features::text::update::handle_wheel_scrolled(app, delta)
+            }
+            crate::app::messages::TextMsg::SmoothScrollTick(now) => {
+                crate::features::text::update::handle_smooth_scroll_tick(app, now)
             }
             crate::app::messages::TextMsg::ToggleOutline => {
                 crate::features::text::update::handle_toggle_outline(app)

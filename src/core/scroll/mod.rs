@@ -234,6 +234,16 @@ impl ScrollController {
         self.physics.boundary_behavior = behavior;
     }
 
+    pub fn apply_config(&mut self, config: &crate::core::config::ScrollConfigOptions) {
+        self.physics.friction_coefficient = config.friction;
+        if let BoundaryBehavior::Spring {
+            ref mut stiffness, ..
+        } = self.physics.boundary_behavior
+        {
+            *stiffness = config.spring_stiffness;
+        }
+    }
+
     pub fn start_interactive(&mut self, current_y: f32, delta: f32, max_y: f32) {
         let base = match self.mode {
             SmoothScrollMode::Interactive if self.is_animating => self.target_y,

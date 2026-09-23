@@ -94,12 +94,16 @@ pub struct TextState {
     pub search_match_index: usize,
     pub search_info: String,
     pub scroll_y: f32,
+    pub viewport_height: f32,
+    pub total_content_height: f32,
     pub word_count: usize,
     pub char_count: usize,
     pub reading_time_mins: usize,
     pub symbols: Vec<crate::features::text::CodeSymbol>,
     pub outline_visible: bool,
     pub sidebar_width: f32,
+    pub scroll_controller: crate::core::scroll::ScrollController,
+    pub smooth_scroll: SmoothScrollState,
 }
 
 impl Default for TextState {
@@ -115,12 +119,16 @@ impl Default for TextState {
             search_match_index: 0,
             search_info: String::new(),
             scroll_y: 0.0,
+            viewport_height: 800.0,
+            total_content_height: 0.0,
             word_count: 0,
             char_count: 0,
             reading_time_mins: 0,
             symbols: Vec::new(),
             outline_visible: false,
             sidebar_width: 220.0,
+            scroll_controller: crate::core::scroll::ScrollController::default(),
+            smooth_scroll: SmoothScrollState::default(),
         }
     }
 }

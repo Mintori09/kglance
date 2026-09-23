@@ -25,6 +25,12 @@ pub fn populate_state(
     state.text.word_count = words;
     state.text.char_count = chars;
     state.text.reading_time_mins = mins;
+    let lines_count = content.lines().count().max(1);
+    let line_height = state.font_size * 1.35;
+    state.text.total_content_height = (lines_count as f32) * line_height + 40.0;
+    state.text.scroll_y = 0.0;
+    state.text.scroll_controller.reset();
+    state.text.smooth_scroll.stop(0.0);
     state.text.symbols = crate::features::text::extract_symbols(&content, path_ext);
     state.file_type_text = language.to_string();
 }
