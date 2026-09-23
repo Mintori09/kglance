@@ -59,6 +59,15 @@ fn markdown_block_y_offset(
 
 pub fn handle_toc_toggled(app: &mut KglanceApp) -> Task<Message> {
     app.state.markdown.toc_visible = !app.state.markdown.toc_visible;
+    if let Some(crate::core::PreviewData::Markdown { blocks, .. }) = &app.current_content {
+        let content_width = app.state.markdown_content_width();
+        crate::features::markdown::recompute_markdown_layout(
+            &mut app.state.markdown,
+            blocks,
+            app.state.font_size,
+            content_width,
+        );
+    }
     let y = app.state.markdown.scroll_y;
     operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y })
 }

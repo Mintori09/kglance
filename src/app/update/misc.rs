@@ -52,7 +52,19 @@ pub fn handle_toast_dismissed(app: &mut KglanceApp, id: u64) -> Task<Message> {
 }
 
 pub fn handle_markdown_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task<Message> {
-    app.state.markdown.sidebar_width = width.clamp(140.0, 550.0);
+    let new_w = width.clamp(140.0, 550.0);
+    if (app.state.markdown.sidebar_width - new_w).abs() > 1.0 {
+        app.state.markdown.sidebar_width = new_w;
+        if let Some(crate::core::PreviewData::Markdown { blocks, .. }) = &app.current_content {
+            let content_width = app.state.markdown_content_width();
+            crate::features::markdown::recompute_markdown_layout(
+                &mut app.state.markdown,
+                blocks,
+                app.state.font_size,
+                content_width,
+            );
+        }
+    }
     Task::none()
 }
 
@@ -221,12 +233,25 @@ fn apply_sidebar_drag(
 
 pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32) -> Task<Message> {
     if width > 0.0 && height > 0.0 {
+        let old_w = app.state.window_width;
         app.state.current_window_size.width = width;
         app.state.current_window_size.height = height;
         app.state.window_width = width;
         app.state.window_height = height;
         app.state.markdown.viewport_height = height;
         app.state.epub.markdown_state.viewport_height = height;
+
+        if (old_w - width).abs() > 1.0
+            && let Some(crate::core::PreviewData::Markdown { blocks, .. }) = &app.current_content
+        {
+            let content_width = app.state.markdown_content_width();
+            crate::features::markdown::recompute_markdown_layout(
+                &mut app.state.markdown,
+                blocks,
+                app.state.font_size,
+                content_width,
+            );
+        }
     }
 
     let pdf = active_pdf_state_mut(app);

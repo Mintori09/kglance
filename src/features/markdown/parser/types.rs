@@ -94,3 +94,29 @@ pub struct ListItem {
     pub content: Vec<Inline>,
     pub sub_blocks: Vec<Block>,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BlockLayout {
+    pub estimated_height: f32,
+    pub measured_height: Option<f32>,
+}
+
+impl BlockLayout {
+    #[inline]
+    pub fn new(estimated_height: f32) -> Self {
+        Self {
+            estimated_height,
+            measured_height: None,
+        }
+    }
+
+    #[inline]
+    pub fn effective_height(&self) -> f32 {
+        self.measured_height.unwrap_or(self.estimated_height)
+    }
+
+    #[inline]
+    pub fn invalidate_measurement(&mut self) {
+        self.measured_height = None;
+    }
+}
