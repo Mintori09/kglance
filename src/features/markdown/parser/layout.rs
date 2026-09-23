@@ -22,20 +22,30 @@ pub fn estimated_block_height(
     };
 
     match block {
-        Block::Heading { level, .. } => {
+        Block::Heading { level, content } => {
             let layout = heading_layout(*level, font_size);
             let div = if *level == 1 || *level == 2 {
                 lc::DIVIDER_HEIGHT + lc::SECTION_SPACING
             } else {
                 0.0
             };
-            layout.padding_top + layout.font_size + layout.padding_bottom + div + margin
+            let text = flatten_inlines_toc(content);
+            let explicit_lines = text.lines().count().max(1);
+            let available_w = effective_width.max(100.0);
+            let chars_per_line = (available_w / (layout.font_size * 0.65)).max(10.0) as usize;
+            let visual_units = text.chars().count();
+            let wrapped_lines = ((visual_units as f32 * 1.15) / chars_per_line as f32)
+                .ceil()
+                .max(1.0) as usize;
+            let num_lines = explicit_lines.max(wrapped_lines) as f32;
+            let text_h = num_lines * layout.font_size * 1.3;
+            layout.padding_top + text_h + layout.padding_bottom + div + margin
         }
         Block::Paragraph(inlines) => {
             let text = flatten_inlines_toc(inlines);
             let explicit_lines = text.lines().count().max(1);
             let available_w = effective_width.max(100.0);
-            let chars_per_line = (available_w / (font_size * 0.55)).max(20.0) as usize;
+            let chars_per_line = (available_w / (font_size * 0.60)).max(15.0) as usize;
             let visual_units = text
                 .chars()
                 .map(|c| {
@@ -50,7 +60,9 @@ pub fn estimated_block_height(
                     }
                 })
                 .sum::<usize>();
-            let wrapped_lines = (visual_units / chars_per_line).max(1);
+            let wrapped_lines = ((visual_units as f32 * 1.15) / chars_per_line as f32)
+                .ceil()
+                .max(1.0) as usize;
             let num_lines = explicit_lines.max(wrapped_lines) as f32;
             let pad_v = (lc::PARAGRAPH_PADDING_V * 2) as f32;
             num_lines * line + pad_v + margin
@@ -117,7 +129,7 @@ pub fn estimated_block_height(
         Block::List { items, .. } => {
             let mut total_h = 0.0;
             let available_w = (effective_width - lc::LIST_SUB_BLOCK_LEFT_PADDING).max(100.0);
-            let chars_per_line = (available_w / (font_size * 0.55)).max(20.0) as usize;
+            let chars_per_line = (available_w / (font_size * 0.60)).max(15.0) as usize;
             for item in items {
                 let text = flatten_inlines_toc(&item.content);
                 let explicit_lines = text.lines().count().max(1);
@@ -135,10 +147,22 @@ pub fn estimated_block_height(
                         }
                     })
                     .sum::<usize>();
-                let wrapped_lines = (visual_units / chars_per_line).max(1);
+                let wrapped_lines = ((visual_units as f32 * 1.15) / chars_per_line as f32)
+                    .ceil()
+                    .max(1.0) as usize;
                 let n = explicit_lines.max(wrapped_lines) as f32;
                 let item_pad = lc::LIST_ITEM_PADDING * 2.0;
-                total_h += n * line + item_pad;
+                let mut item_h = n * line + item_pad;
+                for sb in &item.sub_blocks {
+                    item_h += estimated_block_height(
+                        sb,
+                        font_size,
+                        block_index,
+                        image_sizes,
+                        available_w,
+                    ) + lc::LIST_ITEM_PADDING * 2.0;
+                }
+                total_h += item_h;
             }
             if items.len() > 1 {
                 total_h += (items.len() - 1) as f32 * lc::SECTION_SPACING;
@@ -150,7 +174,6 @@ pub fn estimated_block_height(
                 .iter()
                 .map(|b| {
                     estimated_block_height(b, font_size, block_index, image_sizes, effective_width)
-                        * 0.9
                 })
                 .sum();
             let pad_v = (lc::QUOTE_CONTENT_PADDING_V * 2) as f32;

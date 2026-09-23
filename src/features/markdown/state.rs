@@ -60,13 +60,19 @@ pub fn compute_block_y_offsets(
     image_sizes: &HashMap<usize, (u32, u32)>,
     content_width: f32,
 ) -> (Vec<f32>, f32) {
+    let padding_v = crate::ui::theme::scale_size(
+        crate::features::markdown::view::components::STYLE
+            .general
+            .content_padding,
+        font_size,
+    ) * 2.0;
     let mut offsets = Vec::with_capacity(blocks.len());
     let mut y: f32 = 0.0;
     for (i, block) in blocks.iter().enumerate() {
         offsets.push(y);
         y += estimated_block_height(block, font_size, i, image_sizes, content_width);
     }
-    (offsets, y)
+    (offsets, y + padding_v)
 }
 
 pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {

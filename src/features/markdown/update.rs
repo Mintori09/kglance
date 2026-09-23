@@ -102,7 +102,7 @@ pub fn handle_markdown_scrolled(
     let state = active_markdown_state_mut(app);
     let delta_vh = (state.viewport_height - viewport_height).abs();
     state.viewport_height = viewport_height;
-    if content_height > 0.0 && state.block_y_offsets.len() <= 20 {
+    if content_height > 0.0 && state.block_y_offsets.is_empty() {
         state.total_content_height = content_height;
     }
 
@@ -534,10 +534,22 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             app.record_read_position();
         }
 
-        let scroll_task = iced::widget::operation::scroll_to(
-            "content_scroll",
-            iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
-        );
+        let scroll_task = if is_finished && next_y >= max_y - 1.0 {
+            iced::widget::operation::snap_to(
+                "content_scroll",
+                iced::widget::operation::RelativeOffset { x: 0.0, y: 1.0 },
+            )
+        } else if is_finished && next_y <= 1.0 {
+            iced::widget::operation::snap_to(
+                "content_scroll",
+                iced::widget::operation::RelativeOffset { x: 0.0, y: 0.0 },
+            )
+        } else {
+            iced::widget::operation::scroll_to(
+                "content_scroll",
+                iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
+            )
+        };
 
         let toc_task = if is_finished {
             let toc = &app.state.markdown.toc;
@@ -1376,6 +1388,39 @@ mod tests {
         let _ = handle_markdown_scrolled(&mut app, 400.0, 800.0, 3000.0);
         assert_eq!(app.state.markdown.scroll_y, 400.0);
         assert_eq!(app.state.markdown.smooth_scroll.target_y, 400.0);
+        assert!(!app.state.markdown.smooth_scroll.is_animating);
+    }
+
+    #[test]
+    fn test_smooth_wheel_scroll_reaches_exact_bottom_without_overshoot() {
+        use crate::app::test_util::{markdown_content, test_app};
+
+        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
+        app.state.markdown.viewport_height = 800.0;
+        app.state.markdown.total_content_height = 2000.0;
+        app.state.markdown.scroll_y = 1100.0;
+
+        let max_y = crate::core::scroll::max_scroll_y(
+            app.state.markdown.total_content_height,
+            app.state.markdown.viewport_height,
+        );
+        assert_eq!(max_y, 1200.0);
+
+        // Scroll down 2 notches: 2 * (800 * 0.15) = 240px -> target = 1100 + 240 = 1340, clamped to 1200.0
+        let delta_lines = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -2.0 };
+        let _ = handle_smooth_wheel_scrolled(&mut app, delta_lines);
+        assert_eq!(app.state.markdown.smooth_scroll.target_y, 1200.0);
+
+        // Tick to completion
+        let start = std::time::Instant::now();
+        for step in 1..=30 {
+            let now = start + std::time::Duration::from_millis(step * 16);
+            let _ = handle_smooth_scroll_tick(&mut app, now);
+            if !app.state.markdown.smooth_scroll.is_animating {
+                break;
+            }
+        }
+        assert_eq!(app.state.markdown.scroll_y, 1200.0);
         assert!(!app.state.markdown.smooth_scroll.is_animating);
     }
 }

@@ -58,7 +58,9 @@ pub(crate) fn build_epub_content<'a>(
         let remaining_blocks = chapter_blocks.len().saturating_sub(raw_last);
         let dist_to_bottom =
             md_state.total_content_height - (md_state.scroll_y + md_state.viewport_height);
-        let is_near_bottom = dist_to_bottom <= 50.0 || remaining_blocks == 0;
+        let is_near_bottom = raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE >= chapter_blocks.len()
+            || remaining_blocks <= CHUNK_SIZE * 2
+            || dist_to_bottom <= overscan_px * 1.5;
 
         let first_visible =
             raw_first.saturating_sub(OVERSCAN_CHUNKS * CHUNK_SIZE) / CHUNK_SIZE * CHUNK_SIZE;
@@ -73,6 +75,9 @@ pub(crate) fn build_epub_content<'a>(
         };
         let last_visible = last_visible.min(chapter_blocks.len());
 
+        let padding_v = content_padding * 2.0;
+        let blocks_total_height = (md_state.total_content_height - padding_v).max(0.0);
+
         let top_height = if first_visible > 0 {
             offsets[first_visible]
         } else {
@@ -80,7 +85,7 @@ pub(crate) fn build_epub_content<'a>(
         };
 
         let bottom_height = if last_visible < chapter_blocks.len() {
-            (md_state.total_content_height - offsets[last_visible]).max(0.0)
+            (blocks_total_height - offsets[last_visible]).max(0.0)
         } else {
             0.0
         };

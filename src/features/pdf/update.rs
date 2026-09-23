@@ -173,10 +173,23 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             evict_distant_pages(pdf_state, page_index);
         }
 
-        return iced::widget::operation::scroll_to(
-            "content_scroll",
-            iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
-        );
+        let is_finished = !pdf_state.scroll_controller.is_animating();
+        return if is_finished && next_y >= max_y - 1.0 {
+            iced::widget::operation::snap_to(
+                "content_scroll",
+                iced::widget::operation::RelativeOffset { x: 0.0, y: 1.0 },
+            )
+        } else if is_finished && next_y <= 1.0 {
+            iced::widget::operation::snap_to(
+                "content_scroll",
+                iced::widget::operation::RelativeOffset { x: 0.0, y: 0.0 },
+            )
+        } else {
+            iced::widget::operation::scroll_to(
+                "content_scroll",
+                iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
+            )
+        };
     }
 
     // 2. SmoothScroller check
