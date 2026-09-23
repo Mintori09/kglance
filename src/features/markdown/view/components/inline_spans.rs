@@ -189,6 +189,10 @@ pub(crate) fn inlines_to_spans<'a>(
 }
 
 pub(crate) fn render_latex_to_text(latex: &str) -> String {
+    if !latex.contains('\\') && !latex.contains('_') && !latex.contains('^') && !latex.contains('&')
+    {
+        return latex.to_string();
+    }
     let mut result = replace_text_macros(latex.to_string());
     result = replace_environments(result);
     result = replace_blackboard(result);

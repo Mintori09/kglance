@@ -120,7 +120,8 @@ where
         self
     }
 
-    fn extract_plain_text(&self) -> String {
+    #[must_use]
+    pub fn extract_plain_text(&self) -> String {
         let mut text = String::new();
         for span in &self.spans {
             text.push_str(&span.text);
@@ -132,6 +133,9 @@ where
 #[derive(Default)]
 struct State {
     paragraph: Option<iced::advanced::graphics::text::Paragraph>,
+    last_bounds_width: f32,
+    last_font_size: f32,
+    last_size: Size,
     selection: Option<(usize, usize)>,
     is_selecting: bool,
 
@@ -223,23 +227,59 @@ where
         let state = tree.state.downcast_mut::<State>();
         let max_width = limits.max().width;
 
-        let text_input = Text {
-            content: &self.spans[..],
-            bounds: Size::new(max_width, f32::INFINITY),
-            size: Pixels(self.font_size),
-            line_height: iced::advanced::text::LineHeight::default(),
-            font: Font::default(),
-            align_x: alignment::Horizontal::Left.into(),
-            align_y: alignment::Vertical::Top,
-            shaping: iced::advanced::text::Shaping::Advanced,
-            wrapping: iced::advanced::text::Wrapping::Word,
+        let mut spans_changed = false;
+        let mut total_len = 0;
+        for span in &self.spans {
+            total_len += span.text.len();
+        }
+        if total_len != state.plain_text.len() {
+            spans_changed = true;
+        } else {
+            let mut offset = 0;
+            for span in &self.spans {
+                let end = offset + span.text.len();
+                if state.plain_text.get(offset..end) != Some(&span.text) {
+                    spans_changed = true;
+                    break;
+                }
+                offset = end;
+            }
+        }
+
+        let is_cached = !spans_changed
+            && state.paragraph.is_some()
+            && (state.last_bounds_width - max_width).abs() < 0.1
+            && (state.last_font_size - self.font_size).abs() < 0.1;
+
+        let size = if is_cached {
+            state.last_size
+        } else {
+            state.plain_text.clear();
+            for span in &self.spans {
+                state.plain_text.push_str(&span.text);
+            }
+
+            let text_input = Text {
+                content: &self.spans[..],
+                bounds: Size::new(max_width, f32::INFINITY),
+                size: Pixels(self.font_size),
+                line_height: iced::advanced::text::LineHeight::default(),
+                font: Font::default(),
+                align_x: alignment::Horizontal::Left.into(),
+                align_y: alignment::Vertical::Top,
+                shaping: iced::advanced::text::Shaping::Advanced,
+                wrapping: iced::advanced::text::Wrapping::Word,
+            };
+
+            let p = Renderer::Paragraph::with_spans(text_input);
+            let p_size = p.min_bounds();
+
+            state.paragraph = Some(p);
+            state.last_bounds_width = max_width;
+            state.last_font_size = self.font_size;
+            state.last_size = p_size;
+            p_size
         };
-
-        let p = Renderer::Paragraph::with_spans(text_input);
-        let size = p.min_bounds();
-
-        state.paragraph = Some(p);
-        state.plain_text = self.extract_plain_text();
 
         layout::Node::new(limits.resolve(self.width, Length::Shrink, size))
     }
