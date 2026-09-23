@@ -17,6 +17,7 @@ It operates in two modes:
 ## Key Features
 
 - **Source Code & Text**: Syntax highlighting via `syntect` with line numbers, text search (`Ctrl+F`), and word wrap toggle.
+- **Smooth & Kinetic Inertia Scrolling**: Browser-grade physics-based smooth scrolling, touchpad kinetic fling (least-squares velocity estimation), and full Vim/Page navigation across Markdown, EPUB, PDF, and Source Code/Text.
 - **Images**: Fast rendering of PNG, JPEG, WebP, GIF, BMP, and SVG (`resvg`). Full support for zoom, pan, rotation, and detailed EXIF metadata sidebar.
 - **Documents & Office**: PDF continuous scrolling, page navigation, and thumbnail sidebar; text extraction for DOCX & XLSX with LibreOffice fallback; `.typ` document rendering via `typst` CLI (if installed).
 - **Archives**: Interactive folder tree view for ZIP, Tar, GZ, and 7z archives with inner file preview.
@@ -271,7 +272,15 @@ The config file is auto-created with defaults on first run. See `data/examples/c
     "max_text_width": 820.0,
     "prefer_mermaid_cli": false,
     "word_wrap": false,
-    "json_tree_view": false
+    "json_tree_view": true
+  },
+  "cache": {
+    "max_memory_mb": 512
+  },
+  "scroll": {
+    "smooth_scroll_enabled": true,
+    "friction": 1.8,
+    "spring_stiffness": 180.0
   }
 }
 ```
