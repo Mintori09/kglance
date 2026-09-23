@@ -43,9 +43,9 @@ pub(crate) fn build_epub_content<'a>(
             md_state.smooth_scroll.velocity
         };
         let overscan_px =
-            (vh * 1.0 + velocity.abs() * 0.10).clamp(vh * 0.8, (vh * 4.0).max(2400.0));
-        const CHUNK_SIZE: usize = 4;
-        const OVERSCAN_CHUNKS: usize = 1;
+            (vh * 1.2 + velocity.abs() * 0.12).clamp(vh * 1.0, (vh * 4.0).max(2400.0));
+        const CHUNK_SIZE: usize = 8;
+        const OVERSCAN_CHUNKS: usize = 2;
 
         let view_top = (md_state.scroll_y - overscan_px).max(0.0);
         let view_bottom = md_state.scroll_y + md_state.viewport_height + overscan_px;
