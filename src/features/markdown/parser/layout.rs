@@ -5,7 +5,7 @@ use super::flatten::flatten_inlines_toc;
 use super::layout_constants::{self as lc, heading_layout, scale_size};
 use crate::core::TocEntry;
 
-pub fn estimated_block_height(
+pub fn intrinsic_block_height(
     block: &Block,
     font_size: f32,
     block_index: usize,
@@ -13,8 +13,7 @@ pub fn estimated_block_height(
     content_width: f32,
 ) -> f32 {
     let scale = |s: f32| scale_size(s, font_size);
-    let line = font_size * 1.5;
-    let margin = block_margin(block, font_size);
+    let line = font_size * 1.25;
     let effective_width = if content_width > 0.0 {
         content_width
     } else {
@@ -32,20 +31,20 @@ pub fn estimated_block_height(
             let text = flatten_inlines_toc(content);
             let explicit_lines = text.lines().count().max(1);
             let available_w = effective_width.max(100.0);
-            let chars_per_line = (available_w / (layout.font_size * 0.65)).max(10.0) as usize;
+            let chars_per_line = (available_w / (layout.font_size * 0.55)).max(10.0) as usize;
             let visual_units = text.chars().count();
-            let wrapped_lines = ((visual_units as f32 * 1.15) / chars_per_line as f32)
+            let wrapped_lines = (visual_units as f32 / chars_per_line as f32)
                 .ceil()
                 .max(1.0) as usize;
             let num_lines = explicit_lines.max(wrapped_lines) as f32;
-            let text_h = num_lines * layout.font_size * 1.3;
-            layout.padding_top + text_h + layout.padding_bottom + div + margin
+            let text_h = num_lines * layout.font_size * 1.25;
+            layout.padding_top + text_h + layout.padding_bottom + div
         }
         Block::Paragraph(inlines) => {
             let text = flatten_inlines_toc(inlines);
             let explicit_lines = text.lines().count().max(1);
             let available_w = effective_width.max(100.0);
-            let chars_per_line = (available_w / (font_size * 0.60)).max(15.0) as usize;
+            let chars_per_line = (available_w / (font_size * 0.58)).max(15.0) as usize;
             let visual_units = text
                 .chars()
                 .map(|c| {
@@ -60,12 +59,12 @@ pub fn estimated_block_height(
                     }
                 })
                 .sum::<usize>();
-            let wrapped_lines = ((visual_units as f32 * 1.15) / chars_per_line as f32)
+            let wrapped_lines = ((visual_units as f32 * 1.05) / chars_per_line as f32)
                 .ceil()
                 .max(1.0) as usize;
             let num_lines = explicit_lines.max(wrapped_lines) as f32;
             let pad_v = (lc::PARAGRAPH_PADDING_V * 2) as f32;
-            num_lines * line + pad_v + margin
+            num_lines * line + pad_v
         }
         Block::CodeBlock { lang: _, code, .. } => {
             let n = code.lines().count().max(1) as f32;
@@ -75,7 +74,7 @@ pub fn estimated_block_height(
             let code_font_size = scale_size(lc::CODE_LINE_FONT_SIZE, font_size);
             let code_line_h = code_font_size * 1.35;
             let pad_v = (lc::CODE_PADDING * 2) as f32;
-            top_bar + pad_v + n * code_line_h + margin
+            top_bar + pad_v + n * code_line_h
         }
         Block::Table(t) => {
             let num_cols = if t.headers.is_empty() {
@@ -124,7 +123,7 @@ pub fn estimated_block_height(
             } else {
                 0.0
             };
-            total_lines * row_height + separator_h + margin
+            total_lines * row_height + separator_h
         }
         Block::List { items, .. } => {
             let mut total_h = 0.0;
@@ -154,7 +153,7 @@ pub fn estimated_block_height(
                 let item_pad = lc::LIST_ITEM_PADDING * 2.0;
                 let mut item_h = n * line + item_pad;
                 for sb in &item.sub_blocks {
-                    item_h += estimated_block_height(
+                    item_h += intrinsic_block_height(
                         sb,
                         font_size,
                         block_index,
@@ -167,44 +166,53 @@ pub fn estimated_block_height(
             if items.len() > 1 {
                 total_h += (items.len() - 1) as f32 * lc::SECTION_SPACING;
             }
-            total_h.max(line) + margin
+            total_h.max(line)
         }
         Block::Quote(b) => {
+            let inner_w = (effective_width - 24.0).max(100.0);
             let h: f32 = b
                 .iter()
-                .map(|b| {
-                    estimated_block_height(b, font_size, block_index, image_sizes, effective_width)
-                })
+                .map(|b| intrinsic_block_height(b, font_size, block_index, image_sizes, inner_w))
                 .sum();
+            let spacing = if b.len() > 1 {
+                (b.len() - 1) as f32 * lc::SECTION_SPACING
+            } else {
+                0.0
+            };
             let pad_v = (lc::QUOTE_CONTENT_PADDING_V * 2) as f32;
-            h + pad_v + margin
+            h + spacing + pad_v
         }
         Block::Alert { content, .. } => {
+            let inner_w = (effective_width - 32.0).max(100.0);
             let h: f32 = content
                 .iter()
-                .map(|b| {
-                    estimated_block_height(b, font_size, block_index, image_sizes, effective_width)
-                })
+                .map(|b| intrinsic_block_height(b, font_size, block_index, image_sizes, inner_w))
                 .sum();
-            scale(28.0) + h + 20.0 + margin
+            let spacing = if content.len() > 1 {
+                (content.len() - 1) as f32 * lc::SECTION_SPACING
+            } else {
+                0.0
+            };
+            let header_h = font_size * 0.95 + 6.0;
+            header_h + h + spacing + 20.0
         }
         Block::FootnoteDefinition { content, .. } => {
             let h: f32 = content
                 .iter()
                 .map(|b| {
-                    estimated_block_height(b, font_size, block_index, image_sizes, effective_width)
+                    intrinsic_block_height(b, font_size, block_index, image_sizes, effective_width)
                 })
                 .sum();
-            scale(16.0) + h + 8.0 + margin
+            scale(16.0) + h + 8.0
         }
         Block::Frontmatter(entries) => {
             let n = entries.len() as f32;
             let pad_v = 24.0;
-            pad_v + n * scale(20.0) + margin
+            pad_v + n * scale(20.0)
         }
         Block::HorizontalRule => {
             let pad_v = (lc::HR_PADDING_V * 2) as f32;
-            lc::DIVIDER_HEIGHT + pad_v + margin
+            lc::DIVIDER_HEIGHT + pad_v
         }
         Block::Image { .. } => {
             let max_w = lc::IMAGE_MAX_WIDTH;
@@ -214,25 +222,36 @@ pub fn estimated_block_height(
                 let display_h = if w > 0 {
                     (h as f32 * display_w) / (w as f32)
                 } else {
-                    200.0
+                    0.0
                 };
-                display_h + pad_v + margin
+                display_h + pad_v
             } else {
-                200.0 + pad_v + margin
+                0.0
             }
         }
-        Block::Mermaid { .. } => 250.0 + margin,
+        Block::Mermaid { .. } => 250.0,
         Block::Html(_) => {
             let pad_v = (lc::PARAGRAPH_PADDING_V * 2) as f32;
-            lc::HTML_FONT_SIZE * 1.5 + pad_v + margin
+            lc::HTML_FONT_SIZE * 1.5 + pad_v
         }
         Block::Math(latex) => {
             let n = latex.lines().count().max(1) as f32;
             let pad_v = (lc::MATH_PADDING * 2) as f32;
             let math_font_size = scale_size(font_size * lc::MATH_FONT_SCALE, font_size);
-            pad_v + n * math_font_size * 1.5 + margin
+            pad_v + n * math_font_size * 1.5
         }
     }
+}
+
+pub fn estimated_block_height(
+    block: &Block,
+    font_size: f32,
+    block_index: usize,
+    image_sizes: &HashMap<usize, (u32, u32)>,
+    content_width: f32,
+) -> f32 {
+    let margin = block_margin(block, font_size);
+    intrinsic_block_height(block, font_size, block_index, image_sizes, content_width) + margin
 }
 
 /// Returns the bottom margin for a block, matching the view-layer spacing.
@@ -291,7 +310,7 @@ pub fn extract_toc(
     content_width: f32,
 ) -> Vec<TocEntry> {
     let mut toc = Vec::new();
-    let mut y: f32 = scale_size(lc::CONTENT_PADDING, font_size);
+    let mut y: f32 = lc::CONTENT_PADDING;
     for (i, block) in blocks.iter().enumerate() {
         if let Block::Heading { level, content } = block {
             let text = flatten_inlines_toc(content);
@@ -319,7 +338,7 @@ pub fn rescale_markdown_scroll_y(
         return 0.0;
     }
 
-    let mut current_y = scale_size(lc::CONTENT_PADDING, old_font_size);
+    let mut current_y = lc::CONTENT_PADDING;
     let mut target_block_idx = 0;
     let mut progress = 0.0;
 
@@ -338,7 +357,7 @@ pub fn rescale_markdown_scroll_y(
         current_y += h;
     }
 
-    let mut new_y = scale_size(lc::CONTENT_PADDING, new_font_size);
+    let mut new_y = lc::CONTENT_PADDING;
     for (i, block) in blocks.iter().enumerate() {
         let new_h = estimated_block_height(block, new_font_size, i, image_sizes, content_width);
         if i == target_block_idx {

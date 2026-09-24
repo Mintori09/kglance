@@ -17,8 +17,9 @@ impl ViewportExtent {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum BoundaryBehavior {
+    #[default]
     Clamp,
     Soft,
     Spring {
@@ -26,16 +27,6 @@ pub enum BoundaryBehavior {
         damping: f32,
         max_overshoot_ratio: f32,
     },
-}
-
-impl Default for BoundaryBehavior {
-    fn default() -> Self {
-        Self::Spring {
-            stiffness: 180.0,
-            damping: 24.0,
-            max_overshoot_ratio: DEFAULT_MAX_OVERSHOOT_RATIO,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -77,16 +68,16 @@ impl ScrollPhysics {
         match self.boundary_behavior {
             BoundaryBehavior::Clamp => {
                 let step = self.velocity * dt;
-                let next_y = (current_y + step).clamp(0.0, max_y);
+                let next_y = current_y + step;
                 self.velocity *= (-self.friction_coefficient * dt).exp();
 
                 let hit_boundary = (next_y <= 0.0 && self.velocity <= 0.0)
                     || (next_y >= max_y && self.velocity >= 0.0);
                 if hit_boundary || self.velocity.abs() < KINETIC_VELOCITY_CUTOFF {
                     self.velocity = 0.0;
-                    (next_y, false)
+                    (next_y.clamp(0.0, max_y), false)
                 } else {
-                    (next_y, true)
+                    (next_y.clamp(0.0, max_y), true)
                 }
             }
             BoundaryBehavior::Soft => {

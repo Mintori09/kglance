@@ -38,10 +38,7 @@ fn markdown_block_y_offset(
         "markdown_block_y_offset O(n) fallback fired for index {target_index}; \
          block_y_offsets should have been populated"
     );
-    let mut y: f32 = crate::ui::theme::scale_size(
-        crate::features::markdown::parser::layout_constants::CONTENT_PADDING,
-        font_size,
-    );
+    let mut y: f32 = crate::features::markdown::parser::layout_constants::CONTENT_PADDING;
     for (i, block) in blocks.iter().enumerate() {
         if i == target_index {
             return y;
@@ -120,7 +117,7 @@ pub fn handle_markdown_scrolled(
     }
 
     let delta_y = (state.scroll_y - y).abs();
-    if delta_y < 1.0 && delta_vh < 1.0 {
+    if delta_y < 4.0 && delta_vh < 1.0 {
         return Task::none();
     }
 
@@ -543,19 +540,18 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
         state.scroll_y = next_y;
         state.smooth_scroll.stop(next_y);
         let is_finished = !state.scroll_controller.is_animating();
-        if is_finished {
-            app.record_read_position();
-        }
 
         let scroll_task = if is_finished && next_y >= max_y - 1.0 {
             iced::widget::operation::snap_to(
                 "content_scroll",
                 iced::widget::operation::RelativeOffset { x: 0.0, y: 1.0 },
             )
-        } else if is_finished && next_y <= 1.0 {
-            iced::widget::operation::snap_to(
+        } else if is_finished && next_y <= 0.5 {
+            state.scroll_y = 0.0;
+            state.scroll_controller.stop(0.0);
+            iced::widget::operation::scroll_to(
                 "content_scroll",
-                iced::widget::operation::RelativeOffset { x: 0.0, y: 0.0 },
+                iced::widget::operation::AbsoluteOffset { x: 0.0, y: 0.0 },
             )
         } else {
             iced::widget::operation::scroll_to(
@@ -564,8 +560,8 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             )
         };
 
-        let toc_task = if is_finished {
-            let toc = &app.state.markdown.toc;
+        let toc_task = if is_finished && state.toc_visible && !state.toc.is_empty() {
+            let toc = &state.toc;
             if let Some(active_pos) = toc.iter().rposition(|e| e.y_offset <= next_y + 50.0) {
                 let target_y = (active_pos as f32 * 28.0 - 100.0).max(0.0);
                 operation::scroll_to(
@@ -582,6 +578,10 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             Task::none()
         };
 
+        if is_finished {
+            app.record_read_position();
+        }
+
         return Task::batch([scroll_task, toc_task]);
     }
 
@@ -591,9 +591,6 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
         state.scroll_y = next_y;
         state.scroll_controller.set_position_y(next_y);
         let is_finished = !state.smooth_scroll.is_animating;
-        if is_finished {
-            app.record_read_position();
-        }
 
         let scroll_task = if is_finished {
             if target_y >= max_y - 1.0 {
@@ -601,10 +598,12 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
                     "content_scroll",
                     operation::RelativeOffset { x: 0.0, y: 1.0 },
                 )
-            } else if target_y <= 1.0 {
-                operation::snap_to(
+            } else if target_y <= 0.5 {
+                state.scroll_y = 0.0;
+                state.smooth_scroll.stop(0.0);
+                operation::scroll_to(
                     "content_scroll",
-                    operation::RelativeOffset { x: 0.0, y: 0.0 },
+                    operation::AbsoluteOffset { x: 0.0, y: 0.0 },
                 )
             } else {
                 iced::widget::operation::scroll_to(
@@ -619,8 +618,8 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             )
         };
 
-        let toc_task = if is_finished {
-            let toc = &app.state.markdown.toc;
+        let toc_task = if is_finished && state.toc_visible && !state.toc.is_empty() {
+            let toc = &state.toc;
             if let Some(active_pos) = toc.iter().rposition(|e| e.y_offset <= next_y + 50.0) {
                 let target_y = (active_pos as f32 * 28.0 - 100.0).max(0.0);
                 operation::scroll_to(
@@ -636,6 +635,10 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
         } else {
             Task::none()
         };
+
+        if is_finished {
+            app.record_read_position();
+        }
 
         Task::batch([scroll_task, toc_task])
     } else {

@@ -32,7 +32,7 @@ pub(crate) fn build_epub_content<'a>(
     let use_virtual =
         chapter_blocks.len() > VIRTUAL_THRESHOLD && offsets.len() == chapter_blocks.len();
 
-    let content_padding = crate::ui::theme::scale_size(CONTENT_SPACING, ctx.font_size);
+    let content_padding = CONTENT_SPACING;
 
     let elements: Vec<Element<'a, Message>> = if use_virtual {
         let md_state = &state.markdown_state;
