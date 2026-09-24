@@ -23,23 +23,39 @@ pub(crate) fn render_code_block<'a>(
     let theme = ctx.theme;
     let default_text_color = ctx.theme.palette().base.text;
 
-    let mut all_spans: Vec<iced::widget::text::Span<'a, (), iced::Font>> = Vec::new();
-    for (line_idx, line_spans) in highlighted.iter().enumerate() {
-        for (color, span_text) in line_spans {
-            all_spans.push(
-                iced::widget::text::Span::new(*span_text)
-                    .font(code_font)
-                    .color(*color),
-            );
+    let is_plain = highlighted.is_empty()
+        || highlighted
+            .iter()
+            .all(|line| line.is_empty() || (line.len() == 1 && line[0].0 == default_text_color));
+
+    let all_spans: Vec<iced::widget::text::Span<'a, (), iced::Font>> = if is_plain {
+        vec![
+            iced::widget::text::Span::new(code)
+                .font(code_font)
+                .color(default_text_color),
+        ]
+    } else {
+        let mut spans = Vec::new();
+        for (line_idx, line_spans) in highlighted.iter().enumerate() {
+            for (color, span_text) in line_spans {
+                if !span_text.is_empty() {
+                    spans.push(
+                        iced::widget::text::Span::new(*span_text)
+                            .font(code_font)
+                            .color(*color),
+                    );
+                }
+            }
+            if line_idx + 1 < highlighted.len() {
+                spans.push(
+                    iced::widget::text::Span::new("\n")
+                        .font(code_font)
+                        .color(default_text_color),
+                );
+            }
         }
-        if line_idx + 1 < highlighted.len() {
-            all_spans.push(
-                iced::widget::text::Span::new("\n")
-                    .font(code_font)
-                    .color(default_text_color),
-            );
-        }
-    }
+        spans
+    };
 
     let code_content = build_selectable(
         all_spans,

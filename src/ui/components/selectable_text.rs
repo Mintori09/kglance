@@ -195,6 +195,57 @@ fn char_boundary(text: &str, idx: usize) -> usize {
     i
 }
 
+#[cfg(feature = "profile-telemetry")]
+pub mod telemetry {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    static PARAGRAPH_MATERIALIZE_COUNT: AtomicUsize = AtomicUsize::new(0);
+    static CACHE_HIT_COUNT: AtomicUsize = AtomicUsize::new(0);
+    static CACHE_MISS_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+    #[inline]
+    pub fn record_materialize() -> usize {
+        PARAGRAPH_MATERIALIZE_COUNT.fetch_add(1, Ordering::Relaxed) + 1
+    }
+
+    #[inline]
+    pub fn record_layout_hit(duration: Duration, spans_count: usize, text_len: usize) {
+        let hits = CACHE_HIT_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+        println!(
+            "[kglance::telemetry] SelectableText layout CACHE HIT ({duration:?}) | spans: {spans_count}, text_len: {text_len} | hits: {hits}"
+        );
+    }
+
+    #[inline]
+    pub fn record_layout_miss(
+        duration: Duration,
+        spans_count: usize,
+        text_len: usize,
+        mat_count: usize,
+    ) {
+        let misses = CACHE_MISS_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+        println!(
+            "[kglance::telemetry] SelectableText layout CACHE MISS ({duration:?}) | spans: {spans_count}, text_len: {text_len} | materialize #{mat_count} | misses: {misses}"
+        );
+    }
+
+    #[must_use]
+    pub fn stats() -> (usize, usize, usize) {
+        (
+            CACHE_HIT_COUNT.load(Ordering::Relaxed),
+            CACHE_MISS_COUNT.load(Ordering::Relaxed),
+            PARAGRAPH_MATERIALIZE_COUNT.load(Ordering::Relaxed),
+        )
+    }
+
+    pub fn reset() {
+        CACHE_HIT_COUNT.store(0, Ordering::Relaxed);
+        CACHE_MISS_COUNT.store(0, Ordering::Relaxed);
+        PARAGRAPH_MATERIALIZE_COUNT.store(0, Ordering::Relaxed);
+    }
+}
+
 impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
     for SelectableText<'a, Message, Theme, Renderer>
 where
@@ -224,6 +275,9 @@ where
         _renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
+        #[cfg(feature = "profile-telemetry")]
+        let t_start = std::time::Instant::now();
+
         let state = tree.state.downcast_mut::<State>();
         let max_width = limits.max().width;
 
@@ -252,6 +306,9 @@ where
             && (state.last_font_size - self.font_size).abs() < 0.1;
 
         let size = if is_cached {
+            #[cfg(feature = "profile-telemetry")]
+            telemetry::record_layout_hit(t_start.elapsed(), self.spans.len(), total_len);
+
             state.last_size
         } else {
             state.plain_text.clear();
@@ -271,6 +328,9 @@ where
                 wrapping: iced::advanced::text::Wrapping::Word,
             };
 
+            #[cfg(feature = "profile-telemetry")]
+            let mat_count = telemetry::record_materialize();
+
             let p = Renderer::Paragraph::with_spans(text_input);
             let p_size = p.min_bounds();
 
@@ -278,6 +338,15 @@ where
             state.last_bounds_width = max_width;
             state.last_font_size = self.font_size;
             state.last_size = p_size;
+
+            #[cfg(feature = "profile-telemetry")]
+            telemetry::record_layout_miss(
+                t_start.elapsed(),
+                self.spans.len(),
+                total_len,
+                mat_count,
+            );
+
             p_size
         };
 
@@ -567,140 +636,5 @@ where
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn substr(text: &str, range: (usize, usize)) -> &str {
-        &text[range.0..range.1]
-    }
-
-    #[test]
-    fn test_word_mid_cursor() {
-        let text = "Hello World Rust";
-        let range = expand_to_word_bounds(text, 7);
-        assert_eq!(
-            substr(text, range),
-            "World",
-            "cursor giữa từ phải chọn đúng từ"
-        );
-    }
-
-    #[test]
-    fn test_word_at_start_of_word() {
-        let text = "Hello World Rust";
-        let range = expand_to_word_bounds(text, 6);
-        assert_eq!(substr(text, range), "World");
-    }
-
-    #[test]
-    fn test_word_at_end_of_word() {
-        let text = "Hello World Rust";
-        let range = expand_to_word_bounds(text, 10);
-        assert_eq!(substr(text, range), "World");
-    }
-
-    #[test]
-    fn test_word_on_whitespace_returns_empty_or_space() {
-        let text = "Hello World";
-        let range = expand_to_word_bounds(text, 5);
-
-        let selected = substr(text, range);
-        assert!(
-            selected.trim().is_empty() || selected == " ",
-            "cursor trên whitespace không được chọn vào từ bên cạnh, got: {selected:?}"
-        );
-    }
-
-    #[test]
-    fn test_word_punctuation_not_included() {
-        let text = "Hello, world.";
-        let range_comma = expand_to_word_bounds(text, 5);
-        let selected = substr(text, range_comma);
-
-        assert!(
-            !selected.contains(','),
-            "dấu phẩy không được nằm trong từ được chọn, got: {selected:?}"
-        );
-
-        let range_word = expand_to_word_bounds(text, 1);
-        assert_eq!(substr(text, range_word), "Hello");
-    }
-
-    #[test]
-    fn test_word_empty_string() {
-        assert_eq!(expand_to_word_bounds("", 0), (0, 0));
-    }
-
-    #[test]
-    fn test_word_out_of_range_does_not_panic() {
-        let text = "Hi";
-        let range = expand_to_word_bounds(text, 9999);
-
-        assert!(range.0 <= text.len(), "start vượt biên");
-        assert!(range.1 <= text.len(), "end vượt biên");
-        assert!(range.0 <= range.1, "start phải <= end");
-    }
-
-    #[test]
-    fn test_word_utf8_char_boundary() {
-        let text = "Xin chào Kglance";
-
-        let range = expand_to_word_bounds(text, 4);
-
-        assert!(
-            std::panic::catch_unwind(|| {
-                let _ = &text[range.0..range.1];
-            })
-            .is_ok(),
-            "slice [start..end] phải hợp lệ trên char boundary"
-        );
-    }
-
-    #[test]
-    fn test_extract_empty_spans() {
-        let spans: Vec<Span<(), Font>> = vec![];
-        let widget = SelectableText::<(), iced::Theme, iced::Renderer>::new(spans, 14.0);
-        assert_eq!(widget.extract_plain_text(), "");
-    }
-
-    #[test]
-    fn test_extract_multiple_spans_concat() {
-        let spans = vec![Span::new("Rust "), Span::new("is "), Span::new("great")];
-        let widget = SelectableText::<(), iced::Theme, iced::Renderer>::new(spans, 14.0);
-        let result = widget.extract_plain_text();
-        assert_eq!(result, "Rust is great");
-        assert_eq!(result.len(), 13, "độ dài phải khớp chính xác");
-    }
-
-    #[test]
-    fn test_cross_block_effective_selection_calculation() {
-        use crate::core::{SelectionPoint, SelectionRange};
-
-        let range = SelectionRange {
-            start: SelectionPoint {
-                block: 0,
-                offset: 5,
-            },
-            end: SelectionPoint {
-                block: 2,
-                offset: 4,
-            },
-        };
-
-        let block0_len = 9;
-        let block1_len = 15;
-        let block2_len = 14;
-
-        let sel_b0 = (range.start.offset.min(block0_len), block0_len);
-        assert_eq!(sel_b0, (5, 9));
-
-        let sel_b1 = (0, block1_len);
-        assert_eq!(sel_b1, (0, 15));
-
-        let sel_b2 = (0, range.end.offset.min(block2_len));
-        assert_eq!(sel_b2, (0, 4));
-
-        let is_b3_in_range = 3 >= range.start.block && 3 <= range.end.block;
-        assert!(!is_b3_in_range);
-    }
-}
+#[path = "selectable_text_tests.rs"]
+mod tests;
