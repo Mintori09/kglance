@@ -1,5 +1,5 @@
 pub(crate) mod blocks;
-pub(crate) mod components;
+pub mod components;
 pub(crate) mod highlight;
 pub mod toc;
 
@@ -109,8 +109,8 @@ fn build_scrollable_content<'a>(
         } else {
             state.smooth_scroll.velocity
         };
-        let overscan_px =
-            (vh * 1.2 + velocity.abs() * 0.12).clamp(vh * 1.0, (vh * 4.0).max(2400.0));
+        let velocity_boost = (velocity.abs() * 0.12 / 200.0).floor() * 200.0;
+        let overscan_px = (vh * 1.5 + velocity_boost).clamp(vh * 1.2, 3200.0);
         const CHUNK_SIZE: usize = 8;
         const OVERSCAN_CHUNKS: usize = 2;
 

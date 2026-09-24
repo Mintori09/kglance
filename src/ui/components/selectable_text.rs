@@ -311,43 +311,71 @@ where
 
             state.last_size
         } else {
-            state.plain_text.clear();
-            for span in &self.spans {
-                state.plain_text.push_str(&span.text);
-            }
-
-            let text_input = Text {
-                content: &self.spans[..],
-                bounds: Size::new(max_width, f32::INFINITY),
-                size: Pixels(self.font_size),
-                line_height: iced::advanced::text::LineHeight::default(),
-                font: Font::default(),
-                align_x: alignment::Horizontal::Left.into(),
-                align_y: alignment::Vertical::Top,
-                shaping: iced::advanced::text::Shaping::Advanced,
-                wrapping: iced::advanced::text::Wrapping::Word,
+            let spans_hash = super::paragraph_cache::hash_spans(&self.spans);
+            let key = super::paragraph_cache::ParagraphKey {
+                spans_hash,
+                font_size_bits: self.font_size.to_bits(),
+                max_width_bits: (max_width * 2.0).round() as u32,
             };
 
-            #[cfg(feature = "profile-telemetry")]
-            let mat_count = telemetry::record_materialize();
+            if let Some(cached) = super::paragraph_cache::get_cached_paragraph(&key) {
+                #[cfg(feature = "profile-telemetry")]
+                telemetry::record_layout_hit(t_start.elapsed(), self.spans.len(), total_len);
 
-            let p = Renderer::Paragraph::with_spans(text_input);
-            let p_size = p.min_bounds();
+                state.paragraph = Some(cached.paragraph);
+                state.plain_text = cached.plain_text;
+                state.last_bounds_width = max_width;
+                state.last_font_size = self.font_size;
+                state.last_size = cached.size;
+                cached.size
+            } else {
+                state.plain_text.clear();
+                for span in &self.spans {
+                    state.plain_text.push_str(&span.text);
+                }
 
-            state.paragraph = Some(p);
-            state.last_bounds_width = max_width;
-            state.last_font_size = self.font_size;
-            state.last_size = p_size;
+                let text_input = Text {
+                    content: &self.spans[..],
+                    bounds: Size::new(max_width, f32::INFINITY),
+                    size: Pixels(self.font_size),
+                    line_height: iced::advanced::text::LineHeight::default(),
+                    font: Font::default(),
+                    align_x: alignment::Horizontal::Left.into(),
+                    align_y: alignment::Vertical::Top,
+                    shaping: iced::advanced::text::Shaping::Advanced,
+                    wrapping: iced::advanced::text::Wrapping::Word,
+                };
 
-            #[cfg(feature = "profile-telemetry")]
-            telemetry::record_layout_miss(
-                t_start.elapsed(),
-                self.spans.len(),
-                total_len,
-                mat_count,
-            );
+                #[cfg(feature = "profile-telemetry")]
+                let mat_count = telemetry::record_materialize();
 
-            p_size
+                let p = Renderer::Paragraph::with_spans(text_input);
+                let p_size = p.min_bounds();
+
+                super::paragraph_cache::insert_cached_paragraph(
+                    key,
+                    super::paragraph_cache::CachedParagraph {
+                        paragraph: p.clone(),
+                        plain_text: state.plain_text.clone(),
+                        size: p_size,
+                    },
+                );
+
+                state.paragraph = Some(p);
+                state.last_bounds_width = max_width;
+                state.last_font_size = self.font_size;
+                state.last_size = p_size;
+
+                #[cfg(feature = "profile-telemetry")]
+                telemetry::record_layout_miss(
+                    t_start.elapsed(),
+                    self.spans.len(),
+                    total_len,
+                    mat_count,
+                );
+
+                p_size
+            }
         };
 
         layout::Node::new(limits.resolve(self.width, Length::Shrink, size))

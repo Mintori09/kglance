@@ -127,20 +127,24 @@ pub fn handle_markdown_scrolled(
     state.smooth_scroll.stop(y);
     state.scroll_controller.stop(y);
     state.scroll_y = y;
-    app.record_read_position();
-    let toc = &app.state.markdown.toc;
-    if let Some(active_pos) = toc.iter().rposition(|e| e.y_offset <= y + 50.0) {
-        let target_y = (active_pos as f32 * 28.0 - 100.0).max(0.0);
-        operation::scroll_to(
-            "toc_scroll",
-            operation::AbsoluteOffset {
-                x: 0.0,
-                y: target_y,
-            },
-        )
+    let toc_task = if state.toc_visible && !state.toc.is_empty() {
+        if let Some(active_pos) = state.toc.iter().rposition(|e| e.y_offset <= y + 50.0) {
+            let target_y = (active_pos as f32 * 28.0 - 100.0).max(0.0);
+            operation::scroll_to(
+                "toc_scroll",
+                operation::AbsoluteOffset {
+                    x: 0.0,
+                    y: target_y,
+                },
+            )
+        } else {
+            Task::none()
+        }
     } else {
         Task::none()
-    }
+    };
+    app.record_read_position();
+    toc_task
 }
 
 pub fn handle_search_toggle(app: &mut KglanceApp) -> Task<Message> {
