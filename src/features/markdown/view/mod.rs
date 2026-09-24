@@ -122,23 +122,13 @@ fn build_scrollable_content<'a>(
             .partition_point(|&y| y <= view_bottom)
             .min(blocks.len());
 
-        let remaining_blocks = blocks.len().saturating_sub(raw_last);
-        let dist_to_bottom = state.total_content_height - (state.scroll_y + state.viewport_height);
-        let is_near_bottom = raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE >= blocks.len()
-            || remaining_blocks <= CHUNK_SIZE * 2
-            || dist_to_bottom <= overscan_px * 1.5;
-
         let first_visible =
             raw_first.saturating_sub(OVERSCAN_CHUNKS * CHUNK_SIZE) / CHUNK_SIZE * CHUNK_SIZE;
 
-        let last_visible = if is_near_bottom {
-            blocks.len()
-        } else {
-            (raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE)
-                .min(blocks.len())
-                .div_ceil(CHUNK_SIZE)
-                * CHUNK_SIZE
-        };
+        let last_visible = (raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE)
+            .min(blocks.len())
+            .div_ceil(CHUNK_SIZE)
+            * CHUNK_SIZE;
         let last_visible = last_visible.min(blocks.len());
 
         let padding_v = content_padding * 2.0;
