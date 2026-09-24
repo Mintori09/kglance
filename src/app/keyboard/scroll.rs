@@ -10,6 +10,7 @@ const SCROLL_LINE_AMOUNT: f32 = 80.0;
 
 struct ActiveScrollTarget<'a> {
     smooth_scroll: &'a mut crate::core::types::SmoothScrollState,
+    scroll_controller: &'a mut crate::core::scroll::ScrollController,
     scroll_y: &'a mut f32,
     total_content_height: f32,
     viewport_height: f32,
@@ -63,6 +64,7 @@ impl KglanceApp {
                 let state = crate::features::markdown::update::active_markdown_state_mut(self);
                 Some(ActiveScrollTarget {
                     smooth_scroll: &mut state.smooth_scroll,
+                    scroll_controller: &mut state.scroll_controller,
                     scroll_y: &mut state.scroll_y,
                     total_content_height: state.total_content_height,
                     viewport_height: state.viewport_height,
@@ -72,6 +74,7 @@ impl KglanceApp {
                 let state = &mut self.state.text;
                 Some(ActiveScrollTarget {
                     smooth_scroll: &mut state.smooth_scroll,
+                    scroll_controller: &mut state.scroll_controller,
                     scroll_y: &mut state.scroll_y,
                     total_content_height: state.total_content_height,
                     viewport_height: state.viewport_height,
@@ -81,12 +84,21 @@ impl KglanceApp {
                 let state = crate::features::pdf::update::active_pdf_state_mut(self);
                 Some(ActiveScrollTarget {
                     smooth_scroll: &mut state.smooth_scroll,
+                    scroll_controller: &mut state.scroll_controller,
                     scroll_y: &mut state.scroll_y,
                     total_content_height: state.total_content_height,
                     viewport_height: state.viewport_height,
                 })
             }
             _ => None,
+        }
+    }
+
+    pub(crate) fn stop_active_scroll_animations(&mut self) {
+        if let Some(target) = self.active_scroll_target_mut() {
+            let current_y = *target.scroll_y;
+            target.scroll_controller.stop(current_y);
+            target.smooth_scroll.stop(current_y);
         }
     }
 
@@ -103,6 +115,7 @@ impl KglanceApp {
             );
             let page_delta = target.viewport_height * fraction;
             let current_y = *target.scroll_y;
+            target.scroll_controller.stop(current_y);
             let base_y = if target.smooth_scroll.is_animating
                 && (target.smooth_scroll.target_y - current_y).signum() == fraction.signum()
             {
@@ -144,6 +157,7 @@ impl KglanceApp {
                 target.viewport_height,
             );
             let current_y = *target.scroll_y;
+            target.scroll_controller.stop(current_y);
             target
                 .smooth_scroll
                 .start_interactive(current_y, vertical_offset, max_y);
@@ -182,6 +196,7 @@ impl KglanceApp {
 
         if let Some(target) = self.active_scroll_target_mut() {
             let current_y = *target.scroll_y;
+            target.scroll_controller.stop(current_y);
             if current_y <= 1.0 {
                 self.record_read_position();
                 return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 0.0 });
@@ -203,6 +218,7 @@ impl KglanceApp {
 
         if let Some(target) = self.active_scroll_target_mut() {
             let current_y = *target.scroll_y;
+            target.scroll_controller.stop(current_y);
             let max_y = crate::core::scroll::max_scroll_y(
                 target.total_content_height,
                 target.viewport_height,

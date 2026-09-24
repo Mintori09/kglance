@@ -51,10 +51,7 @@ impl super::KglanceApp {
         }
 
         if matches!(key, iced::keyboard::Key::Named(Named::Tab)) {
-            // let is_video = self.state.media.has_video;
-            // if self.is_epub_content() || is_video {
-            //     return Task::none();
-            // }
+            self.stop_active_scroll_animations();
             return self.update(crate::app::messages::NavigationMsg::ToggleViewMode.into());
         }
 
@@ -146,6 +143,7 @@ impl super::KglanceApp {
             crate::core::ViewMode::Detail => {
                 match key {
                     iced::keyboard::Key::Named(Named::ArrowRight) => {
+                        self.stop_active_scroll_animations();
                         if self.state.media.has_video {
                             Some(self.handle_seek_relative(5.0))
                         } else if self.is_epub_content() {
@@ -165,6 +163,7 @@ impl super::KglanceApp {
                         }
                     }
                     iced::keyboard::Key::Named(Named::ArrowLeft) => {
+                        self.stop_active_scroll_animations();
                         if self.state.media.has_video {
                             Some(self.handle_seek_relative(-5.0))
                         } else if self.is_epub_content() {
