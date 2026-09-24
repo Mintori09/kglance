@@ -12,15 +12,22 @@ pub fn effective_content_width(
     sidebar_visible: bool,
     sidebar_width: f32,
 ) -> f32 {
-    max_text_width.unwrap_or_else(|| {
-        let win_w = if window_width > 0.0 {
-            window_width
-        } else {
-            1000.0
-        };
-        let sb = if sidebar_visible { sidebar_width } else { 0.0 };
-        (win_w - sb - lc::CONTENT_PADDING * 2.0).max(300.0)
-    })
+    let win_w = if window_width > 0.0 {
+        window_width
+    } else {
+        1000.0
+    };
+    let sb = if sidebar_visible { sidebar_width } else { 0.0 };
+    let padding_h = lc::CONTENT_PADDING * 2.0;
+    let available_window_width = (win_w - sb - padding_h).max(300.0);
+
+    match max_text_width {
+        Some(max_w) if max_w > 0.0 => {
+            let max_content_w = (max_w - padding_h).max(300.0);
+            available_window_width.min(max_content_w)
+        }
+        _ => available_window_width,
+    }
 }
 
 pub fn compute_block_layouts(
@@ -29,12 +36,7 @@ pub fn compute_block_layouts(
     image_sizes: &HashMap<usize, (u32, u32)>,
     content_width: f32,
 ) -> (Vec<BlockLayout>, Vec<f32>, f32) {
-    let padding_v = crate::ui::theme::scale_size(
-        crate::features::markdown::view::components::STYLE
-            .general
-            .content_padding,
-        font_size,
-    ) * 2.0;
+    let padding_v = lc::CONTENT_PADDING * 2.0;
     let mut layouts = Vec::with_capacity(blocks.len());
     let mut offsets = Vec::with_capacity(blocks.len());
     let mut y: f32 = 0.0;
@@ -47,13 +49,8 @@ pub fn compute_block_layouts(
     (layouts, offsets, y + padding_v)
 }
 
-pub fn rebuild_block_offsets(layouts: &[BlockLayout], font_size: f32) -> (Vec<f32>, f32) {
-    let padding_v = crate::ui::theme::scale_size(
-        crate::features::markdown::view::components::STYLE
-            .general
-            .content_padding,
-        font_size,
-    ) * 2.0;
+pub fn rebuild_block_offsets(layouts: &[BlockLayout], _font_size: f32) -> (Vec<f32>, f32) {
+    let padding_v = lc::CONTENT_PADDING * 2.0;
     let mut offsets = Vec::with_capacity(layouts.len());
     let mut y: f32 = 0.0;
     for layout in layouts {
@@ -299,12 +296,14 @@ mod tests {
 
     #[test]
     fn test_effective_content_width_max_text_width_override() {
-        // When max_text_width is set, it overrides window and sidebar calculations
+        let padding = lc::CONTENT_PADDING * 2.0;
+        // When max_text_width is set, it limits content width but subtracts padding
         let w = effective_content_width(Some(800.0), 1600.0, true, 250.0);
-        assert_eq!(w, 800.0);
+        assert_eq!(w, 800.0 - padding);
 
-        let w_narrow = effective_content_width(Some(500.0), 400.0, false, 0.0);
-        assert_eq!(w_narrow, 500.0);
+        // When window is narrower than max_text_width, window constraint applies
+        let w_narrow = effective_content_width(Some(800.0), 400.0, false, 0.0);
+        assert_eq!(w_narrow, 400.0 - padding);
     }
 
     #[test]

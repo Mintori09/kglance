@@ -153,6 +153,14 @@ name = "markdown_solutions_bench"
 harness = false
 
 [[bench]]
+name = "virtual_drift_bench"
+harness = false
+
+[[bench]]
+name = "toc_drift_bench"
+harness = false
+
+[[bench]]
 name = "velocity_estimation"
 harness = false
 

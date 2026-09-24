@@ -99,8 +99,7 @@ fn build_scrollable_content<'a>(
     let offsets = &state.block_y_offsets;
     let use_virtual = blocks.len() > VIRTUAL_THRESHOLD && offsets.len() == blocks.len();
 
-    let content_padding =
-        crate::ui::theme::scale_size(STYLE.general.content_padding, ctx.font_size);
+    let content_padding = STYLE.general.content_padding;
     let elements: Vec<Element<'a, Message>> = if use_virtual {
         // Dynamic overscan in pixels based on scrolling velocity
         let vh = state.viewport_height.max(600.0);
@@ -111,8 +110,8 @@ fn build_scrollable_content<'a>(
         };
         let velocity_boost = (velocity.abs() * 0.12 / 200.0).floor() * 200.0;
         let overscan_px = (vh * 1.5 + velocity_boost).clamp(vh * 1.2, 3200.0);
-        const CHUNK_SIZE: usize = 8;
-        const OVERSCAN_CHUNKS: usize = 2;
+        const CHUNK_SIZE: usize = 12;
+        const OVERSCAN_CHUNKS: usize = 3;
 
         let view_top = (state.scroll_y - overscan_px).max(0.0);
         let view_bottom = state.scroll_y + state.viewport_height + overscan_px;
@@ -123,7 +122,11 @@ fn build_scrollable_content<'a>(
             .min(blocks.len());
 
         let first_visible =
-            raw_first.saturating_sub(OVERSCAN_CHUNKS * CHUNK_SIZE) / CHUNK_SIZE * CHUNK_SIZE;
+            if state.scroll_y <= overscan_px || raw_first <= OVERSCAN_CHUNKS * CHUNK_SIZE {
+                0
+            } else {
+                raw_first.saturating_sub(OVERSCAN_CHUNKS * CHUNK_SIZE) / CHUNK_SIZE * CHUNK_SIZE
+            };
 
         let last_visible = (raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE)
             .min(blocks.len())

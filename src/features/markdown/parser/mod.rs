@@ -13,7 +13,8 @@ pub use flatten::{
 };
 pub use handle::{parse_markdown, parse_to_blocks};
 pub use layout::{
-    block_margin, estimated_block_height, extract_toc, rescale_markdown_scroll_y, slugify,
+    block_margin, estimated_block_height, extract_toc, intrinsic_block_height,
+    rescale_markdown_scroll_y, slugify,
 };
 pub use mermaid::render_mermaid_to_png;
 pub use types::{AlertKind, Block, BlockLayout, Inline, ListItem, TableBlock, TableCell};
