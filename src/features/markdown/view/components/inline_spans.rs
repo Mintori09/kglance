@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::sync::{Mutex, OnceLock};
 
 use crate::features::markdown::view::components::style::STYLE;
 use crate::parsers::markdown::Inline;
@@ -6,16 +7,99 @@ use crate::ui::theme::font::{get_code_font, get_main_font};
 use iced::font::Weight;
 use iced::widget::text::Span;
 use iced::{Color, Font};
+use lru::LruCache;
+use rustc_hash::FxHasher;
+use std::hash::Hasher;
 
 use crate::ui::theme::AppTheme;
 
-pub(crate) struct SpanCtx<'a> {
+pub(crate) use super::latex::render_latex_to_text;
+
+pub struct SpanCtx<'a> {
     pub font_family: Option<&'a str>,
     pub font_family_mono: Option<&'a str>,
     pub search_query: &'a str,
     pub active_match: usize,
     pub counter: &'a Cell<usize>,
     pub theme: AppTheme,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct CachedSpan {
+    pub text: String,
+    pub font: Font,
+    pub color: Option<Color>,
+    pub strikethrough: bool,
+    pub underline: bool,
+}
+
+type SpanCacheKey = (u64, AppTheme, Option<String>, Option<String>);
+
+fn span_cache() -> &'static Mutex<LruCache<SpanCacheKey, Vec<CachedSpan>>> {
+    static CACHE: OnceLock<Mutex<LruCache<SpanCacheKey, Vec<CachedSpan>>>> = OnceLock::new();
+    CACHE.get_or_init(|| {
+        Mutex::new(LruCache::new(
+            std::num::NonZeroUsize::new(1024).expect("1024 is non-zero"),
+        ))
+    })
+}
+
+fn hash_inlines(inlines: &[Inline]) -> u64 {
+    let mut hasher = FxHasher::default();
+    hash_inlines_recursive(inlines, &mut hasher);
+    hasher.finish()
+}
+
+fn hash_inlines_recursive(inlines: &[Inline], hasher: &mut FxHasher) {
+    for inline in inlines {
+        match inline {
+            Inline::Text(t) => {
+                hasher.write_u8(1);
+                hasher.write(t.as_bytes());
+            }
+            Inline::Bold(c) => {
+                hasher.write_u8(2);
+                hash_inlines_recursive(c, hasher);
+            }
+            Inline::Italic(c) => {
+                hasher.write_u8(3);
+                hash_inlines_recursive(c, hasher);
+            }
+            Inline::Strikethrough(c) => {
+                hasher.write_u8(4);
+                hash_inlines_recursive(c, hasher);
+            }
+            Inline::Code(code) => {
+                hasher.write_u8(5);
+                hasher.write(code.as_bytes());
+            }
+            Inline::Link { text, url } => {
+                hasher.write_u8(6);
+                hasher.write(url.as_bytes());
+                hash_inlines_recursive(text, hasher);
+            }
+            Inline::SoftBreak => {
+                hasher.write_u8(7);
+            }
+            Inline::Image { alt, url } => {
+                hasher.write_u8(8);
+                hasher.write(alt.as_bytes());
+                hasher.write(url.as_bytes());
+            }
+            Inline::InlineMath(m) => {
+                hasher.write_u8(9);
+                hasher.write(m.as_bytes());
+            }
+            Inline::DisplayMath(m) => {
+                hasher.write_u8(10);
+                hasher.write(m.as_bytes());
+            }
+            Inline::FootnoteReference(label) => {
+                hasher.write_u8(11);
+                hasher.write(label.as_bytes());
+            }
+        }
+    }
 }
 
 fn search_highlight_color(is_active: bool, theme: AppTheme) -> Color {
@@ -151,7 +235,7 @@ fn inlines_to_spans_core<'a>(
                 );
             }
             Inline::InlineMath(latex) | Inline::DisplayMath(latex) => {
-                let display_text = render_latex_to_text(latex);
+                let display_text = super::latex::render_latex_to_text(latex);
                 let math_color = span_ctx.theme.palette().markdown.math;
                 spans.push(Span::new(display_text).font(main_font).color(math_color));
             }
@@ -181,567 +265,110 @@ fn apply_style_to_children<'a>(
         .collect()
 }
 
-pub(crate) fn inlines_to_spans<'a>(
-    children: &'a [Inline],
-    span_ctx: &SpanCtx,
-) -> Vec<Span<'a, (), Font>> {
-    inlines_to_spans_core(children, span_ctx)
-}
+pub fn inlines_to_spans<'a>(children: &'a [Inline], span_ctx: &SpanCtx) -> Vec<Span<'a, (), Font>> {
+    if !span_ctx.search_query.is_empty() {
+        return inlines_to_spans_core(children, span_ctx);
+    }
 
-pub(crate) fn render_latex_to_text(latex: &str) -> String {
-    if !latex.contains('\\') && !latex.contains('_') && !latex.contains('^') && !latex.contains('&')
+    let inline_hash = hash_inlines(children);
+    let key: SpanCacheKey = (
+        inline_hash,
+        span_ctx.theme,
+        span_ctx.font_family.map(ToString::to_string),
+        span_ctx.font_family_mono.map(ToString::to_string),
+    );
+
+    if let Ok(mut cache) = span_cache().lock()
+        && let Some(cached) = cache.get(&key)
     {
-        return latex.to_string();
-    }
-    let mut result = replace_text_macros(latex.to_string());
-    result = replace_environments(result);
-    result = replace_blackboard(result);
-    result = replace_fractions(result);
-    result = replace_sqrt(result);
-    result = replace_latex_commands(&result);
-    replace_scripts(&result)
-}
-
-fn replace_environments(mut s: String) -> String {
-    const ENVS: &[(&str, &str)] = &[
-        ("\\begin{bmatrix}", "[\n"),
-        ("\\end{bmatrix}", "\n]"),
-        ("\\begin{pmatrix}", "(\n"),
-        ("\\end{pmatrix}", "\n)"),
-        ("\\begin{matrix}", "\n"),
-        ("\\end{matrix}", "\n"),
-        ("\\begin{aligned}", ""),
-        ("\\end{aligned}", ""),
-        ("\\begin{cases}", "{\n"),
-        ("\\end{cases}", "\n}"),
-    ];
-    for &(env, rep) in ENVS {
-        if s.contains(env) {
-            s = s.replace(env, rep);
-        }
-    }
-    // Replace alignment & with space
-    s = s.replace('&', " ");
-    s
-}
-
-fn replace_blackboard(mut s: String) -> String {
-    const BB: &[(&str, &str)] = &[
-        ("\\mathbb{R}", "ℝ"),
-        ("\\mathbb{N}", "ℕ"),
-        ("\\mathbb{Z}", "ℤ"),
-        ("\\mathbb{Q}", "ℚ"),
-        ("\\mathbb{C}", "ℂ"),
-        ("\\mathbb{H}", "ℍ"),
-    ];
-    for &(cmd, unicode) in BB {
-        if s.contains(cmd) {
-            s = s.replace(cmd, unicode);
-        }
-    }
-    s
-}
-
-fn replace_latex_commands(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let chars: Vec<char> = s.chars().collect();
-    let len = chars.len();
-    let mut i = 0;
-
-    while i < len {
-        if chars[i] == '\\' && i + 1 < len {
-            let next_ch = chars[i + 1];
-            if next_ch.is_alphabetic() {
-                let start = i;
-                i += 1;
-                while i < len && chars[i].is_alphabetic() {
-                    i += 1;
+        return cached
+            .iter()
+            .map(|cs| {
+                let mut span = Span::new(cs.text.clone()).font(cs.font);
+                if let Some(c) = cs.color {
+                    span = span.color(c);
                 }
-                let cmd_str: String = chars[start..i].iter().collect();
-                if let Some(replacement) = latex_cmd_to_unicode(&cmd_str) {
-                    out.push_str(replacement);
-                    if replacement.is_empty() && i < len && chars[i] == ' ' {
-                        i += 1;
-                    }
-                } else {
-                    out.push_str(&cmd_str);
+                if cs.strikethrough {
+                    span = span.strikethrough(true);
                 }
-                continue;
-            } else {
-                match next_ch {
-                    '{' => {
-                        out.push('{');
-                        i += 2;
-                    }
-                    '}' => {
-                        out.push('}');
-                        i += 2;
-                    }
-                    ',' | ';' | ':' => {
-                        out.push(' ');
-                        i += 2;
-                    }
-                    '!' => {
-                        i += 2;
-                    }
-                    '\\' => {
-                        out.push('\n');
-                        i += 2;
-                    }
-                    _ => {
-                        out.push(chars[i]);
-                        i += 1;
-                    }
+                if cs.underline {
+                    span = span.underline(true);
                 }
-                continue;
-            }
-        }
-
-        out.push(chars[i]);
-        i += 1;
+                span
+            })
+            .collect();
     }
 
-    out
+    let spans = inlines_to_spans_core(children, span_ctx);
+
+    let cached_list: Vec<CachedSpan> = spans
+        .iter()
+        .map(|s| CachedSpan {
+            text: s.text.to_string(),
+            font: s.font.unwrap_or(Font::DEFAULT),
+            color: s.color,
+            strikethrough: s.strikethrough,
+            underline: s.underline,
+        })
+        .collect();
+
+    if let Ok(mut cache) = span_cache().lock() {
+        cache.put(key, cached_list);
+    }
+
+    spans
 }
 
-fn latex_cmd_to_unicode(cmd: &str) -> Option<&'static str> {
-    match cmd {
-        // Arrows
-        "\\Leftrightarrow" | "\\iff" => Some("⇔"),
-        "\\Rightarrow" | "\\implies" => Some("⇒"),
-        "\\Leftarrow" => Some("⇐"),
-        "\\leftrightarrow" => Some("↔"),
-        "\\rightarrow" | "\\to" => Some("→"),
-        "\\leftarrow" | "\\gets" => Some("←"),
-        "\\mapsto" => Some("↦"),
-        "\\uparrow" => Some("↑"),
-        "\\downarrow" => Some("↓"),
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        // Logic & Sets
-        "\\forall" => Some("∀"),
-        "\\exists" => Some("∃"),
-        "\\nexists" => Some("∄"),
-        "\\neg" | "\\lnot" => Some("¬"),
-        "\\land" => Some("∧"),
-        "\\lor" => Some("∨"),
-        "\\notin" => Some("∉"),
-        "\\in" => Some("∈"),
-        "\\ni" | "\\owns" => Some("∋"),
-        "\\emptyset" | "\\varnothing" => Some("∅"),
-        "\\subseteq" => Some("⊆"),
-        "\\subset" => Some("⊂"),
-        "\\supseteq" => Some("⊇"),
-        "\\supset" => Some("⊃"),
-        "\\setminus" => Some("\\"),
-        "\\cup" => Some("∪"),
-        "\\cap" => Some("∩"),
+    #[test]
+    fn test_inlines_to_spans_caching() {
+        let inlines = vec![
+            Inline::Text("Hello world".to_string()),
+            Inline::Bold(vec![Inline::Text("bold text".to_string())]),
+            Inline::Code("code_block()".to_string()),
+        ];
+        let counter = Cell::new(0);
+        let ctx = SpanCtx {
+            font_family: None,
+            font_family_mono: None,
+            search_query: "",
+            active_match: 0,
+            counter: &counter,
+            theme: AppTheme::Dark,
+        };
 
-        // Relations & Comparisons
-        "\\approx" => Some("≈"),
-        "\\equiv" => Some("≡"),
-        "\\sim" => Some("∼"),
-        "\\simeq" => Some("≃"),
-        "\\cong" => Some("≅"),
-        "\\neq" | "\\ne" => Some("≠"),
-        "\\leq" | "\\le" => Some("≤"),
-        "\\geq" | "\\ge" => Some("≥"),
-        "\\ll" => Some("≪"),
-        "\\gg" => Some("≫"),
-        "\\propto" => Some("∝"),
-        "\\perp" | "\\bot" => Some("⊥"),
-        "\\parallel" => Some("∥"),
-        "\\mid" => Some("|"),
+        let spans1 = inlines_to_spans(&inlines, &ctx);
+        assert_eq!(spans1.len(), 3);
+        assert_eq!(spans1[0].text, "Hello world");
+        assert_eq!(spans1[1].text, "bold text");
+        assert_eq!(spans1[2].text, "code_block()");
 
-        // Arithmetic & Operations
-        "\\times" => Some("×"),
-        "\\div" => Some("÷"),
-        "\\pm" => Some("±"),
-        "\\mp" => Some("∓"),
-        "\\cdot" => Some("·"),
-        "\\circ" => Some("°"),
-        "\\oplus" => Some("⊕"),
-        "\\ominus" => Some("⊖"),
-        "\\otimes" => Some("⊗"),
-        "\\odot" => Some("⊙"),
-        "\\ast" | "\\star" => Some("★"),
-
-        // Calculus & Analysis
-        "\\infty" => Some("∞"),
-        "\\partial" => Some("∂"),
-        "\\nabla" => Some("∇"),
-        "\\sum" => Some("∑"),
-        "\\prod" => Some("∏"),
-        "\\oiint" => Some("∯"),
-        "\\iiint" => Some("∭"),
-        "\\iint" => Some("∬"),
-        "\\oint" => Some("∮"),
-        "\\int" => Some("∫"),
-        "\\hbar" => Some("ℏ"),
-        "\\ell" => Some("ℓ"),
-        "\\dots" | "\\ldots" => Some("…"),
-        "\\cdots" => Some("⋯"),
-        "\\vdots" => Some("⋮"),
-        "\\ddots" => Some("⋱"),
-
-        // Math functions
-        "\\exp" => Some("exp"),
-        "\\ln" => Some("ln"),
-        "\\log" => Some("log"),
-        "\\sin" => Some("sin"),
-        "\\cos" => Some("cos"),
-        "\\tan" => Some("tan"),
-        "\\arcsin" => Some("arcsin"),
-        "\\arccos" => Some("arccos"),
-        "\\arctan" => Some("arctan"),
-        "\\det" => Some("det"),
-        "\\arg" => Some("arg"),
-        "\\max" => Some("max"),
-        "\\min" => Some("min"),
-
-        // Greek uppercase
-        "\\Gamma" => Some("Γ"),
-        "\\Delta" => Some("Δ"),
-        "\\Theta" => Some("Θ"),
-        "\\Lambda" => Some("Λ"),
-        "\\Xi" => Some("Ξ"),
-        "\\Pi" => Some("Π"),
-        "\\Sigma" => Some("Σ"),
-        "\\Upsilon" => Some("Υ"),
-        "\\Phi" => Some("Φ"),
-        "\\Psi" => Some("Ψ"),
-        "\\Omega" => Some("Ω"),
-
-        // Greek lowercase
-        "\\alpha" => Some("α"),
-        "\\beta" => Some("β"),
-        "\\gamma" => Some("γ"),
-        "\\delta" => Some("δ"),
-        "\\epsilon" | "\\varepsilon" => Some("ε"),
-        "\\zeta" => Some("ζ"),
-        "\\eta" => Some("η"),
-        "\\theta" | "\\vartheta" => Some("θ"),
-        "\\iota" => Some("ι"),
-        "\\kappa" => Some("κ"),
-        "\\lambda" => Some("λ"),
-        "\\mu" => Some("μ"),
-        "\\nu" => Some("ν"),
-        "\\xi" => Some("ξ"),
-        "\\pi" | "\\varpi" => Some("π"),
-        "\\rho" | "\\varrho" => Some("ρ"),
-        "\\sigma" | "\\varsigma" => Some("σ"),
-        "\\tau" => Some("τ"),
-        "\\upsilon" => Some("υ"),
-        "\\phi" | "\\varphi" => Some("φ"),
-        "\\chi" => Some("χ"),
-        "\\psi" => Some("ψ"),
-        "\\omega" => Some("ω"),
-
-        // Delimiters and helpers
-        "\\therefore" => Some("∴"),
-        "\\because" => Some("∵"),
-        "\\angle" => Some("∠"),
-        "\\triangle" => Some("△"),
-        "\\langle" => Some("⟨"),
-        "\\rangle" => Some("⟩"),
-        "\\qquad" => Some("  "),
-        "\\quad" => Some(" "),
-        "\\left" => Some(""),
-        "\\right" => Some(""),
-        _ => None,
-    }
-}
-
-fn extract_brace_group(s: &str, start_idx: usize) -> Option<(&str, usize)> {
-    let bytes = s.as_bytes();
-    if start_idx >= bytes.len() || bytes[start_idx] != b'{' {
-        return None;
-    }
-    let mut depth = 0;
-    let mut i = start_idx;
-    while i < bytes.len() {
-        if bytes[i] == b'{' {
-            depth += 1;
-        } else if bytes[i] == b'}' {
-            depth -= 1;
-            if depth == 0 {
-                return Some((&s[start_idx + 1..i], i + 1));
-            }
-        }
-        i += 1;
-    }
-    None
-}
-
-fn replace_fractions(mut s: String) -> String {
-    while let Some(pos) = s.find("\\frac") {
-        let after_cmd = pos + 5;
-        let rem = &s[after_cmd..];
-        let trimmed_offset = rem.len() - rem.trim_start().len();
-        let num_start = after_cmd + trimmed_offset;
-        if let Some((num, den_pos)) = extract_brace_group(&s, num_start) {
-            let rem_den = &s[den_pos..];
-            let den_trimmed_offset = rem_den.len() - rem_den.trim_start().len();
-            let den_start = den_pos + den_trimmed_offset;
-            if let Some((den, end_pos)) = extract_brace_group(&s, den_start) {
-                let num_fmt = render_latex_to_text(num);
-                let den_fmt = render_latex_to_text(den);
-                let replacement = format!("({num_fmt})/({den_fmt})");
-                s.replace_range(pos..end_pos, &replacement);
-                continue;
-            }
-        }
-        break;
-    }
-    s
-}
-
-fn replace_sqrt(mut s: String) -> String {
-    while let Some(pos) = s.find("\\sqrt") {
-        let after_cmd = pos + 5;
-        let rem = &s[after_cmd..];
-        let trimmed_offset = rem.len() - rem.trim_start().len();
-        let arg_start = after_cmd + trimmed_offset;
-        if let Some((arg, end_pos)) = extract_brace_group(&s, arg_start) {
-            let arg_fmt = render_latex_to_text(arg);
-            let replacement = format!("√({arg_fmt})");
-            s.replace_range(pos..end_pos, &replacement);
-            continue;
-        }
-        break;
-    }
-    s
-}
-
-fn replace_text_macros(mut s: String) -> String {
-    const MACROS: &[&str] = &[
-        "\\text",
-        "\\mathbf",
-        "\\mathrm",
-        "\\mathit",
-        "\\boldsymbol",
-        "\\bm",
-        "\\operatorname",
-        "\\mathcal",
-        "\\hat",
-        "\\bar",
-        "\\tilde",
-        "\\vec",
-        "\\dot",
-        "\\ddot",
-    ];
-    for mac in MACROS {
-        while let Some(pos) = s.find(mac) {
-            let after_cmd = pos + mac.len();
-            let rem = &s[after_cmd..];
-            let trimmed_offset = rem.len() - rem.trim_start().len();
-            let arg_start = after_cmd + trimmed_offset;
-            if let Some((arg, end_pos)) = extract_brace_group(&s, arg_start) {
-                let arg_str = arg.to_string();
-                s.replace_range(pos..end_pos, &arg_str);
-                continue;
-            }
-            break;
-        }
-    }
-    s
-}
-
-fn char_to_superscript(c: char) -> Option<char> {
-    match c {
-        '0' => Some('⁰'),
-        '1' => Some('¹'),
-        '2' => Some('²'),
-        '3' => Some('³'),
-        '4' => Some('⁴'),
-        '5' => Some('⁵'),
-        '6' => Some('⁶'),
-        '7' => Some('⁷'),
-        '8' => Some('⁸'),
-        '9' => Some('⁹'),
-        '+' => Some('⁺'),
-        '-' | '−' => Some('⁻'),
-        '=' => Some('⁼'),
-        '(' => Some('⁽'),
-        ')' => Some('⁾'),
-        'a' => Some('ᵃ'),
-        'b' => Some('ᵇ'),
-        'c' => Some('ᶜ'),
-        'd' => Some('ᵈ'),
-        'e' => Some('ᵉ'),
-        'f' => Some('ᶠ'),
-        'g' => Some('ᵍ'),
-        'h' => Some('ʰ'),
-        'i' => Some('ⁱ'),
-        'j' => Some('ʲ'),
-        'k' => Some('ᵏ'),
-        'l' => Some('ˡ'),
-        'm' => Some('ᵐ'),
-        'n' => Some('ⁿ'),
-        'o' => Some('ᵒ'),
-        'p' => Some('ᵖ'),
-        'r' => Some('ʳ'),
-        's' => Some('ˢ'),
-        't' => Some('ᵗ'),
-        'u' => Some('ᵘ'),
-        'v' => Some('ᵛ'),
-        'w' => Some('ʷ'),
-        'x' | '×' | '*' => Some('ˣ'),
-        'y' => Some('ʸ'),
-        'z' => Some('ᶻ'),
-        'A' => Some('ᴬ'),
-        'B' => Some('ᴮ'),
-        'D' => Some('ᴰ'),
-        'E' => Some('ᴱ'),
-        'G' => Some('ᴳ'),
-        'H' => Some('ᴴ'),
-        'I' => Some('ᴵ'),
-        'J' => Some('ᴶ'),
-        'K' => Some('ᴷ'),
-        'L' => Some('ᴸ'),
-        'M' => Some('ᴹ'),
-        'N' => Some('ᴺ'),
-        'O' => Some('ᴼ'),
-        'P' => Some('ᴾ'),
-        'R' => Some('ᴿ'),
-        'T' => Some('ᵀ'),
-        'U' => Some('ᵁ'),
-        'V' => Some('ⱽ'),
-        'W' => Some('ᵂ'),
-        '∞' => Some('∞'),
-        ' ' => Some(' '),
-        _ => None,
-    }
-}
-
-fn char_to_subscript(c: char) -> Option<char> {
-    match c {
-        '0' => Some('₀'),
-        '1' => Some('₁'),
-        '2' => Some('₂'),
-        '3' => Some('₃'),
-        '4' => Some('₄'),
-        '5' => Some('₅'),
-        '6' => Some('₆'),
-        '7' => Some('₇'),
-        '8' => Some('₈'),
-        '9' => Some('₉'),
-        '+' => Some('₊'),
-        '-' | '−' => Some('₋'),
-        '=' => Some('₌'),
-        '(' => Some('₍'),
-        ')' => Some('₎'),
-        'a' => Some('ₐ'),
-        'e' => Some('ₑ'),
-        'h' => Some('ₕ'),
-        'i' => Some('ᵢ'),
-        'j' => Some('ⱼ'),
-        'k' => Some('ₖ'),
-        'l' => Some('ₗ'),
-        'm' => Some('ₘ'),
-        'n' => Some('ₙ'),
-        'o' => Some('ₒ'),
-        'p' => Some('ₚ'),
-        'r' => Some('ᵣ'),
-        's' => Some('ₛ'),
-        't' => Some('ₜ'),
-        'u' => Some('ᵤ'),
-        'v' => Some('ᵥ'),
-        'x' | '×' | '*' => Some('ₓ'),
-        ' ' => Some(' '),
-        _ => None,
-    }
-}
-
-fn is_single_script_char(c: char) -> bool {
-    c.is_alphanumeric() || c == '+' || c == '-' || c == '−'
-}
-
-fn extract_brace_group_chars(chars: &[char]) -> Option<(&[char], usize)> {
-    if chars.is_empty() || chars[0] != '{' {
-        return None;
-    }
-    let mut depth = 0;
-    for (idx, &c) in chars.iter().enumerate() {
-        if c == '{' {
-            depth += 1;
-        } else if c == '}' {
-            depth -= 1;
-            if depth == 0 {
-                return Some((&chars[1..idx], idx + 1));
-            }
-        }
-    }
-    None
-}
-
-fn replace_scripts(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let chars: Vec<char> = s.chars().collect();
-    let len = chars.len();
-    let mut i = 0;
-
-    while i < len {
-        if chars[i] == '^' && i + 1 < len {
-            if chars[i + 1] == '{' {
-                if let Some((inner_chars, end_len)) = extract_brace_group_chars(&chars[i + 1..]) {
-                    if let Some(super_str) = inner_chars
-                        .iter()
-                        .copied()
-                        .map(char_to_superscript)
-                        .collect::<Option<String>>()
-                    {
-                        out.push_str(&super_str);
-                        i += 1 + end_len;
-                        continue;
-                    } else {
-                        out.push('^');
-                        for &c in inner_chars {
-                            out.push(c);
-                        }
-                        i += 1 + end_len;
-                        continue;
-                    }
-                }
-            } else if is_single_script_char(chars[i + 1])
-                && let Some(super_c) = char_to_superscript(chars[i + 1])
-            {
-                out.push(super_c);
-                i += 2;
-                continue;
-            }
-        } else if chars[i] == '_' && i + 1 < len {
-            if chars[i + 1] == '{' {
-                if let Some((inner_chars, end_len)) = extract_brace_group_chars(&chars[i + 1..]) {
-                    if let Some(sub_str_converted) = inner_chars
-                        .iter()
-                        .copied()
-                        .map(char_to_subscript)
-                        .collect::<Option<String>>()
-                    {
-                        out.push_str(&sub_str_converted);
-                        i += 1 + end_len;
-                        continue;
-                    } else {
-                        out.push('_');
-                        for &c in inner_chars {
-                            out.push(c);
-                        }
-                        i += 1 + end_len;
-                        continue;
-                    }
-                }
-            } else if is_single_script_char(chars[i + 1])
-                && let Some(sub_c) = char_to_subscript(chars[i + 1])
-            {
-                out.push(sub_c);
-                i += 2;
-                continue;
-            }
-        }
-
-        out.push(chars[i]);
-        i += 1;
+        // Second call should hit the cache and return identical content
+        let spans2 = inlines_to_spans(&inlines, &ctx);
+        assert_eq!(spans2.len(), 3);
+        assert_eq!(spans2[0].text, "Hello world");
+        assert_eq!(spans2[1].text, "bold text");
+        assert_eq!(spans2[2].text, "code_block()");
     }
 
-    out
+    #[test]
+    fn test_inlines_to_spans_search_query_bypasses_cache() {
+        let inlines = vec![Inline::Text("Search keyword test".to_string())];
+        let counter = Cell::new(0);
+        let ctx = SpanCtx {
+            font_family: None,
+            font_family_mono: None,
+            search_query: "keyword",
+            active_match: 0,
+            counter: &counter,
+            theme: AppTheme::Dark,
+        };
+
+        let spans = inlines_to_spans(&inlines, &ctx);
+        assert!(spans.len() >= 2);
+        assert_eq!(counter.get(), 1);
+    }
 }

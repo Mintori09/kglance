@@ -4,101 +4,261 @@ use iced::widget::{column, container};
 use iced::{Element, Font, Length, Padding};
 use kglance::app::Message;
 use kglance::core::types::MarkdownState;
-use kglance::features::markdown::parser::{Block, BlockLayout, Inline};
+use kglance::features::markdown::parser::{Block, BlockLayout, Inline, parse_to_blocks};
 use kglance::features::markdown::state::{apply_measured_block_heights, recompute_markdown_layout};
+use kglance::features::markdown::view::components::inline_spans::{SpanCtx, inlines_to_spans};
 use kglance::ui::components::selectable_text::SelectableText;
+use kglance::ui::theme::AppTheme;
+use std::cell::Cell;
 use std::sync::Arc;
 
-fn create_complex_inlines_sample() -> Vec<Inline> {
-    vec![
-        Inline::Text("Đây là đoạn văn bản kiểm thử ".to_string()),
-        Inline::Bold(vec![Inline::Text("in đậm chữ Việt ".to_string())]),
-        Inline::Italic(vec![Inline::Text("và in nghiêng tiếng Nhật: ".to_string())]),
-        Inline::Text("「ソフトウェア」 ".to_string()),
-        Inline::Code("fn process_data() -> Result<(), Error>".to_string()),
-        Inline::Text(" cùng với công thức toán ".to_string()),
-        Inline::InlineMath("\\sum_{k=1}^n \\frac{\\alpha_k}{\\sqrt{\\beta_k}}".to_string()),
-        Inline::Text(" và Emojis: 🚀 🦀 👨‍👩‍👧‍👦 ⚡".to_string()),
-    ]
+const JAPANESE_LESSON_MARKDOWN: &str = r#"> **Phần II:**  
+> ⑥ **1** (Thứ tự: 3 → 2 → **1** → 4: 駅員は乗客に**対して**、**電車が****遅れている****理由を**説明した。)  
+> ⑦ **1** (Thứ tự: 2 → 4 → **1** → 3: 新しく買った携帯電話はおしゃれで使いやすいが、**前のが****使いやすかった****のに****比べて**使いにくい。)
+
+---
+
+<!-- PAGE 80 -->
+
+## 2日目: 炊きたて (Freshly cooked rice / Cơm vừa mới nấu)
+
+![2日目: 炊きたて](images/page_80_crop_1_image_1.png.png)
+
+> **Mô tả tranh:**
+> 「ご飯が炊き上がったよ。」「炊きたてのご飯はおいしいね。」  
+> 「こら、食べかけで立っちゃだめ。」  
+> *("Cơm đã nấu xong rồi đây." "Cơm vừa mới nấu ngon quá nhỉ!" / "Này, đang ăn dở mà đứng dậy là không được đấy!")*
+
+---
+
+### 1. 書き上げる
+
+> [!NOTE] Ý nghĩa: Vます + 上げる / 上がる
+> - **Ý nghĩa:** Hoàn thành trọn vẹn một việc gì đó / Làm xong hẳn. *(その仕事を完全に終えるという意味)*
+> - **Ý nghĩa rút gọn:** (＝全部書いた / 焼き終わりました)
+> - **English:** Finish doing / Complete doing something.
+
+#### Cách kết hợp:
+```
+V (thể ます bỏ ます) + 上げる (tha động từ)
+V (thể ます bỏ ます) + 上がる (tự động từ)
+```
+
+#### Các từ thông dụng:
+- 書き上がる / 書き上げる (viết xong)
+- 編み上がる / 編み上げる (đan xong)
+- 作り上げる (làm xong / tạo dựng thành công)
+- 調べ上げる (điều tra làm sáng tỏ hoàn toàn)
+- 育て上げる (nuôi nấng khôn lớn)
+
+#### Ví dụ:
+1. やっとレポートを**書き上げた**。  
+   *(＝全部書いた)*  
+   I finally finished my paper.  
+   Cuối cùng thì tôi cũng đã viết xong bài báo cáo.
+2. ケーキが**焼き上がりました**。  
+   *(＝焼き終わりました)*  
+   The pastry is just out of the oven.  
+   Bánh đã nướng chín rồi đấy.
+
+---
+
+### 2. 食べ切れない
+
+> [!NOTE] Ý nghĩa: Vます + 切る / 切れる / 切れない
+> - **Ý nghĩa:**
+>   1. Làm hết sạch / Dùng cạn kiệt, không còn sót lại gì. *(全部使って、残っていないようす)*
+>   2. V切れない: Không thể làm hết / Quá nhiều không xuể. *(＝完了しない)*
+>   3. 疲れ切る: Vô cùng mệt mỏi, kiệt sức. *(＝ひどく疲れたようす)*
+> - **English:** Finish all / Completely do; Unable to finish all; Exhausted.
+
+#### Cách kết hợp:
+```
+V (thể ます bỏ ます) + 切る / 切れる
+V (thể ます bỏ ます) + 切れない
+```
+
+#### Các từ thông dụng:
+- 飲み切る (uống hết sạch)
+- 読み切る (đọc hết cả cuốn)
+- 走り切る (chạy hết quãng đường)
+- 泳ぎ切る (bơi hết chặng)
+- 売り切れる (bán sạch / cháy hàng)
+- 疲れ切る (mệt lử / kiệt sức)
+
+#### Ví dụ:
+1. ご飯の量が多くて、**食べ切れない**よ。  
+   *(＝全部食べられない)*  
+   I can't finish the rice because there is so much.  
+   Cơm nhiều quá nên tôi ăn không hết đâu.
+2. 長い小説を、2日間で**読み切った**。  
+   *(＝全部読んだ)*  
+   I finished reading a long novel in two days.  
+   Trong hai ngày tôi đã đọc hết một quyển tiểu thuyết dài.
+3. 疲れ切ったようす。  
+   *(＝ひどく疲れたようす)*  
+   A very tired condition.  
+   Tình trạng đang mệt lả / kiệt sức.
+
+---
+
+### 3. 読みかけの本
+
+> [!NOTE] Ý nghĩa: Vます + かける / かけの N / かけだ
+> - **Ý nghĩa:** Đang làm dở dang giữa chừng chưa xong; hoặc suýt nữa thì...
+> - **Ý nghĩa rút gọn:** (＝読んでいる途中だ / 入ろうとしたときに)
+> - **English:** Half-finished / In the middle of doing; On the verge of doing.
+
+#### Cách kết hợp:
+```
+V (thể ます bỏ ます) + かける
+V (thể ます bỏ ます) + かけの + N
+V (thể ます bỏ ます) + かけだ
+```
+
+#### Các từ thông dụng:
+- 食べかける / 食べかけ (ăn dở)
+- 飲みかけ (uống dở)
+- 帰りかける (đang chuẩn bị về giữa chừng)
+- 落ちかける (suýt rơi)
+- 失敗しかける (suýt thất bại)
+
+#### Ví dụ:
+1. この本はまだ**読みかけだ**。  
+   *(＝読んでいる途中だ)*  
+   I haven't finished the book yet.  
+   Quyển sách này tôi còn đang đọc dở.
+2. おふろに**入りかけた**ときに電話が鳴った。  
+   *(＝入ろうとしたときに)*  
+   The phone rang when I was about to get in the bath.  
+   Lúc tôi vừa định bước vào bồn tắm thì điện thoại reo.
+
+---
+
+<!-- PAGE 81 -->
+
+### 4. 焼きたてのパン
+
+> [!NOTE] Ý nghĩa: Vます + たて (たての N / たてだ)
+> - **Ý nghĩa:** Vừa mới làm xong còn tươi nguyên / nóng hổi (nhấn mạnh trạng thái tươi mới, mới toanh).
+> - **Ý nghĩa rút gọn:** (＝焼いてすぐあとの / 焼いたばかりの)
+> - **English:** Freshly done / Just finished.
+
+#### Cách kết hợp:
+```
+V (thể ます bỏ ます) + たての + N
+V (thể ます bỏ ます) + たてだ
+```
+
+#### Các từ thông dụng:
+- 焼きたて (mới nướng)
+- 炊きたて (mới nấu)
+- 揚げたて (mới rán)
+- 出来たて (mới làm xong)
+- 取れたて (mới hái / mới bắt)
+- 塗りたて (mới sơn)
+"#;
+
+fn extract_inlines_from_blocks(blocks: &[Block]) -> Vec<Vec<Inline>> {
+    let mut result = Vec::new();
+    for block in blocks {
+        match block {
+            Block::Paragraph(inlines) => result.push(inlines.clone()),
+            Block::Heading { content, .. } => result.push(content.clone()),
+            Block::List { items, .. } => {
+                for item in items {
+                    result.push(item.content.clone());
+                }
+            }
+            Block::Quote(sub_blocks) => {
+                result.extend(extract_inlines_from_blocks(sub_blocks));
+            }
+            Block::Alert { content, .. } => {
+                result.extend(extract_inlines_from_blocks(content));
+            }
+            _ => {}
+        }
+    }
+    result
 }
 
 // ---------------------------------------------------------------------------
-// 1. Solution 1: Retained Spans vs On-the-Fly Spans Creation
+// 1. Solution 1: Japanese Lesson Real-World Markdown Retained Spans Benchmark
 // ---------------------------------------------------------------------------
-fn bench_solution_retained_spans(c: &mut Criterion) {
-    let mut group = c.benchmark_group("solutions/retained_spans");
+fn bench_solution_japanese_lesson_retained_spans(c: &mut Criterion) {
+    let mut group = c.benchmark_group("solutions/japanese_lesson_spans");
 
-    let sample_inlines = create_complex_inlines_sample();
-    let num_blocks = 30; // ~1 visible window of blocks
-    let inlines_list: Vec<Vec<Inline>> = (0..num_blocks).map(|_| sample_inlines.clone()).collect();
+    let blocks = parse_to_blocks(JAPANESE_LESSON_MARKDOWN);
+    let inlines_list = extract_inlines_from_blocks(&blocks);
+    let counter = Cell::new(0);
 
-    // A. On-the-fly: Parsing inlines and constructing Vec<Span> every frame
-    group.bench_function("on_the_fly_spans_30_blocks", |b| {
+    // Warm up the LRU cache once
+    let warm_ctx = SpanCtx {
+        font_family: None,
+        font_family_mono: None,
+        search_query: "",
+        active_match: 0,
+        counter: &counter,
+        theme: AppTheme::Dark,
+    };
+    for inlines in &inlines_list {
+        let _ = inlines_to_spans(inlines, &warm_ctx);
+    }
+
+    // A. Direct Real Engine LRU Cache Hit (Production inlines_to_spans)
+    group.bench_function("production_lru_cached_spans_japanese_lesson", |b| {
+        let ctx = SpanCtx {
+            font_family: None,
+            font_family_mono: None,
+            search_query: "",
+            active_match: 0,
+            counter: &counter,
+            theme: AppTheme::Dark,
+        };
         b.iter(|| {
-            let mut all_spans: Vec<Vec<Span<'static, (), Font>>> = Vec::with_capacity(num_blocks);
+            let mut all_spans = Vec::with_capacity(inlines_list.len());
             for inlines in &inlines_list {
-                let mut spans = Vec::new();
-                for inline in inlines {
-                    match inline {
-                        Inline::Text(t) => spans.push(Span::new(t.clone())),
-                        Inline::Bold(children) => {
-                            for c in children {
-                                if let Inline::Text(t) = c {
-                                    spans.push(Span::new(t.clone()).font(Font {
-                                        weight: iced::font::Weight::Bold,
-                                        ..Font::DEFAULT
-                                    }));
-                                }
-                            }
-                        }
-                        Inline::Italic(children) => {
-                            for c in children {
-                                if let Inline::Text(t) = c {
-                                    spans.push(Span::new(t.clone()).font(Font {
-                                        style: iced::font::Style::Italic,
-                                        ..Font::DEFAULT
-                                    }));
-                                }
-                            }
-                        }
-                        Inline::Code(code) => {
-                            spans.push(Span::new(code.clone()).font(Font::MONOSPACE));
-                        }
-                        Inline::InlineMath(latex) => {
-                            spans.push(Span::new(latex.clone()));
-                        }
-                        _ => {}
-                    }
-                }
-                all_spans.push(spans);
+                all_spans.push(inlines_to_spans(inlines, &ctx));
             }
             all_spans
         })
     });
 
-    // B. Retained / Cached: Pre-built Arc<Vec<Span>> / cached references
-    let pre_built_spans: Vec<Arc<Vec<Span<'static, (), Font>>>> = (0..num_blocks)
-        .map(|_| {
-            let spans = vec![
-                Span::new("Đây là đoạn văn bản kiểm thử "),
-                Span::new("in đậm chữ Việt ").font(Font {
-                    weight: iced::font::Weight::Bold,
-                    ..Font::DEFAULT
-                }),
-                Span::new("và in nghiêng tiếng Nhật: ").font(Font {
-                    style: iced::font::Style::Italic,
-                    ..Font::DEFAULT
-                }),
-                Span::new("「ソフトウェア」 "),
-                Span::new("fn process_data() -> Result<(), Error>").font(Font::MONOSPACE),
-                Span::new(" cùng với công thức toán ∑ (αk)/√(βk)"),
-                Span::new(" và Emojis: 🚀 🦀 👨‍👩‍👧‍👦 ⚡"),
-            ];
-            Arc::new(spans)
+    // B. Search Active Mode (bypasses cache for real-time highlighting)
+    group.bench_function("search_active_uncached_japanese_lesson", |b| {
+        let ctx = SpanCtx {
+            font_family: None,
+            font_family_mono: None,
+            search_query: "Ý nghĩa",
+            active_match: 0,
+            counter: &counter,
+            theme: AppTheme::Dark,
+        };
+        b.iter(|| {
+            counter.set(0);
+            let mut all_spans = Vec::with_capacity(inlines_list.len());
+            for inlines in &inlines_list {
+                all_spans.push(inlines_to_spans(inlines, &ctx));
+            }
+            all_spans
+        })
+    });
+
+    // C. Retained Arc clone (baseline reference)
+    let pre_built_spans: Vec<Arc<Vec<Span<'static, (), Font>>>> = inlines_list
+        .iter()
+        .map(|inlines| {
+            let spans = inlines_to_spans(inlines, &warm_ctx);
+            // Convert to static lifetime for benchmark container
+            let static_spans: Vec<Span<'static, (), Font>> = spans
+                .into_iter()
+                .map(|s| Span::new(s.text.to_string()).font(s.font.unwrap_or(Font::DEFAULT)))
+                .collect();
+            Arc::new(static_spans)
         })
         .collect();
 
-    group.bench_function("retained_arc_spans_30_blocks", |b| {
+    group.bench_function("retained_arc_japanese_lesson", |b| {
         b.iter(|| {
             let cloned: Vec<Arc<Vec<Span<'static, (), Font>>>> =
                 pre_built_spans.iter().map(Arc::clone).collect();
@@ -110,25 +270,41 @@ fn bench_solution_retained_spans(c: &mut Criterion) {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Solution 2: Chunk Coalescing (Separate widgets vs Coalesced Single widget)
+// 2. Solution 2: Chunk Coalescing on Real Japanese Lesson Blocks
 // ---------------------------------------------------------------------------
-fn bench_solution_chunk_coalescing(c: &mut Criterion) {
-    let mut group = c.benchmark_group("solutions/chunk_coalescing");
+fn bench_solution_chunk_coalescing_japanese_lesson(c: &mut Criterion) {
+    let mut group = c.benchmark_group("solutions/chunk_coalescing_japanese_lesson");
 
-    let num_items = 64; // 64 short list items or paragraphs
-    let items_text: Vec<String> = (0..num_items)
-        .map(|i| format!("- Mục số {i}: Dữ liệu ghi chú ngắn cho danh sách"))
+    let blocks = parse_to_blocks(JAPANESE_LESSON_MARKDOWN);
+    let inlines_list = extract_inlines_from_blocks(&blocks);
+    let counter = Cell::new(0);
+    let ctx = SpanCtx {
+        font_family: None,
+        font_family_mono: None,
+        search_query: "",
+        active_match: 0,
+        counter: &counter,
+        theme: AppTheme::Dark,
+    };
+
+    let all_spans_list: Vec<Vec<Span<'static, (), Font>>> = inlines_list
+        .iter()
+        .map(|inlines| {
+            inlines_to_spans(inlines, &ctx)
+                .into_iter()
+                .map(|s| Span::new(s.text.to_string()).font(s.font.unwrap_or(Font::DEFAULT)))
+                .collect()
+        })
         .collect();
 
-    // A. Naive: 64 separate Containers + SelectableText widgets in a Column
-    group.bench_function("separate_64_individual_widgets", |b| {
+    // A. Separate individual SelectableText widgets per block
+    group.bench_function("separate_widgets_japanese_lesson", |b| {
         b.iter(|| {
-            let mut elements: Vec<Element<'_, Message>> = Vec::with_capacity(num_items);
-            for (idx, text) in items_text.iter().enumerate() {
-                let widget: SelectableText<'_, Message> =
-                    SelectableText::new(vec![Span::new(text.as_str())], 14.0)
-                        .width(Length::Fill)
-                        .block_index(idx);
+            let mut elements: Vec<Element<'_, Message>> = Vec::with_capacity(all_spans_list.len());
+            for (idx, spans) in all_spans_list.iter().enumerate() {
+                let widget: SelectableText<'_, Message> = SelectableText::new(spans.clone(), 14.0)
+                    .width(Length::Fill)
+                    .block_index(idx);
                 let cont = container(widget)
                     .padding(Padding {
                         top: 0.0,
@@ -144,15 +320,15 @@ fn bench_solution_chunk_coalescing(c: &mut Criterion) {
         })
     });
 
-    // B. Coalesced: 1 single composite SelectableText widget holding all 64 items as spans with '\n'
-    group.bench_function("coalesced_1_composite_widget", |b| {
+    // B. Coalesced composite widget holding all consecutive text spans
+    group.bench_function("coalesced_widget_japanese_lesson", |b| {
         b.iter(|| {
-            let mut spans = Vec::with_capacity(num_items * 2);
-            for text in &items_text {
-                spans.push(Span::new(text.as_str()));
-                spans.push(Span::new("\n"));
+            let mut merged_spans = Vec::with_capacity(all_spans_list.len() * 4);
+            for spans in &all_spans_list {
+                merged_spans.extend(spans.clone());
+                merged_spans.push(Span::new("\n"));
             }
-            let widget: SelectableText<'_, Message> = SelectableText::new(spans, 14.0)
+            let widget: SelectableText<'_, Message> = SelectableText::new(merged_spans, 14.0)
                 .width(Length::Fill)
                 .block_index(0);
             let cont: Element<'_, Message> = container(widget)
@@ -309,171 +485,11 @@ fn bench_solution_incremental_measured_layout(c: &mut Criterion) {
     group.finish();
 }
 
-fn create_heavy_multilingual_inlines_sample() -> Vec<Inline> {
-    vec![
-        Inline::Text("Đoạn văn kiểm thử đa ngữ và font shaping nâng cao: ".to_string()),
-        Inline::Bold(vec![Inline::Text("Tiếng Việt có dấu (nghiêng, đậm, gạch chân) ".to_string())]),
-        Inline::Italic(vec![Inline::Text("「ソフトウェア開発のパフォーマンス評価」 ".to_string())]),
-        Inline::Text("tiếng Trung: “高性能文件预览系统”、tiếng Hàn: 『고성능 파일 미리보기 시스템』. ".to_string()),
-        Inline::Code("fn xử_lý_unicode_utf8_graphemes<T: Debug>(dữ_liệu: &str) -> (usize, &str)".to_string()),
-        Inline::Text(" Công thức: ".to_string()),
-        Inline::InlineMath("\\int_{-\\infty}^{+\\infty} e^{-x^2} dx = \\sqrt{\\pi} \\quad \\Longleftrightarrow \\quad \\sum_{k=1}^n \\frac{\\alpha_k \\cdot \\beta_k}{\\sqrt{\\gamma_k^2 + \\omega_k^2}}".to_string()),
-        Inline::Text(" RTL: مرحبا بالعالم & שלום עולם. ".to_string()),
-        Inline::Text(" Emojis phức tạp: 👨‍👩‍👧‍👦 👩🏽‍💻 🏳️‍🌈 🦸🏼 🚀 🦀 ⚡ 📦 ✨ 🔍 🔥 🎯 💻 📊".to_string()),
-    ]
-}
-
-fn bench_solution_retained_spans_heavy_glyphs(c: &mut Criterion) {
-    let mut group = c.benchmark_group("solutions/retained_spans_heavy_glyphs");
-
-    let sample_inlines = create_heavy_multilingual_inlines_sample();
-    let num_blocks = 30;
-    let inlines_list: Vec<Vec<Inline>> = (0..num_blocks).map(|_| sample_inlines.clone()).collect();
-
-    group.bench_function("on_the_fly_heavy_glyphs_30_blocks", |b| {
-        b.iter(|| {
-            let mut all_spans: Vec<Vec<Span<'static, (), Font>>> = Vec::with_capacity(num_blocks);
-            for inlines in &inlines_list {
-                let mut spans = Vec::new();
-                for inline in inlines {
-                    match inline {
-                        Inline::Text(t) => spans.push(Span::new(t.clone())),
-                        Inline::Bold(children) => {
-                            for c in children {
-                                if let Inline::Text(t) = c {
-                                    spans.push(Span::new(t.clone()).font(Font {
-                                        weight: iced::font::Weight::Bold,
-                                        ..Font::DEFAULT
-                                    }));
-                                }
-                            }
-                        }
-                        Inline::Italic(children) => {
-                            for c in children {
-                                if let Inline::Text(t) = c {
-                                    spans.push(Span::new(t.clone()).font(Font {
-                                        style: iced::font::Style::Italic,
-                                        ..Font::DEFAULT
-                                    }));
-                                }
-                            }
-                        }
-                        Inline::Code(code) => {
-                            spans.push(Span::new(code.clone()).font(Font::MONOSPACE));
-                        }
-                        Inline::InlineMath(latex) => {
-                            spans.push(Span::new(latex.clone()));
-                        }
-                        _ => {}
-                    }
-                }
-                all_spans.push(spans);
-            }
-            all_spans
-        })
-    });
-
-    let pre_built_spans: Vec<Arc<Vec<Span<'static, (), Font>>>> = (0..num_blocks)
-        .map(|_| {
-            let spans = vec![
-                Span::new("Đoạn văn kiểm thử đa ngữ và font shaping nâng cao: "),
-                Span::new("Tiếng Việt có dấu (nghiêng, đậm, gạch chân) ").font(Font {
-                    weight: iced::font::Weight::Bold,
-                    ..Font::DEFAULT
-                }),
-                Span::new("「ソフトウェア開発のパフォーマンス評価」 ").font(Font {
-                    style: iced::font::Style::Italic,
-                    ..Font::DEFAULT
-                }),
-                Span::new("tiếng Trung: “高性能文件预览系统”、tiếng Hàn: 『고성능 파일 미리보기 시스템』. "),
-                Span::new("fn xử_lý_unicode_utf8_graphemes<T: Debug>(dữ_liệu: &str) -> (usize, &str)").font(Font::MONOSPACE),
-                Span::new(" Công thức: ∫ e^-x^2 dx = √π ⇔ ∑ (αk·βk)/√(γk^2+ωk^2)"),
-                Span::new(" RTL: مرحبا بالعالم & שלום עולם. "),
-                Span::new(" Emojis phức tạp: 👨‍👩‍👧‍👦 👩🏽‍💻 🏳️‍🌈 🦸🏼 🚀 🦀 ⚡ 📦 ✨ 🔍 🔥 🎯 💻 📊"),
-            ];
-            Arc::new(spans)
-        })
-        .collect();
-
-    group.bench_function("retained_arc_heavy_glyphs_30_blocks", |b| {
-        b.iter(|| {
-            let cloned: Vec<Arc<Vec<Span<'static, (), Font>>>> =
-                pre_built_spans.iter().map(Arc::clone).collect();
-            cloned
-        })
-    });
-
-    group.finish();
-}
-
-fn bench_solution_chunk_coalescing_heavy_glyphs(c: &mut Criterion) {
-    let mut group = c.benchmark_group("solutions/chunk_coalescing_heavy_glyphs");
-
-    let num_items = 64;
-    let items_text: Vec<String> = (0..num_items)
-        .map(|i| {
-            format!(
-                "- Mục {i}: 🌏 日本語・漢字・한글・Tiếng Việt 🚀 👨‍👩‍👧‍👦 Formula: $\\sum_{{k=1}}^{i} \\alpha_k$"
-            )
-        })
-        .collect();
-
-    group.bench_function("separate_64_heavy_glyph_widgets", |b| {
-        b.iter(|| {
-            let mut elements: Vec<Element<'_, Message>> = Vec::with_capacity(num_items);
-            for (idx, text) in items_text.iter().enumerate() {
-                let widget: SelectableText<'_, Message> =
-                    SelectableText::new(vec![Span::new(text.as_str())], 14.0)
-                        .width(Length::Fill)
-                        .block_index(idx);
-                let cont = container(widget)
-                    .padding(Padding {
-                        top: 0.0,
-                        right: 0.0,
-                        bottom: 4.0,
-                        left: 0.0,
-                    })
-                    .width(Length::Fill);
-                elements.push(cont.into());
-            }
-            let col: Element<'_, Message> = column(elements).width(Length::Fill).into();
-            col
-        })
-    });
-
-    group.bench_function("coalesced_1_heavy_glyph_widget", |b| {
-        b.iter(|| {
-            let mut spans = Vec::with_capacity(num_items * 2);
-            for text in &items_text {
-                spans.push(Span::new(text.as_str()));
-                spans.push(Span::new("\n"));
-            }
-            let widget: SelectableText<'_, Message> = SelectableText::new(spans, 14.0)
-                .width(Length::Fill)
-                .block_index(0);
-            let cont: Element<'_, Message> = container(widget)
-                .padding(Padding {
-                    top: 0.0,
-                    right: 0.0,
-                    bottom: 4.0,
-                    left: 0.0,
-                })
-                .width(Length::Fill)
-                .into();
-            cont
-        })
-    });
-
-    group.finish();
-}
-
 criterion_group!(
     solutions_benches,
-    bench_solution_retained_spans,
-    bench_solution_chunk_coalescing,
+    bench_solution_japanese_lesson_retained_spans,
+    bench_solution_chunk_coalescing_japanese_lesson,
     bench_solution_dynamic_overscan,
     bench_solution_incremental_measured_layout,
-    bench_solution_retained_spans_heavy_glyphs,
-    bench_solution_chunk_coalescing_heavy_glyphs,
 );
 criterion_main!(solutions_benches);
