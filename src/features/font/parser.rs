@@ -1,5 +1,8 @@
-use crate::core::utils::human_size;
+use std::collections::HashMap;
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
+
+use crate::core::utils::human_size;
 
 use crate::features::common::parser::traits::{ParseError, PreviewParser};
 use crate::features::common::parser::types::ParsedContent;
@@ -119,9 +122,6 @@ fn render_text(font: &fontdue::Font, text: &str, px: f32) -> (Vec<u8>, u32, u32)
 }
 
 pub fn resolve_font_name(name: &str) -> String {
-    use std::collections::HashMap;
-    use std::sync::{Mutex, OnceLock};
-
     static CACHE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     let key = name.to_lowercase();

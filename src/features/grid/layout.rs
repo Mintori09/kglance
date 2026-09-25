@@ -3,6 +3,7 @@ use crate::core::types::GridThumbnail;
 use crate::features::grid::calculate::{calculate_column_count, calculate_horizontal_padding};
 use crate::features::grid::card::create_grid_card;
 use crate::features::grid::constants::ScaledDimensions;
+use crate::ui::theme::tokens::widget_id::GRID_SCROLL;
 
 use iced::widget::{column, responsive, row, scrollable};
 use iced::{Element, Length};
@@ -40,7 +41,7 @@ pub fn render_grid_layout<'a>(
         }
 
         scrollable(grid_column)
-            .id("grid_scroll")
+            .id(GRID_SCROLL)
             .height(Length::Fill)
             .width(Length::Fill)
             .into()

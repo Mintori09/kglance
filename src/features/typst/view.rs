@@ -3,6 +3,7 @@ use crate::core::{PdfState, TypstState};
 use crate::ui::components::code_editor::code_editor;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::theme::font::get_code_font;
+use crate::ui::theme::tokens::widget_id::CONTENT_SCROLL;
 use iced::Element;
 use iced::widget::text_editor::Action;
 
@@ -30,7 +31,7 @@ pub fn view_typst<'a>(
             ignore_editor_action,
         );
 
-        let editor_pane = scroll_pane("typst_source_scroll", editor)
+        let editor_pane = scroll_pane(CONTENT_SCROLL, editor)
             .container_padding(4.0)
             .build();
 

@@ -1,11 +1,12 @@
 use super::*;
+use ::zip::write::SimpleFileOptions;
+#[cfg(feature = "7z")]
+use sevenz_rust::{SevenZArchiveEntry, SevenZWriter};
 use std::fs::File;
 use std::io::Write;
 
 #[test]
 fn parses_zip_archive() {
-    use ::zip::write::SimpleFileOptions;
-
     let tmp_dir = tempfile::tempdir().unwrap();
     let zip_path = tmp_dir.path().join("test.zip");
     {
@@ -109,8 +110,6 @@ fn rejects_invalid_zip() {
 #[cfg(feature = "7z")]
 #[test]
 fn parses_7z_archive() {
-    use sevenz_rust::{SevenZArchiveEntry, SevenZWriter};
-
     let tmp_dir = tempfile::tempdir().unwrap();
     let sz_path = tmp_dir.path().join("test.7z");
     {

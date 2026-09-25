@@ -1,6 +1,7 @@
 use crate::app::KglanceApp;
 use crate::app::messages::Message;
 use crate::core::PreviewData;
+use crate::features::image::ViewerController;
 use crate::log_debug;
 use iced::Task;
 
@@ -435,8 +436,6 @@ pub fn handle_decoded(
 pub const FOOTER_HEIGHT: f32 = 50.0;
 
 pub fn handle_zoom(app: &mut KglanceApp, factor: f32, cursor: iced::Point) -> Task<Message> {
-    use crate::features::image::ViewerController;
-
     let camera = &mut app.state.image.camera;
     let win = app.state.current_window_size;
     let canvas_height = (win.height - FOOTER_HEIGHT).max(1.0);
@@ -458,13 +457,11 @@ pub fn handle_zoom(app: &mut KglanceApp, factor: f32, cursor: iced::Point) -> Ta
 }
 
 pub fn handle_pan(app: &mut KglanceApp, dx: f32, dy: f32) -> Task<Message> {
-    use crate::features::image::ViewerController;
     ViewerController::pan(&mut app.state.image.camera, dx, dy);
     Task::none()
 }
 
 pub fn handle_fit_to_window(app: &mut KglanceApp) -> Task<Message> {
-    use crate::features::image::ViewerController;
     let win = app.state.current_window_size;
     let canvas_height = (win.height - FOOTER_HEIGHT).max(1.0);
     let viewport = iced::Size::new(win.width, canvas_height);
@@ -477,7 +474,6 @@ pub fn handle_fit_to_window(app: &mut KglanceApp) -> Task<Message> {
 }
 
 pub fn handle_double_click(app: &mut KglanceApp) -> Task<Message> {
-    use crate::features::image::ViewerController;
     ViewerController::reset(&mut app.state.image.camera);
     Task::none()
 }

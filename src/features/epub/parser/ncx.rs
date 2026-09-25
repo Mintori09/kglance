@@ -1,3 +1,6 @@
+use quick_xml::events::Event;
+use quick_xml::reader::Reader;
+
 pub type NcxNavPoint = (String, u8, String, Option<String>);
 
 struct NavPointFrame {
@@ -8,9 +11,6 @@ struct NavPointFrame {
 }
 
 pub fn extract_ncx_navpoints(ncx_xml: &str) -> Vec<NcxNavPoint> {
-    use quick_xml::events::Event;
-    use quick_xml::reader::Reader;
-
     let mut entries = Vec::new();
     let mut reader = Reader::from_str(ncx_xml);
     reader.config_mut().check_end_names = false;
@@ -92,9 +92,6 @@ fn try_emit_navpoint(frame: &mut NavPointFrame, entries: &mut Vec<NcxNavPoint>) 
 }
 
 pub fn extract_epub3_navpoints(nav_html: &str) -> Vec<NcxNavPoint> {
-    use quick_xml::events::Event;
-    use quick_xml::reader::Reader;
-
     let mut entries = Vec::new();
     let mut reader = Reader::from_str(nav_html);
     reader.config_mut().check_end_names = false;

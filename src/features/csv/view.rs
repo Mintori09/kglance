@@ -1,13 +1,13 @@
 use crate::app::Message;
 use crate::core::SpreadsheetState;
+use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
-use crate::ui::theme::{
-    AppTheme, default_button, default_button_primary, default_card, default_scrollable,
-};
-use iced::widget::{button, column, container, row, scrollable, text};
+use crate::ui::theme::{AppTheme, default_button, default_button_primary, default_card};
+use iced::widget::{button, column, container, row, text};
 use iced::{Element, Length, Theme};
 
 use crate::ui::theme::tokens::spacing;
+use crate::ui::theme::tokens::widget_id::CONTENT_SCROLL;
 
 const SORT_ASCENDING_INDICATOR: &str = " ↑";
 const SORT_DESCENDING_INDICATOR: &str = " ↓";
@@ -80,9 +80,9 @@ fn render_spreadsheet_body<'a>(
     let header = render_table_header(&sheet.headers, state.sort_col, state.sort_ascending);
     let rows_list = render_table_rows(&sorted_rows, sheet.headers.len(), theme);
 
-    let scrollable_area = scrollable(rows_list)
-        .style(default_scrollable)
-        .height(Length::Fill);
+    let scrollable_area = scroll_pane(CONTENT_SCROLL, rows_list)
+        .height(Length::Fill)
+        .build();
 
     let mut layout = column![].spacing(MAIN_SPACING);
 

@@ -50,6 +50,7 @@ pub mod header {
 pub mod grid {
     use super::spacing;
 
+    pub const MIN_COLUMNS: usize = 1;
     pub const DEFAULT_COLUMNS: usize = 4;
     pub const CARD_MIN_WIDTH: f32 = 180.0;
     pub const CARD_MAX_WIDTH: f32 = 320.0;
@@ -83,4 +84,16 @@ pub mod tables {
 
     pub const BORDER_WIDTH: f32 = border::THIN;
     pub const CORNER_RADIUS: f32 = radius::SMALL;
+}
+
+pub mod widget_id {
+    pub const CONTENT_SCROLL: &str = "content_scroll";
+    pub const GRID_SCROLL: &str = "grid_scroll";
+    pub const PDF_TOC_SCROLL: &str = "pdf_toc_scroll";
+
+    pub const SPREADSHEET_SEARCH_INPUT: &str = "ss_search_input";
+    pub const GRID_SEARCH_INPUT: &str = "grid_search_input";
+    pub const TEXT_SEARCH_INPUT: &str = "txt_search_input";
+    pub const MARKDOWN_SEARCH_INPUT: &str = "md_search_input";
+    pub const JSON_SEARCH_INPUT: &str = "json_search_input";
 }

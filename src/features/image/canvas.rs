@@ -10,6 +10,7 @@ use iced::{Element, Length, Point, Rectangle, Size};
 
 use crate::core::ImageState;
 use crate::features::image::camera::Camera;
+use crate::features::image::renderer::{CanvasRenderer, ImageRenderer};
 
 #[derive(Debug, Clone, Copy, Default)]
 struct CanvasState {
@@ -191,7 +192,6 @@ where
         _cursor: mouse::Cursor,
         _viewport: &Rectangle,
     ) {
-        use crate::features::image::renderer::{CanvasRenderer, ImageRenderer};
         CanvasRenderer.draw(renderer, self.camera, self.image, layout.bounds());
     }
 

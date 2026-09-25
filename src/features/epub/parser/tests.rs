@@ -1,4 +1,5 @@
 use super::html::{convert_html_to_markdown, decode_html_entities};
+use super::load_chapter_content_and_images_from_epub;
 use super::ncx::extract_ncx_navpoints;
 use super::*;
 use std::fs::File;
@@ -376,8 +377,6 @@ fn test_epub_anchor_find_block_index() {
 
 #[test]
 fn test_epub_nested_directory_image_resolution() {
-    use crate::features::epub::parser::load_chapter_content_and_images_from_epub;
-
     let temp_dir = std::env::temp_dir();
     let test_epub_path = temp_dir.join(format!("test_nested_img_{}.epub", std::process::id()));
 

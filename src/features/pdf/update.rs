@@ -1,6 +1,9 @@
 use crate::app::KglanceApp;
 use crate::app::messages::Message;
+use crate::ui::theme::tokens::widget_id::{CONTENT_SCROLL, PDF_TOC_SCROLL};
 use iced::Task;
+
+pub const TOC_ITEM_HEIGHT: f32 = 30.0;
 
 pub fn active_pdf_state_mut(app: &mut KglanceApp) -> &mut crate::core::PdfState {
     &mut app.state.pdf
@@ -116,11 +119,10 @@ pub fn handle_scrolled(
                         } else {
                             800.0
                         };
-                        const TOC_ITEM_HEIGHT: f32 = 30.0;
                         let item_y = active_pos as f32 * TOC_ITEM_HEIGHT;
                         let target_y = (item_y - (s_h - TOC_ITEM_HEIGHT) / 2.0).max(0.0);
                         return iced::widget::operation::scroll_to(
-                            "pdf_toc_scroll",
+                            PDF_TOC_SCROLL,
                             iced::widget::operation::AbsoluteOffset {
                                 x: 0.0,
                                 y: target_y,
@@ -259,7 +261,7 @@ pub fn handle_sidebar_toggled(app: &mut KglanceApp) -> Task<Message> {
         Task::none()
     };
     let restore_scroll = iced::widget::operation::scroll_to(
-        "content_scroll",
+        CONTENT_SCROLL,
         iced::widget::operation::AbsoluteOffset {
             x: 0.0,
             y: scroll_y,
@@ -344,7 +346,7 @@ fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
         crate::features::pdf::viewport::page_scroll_offset(&pdf_state.page_y_offsets, target);
 
     let main_scroll = iced::widget::operation::scroll_to(
-        "content_scroll",
+        CONTENT_SCROLL,
         iced::widget::operation::AbsoluteOffset {
             x: 0.0,
             y: target_y,
@@ -384,11 +386,10 @@ fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
                     } else {
                         800.0
                     };
-                    const TOC_ITEM_HEIGHT: f32 = 30.0;
                     let item_y = active_pos as f32 * TOC_ITEM_HEIGHT;
                     let target_toc_y = (item_y - (s_h - TOC_ITEM_HEIGHT) / 2.0).max(0.0);
                     let side_scroll = iced::widget::operation::scroll_to(
-                        "pdf_toc_scroll",
+                        PDF_TOC_SCROLL,
                         iced::widget::operation::AbsoluteOffset {
                             x: 0.0,
                             y: target_toc_y,

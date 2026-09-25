@@ -1,3 +1,4 @@
+use crate::ui::theme::AppTheme;
 use crate::ui::theme::color::primitive;
 use crate::ui::theme::tokens::{border, radius, spacing, tables};
 use iced::widget::{button, container};
@@ -249,8 +250,6 @@ pub(super) fn language_label_style(theme: AppTheme) -> container::Style {
         ..Default::default()
     }
 }
-
-use crate::ui::theme::AppTheme;
 
 pub(super) fn divider_line_style(theme: AppTheme) -> container::Style {
     let p = theme.palette().base;

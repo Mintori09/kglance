@@ -2,6 +2,7 @@ use crate::app::Message;
 use crate::core::types::JsonState;
 use crate::parsers::json::JsonNode;
 use crate::ui::components::code_editor::code_editor;
+use crate::ui::theme::AppTheme;
 use crate::ui::theme::tokens::spacing;
 use iced::widget::{button, container, row, text};
 use iced::{Element, Length, Padding};
@@ -56,8 +57,6 @@ pub fn build_breadcrumbs(nodes: &[JsonNode], index: usize) -> Vec<(usize, String
     crumbs.reverse();
     crumbs
 }
-
-use crate::ui::theme::AppTheme;
 
 pub fn render_breadcrumbs<'a>(
     state: &'a JsonState,

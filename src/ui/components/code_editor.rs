@@ -5,7 +5,7 @@ use iced::widget::{container, row, text, text_editor};
 use iced::{Alignment, Element, Font, Length};
 
 use crate::app::Message;
-use crate::ui::theme::default_text_editor;
+use crate::ui::theme::{AppTheme, default_text_editor};
 
 const CHARACTER_WIDTH_RATIO: f32 = 0.65;
 const GUTTER_PADDING: f32 = 16.0;
@@ -52,8 +52,6 @@ fn select_highlight_syntax(extension: &str) -> String {
         _ => ext,
     }
 }
-
-use crate::ui::theme::AppTheme;
 
 fn select_highlight_theme(theme: AppTheme) -> HighlightTheme {
     theme.iced_highlighter_theme()

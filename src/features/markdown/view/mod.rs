@@ -13,6 +13,7 @@ use crate::ui::components::content_layout::scrollable_content;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::components::selectable_text::SelectableText;
 use crate::ui::components::sidebar::drag_handle;
+use crate::ui::theme::tokens::widget_id::CONTENT_SCROLL;
 use crate::ui::types::RenderContext;
 use iced::widget::{column, container, row};
 use iced::{Element, Length, Padding};
@@ -42,10 +43,8 @@ pub(crate) fn build_selectable<'a>(
         .on_drag_end(|| crate::app::messages::MarkdownMsg::SelectionDragEnd.into())
         .on_clear_selection(|| crate::app::messages::MarkdownMsg::SelectionClear.into())
 }
-
 pub(crate) use blocks::{block_margin, render_block};
 pub(crate) use components::STYLE;
-const SCROLL_PANE_ID: &str = "content_scroll";
 
 pub fn view_markdown<'a>(
     blocks: &'a [Block],
@@ -214,7 +213,7 @@ fn build_scrollable_content<'a>(
 
     let content_padding =
         crate::ui::theme::scale_size(STYLE.general.content_padding, ctx.font_size);
-    scrollable_content(elements, max_text_width, content_padding, SCROLL_PANE_ID)
+    scrollable_content(elements, max_text_width, content_padding, CONTENT_SCROLL)
         .on_scroll(|v| {
             crate::app::messages::MarkdownMsg::Scrolled {
                 y: v.absolute_offset().y,

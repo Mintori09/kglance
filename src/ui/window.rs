@@ -223,7 +223,6 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
                     left: 16.0,
                 })
                 .style(|theme: &iced::Theme| {
-                    use iced::widget::container;
                     let palette = theme.extended_palette();
                     container::Style {
                         background: Some(palette.background.base.color.into()),

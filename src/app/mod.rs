@@ -12,8 +12,10 @@ use crate::dbus::DaemonCommand;
 use crate::features::common::parser::traits::ParserRegistry;
 use crate::features::json;
 use crate::features::markdown::Block;
+use crate::features::pdf::handler::{PagedDocKind, prepare_paged_preview_task};
 use crate::log_debug;
 use iced::Subscription;
+use iced::futures::SinkExt;
 use iced::window as iced_window;
 use iced::{Element, Task, Theme};
 use iced_futures::subscription;
@@ -251,8 +253,6 @@ impl KglanceApp {
         let stream = iced::stream::channel(
             10,
             move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                use iced::futures::SinkExt;
-
                 if is_rapid {
                     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
                     if generation_id.load(Ordering::Relaxed) != current_gen {
@@ -619,8 +619,6 @@ impl KglanceApp {
     }
 
     fn prepare_paged_task(&mut self, content: &PreviewData, path: &str) -> Option<Task<Message>> {
-        use crate::features::pdf::handler::{PagedDocKind, prepare_paged_preview_task};
-
         let (kind, page_0) = match content {
             PreviewData::Pdf {
                 data,

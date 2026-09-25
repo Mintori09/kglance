@@ -5,6 +5,7 @@ use crate::core::types::PdfSidebarMode;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::sidebar::{drag_handle, sidebar_entry_style};
 use crate::ui::theme::tokens::spacing;
+use crate::ui::theme::tokens::widget_id::{CONTENT_SCROLL, PDF_TOC_SCROLL};
 use iced::widget::{button, column, container, image, row, text};
 use iced::{Alignment, Border, Element, Length, Padding};
 
@@ -13,7 +14,6 @@ const PAGE_SPACING: f32 = spacing::S;
 const EMPTY_STATE_TEXT_SIZE: f32 = 14.0;
 const PLACEHOLDER_TEXT_SIZE: f32 = 12.0;
 
-const SCROLL_PANE_ID: &str = "content_scroll";
 const EMPTY_STATE_MESSAGE: &str = "No pages";
 const BUFFER_PAGES: usize = 2;
 
@@ -117,7 +117,7 @@ pub fn view_pdf<'a>(
     font_size: f32,
     theme: crate::ui::theme::AppTheme,
 ) -> Element<'a, Message> {
-    let pages_view = view_pdf_pages(state, SCROLL_PANE_ID, font_size, |vp| {
+    let pages_view = view_pdf_pages(state, CONTENT_SCROLL, font_size, |vp| {
         crate::app::messages::PdfMsg::Scrolled(vp).into()
     });
 
@@ -508,7 +508,7 @@ fn render_toc_list<'a>(
         toc_col = toc_col.push(row_item);
     }
 
-    scroll_pane("pdf_toc_scroll", toc_col).build()
+    scroll_pane(PDF_TOC_SCROLL, toc_col).build()
 }
 
 fn render_empty_state<'a>(scroll_id: &'static str) -> Element<'a, Message> {

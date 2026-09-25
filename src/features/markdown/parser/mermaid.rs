@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::Read;
 use std::process::Command;
 use std::sync::{Arc, LazyLock};
 use tempfile::NamedTempFile;
@@ -213,7 +214,6 @@ fn render_mermaid_by_mermaid_cli(
     if !exit_status.success() {
         let mut stderr = String::new();
         if let Some(mut err_pipe) = child.stderr.take() {
-            use std::io::Read;
             let _ = err_pipe.read_to_string(&mut stderr);
         }
         log_error!(

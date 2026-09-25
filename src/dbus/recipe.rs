@@ -1,5 +1,6 @@
 use tokio::sync::mpsc;
 
+use iced::futures::SinkExt;
 use iced_futures::subscription::{self, Recipe};
 use std::hash::Hash;
 
@@ -34,7 +35,6 @@ impl Recipe for DaemonRecipe {
             Some(mut rx) => iced_futures::boxed_stream(iced::stream::channel(
                 100,
                 move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                    use iced::futures::SinkExt;
                     while let Some(cmd) = rx.recv().await {
                         match cmd {
                             // Single merged event: open window + load content in one Iced cycle.

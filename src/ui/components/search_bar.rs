@@ -2,6 +2,7 @@ use iced::widget::{button, container, row, text, text_input};
 use iced::{Element, Length};
 
 use crate::app::Message;
+use crate::ui::theme::tokens::widget_id::*;
 use crate::ui::theme::{default_button, default_text_input};
 
 const DEFAULT_SPACING: f32 = 10.0;
@@ -40,11 +41,11 @@ impl SearchKind {
 
     fn input_id(&self) -> &'static str {
         match self {
-            Self::Text => "txt_search_input",
-            Self::Markdown => "md_search_input",
-            Self::Json => "json_search_input",
-            Self::Spreadsheet => "ss_search_input",
-            Self::Grid => "grid_search_input",
+            Self::Text => TEXT_SEARCH_INPUT,
+            Self::Markdown => MARKDOWN_SEARCH_INPUT,
+            Self::Json => JSON_SEARCH_INPUT,
+            Self::Spreadsheet => SPREADSHEET_SEARCH_INPUT,
+            Self::Grid => GRID_SEARCH_INPUT,
         }
     }
 

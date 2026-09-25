@@ -1,4 +1,8 @@
+use super::layout::slugify;
 use super::*;
+use crate::core::MarkdownState;
+use iced::widget::image::Handle;
+use std::collections::HashMap;
 use std::io::Write;
 
 fn text(s: &str) -> Inline {
@@ -602,9 +606,6 @@ fn mermaid_block_update_after_async_render() {
 
 #[test]
 fn markdown_state_caches_mermaid_handles_correctly() {
-    use crate::core::MarkdownState;
-    use iced::widget::image::Handle;
-
     let blocks = [
         Block::Heading {
             level: 1,
@@ -709,9 +710,6 @@ fn markdown_state_caches_mermaid_handles_correctly() {
 
 #[test]
 fn markdown_state_ignores_non_mermaid_blocks() {
-    use crate::core::MarkdownState;
-    use iced::widget::image::Handle;
-
     let blocks = [
         Block::Paragraph(vec![text("Hello")]),
         Block::CodeBlock {
@@ -1029,7 +1027,6 @@ fn test_parse_footnotes() {
 
 #[test]
 fn test_slugify() {
-    use super::layout::slugify;
     assert_eq!(slugify("Hello World!"), "hello-world");
     assert_eq!(
         slugify("Header With - Special_Chars & 123"),
@@ -1040,7 +1037,6 @@ fn test_slugify() {
 
 #[test]
 fn test_rescale_markdown_scroll_y() {
-    use std::collections::HashMap;
     let doc = "# Heading 1\n\nParagraph 1\n\nParagraph 2\n\n# Heading 2\n\nParagraph 3";
     let blocks = parse_to_blocks(doc);
     let image_sizes = HashMap::new();

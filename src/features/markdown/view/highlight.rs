@@ -1,5 +1,7 @@
 use std::sync::{Mutex, OnceLock};
 
+use crate::ui::theme::AppTheme;
+use crate::ui::theme::color::primitive::syntect_to_iced_color;
 use iced::Color;
 use lru::LruCache;
 use syntect::easy::HighlightLines;
@@ -16,9 +18,6 @@ fn theme_set() -> &'static ThemeSet {
     static TS: OnceLock<ThemeSet> = OnceLock::new();
     TS.get_or_init(ThemeSet::load_defaults)
 }
-
-use crate::ui::theme::AppTheme;
-use crate::ui::theme::color::primitive::syntect_to_iced_color;
 
 type HighlightCacheKey = (Option<String>, String, AppTheme);
 type HighlightSpanRanges = Vec<Vec<(Color, usize, usize)>>;

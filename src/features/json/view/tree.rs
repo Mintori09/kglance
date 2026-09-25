@@ -2,6 +2,7 @@ use crate::app::Message;
 use crate::core::types::JsonState;
 use crate::parsers::json::JsonNode;
 use crate::ui::components::button as ui_btn;
+use crate::ui::theme::AppTheme;
 use crate::ui::theme::tokens::spacing;
 use iced::widget::{button, column, container, row, text};
 use iced::{Color, Element, Length, Padding};
@@ -66,8 +67,6 @@ pub fn visible_node_indices(state: &JsonState) -> Vec<usize> {
     }
     visible
 }
-
-use crate::ui::theme::AppTheme;
 
 fn render_highlighted_text<'a>(
     content: &'a str,

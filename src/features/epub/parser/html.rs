@@ -2,6 +2,7 @@ use std::path::Path;
 
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
+use unicode_normalization::UnicodeNormalization;
 
 pub fn convert_html_to_markdown(html: &str) -> String {
     let mut converter = HtmlToMarkdownConverter::new();
@@ -700,7 +701,6 @@ pub fn decode_html_entities(text: &str) -> String {
 }
 
 pub fn normalize_nfc(text: &str) -> String {
-    use unicode_normalization::UnicodeNormalization;
     let preprocessed = text.replace("ộ\u{0301}", "ối").replace("ộ´", "ối");
 
     let mut transformed = String::with_capacity(preprocessed.len());

@@ -10,12 +10,10 @@ use crate::ui::theme::font::get_code_font;
 use iced::Element;
 use iced::widget::{column, row};
 
-use crate::ui::theme::tokens::spacing;
+use crate::ui::theme::tokens::{spacing, widget_id::CONTENT_SCROLL};
 
 const MAIN_CONTENT_SPACING: f32 = spacing::XS;
 const SCROLL_PANE_PADDING: f32 = spacing::XS;
-
-const SCROLL_PANE_ID: &str = "content_scroll";
 
 pub fn view_text<'a>(
     state: &'a TextState,
@@ -45,7 +43,7 @@ pub fn view_text<'a>(
         |action| crate::app::messages::TextMsg::Edit(action).into(),
     );
 
-    let scrollable_editor = scroll_pane(SCROLL_PANE_ID, editor_element)
+    let scrollable_editor = scroll_pane(CONTENT_SCROLL, editor_element)
         .container_padding(SCROLL_PANE_PADDING)
         .on_scroll(|viewport| {
             crate::app::messages::TextMsg::Scrolled(viewport.absolute_offset().y).into()

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Component, Path};
 
 use super::html::extract_attribute;
 
@@ -126,8 +126,6 @@ pub fn extract_spine_items(xml: &str) -> Vec<String> {
 }
 
 pub fn resolve_relative_path(base_file: &str, relative: &str) -> String {
-    use std::path::Component;
-
     let parent = Path::new(base_file)
         .parent()
         .unwrap_or_else(|| Path::new(""));

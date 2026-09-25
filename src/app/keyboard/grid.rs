@@ -4,9 +4,8 @@ use iced::widget::operation::AbsoluteOffset;
 
 use super::Message;
 use crate::app::KglanceApp;
-
-const MIN_GRID_COLUMNS: usize = 1;
-const GRID_SCROLL_ID: &str = "grid_scroll";
+use crate::ui::theme::tokens::grid::MIN_COLUMNS;
+use crate::ui::theme::tokens::widget_id::GRID_SCROLL;
 
 impl KglanceApp {
     pub(super) fn handle_grid_navigation(&mut self, key: &Key) -> Option<Task<Message>> {
@@ -16,7 +15,7 @@ impl KglanceApp {
             return None;
         }
 
-        let column_count = self.state.grid_cols.max(MIN_GRID_COLUMNS);
+        let column_count = self.state.grid_cols.max(MIN_COLUMNS);
         let current_index = self.state.current_index;
 
         match key {
@@ -75,7 +74,7 @@ impl KglanceApp {
         let scroll_offset_y = current_row as f32 * row_height;
 
         iced::widget::operation::scroll_to(
-            GRID_SCROLL_ID,
+            GRID_SCROLL,
             AbsoluteOffset {
                 x: 0.0,
                 y: scroll_offset_y,

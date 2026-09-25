@@ -7,9 +7,9 @@ use super::KglanceApp;
 use super::Message;
 use crate::core::types::{GRID_GAP, GRID_ITEM_WIDTH};
 use crate::core::{PreviewData, ToastInfo};
+use crate::ui::theme::tokens::grid::MIN_COLUMNS;
 
 const TOAST_DURATION_SECS: u64 = 2;
-const MIN_GRID_COLUMNS: usize = 1;
 
 impl KglanceApp {
     pub fn title(&self) -> String {
@@ -48,7 +48,7 @@ impl KglanceApp {
         let item_slot_width = scaled_item_width + scaled_gap;
 
         let calculated_cols = (available_content_width / item_slot_width).floor();
-        calculated_cols.max(MIN_GRID_COLUMNS as f32) as usize
+        calculated_cols.max(MIN_COLUMNS as f32) as usize
     }
 
     fn close_current(&mut self) -> Task<Message> {

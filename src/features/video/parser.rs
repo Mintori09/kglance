@@ -1,6 +1,7 @@
 use crate::features::common::parser::traits::{ParseError, PreviewParser};
 use crate::features::common::parser::types::ParsedContent;
 use std::path::Path;
+use std::process::Command;
 
 pub struct VideoParser;
 
@@ -22,7 +23,6 @@ impl PreviewParser for VideoParser {
 }
 
 fn probe_duration(path: &Path) -> f64 {
-    use std::process::Command;
     let output = Command::new("ffprobe")
         .args([
             "-v",
@@ -44,8 +44,6 @@ fn probe_duration(path: &Path) -> f64 {
 }
 
 pub fn extract_video_thumbnail(path: &Path) -> Option<Vec<u8>> {
-    use std::process::Command;
-
     let output = Command::new("ffmpeg")
         .args([
             "-ss",

@@ -1,3 +1,4 @@
+use iced::futures::SinkExt;
 use iced_futures::subscription;
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::hash::Hash;
@@ -178,7 +179,6 @@ impl subscription::Recipe for FileWatcherRecipe {
             Some(rx) => iced_futures::boxed_stream(iced::stream::channel(
                 100,
                 move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                    use iced::futures::SinkExt;
                     loop {
                         match rx.try_recv() {
                             Ok(path) => {

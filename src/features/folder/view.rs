@@ -1,16 +1,17 @@
 use std::path::Path;
 
 use iced::font::Weight;
-use iced::widget::{button, column, container, row, scrollable, svg, text};
+use iced::widget::{button, column, container, row, svg, text};
 use iced::{Alignment, Border, Color, Element, Font, Length, Shadow, Theme, alignment};
 
 use crate::app::Message;
 use crate::core::{FolderState, SortField};
+use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::theme::color::base::BaseColors;
 use crate::ui::theme::color::primitive;
-use crate::ui::theme::{default_row_button, default_scrollable, icon_theme};
+use crate::ui::theme::{default_row_button, icon_theme};
 
-use crate::ui::theme::tokens::{spacing, tables};
+use crate::ui::theme::tokens::{spacing, tables, widget_id::CONTENT_SCROLL};
 
 const FONT_WEIGHT_BOLD: Font = Font {
     weight: Weight::Bold,
@@ -74,9 +75,9 @@ pub fn view_folder<'a>(state: &'a FolderState, theme: AppTheme) -> Element<'a, M
     column![
         summary_block,
         folder_header,
-        scrollable(rows_list)
-            .style(default_scrollable)
+        scroll_pane(CONTENT_SCROLL, rows_list)
             .height(Length::Fill)
+            .build()
     ]
     .spacing(MAIN_LAYOUT_SPACING)
     .into()

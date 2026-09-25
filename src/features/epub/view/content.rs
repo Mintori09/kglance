@@ -5,6 +5,7 @@ use crate::app::Message;
 use crate::core::types::EpubState;
 use crate::features::epub::view::constants::CONTENT_SPACING;
 use crate::ui::components::content_layout::scrollable_content;
+use crate::ui::theme::tokens::widget_id::CONTENT_SCROLL;
 use crate::ui::types::RenderContext;
 
 pub(crate) fn build_epub_content<'a>(
@@ -167,7 +168,7 @@ pub(crate) fn build_epub_content<'a>(
     };
 
     let content_padding = crate::ui::theme::scale_size(CONTENT_SPACING, ctx.font_size);
-    scrollable_content(elements, max_text_width, content_padding, "content_scroll")
+    scrollable_content(elements, max_text_width, content_padding, CONTENT_SCROLL)
         .on_scroll(|v| {
             crate::app::messages::MarkdownMsg::Scrolled {
                 y: v.absolute_offset().y,

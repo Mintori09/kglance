@@ -1,3 +1,4 @@
+use crate::ui::theme::AppTheme;
 use crate::{log_debug, log_error};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -38,8 +39,6 @@ fn default_min_width() -> u32 {
 fn default_min_height() -> u32 {
     600
 }
-
-use crate::ui::theme::AppTheme;
 
 pub fn detect_system_theme() -> String {
     // 1. KDE Plasma 6 check via kreadconfig6

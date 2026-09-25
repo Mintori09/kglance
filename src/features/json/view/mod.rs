@@ -10,6 +10,7 @@ use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::theme::AppTheme;
 use crate::ui::theme::tokens::spacing;
 
+use crate::ui::theme::tokens::widget_id::CONTENT_SCROLL;
 use components::{render_breadcrumbs, render_raw};
 use iced::font::Weight;
 use iced::widget::{Space, button, column, container, row, text, tooltip};
@@ -17,7 +18,6 @@ use iced::{Alignment, Element, Font, Length, Padding};
 use style::{error_color, header_button_style, small_btn_style};
 use tree::render_tree;
 
-const CONTENT_SCROLL_ID: &str = "content_scroll";
 const CONTENT_CONTAINER_PADDING: u16 = 4;
 
 const STATUS_TEXT_SIZE: f32 = 11.0;
@@ -193,7 +193,7 @@ fn build_content<'a>(
         render_raw(state, theme, font_size, font_family_mono, word_wrap)
     };
 
-    scroll_pane(CONTENT_SCROLL_ID, view_content)
+    scroll_pane(CONTENT_SCROLL, view_content)
         .container_padding(CONTENT_CONTAINER_PADDING)
         .on_scroll(|viewport| JsonMsg::Scrolled(viewport.absolute_offset().y).into())
         .build()

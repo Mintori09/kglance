@@ -1,4 +1,5 @@
 use iced::widget::image;
+use lru::LruCache;
 use std::sync::Arc;
 
 use crate::core::preview::PreviewData;
@@ -169,8 +170,6 @@ impl From<Arc<PreviewData>> for CachedContent {
         Self::Preview(data)
     }
 }
-
-use lru::LruCache;
 
 /// Entry stored in the LRU cache, pairing content with its precomputed byte size
 /// to avoid O(N) recomputation on eviction.

@@ -1,4 +1,5 @@
 use iced::Task;
+use iced::widget::text_editor::Action;
 
 use super::Message;
 use crate::core::{PdfState, PreviewData};
@@ -106,7 +107,6 @@ impl KglanceApp {
 
     fn handle_ctrl_a(&mut self) -> Option<Task<Message>> {
         if matches!(self.current_content, Some(PreviewData::Text { .. })) {
-            use iced::widget::text_editor::Action;
             self.state.text.content.perform(Action::SelectAll);
             Some(Task::none())
         } else if matches!(

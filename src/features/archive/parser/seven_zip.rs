@@ -1,5 +1,14 @@
+#[cfg(feature = "7z")]
+use std::fs::File;
+#[cfg(feature = "7z")]
+use std::io::Read;
 use std::path::Path;
 
+#[cfg(feature = "7z")]
+use sevenz_rust::{Password, SevenZReader};
+
+#[cfg(feature = "7z")]
+use crate::core::utils::format_timestamp;
 #[cfg(feature = "7z")]
 use crate::features::archive::types::ArchiveEntry;
 use crate::features::common::parser::traits::ParseError;
@@ -11,8 +20,6 @@ const FILETIME_TO_UNIX_EPOCH_OFFSET_SECONDS: u64 = 11_644_473_600;
 
 #[cfg(feature = "7z")]
 pub fn list_7z_entries(archive_path: &Path) -> Result<Vec<ArchiveEntry>, ParseError> {
-    use sevenz_rust::{Password, SevenZReader};
-
     let reader = SevenZReader::open(archive_path, Password::empty())
         .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     let archive_path_str = archive_path.to_string_lossy().to_string();
@@ -22,11 +29,7 @@ pub fn list_7z_entries(archive_path: &Path) -> Result<Vec<ArchiveEntry>, ParseEr
         .files
         .iter()
         .map(|entry| {
-            use crate::features::archive::types::ArchiveEntry;
-
             let modified = if entry.has_creation_date {
-                use crate::core::utils::format_timestamp;
-
                 let filetime_ticks = entry.creation_date.to_raw();
                 let unix_seconds =
                     filetime_ticks / SEVEN_ZIP_TIME_SCALE - FILETIME_TO_UNIX_EPOCH_OFFSET_SECONDS;
@@ -59,10 +62,6 @@ pub fn extract_from_7z(
     entry_path: &str,
     output_path: &Path,
 ) -> Result<(), ParseError> {
-    use sevenz_rust::{Password, SevenZReader};
-    use std::fs::File;
-    use std::io::Read;
-
     let file = File::open(archive_path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     let file_len = file
         .metadata()

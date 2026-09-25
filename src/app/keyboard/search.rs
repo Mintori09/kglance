@@ -3,12 +3,8 @@ use iced::Task;
 use super::Message;
 use crate::app::KglanceApp;
 use crate::core::{PreviewData, ViewMode};
+use crate::ui::theme::tokens::widget_id::*;
 
-const SPREADSHEET_SEARCH_INPUT_ID: &str = "ss_search_input";
-const GRID_SEARCH_INPUT_ID: &str = "grid_search_input";
-const TEXT_SEARCH_INPUT_ID: &str = "txt_search_input";
-const MARKDOWN_SEARCH_INPUT_ID: &str = "md_search_input";
-const JSON_SEARCH_INPUT_ID: &str = "json_search_input";
 const SEARCH_TRIGGER: &str = "/";
 
 impl KglanceApp {
@@ -166,7 +162,7 @@ impl KglanceApp {
         self.state.spreadsheet.search_visible = true;
         self.state.spreadsheet.search_query = character.to_string();
 
-        iced::widget::operation::focus(SPREADSHEET_SEARCH_INPUT_ID)
+        iced::widget::operation::focus(SPREADSHEET_SEARCH_INPUT)
     }
 
     fn open_grid_search(&mut self, key: &iced::keyboard::Key) -> Task<Message> {
@@ -177,33 +173,33 @@ impl KglanceApp {
         self.state.grid_search_visible = true;
         self.state.grid_search_query = character.to_string();
 
-        iced::widget::operation::focus(GRID_SEARCH_INPUT_ID)
+        iced::widget::operation::focus(GRID_SEARCH_INPUT)
     }
 
     fn open_spreadsheet_search_without_query(&mut self) -> Task<Message> {
         self.state.spreadsheet.search_visible = true;
-        iced::widget::operation::focus(SPREADSHEET_SEARCH_INPUT_ID)
+        iced::widget::operation::focus(SPREADSHEET_SEARCH_INPUT)
     }
 
     fn open_grid_search_without_query(&mut self) -> Task<Message> {
         self.state.grid_search_visible = true;
-        iced::widget::operation::focus(GRID_SEARCH_INPUT_ID)
+        iced::widget::operation::focus(GRID_SEARCH_INPUT)
     }
 
     fn open_text_search(&mut self) -> Task<Message> {
         self.state.text.search_visible = true;
-        iced::widget::operation::focus(TEXT_SEARCH_INPUT_ID)
+        iced::widget::operation::focus(TEXT_SEARCH_INPUT)
     }
 
     fn open_markdown_search(&mut self) -> Task<Message> {
         self.state.markdown.search_visible = true;
         self.state.markdown.search_match_blocks.clear();
-        iced::widget::operation::focus(MARKDOWN_SEARCH_INPUT_ID)
+        iced::widget::operation::focus(MARKDOWN_SEARCH_INPUT)
     }
 
     fn open_json_search(&mut self) -> Task<Message> {
         self.state.json.search_visible = true;
-        iced::widget::operation::focus(JSON_SEARCH_INPUT_ID)
+        iced::widget::operation::focus(JSON_SEARCH_INPUT)
     }
 
     fn close_grid_search(&mut self) {

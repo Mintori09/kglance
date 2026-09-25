@@ -1,10 +1,8 @@
 use crate::app::Message;
 use crate::core::ImageState;
 use crate::features::image::ImageCanvas;
-use iced::Element;
-use iced::Length;
-use iced::Size;
-use iced::widget::{container, text};
+use iced::widget::{button, column, container, row, text};
+use iced::{Border, Element, Length, Padding, Shadow, Size, Vector};
 
 const EMPTY_LABEL: &str = "No image loaded";
 const EMPTY_LABEL_FONT_SIZE: f32 = 18.0;
@@ -36,9 +34,6 @@ pub fn view_image<'a>(state: &'a ImageState, font_family: Option<&str>) -> Eleme
 }
 
 fn render_info_card<'a>(state: &'a ImageState, font_family: Option<&str>) -> Element<'a, Message> {
-    use iced::widget::{button, column, row};
-    use iced::{Border, Padding, Shadow, Vector};
-
     let font = crate::ui::theme::font::get_main_font(font_family);
 
     let title_row = row![

@@ -1,3 +1,5 @@
+use quick_xml::events::Event;
+use quick_xml::reader::Reader;
 use std::fs;
 use std::io::{BufReader, Read};
 use std::path::Path;
@@ -63,9 +65,6 @@ fn read_document_info<R: Read + std::io::Seek>(
 }
 
 fn parse_document_info_xml(xml: &str) -> Option<ImageMetadata> {
-    use quick_xml::events::Event;
-    use quick_xml::reader::Reader;
-
     let mut reader = Reader::from_str(xml);
     reader.config_mut().trim_text(true);
 

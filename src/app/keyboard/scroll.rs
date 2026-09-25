@@ -1,11 +1,13 @@
 use iced::Task;
+use iced::keyboard::Key;
+use iced::keyboard::key::Named;
 use iced::widget::operation::{self, AbsoluteOffset, RelativeOffset};
 
 use super::Message;
 use crate::app::KglanceApp;
 use crate::core::PreviewData;
+use crate::ui::theme::tokens::widget_id::CONTENT_SCROLL;
 
-const CONTENT_SCROLL_ID: &str = "content_scroll";
 const SCROLL_LINE_AMOUNT: f32 = 80.0;
 const SCROLL_HALF_PAGE_AMOUNT: f32 = 600.0;
 
@@ -15,9 +17,6 @@ impl KglanceApp {
         key: &iced::keyboard::Key,
         modifiers: iced::keyboard::Modifiers,
     ) -> Option<Task<Message>> {
-        use iced::keyboard::Key;
-        use iced::keyboard::key::Named;
-
         match key {
             Key::Named(Named::ArrowDown) => Some(self.scroll_by(SCROLL_LINE_AMOUNT)),
             Key::Character(character) if character == "j" => {
@@ -59,7 +58,7 @@ impl KglanceApp {
         self.reset_scroll_pending();
 
         operation::scroll_by(
-            CONTENT_SCROLL_ID,
+            CONTENT_SCROLL,
             AbsoluteOffset {
                 x: 0.0,
                 y: vertical_offset,
@@ -92,13 +91,13 @@ impl KglanceApp {
     }
 
     fn snap_to_top(&mut self) -> Task<Message> {
-        operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 0.0 })
+        operation::snap_to(CONTENT_SCROLL, RelativeOffset { x: 0.0, y: 0.0 })
     }
 
     fn snap_to_bottom(&mut self) -> Task<Message> {
         self.reset_scroll_pending();
 
-        operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 1.0 })
+        operation::snap_to(CONTENT_SCROLL, RelativeOffset { x: 0.0, y: 1.0 })
     }
 
     fn toggle_sidebar(&mut self) -> Option<Task<Message>> {
@@ -131,9 +130,6 @@ impl KglanceApp {
         key: &iced::keyboard::Key,
         modifiers: iced::keyboard::Modifiers,
     ) -> Option<Task<Message>> {
-        use iced::keyboard::Key;
-        use iced::keyboard::key::Named;
-
         if !self.is_json_tree_nav_available() || modifiers.control() || modifiers.alt() {
             return None;
         }

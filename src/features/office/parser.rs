@@ -1,3 +1,5 @@
+use calamine::{Reader, Xlsx, open_workbook};
+use std::io::Read;
 use std::path::Path;
 use std::process::Command;
 
@@ -45,8 +47,6 @@ impl PreviewParser for OfficeParser {
 }
 
 fn try_docx_direct(path: &str) -> Result<String, ParseError> {
-    use std::io::Read;
-
     let file = std::fs::File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     let mut archive =
         zip::ZipArchive::new(file).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
@@ -156,8 +156,6 @@ fn cell_to_string(cell: &calamine::Data) -> String {
 }
 
 fn try_xlsx_direct(path: &str) -> Result<ParsedContent, ParseError> {
-    use calamine::{Reader, Xlsx, open_workbook};
-
     let mut workbook: Xlsx<_> = match open_workbook(path) {
         Ok(w) => w,
         Err(e) => return Err(ParseError::ParseFailed(e.to_string())),
