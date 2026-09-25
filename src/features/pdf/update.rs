@@ -216,10 +216,25 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             evict_distant_pages(pdf_state, page_index);
         }
 
-        return iced::widget::operation::scroll_to(
-            "content_scroll",
-            iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
-        );
+        let is_finished = !pdf_state.smooth_scroll.is_animating;
+        let scroll_task = if is_finished && next_y >= max_y - 1.0 {
+            iced::widget::operation::snap_to(
+                "content_scroll",
+                iced::widget::operation::RelativeOffset { x: 0.0, y: 1.0 },
+            )
+        } else if is_finished && next_y <= 1.0 {
+            iced::widget::operation::snap_to(
+                "content_scroll",
+                iced::widget::operation::RelativeOffset { x: 0.0, y: 0.0 },
+            )
+        } else {
+            iced::widget::operation::scroll_to(
+                "content_scroll",
+                iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
+            )
+        };
+
+        return scroll_task;
     }
 
     Task::none()
@@ -252,6 +267,10 @@ pub fn handle_scrolled(
         pdf_state.scroll_y = y;
         if view_h > 0.0 {
             pdf_state.viewport_height = view_h;
+        }
+        let total_h = viewport.content_bounds().height;
+        if total_h > 0.0 {
+            pdf_state.total_content_height = total_h;
         }
         pdf_state
             .visible_page
