@@ -108,8 +108,14 @@ pub fn handle_markdown_scrolled(
     let state = active_markdown_state_mut(app);
     let delta_vh = (state.viewport_height - viewport_height).abs();
     state.viewport_height = viewport_height;
-    if content_height > 0.0 && state.block_y_offsets.is_empty() {
-        state.total_content_height = content_height;
+    if content_height > 0.0 {
+        let is_small_or_flat =
+            state.block_y_offsets.is_empty() || state.block_y_offsets.len() <= 20;
+        let is_near_bottom =
+            state.scroll_y + state.viewport_height >= state.total_content_height - 300.0;
+        if is_small_or_flat || is_near_bottom {
+            state.total_content_height = content_height;
+        }
     }
 
     if state.smooth_scroll.is_animating || state.scroll_controller.is_animating() {
