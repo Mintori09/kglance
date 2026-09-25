@@ -222,15 +222,6 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
         },
         Message::Typst(msg) => match msg {
-            crate::app::messages::TypstMsg::Scrolled(vp) => {
-                crate::features::typst::update::handle_scrolled(app, vp)
-            }
-            crate::app::messages::TypstMsg::PagesLoaded => {
-                crate::features::typst::update::handle_pages_loaded(app)
-            }
-            crate::app::messages::TypstMsg::PageReady(idx, d, w, h) => {
-                crate::features::typst::update::handle_page_ready(app, idx, d, w, h)
-            }
             crate::app::messages::TypstMsg::CompileError => {
                 crate::features::typst::update::handle_compile_error(app)
             }

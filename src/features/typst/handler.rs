@@ -66,7 +66,7 @@ async fn process_typst_page_loading(
         generation_id,
         disk_cache,
         |page_index, page_data| {
-            crate::app::messages::TypstMsg::PageReady(
+            crate::app::messages::PdfMsg::PageReady(
                 page_index,
                 page_data.data,
                 page_data.width,
@@ -74,7 +74,7 @@ async fn process_typst_page_loading(
             )
             .into()
         },
-        crate::app::messages::TypstMsg::PagesLoaded.into(),
+        crate::app::messages::PdfMsg::PagesLoaded(Vec::new()).into(),
     )
     .await;
 }

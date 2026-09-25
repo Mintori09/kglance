@@ -89,9 +89,6 @@ pub enum PdfMsg {
 
 #[derive(Debug, Clone)]
 pub enum TypstMsg {
-    PagesLoaded,
-    PageReady(usize, Vec<u8>, u32, u32),
-    Scrolled(iced::widget::scrollable::Viewport),
     CompileError,
     ToggleSource,
 }

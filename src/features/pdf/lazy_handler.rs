@@ -255,7 +255,26 @@ pub async fn process_thumbnail_loading<F>(
     F: Fn(usize, PageData) -> Message + Send + Sync,
 {
     let mut output = output;
-    let pdf_path = PathBuf::from(file_path);
+
+    let (_temp_pdf, pdf_path) = if file_path.ends_with(".typ") {
+        let path_clone = file_path.clone();
+        let compiled = tokio::task::spawn_blocking(move || {
+            let path = Path::new(&path_clone);
+            crate::parsers::typst::compile_typst_to_pdf(path).ok()
+        })
+        .await
+        .ok()
+        .flatten();
+
+        let Some((temp, _, _, _, _)) = compiled else {
+            return;
+        };
+        let p = temp.path().to_path_buf();
+        (Some(temp), p)
+    } else {
+        (None, PathBuf::from(file_path))
+    };
+
     let mut rendered = vec![false; total_pages];
     let expected_gen = generation_id.load(Ordering::Relaxed);
 
