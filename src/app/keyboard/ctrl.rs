@@ -208,14 +208,8 @@ impl KglanceApp {
                 Some(Task::none())
             }
 
-            Some(PreviewData::Pdf { .. }) => Self::resize_pdf_preview(
+            Some(PreviewData::Pdf { .. } | PreviewData::Typst { .. }) => Self::resize_pdf_preview(
                 &mut self.state.pdf,
-                self.state.current_window_size.width,
-                direction,
-            ),
-
-            Some(PreviewData::Typst { .. }) => Self::resize_pdf_preview(
-                &mut self.state.typst.pdf,
                 self.state.current_window_size.width,
                 direction,
             ),
@@ -398,15 +392,12 @@ impl KglanceApp {
         match key {
             iced::keyboard::Key::Character(c) if (c == "+" || c == "=") && modifiers.shift() => {
                 match self.current_content {
-                    Some(PreviewData::Pdf { .. }) => Some(Self::reset_pdf_width(
-                        &mut self.state.pdf,
-                        self.state.current_window_size.width,
-                    )),
-
-                    Some(PreviewData::Typst { .. }) => Some(Self::reset_pdf_width(
-                        &mut self.state.typst.pdf,
-                        self.state.current_window_size.width,
-                    )),
+                    Some(PreviewData::Pdf { .. } | PreviewData::Typst { .. }) => {
+                        Some(Self::reset_pdf_width(
+                            &mut self.state.pdf,
+                            self.state.current_window_size.width,
+                        ))
+                    }
 
                     Some(PreviewData::Markdown { ref blocks, .. }) => {
                         let old_size = self.state.font_size;

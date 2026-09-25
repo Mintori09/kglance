@@ -10,9 +10,9 @@ pub fn populate_state(
     outline: &[PdfTocEntry],
     page_dimensions: &[PageDimensions],
 ) {
-    let old_sidebar_visible = state.typst.pdf.sidebar_visible;
-    let old_sidebar_mode = state.typst.pdf.sidebar_mode;
-    let old_sidebar_width = state.typst.pdf.sidebar_width;
+    let old_sidebar_visible = state.pdf.sidebar_visible;
+    let old_sidebar_mode = state.pdf.sidebar_mode;
+    let old_sidebar_width = state.pdf.sidebar_width;
 
     let win_w = if state.current_window_size.width > 0.0 {
         state.current_window_size.width
@@ -42,7 +42,7 @@ pub fn populate_state(
         4.0,
     );
 
-    let mut typst_pdf_state = crate::core::PdfState {
+    state.pdf = crate::core::PdfState {
         page_count,
         pages: crate::core::types::PageCache::new(page_count),
         thumbnails: crate::core::types::ThumbnailCache::new(page_count),
@@ -59,10 +59,9 @@ pub fn populate_state(
         ..Default::default()
     };
 
-    crate::features::pdf::geometry::recalculate_pdf_thumbnail_offsets(&mut typst_pdf_state);
+    crate::features::pdf::geometry::recalculate_pdf_thumbnail_offsets(&mut state.pdf);
 
     state.typst = crate::core::TypstState {
-        pdf: typst_pdf_state,
         source_content: iced::widget::text_editor::Content::with_text(source),
         show_source: error.is_some(),
         error,

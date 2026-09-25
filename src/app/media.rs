@@ -24,7 +24,12 @@ impl super::KglanceApp {
             let factor = if scroll_val > 0.0 { 1.15 } else { 1.0 / 1.15 };
             self.state.image.camera.zoom = (self.state.image.camera.zoom * factor).clamp(0.1, 10.0);
             Task::none()
-        } else if is_mod && matches!(self.current_content, Some(PreviewData::Pdf { .. })) {
+        } else if is_mod
+            && matches!(
+                self.current_content,
+                Some(PreviewData::Pdf { .. } | PreviewData::Typst { .. })
+            )
+        {
             let delta = if scroll_val > 0.0 { 50.0 } else { -50.0 };
             let old_desired = self.state.pdf.desired_width;
             let next_desired = (old_desired + delta).clamp(300.0, 2400.0);
@@ -55,40 +60,6 @@ impl super::KglanceApp {
                     AbsoluteOffset {
                         x: 0.0,
                         y: self.state.pdf.scroll_y,
-                    },
-                )
-            }
-        } else if is_mod && matches!(self.current_content, Some(PreviewData::Typst { .. })) {
-            let delta = if scroll_val > 0.0 { 50.0 } else { -50.0 };
-            let old_desired = self.state.typst.pdf.desired_width;
-            let next_desired = (old_desired + delta).clamp(300.0, 2400.0);
-            if (next_desired - old_desired).abs() > f32::EPSILON {
-                let win_w = self.state.current_window_size.width;
-                let sidebar_w = if self.state.typst.pdf.sidebar_visible {
-                    self.state.typst.pdf.sidebar_width + 1.0
-                } else {
-                    0.0
-                };
-                let max_w = (win_w - sidebar_w - 40.0).clamp(300.0, 2400.0);
-                let new_scroll_y = crate::features::pdf::view::rescale_pdf_and_anchor(
-                    &mut self.state.typst.pdf,
-                    old_desired,
-                    next_desired,
-                    max_w,
-                );
-                operation::scroll_to(
-                    "content_scroll",
-                    AbsoluteOffset {
-                        x: 0.0,
-                        y: new_scroll_y,
-                    },
-                )
-            } else {
-                operation::scroll_to(
-                    "content_scroll",
-                    AbsoluteOffset {
-                        x: 0.0,
-                        y: self.state.typst.pdf.scroll_y,
                     },
                 )
             }

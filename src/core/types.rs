@@ -483,7 +483,6 @@ impl Default for PdfState {
 
 #[derive(Debug, Clone, Default)]
 pub struct TypstState {
-    pub pdf: PdfState,
     pub source_content: iced::widget::text_editor::Content,
     pub show_source: bool,
     pub error: Option<String>,

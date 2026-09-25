@@ -1,5 +1,5 @@
 use crate::app::Message;
-use crate::core::TypstState;
+use crate::core::{PdfState, TypstState};
 use crate::ui::components::code_editor::code_editor;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::theme::font::get_code_font;
@@ -12,6 +12,7 @@ fn ignore_editor_action(_: Action) -> Message {
 
 pub fn view_typst<'a>(
     state: &'a TypstState,
+    pdf: &'a PdfState,
     theme: crate::ui::theme::AppTheme,
     font_size: f32,
     font_family_mono: Option<&str>,
@@ -68,6 +69,6 @@ pub fn view_typst<'a>(
             editor_pane
         }
     } else {
-        crate::ui::views::view_pdf(&state.pdf, font_size, theme)
+        crate::ui::views::view_pdf(pdf, font_size, theme)
     }
 }

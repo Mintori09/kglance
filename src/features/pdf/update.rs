@@ -3,25 +3,11 @@ use crate::app::messages::Message;
 use iced::Task;
 
 pub fn active_pdf_state_mut(app: &mut KglanceApp) -> &mut crate::core::PdfState {
-    if matches!(
-        app.current_content,
-        Some(crate::core::PreviewData::Typst { .. })
-    ) {
-        &mut app.state.typst.pdf
-    } else {
-        &mut app.state.pdf
-    }
+    &mut app.state.pdf
 }
 
 pub fn active_pdf_state(app: &KglanceApp) -> &crate::core::PdfState {
-    if matches!(
-        app.current_content,
-        Some(crate::core::PreviewData::Typst { .. })
-    ) {
-        &app.state.typst.pdf
-    } else {
-        &app.state.pdf
-    }
+    &app.state.pdf
 }
 
 pub const MAX_CACHED_PAGES: usize = crate::core::types::PageCache::MAX_COUNT;
@@ -445,11 +431,10 @@ mod tests {
         let mut app = test_app(None);
         active_pdf_state_mut(&mut app).sidebar_width = 321.0;
         assert_eq!(app.state.pdf.sidebar_width, 321.0);
-        assert_eq!(app.state.typst.pdf.sidebar_width, 220.0);
     }
 
     #[test]
-    fn active_pdf_state_selects_typst_pdf_for_typst_content() {
+    fn active_pdf_state_selects_pdf_for_typst_content() {
         let content = Some(PreviewData::Typst {
             page_count: 1,
             current_page: 0,
@@ -463,8 +448,7 @@ mod tests {
         });
         let mut app = test_app(content);
         active_pdf_state_mut(&mut app).sidebar_width = 432.0;
-        assert_eq!(app.state.typst.pdf.sidebar_width, 432.0);
-        assert_eq!(app.state.pdf.sidebar_width, 220.0);
+        assert_eq!(app.state.pdf.sidebar_width, 432.0);
     }
 
     #[test]

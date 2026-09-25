@@ -366,11 +366,6 @@ impl KglanceApp {
             .fetch_add(1, Ordering::Relaxed);
         self.state.pdf.generation_id.fetch_add(1, Ordering::Relaxed);
         self.state
-            .typst
-            .pdf
-            .generation_id
-            .fetch_add(1, Ordering::Relaxed);
-        self.state
             .markdown
             .generation_id
             .fetch_add(1, Ordering::Relaxed);
@@ -388,11 +383,7 @@ impl KglanceApp {
     fn prepare_file_tasks(&mut self, path: &str, content: &PreviewData) -> Vec<Task<Message>> {
         let mut tasks = self.prepare_markdown_tasks(content, path);
 
-        if let Some(task) = self.prepare_pdf_task(content, path) {
-            tasks.push(task);
-        }
-
-        if let Some(task) = self.prepare_typst_task(content, path) {
+        if let Some(task) = self.prepare_paged_task(content, path) {
             tasks.push(task);
         }
 
@@ -627,165 +618,29 @@ impl KglanceApp {
         tasks
     }
 
-    fn prepare_pdf_task(&mut self, content: &PreviewData, path: &str) -> Option<Task<Message>> {
-        let is_pdf = matches!(content, PreviewData::Pdf { .. });
+    fn prepare_paged_task(&mut self, content: &PreviewData, path: &str) -> Option<Task<Message>> {
+        use crate::features::pdf::handler::{PagedDocKind, prepare_paged_preview_task};
 
-        let session_id = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as usize)
-            .unwrap_or(0);
-        let disk_cache = crate::features::pdf::PdfDiskCache::new(session_id)
-            .ok()
-            .map(std::sync::Arc::new);
-        self.state.pdf.disk_cache = disk_cache.clone();
+        let (kind, page_0) = match content {
+            PreviewData::Pdf {
+                data,
+                width,
+                height,
+                ..
+            } => (PagedDocKind::Pdf, Some((data.as_slice(), *width, *height))),
+            PreviewData::Typst {
+                data,
+                width,
+                height,
+                ..
+            } if self.state.typst.error.is_none() => (
+                PagedDocKind::Typst,
+                Some((data.as_slice(), *width, *height)),
+            ),
+            _ => return None,
+        };
 
-        if let PreviewData::Pdf {
-            data,
-            width,
-            height,
-            ..
-        } = content
-            && !data.is_empty()
-            && !self.state.pdf.pages.is_empty()
-        {
-            if let Some(ref dc) = disk_cache {
-                let _ = dc.save_page_with_meta(0, data, *width, *height);
-            }
-            let handle = iced::widget::image::Handle::from_bytes(data.clone());
-            self.state.pdf.pages.insert(
-                0,
-                crate::core::PageCacheEntry {
-                    width: *width,
-                    height: *height,
-                    handle,
-                },
-                0,
-            );
-        }
-
-        if is_pdf && self.state.pdf.page_count > 0 {
-            let page_count = self.state.pdf.page_count;
-            let pdf_path = path.to_string();
-            let visible_page = self.state.pdf.visible_page.clone();
-            let generation_id = self.state.pdf.generation_id.clone();
-
-            let visible_thumb_page = self.state.pdf.visible_thumb_page.clone();
-            let thumb_generation_id = self.state.pdf.thumb_generation_id.clone();
-            let thumb_task = if self.state.pdf.sidebar_visible
-                && self.state.pdf.sidebar_mode == crate::core::types::PdfSidebarMode::Thumbnails
-            {
-                Some(crate::features::pdf::handler::lazy_load_thumbnails(
-                    pdf_path.clone(),
-                    page_count,
-                    visible_thumb_page,
-                    thumb_generation_id,
-                ))
-            } else {
-                None
-            };
-
-            if page_count > 1 {
-                self.state.pdf.active_page_tasks =
-                    self.state.pdf.active_page_tasks.saturating_add(1);
-                let page_task = crate::features::pdf::handler::lazy_load_pages(
-                    pdf_path,
-                    page_count,
-                    visible_page,
-                    generation_id,
-                    disk_cache,
-                );
-                if let Some(tt) = thumb_task {
-                    Some(Task::batch([page_task, tt]))
-                } else {
-                    Some(page_task)
-                }
-            } else {
-                thumb_task
-            }
-        } else {
-            None
-        }
-    }
-
-    fn prepare_typst_task(&mut self, content: &PreviewData, path: &str) -> Option<Task<Message>> {
-        let is_typst = matches!(content, PreviewData::Typst { .. });
-
-        let session_id = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as usize)
-            .unwrap_or(0);
-        let disk_cache = crate::features::pdf::PdfDiskCache::new(session_id)
-            .ok()
-            .map(std::sync::Arc::new);
-        self.state.typst.pdf.disk_cache = disk_cache.clone();
-
-        if let PreviewData::Typst {
-            data,
-            width,
-            height,
-            page_count,
-            ..
-        } = content
-            && !data.is_empty()
-            && !self.state.typst.pdf.pages.is_empty()
-            && *page_count > 0
-        {
-            if let Some(ref dc) = disk_cache {
-                let _ = dc.save_page_with_meta(0, data, *width, *height);
-            }
-            let handle = iced::widget::image::Handle::from_bytes(data.clone());
-            self.state.typst.pdf.pages.insert(
-                0,
-                crate::core::PageCacheEntry {
-                    width: *width,
-                    height: *height,
-                    handle,
-                },
-                0,
-            );
-        }
-
-        if is_typst && self.state.typst.pdf.page_count > 0 && self.state.typst.error.is_none() {
-            let page_count = self.state.typst.pdf.page_count;
-            let typst_path = path.to_string();
-            let visible_page = self.state.typst.pdf.visible_page.clone();
-            let generation_id = self.state.typst.pdf.generation_id.clone();
-
-            let thumb_task = if self.state.typst.pdf.sidebar_visible
-                && self.state.typst.pdf.sidebar_mode
-                    == crate::core::types::PdfSidebarMode::Thumbnails
-            {
-                Some(crate::features::pdf::handler::lazy_load_thumbnails(
-                    typst_path.clone(),
-                    page_count,
-                    visible_page.clone(),
-                    generation_id.clone(),
-                ))
-            } else {
-                None
-            };
-
-            if page_count > 1 {
-                self.state.typst.pdf.active_page_tasks =
-                    self.state.typst.pdf.active_page_tasks.saturating_add(1);
-                let page_task = crate::features::typst::handler::lazy_load_typst_pages(
-                    typst_path,
-                    page_count,
-                    visible_page,
-                    generation_id,
-                    disk_cache,
-                );
-                if let Some(tt) = thumb_task {
-                    Some(Task::batch([page_task, tt]))
-                } else {
-                    Some(page_task)
-                }
-            } else {
-                thumb_task
-            }
-        } else {
-            None
-        }
+        prepare_paged_preview_task(&mut self.state.pdf, path, page_0, kind)
     }
 
     fn prepare_media_tasks(&mut self, path: &str) -> Vec<Task<Message>> {
@@ -932,6 +787,7 @@ impl KglanceApp {
                 ),
                 PreviewData::Typst { .. } => crate::ui::views::view_typst(
                     &self.state.typst,
+                    &self.state.pdf,
                     self.state.app_theme,
                     self.state.font_size,
                     self.state.font_family_mono.as_deref(),

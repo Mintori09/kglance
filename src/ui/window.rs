@@ -122,7 +122,10 @@ fn file_has_extension(state: &KglanceState, extension: &str) -> bool {
 }
 
 fn page_indicator<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
-    let (page, total) = if file_has_extension(state, "pdf") || state.file_type_text.contains("PDF")
+    let (page, total) = if file_has_extension(state, "pdf")
+        || state.file_type_text.contains("PDF")
+        || file_has_extension(state, "typ")
+        || state.file_type_text.contains("Typst")
     {
         if state.pdf.page_count == 0 {
             return None;
@@ -135,20 +138,6 @@ fn page_indicator<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
                 .load(std::sync::atomic::Ordering::Relaxed)
                 + 1,
             state.pdf.page_count,
-        )
-    } else if file_has_extension(state, "typ") || state.file_type_text.contains("Typst") {
-        if state.typst.pdf.page_count == 0 {
-            return None;
-        }
-
-        (
-            state
-                .typst
-                .pdf
-                .visible_page
-                .load(std::sync::atomic::Ordering::Relaxed)
-                + 1,
-            state.typst.pdf.page_count,
         )
     } else {
         return None;
