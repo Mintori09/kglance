@@ -21,11 +21,9 @@ pub fn populate_state(
 
     let parsed_cache_hit = state.json.parsed_cache.clone();
 
-    let raw_editor = if !old_tree_mode {
-        iced::widget::text_editor::Content::with_text(pretty)
-    } else {
-        iced::widget::text_editor::Content::<iced::Renderer>::new()
-    };
+    // Lazy initialization: do not parse and layout large text into Content synchronously during file transitions.
+    // Content will be materialized on demand when entering Raw mode.
+    let raw_editor = iced::widget::text_editor::Content::<iced::Renderer>::new();
 
     state.json = JsonState {
         nodes: nodes.to_vec(),

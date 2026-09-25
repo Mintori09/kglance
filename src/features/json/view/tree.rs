@@ -269,40 +269,76 @@ pub fn render_tree_node<'a>(
     }
 }
 
+pub const JSON_ROW_HEIGHT: f32 = 24.0;
+const OVERSCAN_NODES: usize = 20;
+
 pub fn render_tree<'a>(
     state: &'a JsonState,
     theme: AppTheme,
     font_size: f32,
 ) -> Element<'a, Message> {
     let indices = visible_node_indices(state);
+    let total_visible_nodes = indices.len();
+
     let search_q = if state.search_visible {
         state.search_query.as_str()
     } else {
         ""
     };
 
-    let nodes: Vec<Element<'a, Message>> = indices
-        .iter()
-        .map(|&i| {
-            let node = &state.nodes[i];
-            let expanded = state.expanded.contains(&i);
-            let is_active = state.active_node == Some(i);
+    let row_height = (font_size * 1.5).max(JSON_ROW_HEIGHT);
 
-            render_tree_node(
-                i,
-                node,
-                TreeNodeOptions {
-                    theme,
-                    font_size,
-                    is_expanded: expanded,
-                    is_active,
-                    search_query: search_q,
-                },
-            )
-        })
-        .collect();
+    // Calculate visible window based on current scroll_y
+    let scroll_y = state.scroll_y.max(0.0);
+    let raw_first = (scroll_y / row_height).floor() as usize;
+    let first_idx = raw_first.saturating_sub(OVERSCAN_NODES);
 
-    column(nodes)
+    // Assume an ample viewport of at least 1200px (or roughly 50 rows) + overscan
+    let visible_count = 50 + OVERSCAN_NODES * 2;
+    let last_idx = (first_idx + visible_count).min(total_visible_nodes);
+
+    let top_spacer_height = first_idx as f32 * row_height;
+    let bottom_spacer_height = (total_visible_nodes.saturating_sub(last_idx)) as f32 * row_height;
+
+    let window_indices = if first_idx < total_visible_nodes {
+        &indices[first_idx..last_idx]
+    } else {
+        &[]
+    };
+
+    let mut elements: Vec<Element<'a, Message>> = Vec::with_capacity(window_indices.len() + 2);
+
+    if top_spacer_height > 0.0 {
+        elements.push(iced::widget::Space::new().height(top_spacer_height).into());
+    }
+
+    for &i in window_indices {
+        let node = &state.nodes[i];
+        let expanded = state.expanded.contains(&i);
+        let is_active = state.active_node == Some(i);
+
+        elements.push(render_tree_node(
+            i,
+            node,
+            TreeNodeOptions {
+                theme,
+                font_size,
+                is_expanded: expanded,
+                is_active,
+                search_query: search_q,
+            },
+        ));
+    }
+
+    if bottom_spacer_height > 0.0 {
+        elements.push(
+            iced::widget::Space::new()
+                .height(bottom_spacer_height)
+                .into(),
+        );
+    }
+
+    column(elements)
         .spacing(0)
         .padding(Padding {
             left: spacing::XS,

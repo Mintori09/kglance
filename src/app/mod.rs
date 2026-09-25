@@ -10,7 +10,6 @@ mod window;
 use crate::core::{FilePreviewer, KglanceState, PreviewData};
 use crate::dbus::DaemonCommand;
 use crate::features::common::parser::traits::ParserRegistry;
-use crate::features::json;
 use crate::features::markdown::Block;
 use crate::log_debug;
 use iced::Subscription;
@@ -460,17 +459,8 @@ impl KglanceApp {
             ..
         } = content
         {
-            let cache_hit = self
-                .state
-                .cache
-                .get(path)
-                .and_then(|c| c.as_parsed_json())
-                .map(|(n, p, e)| (n.to_vec(), p.to_string(), e));
-
-            if let Some((nodes, pretty, has_error)) = cache_hit {
-                log_debug!("JSON parse cache HIT for {}", path);
-                json::populate_state(&mut self.state, &nodes, &pretty, has_error);
-            } else {
+            let cache_hit = self.state.cache.contains(path);
+            if !cache_hit {
                 log_debug!("JSON parse cache MISS for {}, storing in cache", path);
                 self.state.cache.put(
                     path.to_string(),
@@ -480,13 +470,6 @@ impl KglanceApp {
                         pretty: pretty.clone(),
                         has_error: *has_parse_error,
                     },
-                );
-
-                crate::features::json::populate_state(
-                    &mut self.state,
-                    nodes,
-                    pretty,
-                    *has_parse_error,
                 );
             }
         }

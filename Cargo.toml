@@ -164,6 +164,10 @@ harness = false
 name = "velocity_estimation"
 harness = false
 
+[[bench]]
+name = "json_transition_bench"
+harness = false
+
 [[bin]]
 name = "kglance"
 path = "src/main.rs"
