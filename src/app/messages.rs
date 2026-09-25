@@ -57,7 +57,6 @@ pub enum TextMsg {
     WrapToggled,
     Scrolled(iced::widget::scrollable::Viewport),
     WheelScrolled(iced::mouse::ScrollDelta),
-    SmoothScrollTick(std::time::Instant),
     ToggleOutline,
     SymbolClicked(usize),
 }
@@ -88,7 +87,6 @@ pub enum PdfMsg {
     TocItemClicked(usize),
     SidebarResized(f32),
     WheelScrolled(iced::mouse::ScrollDelta),
-    SmoothScrollTick(std::time::Instant),
 }
 
 #[derive(Debug, Clone)]
@@ -152,7 +150,6 @@ pub enum MarkdownMsg {
     SelectionDragEnd,
     SelectionClear,
     AutoScrollTick,
-    SmoothScrollTick(std::time::Instant),
     SmoothWheelScrolled(iced::mouse::ScrollDelta),
     TouchpadGestureEnded(std::time::Instant),
 }
@@ -269,6 +266,7 @@ pub enum Message {
     Settings(SettingsMsg),
 
     // Layout / Global Events
+    SmoothScrollTick(std::time::Instant),
     ScrollDelta { x: f32, y: f32 },
     CtrlHeldChanged(bool),
     ShiftHeldChanged(bool),

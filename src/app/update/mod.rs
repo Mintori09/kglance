@@ -159,9 +159,6 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::TextMsg::WheelScrolled(delta) => {
                 crate::features::text::update::handle_wheel_scrolled(app, delta)
             }
-            crate::app::messages::TextMsg::SmoothScrollTick(now) => {
-                crate::features::text::update::handle_smooth_scroll_tick(app, now)
-            }
             crate::app::messages::TextMsg::ToggleOutline => {
                 crate::features::text::update::handle_toggle_outline(app)
             }
@@ -228,9 +225,6 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::PdfMsg::WheelScrolled(delta) => {
                 crate::features::pdf::update::handle_wheel_scrolled(app, delta)
-            }
-            crate::app::messages::PdfMsg::SmoothScrollTick(now) => {
-                crate::features::pdf::update::handle_smooth_scroll_tick(app, now)
             }
         },
         Message::Typst(msg) => match msg {
@@ -335,9 +329,6 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::MarkdownMsg::AutoScrollTick => {
                 crate::features::markdown::update::handle_auto_scroll_tick(app)
-            }
-            crate::app::messages::MarkdownMsg::SmoothScrollTick(now) => {
-                crate::features::markdown::update::handle_smooth_scroll_tick(app, now)
             }
             crate::app::messages::MarkdownMsg::SmoothWheelScrolled(delta) => {
                 crate::features::markdown::update::handle_smooth_wheel_scrolled(app, delta)
@@ -506,6 +497,18 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
         },
 
         // Global Layout / Input Events
+        Message::SmoothScrollTick(now) => match app.current_content {
+            Some(crate::core::PreviewData::Markdown { .. }) => {
+                crate::features::markdown::update::handle_smooth_scroll_tick(app, now)
+            }
+            Some(crate::core::PreviewData::Pdf { .. } | crate::core::PreviewData::Typst { .. }) => {
+                crate::features::pdf::update::handle_smooth_scroll_tick(app, now)
+            }
+            Some(crate::core::PreviewData::Text { .. }) => {
+                crate::features::text::update::handle_smooth_scroll_tick(app, now)
+            }
+            _ => Task::none(),
+        },
         Message::CtrlHeldChanged(held) => app.handle_ctrl_changed(held),
         Message::ShiftHeldChanged(held) => app.handle_shift_changed(held),
         Message::ModifiersUpdated(modifiers) => app.handle_modifiers_changed(modifiers),

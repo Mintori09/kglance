@@ -1058,67 +1058,11 @@ impl KglanceApp {
             Subscription::none()
         };
 
-        let smooth_scroll_sub = if self.is_smooth_scrollable() {
-            let md_state = crate::features::markdown::update::active_markdown_state(self);
-            if md_state.smooth_scroll.is_animating
-                || md_state.scroll_controller.is_animating()
-                || md_state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
-            {
-                iced::time::every(std::time::Duration::from_millis(
-                    crate::features::markdown::update::SMOOTH_SCROLL_TICK_MS,
-                ))
-                .map(|_| {
-                    crate::app::messages::MarkdownMsg::SmoothScrollTick(std::time::Instant::now())
-                        .into()
-                })
-            } else {
-                Subscription::none()
-            }
-        } else {
-            Subscription::none()
-        };
-
-        let pdf_scroll_sub = if matches!(
-            self.current_content,
-            Some(crate::core::PreviewData::Pdf { .. })
-        ) {
-            let pdf = &self.state.pdf;
-            if pdf.smooth_scroll.is_animating
-                || pdf.scroll_controller.is_animating()
-                || pdf.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
-            {
-                iced::time::every(std::time::Duration::from_millis(
-                    crate::features::markdown::update::SMOOTH_SCROLL_TICK_MS,
-                ))
-                .map(|_| {
-                    crate::app::messages::PdfMsg::SmoothScrollTick(std::time::Instant::now()).into()
-                })
-            } else {
-                Subscription::none()
-            }
-        } else {
-            Subscription::none()
-        };
-
-        let text_scroll_sub = if matches!(
-            self.current_content,
-            Some(crate::core::PreviewData::Text { .. })
-        ) {
-            let text = &self.state.text;
-            if text.smooth_scroll.is_animating
-                || text.scroll_controller.is_animating()
-                || text.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
-            {
-                iced::time::every(std::time::Duration::from_millis(
-                    crate::features::markdown::update::SMOOTH_SCROLL_TICK_MS,
-                ))
-                .map(|_| {
-                    crate::app::messages::TextMsg::SmoothScrollTick(std::time::Instant::now())
-                        .into()
-                })
-            } else {
-                Subscription::none()
-            }
+        let smooth_scroll_sub = if self.is_active_smooth_scrolling() {
+            iced::time::every(std::time::Duration::from_millis(
+                crate::features::markdown::update::SMOOTH_SCROLL_TICK_MS,
+            ))
+            .map(|_| crate::app::messages::Message::SmoothScrollTick(std::time::Instant::now()))
         } else {
             Subscription::none()
         };
@@ -1138,10 +1082,33 @@ impl KglanceApp {
             file_watcher_sub,
             auto_scroll_sub,
             smooth_scroll_sub,
-            pdf_scroll_sub,
-            text_scroll_sub,
             read_positions_sub,
         ])
+    }
+
+
+    pub(crate) fn is_active_smooth_scrolling(&self) -> bool {
+        match self.current_content {
+            Some(crate::core::PreviewData::Markdown { .. }) => {
+                let md = crate::features::markdown::update::active_markdown_state(self);
+                md.smooth_scroll.is_animating
+                    || md.scroll_controller.is_animating()
+                    || md.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+            }
+            Some(crate::core::PreviewData::Pdf { .. } | crate::core::PreviewData::Typst { .. }) => {
+                let pdf = crate::features::pdf::update::active_pdf_state(self);
+                pdf.smooth_scroll.is_animating
+                    || pdf.scroll_controller.is_animating()
+                    || pdf.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+            }
+            Some(crate::core::PreviewData::Text { .. }) => {
+                let text = &self.state.text;
+                text.smooth_scroll.is_animating
+                    || text.scroll_controller.is_animating()
+                    || text.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+            }
+            _ => false,
+        }
     }
 
     pub fn theme(&self) -> Theme {
