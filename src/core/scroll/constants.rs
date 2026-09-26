@@ -1,0 +1,7 @@
+pub const DEFAULT_MAX_OVERSHOOT_RATIO: f32 = 0.12;
+pub const KINETIC_DECAY_RATE: f32 = 1.8;
+pub const KINETIC_STOP_SPEED: f32 = 15.0;
+pub const KINETIC_MAX_SPEED: f32 = 12000.0;
+pub const KINETIC_SPRING_VELOCITY_CUTOFF: f32 = 5.0;
+
+pub const MAX_PHYSICS_DT: f32 = 1.0 / 30.0;

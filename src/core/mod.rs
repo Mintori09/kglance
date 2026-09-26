@@ -8,6 +8,7 @@ pub mod net;
 pub mod preloader;
 pub mod preview;
 pub mod read_positions;
+pub mod scroll;
 pub mod types;
 pub mod utils;
 

@@ -1,3 +1,4 @@
+use crate::core::scroll::constants::KINETIC_DECAY_RATE;
 use crate::ui::theme::AppTheme;
 use crate::{log_debug, log_error};
 use serde::{Deserialize, Serialize};
@@ -209,6 +210,40 @@ impl ConfigManager {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SmoothScrollConfig {
+    #[serde(default = "default_scroll_enabled")]
+    pub enabled: bool,
+
+    #[serde(default = "default_scroll_friction")]
+    pub friction: f32,
+
+    #[serde(default = "default_scroll_spring_stiffness")]
+    pub spring_stiffness: f32,
+}
+
+impl Default for SmoothScrollConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            friction: default_scroll_friction(),
+            spring_stiffness: default_scroll_spring_stiffness(),
+        }
+    }
+}
+
+fn default_scroll_enabled() -> bool {
+    true
+}
+
+fn default_scroll_friction() -> f32 {
+    KINETIC_DECAY_RATE
+}
+
+fn default_scroll_spring_stiffness() -> f32 {
+    180.0
+}
+
 #[test]
 #[ignore]
 fn test_debug_deserialize_config() {
@@ -228,5 +263,49 @@ fn test_debug_deserialize_config() {
         Err(err) => {
             panic!("[TEST FAILED] Serde deserialize error: {:?}", err);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn smooth_scroll_config_serializes_and_deserializes() {
+        let config = SmoothScrollConfig {
+            enabled: true,
+            friction: 1.8,
+            spring_stiffness: 0.35,
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+
+        let deserialized: SmoothScrollConfig = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(config, deserialized);
+    }
+
+    #[test]
+    fn smooth_scroll_config_deserializes_from_json() {
+        let json = r#"
+        {
+            "enabled": true,
+            "friction": 1.8,
+            "spring_stiffness": 0.35
+        }
+        "#;
+
+        let config: SmoothScrollConfig = serde_json::from_str(json).unwrap();
+
+        assert!(config.enabled);
+        assert_eq!(config.friction, 1.8);
+        assert_eq!(config.spring_stiffness, 0.35);
+    }
+
+    #[test]
+    fn smooth_scroll_config_uses_defaults_when_fields_are_missing() {
+        let config: SmoothScrollConfig = serde_json::from_str("{}").unwrap();
+
+        assert_eq!(config, SmoothScrollConfig::default());
     }
 }
