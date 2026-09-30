@@ -155,6 +155,54 @@ fn highlight_search_in_text<'a>(
     spans
 }
 
+fn highlight_search_in_owned<'a>(
+    text: &str,
+    span_ctx: &SpanCtx,
+    font: Font,
+    normal_color: Option<Color>,
+) -> Vec<Span<'a, (), Font>> {
+    let mut spans = Vec::new();
+    let lower = text.to_lowercase();
+    let query_lower = span_ctx.search_query.to_lowercase();
+    let mut pos = 0;
+
+    while let Some(match_pos) = lower[pos..].find(&query_lower) {
+        let abs_pos = pos + match_pos;
+        let end_pos = abs_pos + query_lower.len();
+
+        if abs_pos > pos {
+            let mut span = Span::new(text[pos..abs_pos].to_string()).font(font);
+            if let Some(color) = normal_color {
+                span = span.color(color);
+            }
+            spans.push(span);
+        }
+
+        let bg = search_highlight_color(
+            span_ctx.counter.get() == span_ctx.active_match,
+            span_ctx.theme,
+        );
+        spans.push(
+            Span::new(text[abs_pos..end_pos].to_string())
+                .font(font)
+                .background(bg),
+        );
+
+        span_ctx.counter.set(span_ctx.counter.get() + 1);
+        pos = end_pos;
+    }
+
+    if pos < text.len() {
+        let mut span = Span::new(text[pos..].to_string()).font(font);
+        if let Some(color) = normal_color {
+            span = span.color(color);
+        }
+        spans.push(span);
+    }
+
+    spans
+}
+
 fn inlines_to_spans_core<'a>(
     children: &'a [Inline],
     span_ctx: &SpanCtx,
@@ -166,13 +214,26 @@ fn inlines_to_spans_core<'a>(
 
     for inline in children {
         match inline {
-            Inline::Text(t) => {
-                if search_query.is_empty() {
-                    spans.push(Span::new(t.as_str()).font(main_font));
-                } else {
-                    spans.extend(highlight_search_in_text(t, span_ctx, main_font, None));
+            Inline::Text(t) => match crate::parsers::markdown::strip_anchor_tags_cow(t) {
+                std::borrow::Cow::Borrowed(s) => {
+                    if !s.is_empty() {
+                        if search_query.is_empty() {
+                            spans.push(Span::new(s).font(main_font));
+                        } else {
+                            spans.extend(highlight_search_in_text(s, span_ctx, main_font, None));
+                        }
+                    }
                 }
-            }
+                std::borrow::Cow::Owned(s) => {
+                    if !s.is_empty() {
+                        if search_query.is_empty() {
+                            spans.push(Span::new(s).font(main_font));
+                        } else {
+                            spans.extend(highlight_search_in_owned(&s, span_ctx, main_font, None));
+                        }
+                    }
+                }
+            },
             Inline::Bold(children) => {
                 spans.extend(apply_style_to_children(
                     children,

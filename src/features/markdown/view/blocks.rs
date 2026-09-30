@@ -17,7 +17,13 @@ pub(crate) fn render_block<'a>(
     match block {
         Block::Frontmatter(entries) => render_frontmatter(entries, ctx),
         Block::Heading { level, content } => render_heading(*level, content, ctx),
-        Block::Paragraph(content) => render_paragraph(content, ctx),
+        Block::Paragraph(content) => {
+            if crate::parsers::markdown::is_standalone_anchor_block(block) {
+                iced::widget::Space::new().into()
+            } else {
+                render_paragraph(content, ctx)
+            }
+        }
         Block::CodeBlock { lang, code, .. } => render_code_block(lang, code, ctx),
         Block::Table(table) => render_table(table, ctx),
         Block::Mermaid { lines, rendered: _ } => render_mermaid(index, lines, state, ctx),
@@ -33,7 +39,13 @@ pub(crate) fn render_block<'a>(
             render_footnote_definition(label, content, state, ctx)
         }
         Block::HorizontalRule => render_horizontal_rule(ctx.theme),
-        Block::Html(html) => render_html(html, ctx),
+        Block::Html(html) => {
+            if crate::parsers::markdown::is_empty_anchor_html(html) {
+                iced::widget::Space::new().into()
+            } else {
+                render_html(html, ctx)
+            }
+        }
         Block::Math(latex) => render_math_block(latex, ctx),
     }
 }

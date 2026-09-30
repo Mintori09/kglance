@@ -10,6 +10,7 @@ mod tests;
 
 pub use flatten::{
     flatten_inlines, flatten_inlines_plain, flatten_inlines_toc, flatten_inlines_visual,
+    is_empty_anchor_html, is_standalone_anchor_block, strip_anchor_tags, strip_anchor_tags_cow,
 };
 pub use handle::{parse_markdown, parse_to_blocks};
 pub use layout::{

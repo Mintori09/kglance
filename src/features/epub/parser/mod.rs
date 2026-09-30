@@ -12,7 +12,9 @@ use std::path::Path;
 
 use crate::features::common::parser::traits::{ParseError, PreviewParser};
 use crate::features::common::parser::types::{ParsedContent, ParsedEpubChapter};
-use crate::features::markdown::parser::{Block, Inline, flatten_inlines, parse_to_blocks};
+use crate::features::markdown::parser::{
+    Block, Inline, flatten_inlines, is_standalone_anchor_block, parse_to_blocks,
+};
 
 use html::{
     convert_html_to_markdown, decode_html_entities, extract_chapter_title_from_html,
@@ -324,49 +326,6 @@ fn find_block_index(blocks: &[Block], anchor: Option<&str>, title: Option<&str>)
     None
 }
 
-fn is_standalone_anchor_block(block: &Block) -> bool {
-    match block {
-        Block::Html(h) => is_empty_anchor_html(h),
-        Block::Paragraph(content) => {
-            let text = flatten_inlines(content);
-            is_empty_anchor_html(&text)
-        }
-        _ => false,
-    }
-}
-
-fn is_empty_anchor_html(html: &str) -> bool {
-    let trimmed = html.trim();
-
-    let is_anchor = trimmed == "<a>"
-        || trimmed.starts_with("<a ")
-        || trimmed.starts_with("<a\n")
-        || trimmed.starts_with("<a\t");
-
-    if !is_anchor {
-        return false;
-    }
-
-    // <a id="toc-C0"/>
-    if trimmed.ends_with("/>") {
-        return true;
-    }
-
-    // <a id="toc-C0"></a>
-    if !trimmed.ends_with("</a>") {
-        return false;
-    }
-
-    let Some(open_end) = trimmed.find('>') else {
-        return false;
-    };
-
-    let inner_start = open_end + 1;
-    let inner_end = trimmed.len() - "</a>".len();
-
-    inner_start <= inner_end && trimmed[inner_start..inner_end].trim().is_empty()
-}
-
 fn html_contains_anchor(html: &str, anchor: &str) -> bool {
     let id_double = format!("id=\"{anchor}\"");
     let id_single = format!("id='{anchor}'");
@@ -601,6 +560,8 @@ fn read_bytes_to_string(bytes: &[u8]) -> String {
 
 #[test]
 fn test_standalone_anchor_block() {
+    use crate::features::markdown::parser::is_empty_anchor_html;
+
     assert!(is_empty_anchor_html(r#"<a id="toc-C0"></a>"#));
     assert!(is_empty_anchor_html(r#"<a id="toc-C0"/>"#));
 

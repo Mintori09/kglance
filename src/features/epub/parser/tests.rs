@@ -417,3 +417,53 @@ fn test_epub_nested_directory_image_resolution() {
 
     let _ = std::fs::remove_file(test_epub_path);
 }
+
+#[test]
+fn test_epub_sbo_rt_content_not_displayed() {
+    use crate::features::epub::parser::html::convert_html_to_markdown;
+    use crate::features::markdown::parser::{
+        flatten_inlines_visual, is_standalone_anchor_block, parse_to_blocks, strip_anchor_tags,
+    };
+
+    let html = r#"
+        <html xmlns="http://www.w3.org/1999/xhtml">
+        <body>
+            <a id="sbo-rt-content"></a>
+            <h1>Chapter 1: Getting Started</h1>
+            <p><a id="sec1"></a>Here is the first paragraph with some details.</p>
+        </body>
+        </html>
+    "#;
+
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+
+    assert!(!blocks.is_empty());
+    // Block 0 corresponds to the standalone anchor <a id="sbo-rt-content"></a>
+    assert!(
+        is_standalone_anchor_block(&blocks[0]),
+        "The sbo-rt-content block should be identified as a standalone anchor block"
+    );
+
+    // Flattening visual representation should not contain the raw anchor tag
+    for block in &blocks {
+        if let Block::Heading { content, .. } | Block::Paragraph(content) = block {
+            let visual = flatten_inlines_visual(content);
+            assert!(
+                !visual.contains("<a id="),
+                "Visual representation must not contain raw <a id= tags, found: {visual}"
+            );
+            assert!(
+                !visual.contains("</a>"),
+                "Visual representation must not contain raw </a> tags, found: {visual}"
+            );
+        }
+    }
+
+    assert_eq!(strip_anchor_tags(r#"<a id="sbo-rt-content"></a>"#), "");
+    assert_eq!(strip_anchor_tags(r#"<a id="sbo-rt-content"/>"#), "");
+    assert_eq!(
+        strip_anchor_tags(r#"<a id="sbo-rt-content"></a>Hello"#),
+        "Hello"
+    );
+}
