@@ -193,6 +193,10 @@ impl PreviewData {
             } => {
                 state.spreadsheet.sheets = sheets.clone();
                 state.spreadsheet.active_sheet = *active_sheet;
+                state.spreadsheet.scroll_y = 0.0;
+                let total_rows = sheets.get(*active_sheet).map_or(0, |s| s.rows.len());
+                state.spreadsheet.total_content_height =
+                    total_rows as f32 * crate::features::csv::view::ROW_STEP;
                 state.file_type_text = "Spreadsheet".to_string();
             }
             PreviewData::Epub {

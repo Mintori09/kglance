@@ -1,10 +1,8 @@
 use crate::app::Message;
 use crate::core::SpreadsheetState;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
-use crate::ui::theme::{
-    AppTheme, default_button, default_button_primary, default_card, default_scrollable,
-};
-use iced::widget::{button, column, container, row, scrollable, text};
+use crate::ui::theme::{AppTheme, default_button, default_button_primary, default_card};
+use iced::widget::{button, column, container, row, text};
 use iced::{Element, Length, Theme};
 
 use crate::ui::theme::tokens::spacing;
@@ -27,6 +25,9 @@ const HEADER_INNER_PADDING: u16 = 5;
 const DATA_ROW_INNER_PADDING: u16 = 3;
 
 const EMPTY_STATE_MESSAGE: &str = "No data";
+
+pub const ROW_HEIGHT: f32 = 28.0;
+pub const ROW_STEP: f32 = ROW_HEIGHT + ROWS_LIST_SPACING;
 
 pub fn view_spreadsheet<'a>(state: &'a SpreadsheetState, theme: AppTheme) -> Element<'a, Message> {
     let active_sheet = state.sheets.get(state.active_sheet);
@@ -78,12 +79,20 @@ fn render_spreadsheet_body<'a>(
     let sorted_rows = sort_rows(filtered_rows, state.sort_col, state.sort_ascending);
 
     let header = render_table_header(&sheet.headers, state.sort_col, state.sort_ascending);
-    let rows_list = render_table_rows(&sorted_rows, sheet.headers.len(), theme);
+    let rows_list = render_table_rows(
+        &sorted_rows,
+        sheet.headers.len(),
+        theme,
+        state.scroll_y,
+        state.viewport_height,
+    );
 
-    let scrollable_area = scrollable(rows_list)
-        .id("content_scroll")
-        .style(default_scrollable)
-        .height(Length::Fill);
+    let scrollable_area =
+        crate::ui::components::scroll_pane::scroll_pane("content_scroll", rows_list)
+            .filter_wheel(true)
+            .on_scroll(|vp| crate::app::messages::SpreadsheetMsg::Scrolled(vp).into())
+            .on_wheel(|delta| crate::app::messages::SpreadsheetMsg::WheelScrolled(delta).into())
+            .build();
 
     let mut layout = column![].spacing(MAIN_SPACING);
 
@@ -126,14 +135,74 @@ fn render_table_header<'a>(
         .into()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CsvVirtualWindow {
+    pub visible_start: usize,
+    pub visible_end: usize,
+    pub top_spacer_height: f32,
+    pub bottom_spacer_height: f32,
+}
+
+pub fn compute_csv_virtual_window(
+    total_rows: usize,
+    scroll_y: f32,
+    viewport_height: f32,
+) -> CsvVirtualWindow {
+    if total_rows == 0 {
+        return CsvVirtualWindow {
+            visible_start: 0,
+            visible_end: 0,
+            top_spacer_height: 0.0,
+            bottom_spacer_height: 0.0,
+        };
+    }
+
+    let vh = if viewport_height > 0.0 {
+        viewport_height
+    } else {
+        800.0
+    };
+
+    let start_idx = (scroll_y.max(0.0) / ROW_STEP).floor() as usize;
+    let overscan = 15;
+    let visible_start = start_idx.saturating_sub(overscan);
+    let visible_count = ((vh / ROW_STEP).ceil() as usize) + (overscan * 2);
+    let visible_end = (visible_start + visible_count).min(total_rows);
+
+    let top_spacer_height = visible_start as f32 * ROW_STEP;
+    let bottom_spacer_height = (total_rows.saturating_sub(visible_end)) as f32 * ROW_STEP;
+
+    CsvVirtualWindow {
+        visible_start,
+        visible_end,
+        top_spacer_height,
+        bottom_spacer_height,
+    }
+}
+
 fn render_table_rows<'a>(
     rows: &[&'a Vec<String>],
     column_count: usize,
     theme: AppTheme,
+    scroll_y: f32,
+    viewport_height: f32,
 ) -> Element<'a, Message> {
+    let window = compute_csv_virtual_window(rows.len(), scroll_y, viewport_height);
+    if window.visible_end == 0 {
+        return column![].into();
+    }
+
     let mut rows_list = column![].spacing(ROWS_LIST_SPACING);
 
-    for (row_index, row_data) in rows.iter().enumerate() {
+    if window.top_spacer_height > 0.0 {
+        rows_list = rows_list.push(iced::widget::Space::new().height(window.top_spacer_height));
+    }
+
+    for (offset, row_data) in rows[window.visible_start..window.visible_end]
+        .iter()
+        .enumerate()
+    {
+        let row_index = window.visible_start + offset;
         let mut row_widget = row![]
             .spacing(DATA_ROW_SPACING)
             .padding(DATA_ROW_INNER_PADDING);
@@ -152,7 +221,7 @@ fn render_table_rows<'a>(
             row_widget = row_widget.push(cell_container);
         }
 
-        let is_even_row = row_index % 2 == 0;
+        let is_even_row = row_index.is_multiple_of(2);
         let row_container = container(row_widget).style(move |_: &Theme| {
             if is_even_row {
                 apply_even_row_style(theme)
@@ -162,6 +231,10 @@ fn render_table_rows<'a>(
         });
 
         rows_list = rows_list.push(row_container);
+    }
+
+    if window.bottom_spacer_height > 0.0 {
+        rows_list = rows_list.push(iced::widget::Space::new().height(window.bottom_spacer_height));
     }
 
     rows_list.into()

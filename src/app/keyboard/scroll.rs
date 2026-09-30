@@ -90,6 +90,16 @@ impl KglanceApp {
                     viewport_height: state.viewport_height,
                 })
             }
+            Some(PreviewData::Spreadsheet { .. }) => {
+                let state = &mut self.state.spreadsheet;
+                Some(ActiveScrollTarget {
+                    smooth_scroll: &mut state.smooth_scroll,
+                    scroll_controller: &mut state.scroll_controller,
+                    scroll_y: &mut state.scroll_y,
+                    total_content_height: state.total_content_height,
+                    viewport_height: state.viewport_height,
+                })
+            }
             _ => None,
         }
     }
