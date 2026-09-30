@@ -1086,10 +1086,11 @@ impl KglanceApp {
         ])
     }
 
-
     pub(crate) fn is_active_smooth_scrolling(&self) -> bool {
         match self.current_content {
-            Some(crate::core::PreviewData::Markdown { .. }) => {
+            Some(
+                crate::core::PreviewData::Markdown { .. } | crate::core::PreviewData::Epub { .. },
+            ) => {
                 let md = crate::features::markdown::update::active_markdown_state(self);
                 md.smooth_scroll.is_animating
                     || md.scroll_controller.is_animating()
@@ -1106,6 +1107,13 @@ impl KglanceApp {
                 text.smooth_scroll.is_animating
                     || text.scroll_controller.is_animating()
                     || text.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+            }
+            Some(crate::core::PreviewData::Spreadsheet { .. }) => {
+                let sheet = &self.state.spreadsheet;
+                sheet.smooth_scroll.is_animating
+                    || sheet.scroll_controller.is_animating()
+                    || sheet.scroll_controller.state()
+                        == crate::core::scroll::GestureState::Dragging
             }
             _ => false,
         }

@@ -21,19 +21,19 @@ impl KglanceApp {
         match key {
             iced::keyboard::Key::Named(Named::ArrowDown) => {
                 self.move_selection_down();
-                Some(Task::none())
+                Some(self.scroll_folder_to_selected())
             }
             iced::keyboard::Key::Named(Named::ArrowUp) => {
                 self.move_selection_up();
-                Some(Task::none())
+                Some(self.scroll_folder_to_selected())
             }
             iced::keyboard::Key::Character(c) if c == "j" => {
                 self.move_selection_down();
-                Some(Task::none())
+                Some(self.scroll_folder_to_selected())
             }
             iced::keyboard::Key::Character(c) if c == "k" => {
                 self.move_selection_up();
-                Some(Task::none())
+                Some(self.scroll_folder_to_selected())
             }
             iced::keyboard::Key::Character(c) if c == "g" => {
                 if self.pending_g {
@@ -67,11 +67,11 @@ impl KglanceApp {
             }
             iced::keyboard::Key::Named(Named::PageUp) => {
                 self.move_selection_by(-FOLDER_PAGE_STEP);
-                Some(Task::none())
+                Some(self.scroll_folder_to_selected())
             }
             iced::keyboard::Key::Named(Named::PageDown) => {
                 self.move_selection_by(FOLDER_PAGE_STEP);
-                Some(Task::none())
+                Some(self.scroll_folder_to_selected())
             }
             _ => None,
         }
@@ -87,7 +87,7 @@ impl KglanceApp {
     }
 
     fn move_selection_down(&mut self) {
-        let last_index = self.folder_row_count() - 1;
+        let last_index = self.folder_row_count().saturating_sub(1);
         let next_index = self
             .state
             .folder
@@ -120,6 +120,39 @@ impl KglanceApp {
         };
 
         self.state.folder.selected_index = Some(new_index);
+    }
+
+    fn scroll_folder_to_selected(&self) -> Task<Message> {
+        if let Some(index) = self.state.folder.selected_index {
+            let row_height = crate::ui::theme::tokens::tables::ROW_HEIGHT
+                + crate::ui::theme::tokens::spacing::XXS;
+            let row_top = index as f32 * row_height;
+            let row_bottom = row_top + row_height;
+            let current_y = self.state.folder.scroll_y;
+            let vh = if self.state.folder.viewport_height > 0.0 {
+                self.state.folder.viewport_height
+            } else {
+                600.0
+            };
+
+            let target_y = if row_top < current_y {
+                row_top
+            } else if row_bottom > current_y + vh {
+                (row_bottom - vh).max(0.0)
+            } else {
+                return Task::none();
+            };
+
+            iced::widget::operation::scroll_to(
+                "content_scroll",
+                iced::widget::operation::AbsoluteOffset {
+                    x: 0.0,
+                    y: target_y,
+                },
+            )
+        } else {
+            Task::none()
+        }
     }
 
     fn navigate_to_parent_folder(&self) -> Option<Task<Message>> {
@@ -172,5 +205,70 @@ impl KglanceApp {
             path,
             |path| crate::app::messages::SystemMsg::FilePreviewError(path).into(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::test_util::test_app;
+    use crate::core::types::FolderRowState;
+
+    #[test]
+    fn test_folder_navigation_selection_and_bounds() {
+        let mut app = test_app(None);
+        app.current_content = Some(PreviewData::Folder {
+            rows: vec![
+                FolderRowState {
+                    name: "file1.txt".to_string(),
+                    kind: "File".to_string(),
+                    size: "1 KB".to_string(),
+                    raw_size: 1024,
+                    modified: "2026-09-30".to_string(),
+                    raw_modified: 0,
+                    path: "file1.txt".to_string(),
+                    is_dir: false,
+                    icon: "text-x-generic",
+                },
+                FolderRowState {
+                    name: "file2.txt".to_string(),
+                    kind: "File".to_string(),
+                    size: "2 KB".to_string(),
+                    raw_size: 2048,
+                    modified: "2026-09-30".to_string(),
+                    raw_modified: 0,
+                    path: "file2.txt".to_string(),
+                    is_dir: false,
+                    icon: "text-x-generic",
+                },
+            ],
+            total_size: 3072,
+        });
+        app.state.folder.rows = match app.current_content.as_ref().unwrap() {
+            PreviewData::Folder { rows, .. } => rows.clone(),
+            _ => Vec::new(),
+        };
+
+        assert_eq!(app.state.folder.selected_index, None);
+
+        // Move down -> selects 0
+        app.move_selection_down();
+        assert_eq!(app.state.folder.selected_index, Some(0));
+
+        // Move down -> selects 1
+        app.move_selection_down();
+        assert_eq!(app.state.folder.selected_index, Some(1));
+
+        // Move down again -> clamped to last index 1
+        app.move_selection_down();
+        assert_eq!(app.state.folder.selected_index, Some(1));
+
+        // Move up -> selects 0
+        app.move_selection_up();
+        assert_eq!(app.state.folder.selected_index, Some(0));
+
+        // Move up again -> clamped to 0
+        app.move_selection_up();
+        assert_eq!(app.state.folder.selected_index, Some(0));
     }
 }

@@ -25,6 +25,7 @@ pub enum NavigationMsg {
     },
     ToggleSettingsClicked,
     FileClicked(usize),
+    FolderScrolled(iced::widget::scrollable::Viewport),
 }
 
 #[derive(Debug, Clone)]
@@ -104,6 +105,8 @@ pub enum SpreadsheetMsg {
     ColumnClicked(usize),
     SearchQueryChanged(String),
     SearchClosed,
+    Scrolled(iced::widget::scrollable::Viewport),
+    WheelScrolled(iced::mouse::ScrollDelta),
 }
 
 #[derive(Debug, Clone)]

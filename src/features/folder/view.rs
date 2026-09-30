@@ -77,6 +77,7 @@ pub fn view_folder<'a>(state: &'a FolderState, theme: AppTheme) -> Element<'a, M
         scrollable(rows_list)
             .id("content_scroll")
             .style(default_scrollable)
+            .on_scroll(|vp| crate::app::messages::NavigationMsg::FolderScrolled(vp).into())
             .height(Length::Fill)
     ]
     .spacing(MAIN_LAYOUT_SPACING)

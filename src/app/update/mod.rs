@@ -108,6 +108,14 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::NavigationMsg::FileClicked(idx) => {
                 navigation::handle_file_clicked(app, idx)
             }
+            crate::app::messages::NavigationMsg::FolderScrolled(vp) => {
+                app.state.folder.scroll_y = vp.absolute_offset().y;
+                let vh = vp.bounds().height;
+                if vh > 0.0 {
+                    app.state.folder.viewport_height = vh;
+                }
+                Task::none()
+            }
         },
         Message::Image(msg) => match msg {
             crate::app::messages::ImageMsg::Zoom { factor, cursor } => {
@@ -256,6 +264,12 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::SpreadsheetMsg::SearchClosed => {
                 crate::features::csv::update::handle_search_closed(app)
+            }
+            crate::app::messages::SpreadsheetMsg::Scrolled(vp) => {
+                crate::features::csv::update::handle_spreadsheet_scrolled(app, vp)
+            }
+            crate::app::messages::SpreadsheetMsg::WheelScrolled(delta) => {
+                crate::features::csv::update::handle_wheel_scrolled(app, delta)
             }
         },
         Message::Grid(msg) => match msg {
@@ -498,14 +512,17 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
 
         // Global Layout / Input Events
         Message::SmoothScrollTick(now) => match app.current_content {
-            Some(crate::core::PreviewData::Markdown { .. }) => {
-                crate::features::markdown::update::handle_smooth_scroll_tick(app, now)
-            }
+            Some(
+                crate::core::PreviewData::Markdown { .. } | crate::core::PreviewData::Epub { .. },
+            ) => crate::features::markdown::update::handle_smooth_scroll_tick(app, now),
             Some(crate::core::PreviewData::Pdf { .. } | crate::core::PreviewData::Typst { .. }) => {
                 crate::features::pdf::update::handle_smooth_scroll_tick(app, now)
             }
             Some(crate::core::PreviewData::Text { .. }) => {
                 crate::features::text::update::handle_smooth_scroll_tick(app, now)
+            }
+            Some(crate::core::PreviewData::Spreadsheet { .. }) => {
+                crate::features::csv::update::handle_smooth_scroll_tick(app, now)
             }
             _ => Task::none(),
         },

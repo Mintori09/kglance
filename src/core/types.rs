@@ -508,6 +508,8 @@ pub struct FolderState {
     pub selected_index: Option<usize>,
     pub total_size: u64,
     pub folder_path: String,
+    pub scroll_y: f32,
+    pub viewport_height: f32,
 }
 
 pub fn sort_folder_rows(rows: &mut [FolderRowState], sort: &SortState) {
@@ -540,7 +542,7 @@ pub struct SheetInfo {
     pub rows: Vec<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SpreadsheetState {
     pub sheets: Vec<SheetInfo>,
     pub active_sheet: usize,
@@ -548,6 +550,29 @@ pub struct SpreadsheetState {
     pub sort_ascending: Option<bool>,
     pub search_visible: bool,
     pub search_query: String,
+    pub scroll_y: f32,
+    pub viewport_height: f32,
+    pub total_content_height: f32,
+    pub scroll_controller: crate::core::scroll::ScrollController,
+    pub smooth_scroll: SmoothScrollState,
+}
+
+impl Default for SpreadsheetState {
+    fn default() -> Self {
+        Self {
+            sheets: Vec::new(),
+            active_sheet: 0,
+            sort_col: None,
+            sort_ascending: None,
+            search_visible: false,
+            search_query: String::new(),
+            scroll_y: 0.0,
+            viewport_height: 800.0,
+            total_content_height: 0.0,
+            scroll_controller: crate::core::scroll::ScrollController::default(),
+            smooth_scroll: SmoothScrollState::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
