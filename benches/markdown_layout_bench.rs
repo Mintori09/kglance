@@ -227,7 +227,7 @@ fn generate_heavy_glyphs_markdown(sections: usize) -> String {
         ));
         if i % 4 == 0 {
             s.push_str(&format!(
-                "```rust\n// 🦀 Hàm xử lý chuỗi UTF-8 phức tạp với Unicode Graphemes\nfn kiểm_tra_ký_tự_{i}(chuỗi_vào: &str) -> (usize, &str) {{\n    let nhãn = \"🚀 測試_테스트_DữLiệu_{i}\";\n    (chuỗi_vào.chars().count(), nhãn)\n}}\n```\n\n"
+                "```rust\nfn kiểm_tra_ký_tự_{i}(chuỗi_vào: &str) -> (usize, &str) {{\n    let nhãn = \"🚀 測試_테스트_DữLiệu_{i}\";\n    (chuỗi_vào.chars().count(), nhãn)\n}}\n```\n\n"
             ));
         }
         if i % 6 == 0 {
