@@ -13,7 +13,6 @@ use serde_json::json;
 use std::hint::black_box;
 
 const FONT_SIZE: f32 = 14.0;
-const ROW_HEIGHT: f32 = 24.0;
 const THEME: AppTheme = AppTheme::Light;
 
 #[derive(Clone, Copy)]
@@ -339,7 +338,6 @@ fn bench_render_tree_node(c: &mut Criterion) {
                             TreeNodeOptions {
                                 theme: THEME,
                                 font_size: FONT_SIZE,
-                                row_height: ROW_HEIGHT,
                                 is_expanded: expanded,
                                 is_active,
                                 search_query: "",
@@ -395,7 +393,6 @@ fn bench_virtual_window(c: &mut Criterion) {
                                         TreeNodeOptions {
                                             theme: THEME,
                                             font_size: FONT_SIZE,
-                                            row_height: ROW_HEIGHT,
                                             is_expanded: expanded,
                                             is_active,
                                             search_query: "",
