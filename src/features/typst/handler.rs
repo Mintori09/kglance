@@ -33,6 +33,69 @@ pub fn lazy_load_typst_pages(
     Task::run(stream, |message| message)
 }
 
+pub fn lazy_load_typst_thumbnails(
+    file_path: String,
+    total_pages: usize,
+    visible_thumb_page: Arc<AtomicUsize>,
+    generation_id: Arc<AtomicUsize>,
+) -> Task<Message> {
+    let stream = iced::stream::channel(
+        crate::features::pdf::lazy_handler::CHANNEL_BUFFER_SIZE,
+        move |output| {
+            process_typst_thumbnail_loading(
+                output,
+                file_path,
+                total_pages,
+                visible_thumb_page,
+                generation_id,
+            )
+        },
+    );
+
+    Task::run(stream, |message| message)
+}
+
+async fn process_typst_thumbnail_loading(
+    output: Sender<Message>,
+    file_path: String,
+    total_pages: usize,
+    visible_thumb_page: Arc<AtomicUsize>,
+    generation_id: Arc<AtomicUsize>,
+) {
+    let compiled = tokio::task::spawn_blocking(move || {
+        let path = Path::new(&file_path);
+        compile_typst_to_pdf(path).ok()
+    })
+    .await
+    .ok()
+    .flatten();
+
+    let Some((temp_pdf, _, _, _, _)) = compiled else {
+        return;
+    };
+
+    let pdf_path = temp_pdf.path().to_path_buf();
+
+    crate::features::pdf::lazy_handler::process_thumbnail_loading(
+        output,
+        pdf_path.to_string_lossy().into_owned(),
+        total_pages,
+        visible_thumb_page,
+        generation_id,
+        |page_index, page_data| {
+            crate::app::messages::PdfMsg::ThumbReady(
+                page_index,
+                page_data.data,
+                page_data.width,
+                page_data.height,
+            )
+            .into()
+        },
+        crate::app::messages::PdfMsg::PagesLoaded(Vec::new()).into(),
+    )
+    .await;
+}
+
 async fn process_typst_page_loading(
     mut output: Sender<Message>,
     file_path: String,
