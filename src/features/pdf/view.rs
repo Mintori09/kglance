@@ -154,19 +154,31 @@ pub fn view_pdf_pages<'a>(
         800.0
     };
 
+    let max_scroll_y = (state.total_content_height - view_h).max(0.0);
+    let effective_scroll_y = state.scroll_y.clamp(0.0, max_scroll_y);
+
     let visible_opt = crate::features::pdf::geometry::visible_page_range(
         &state.page_y_offsets,
         &state.page_ends,
-        state.scroll_y,
+        effective_scroll_y,
         view_h,
     );
+
+    let current_page = state
+        .visible_page
+        .load(std::sync::atomic::Ordering::Relaxed)
+        .min(state.page_count.saturating_sub(1));
 
     let render_range = crate::features::pdf::geometry::buffered_page_range(
         visible_opt,
         state.page_count,
         BUFFER_PAGES,
     )
-    .unwrap_or(0..=0);
+    .unwrap_or_else(|| {
+        let start = current_page.saturating_sub(BUFFER_PAGES);
+        let end = (current_page + BUFFER_PAGES).min(state.page_count.saturating_sub(1));
+        start..=end
+    });
 
     let layout = crate::features::pdf::geometry::calculate_virtualized_layout(
         &state.page_y_offsets,
