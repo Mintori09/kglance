@@ -231,8 +231,12 @@ pub fn intrinsic_block_height(
         }
         Block::Mermaid { .. } => 250.0,
         Block::Html(_) => {
-            let pad_v = (lc::PARAGRAPH_PADDING_V * 2) as f32;
-            lc::HTML_FONT_SIZE * 1.5 + pad_v
+            if super::flatten::is_standalone_anchor_block(block) {
+                0.0
+            } else {
+                let pad_v = (lc::PARAGRAPH_PADDING_V * 2) as f32;
+                lc::HTML_FONT_SIZE * 1.5 + pad_v
+            }
         }
         Block::Math(latex) => {
             let n = latex.lines().count().max(1) as f32;
@@ -259,6 +263,10 @@ pub fn estimated_block_height(
 /// Defined here (mirroring `view::blocks::block_margin`) so that the parser
 /// can estimate block heights without importing from the UI layer.
 pub fn block_margin(block: &Block, font_size: f32) -> f32 {
+    if super::flatten::is_standalone_anchor_block(block) {
+        return 0.0;
+    }
+
     let base = match block {
         Block::Heading { level, .. } => match level {
             1 => lc::MARGIN_HEADING_H1,

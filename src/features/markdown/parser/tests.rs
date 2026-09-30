@@ -1276,3 +1276,46 @@ fn test_list_with_nested_sub_blocks_height() {
         "Nested list with sub_blocks must have significantly larger estimated height than simple list: {nested_h} vs {simple_h}"
     );
 }
+
+#[test]
+fn test_anchor_tag_stripping() {
+    assert_eq!(strip_anchor_tags(r#"<a id="sbo-rt-content"></a>"#), "");
+    assert_eq!(strip_anchor_tags(r#"<a id="sbo-rt-content"/>"#), "");
+    assert_eq!(strip_anchor_tags(r#"<a name="sbo-rt-content"></a>"#), "");
+    assert_eq!(strip_anchor_tags(r#"</a>"#), "");
+    assert_eq!(
+        strip_anchor_tags(r#"<a id="sbo-rt-content"></a>Hello world"#),
+        "Hello world"
+    );
+    assert_eq!(
+        strip_anchor_tags(r#"Prefix <a id="foo"></a>Middle</a> Suffix"#),
+        "Prefix Middle Suffix"
+    );
+    assert_eq!(
+        strip_anchor_tags("Condition: a < b && c > d"),
+        "Condition: a < b && c > d"
+    );
+}
+
+#[test]
+fn test_standalone_anchor_blocks() {
+    let block1 = Block::Paragraph(vec![Inline::Text(
+        r#"<a id="sbo-rt-content"></a>"#.to_string(),
+    )]);
+    assert!(is_standalone_anchor_block(&block1));
+
+    let block2 = Block::Html(r#"<a id="sbo-rt-content"/>"#.to_string());
+    assert!(is_standalone_anchor_block(&block2));
+
+    let block3 = Block::Paragraph(vec![
+        Inline::Text(r#"<a id="sbo-rt-content">"#.to_string()),
+        Inline::Text("</a>".to_string()),
+    ]);
+    assert!(is_standalone_anchor_block(&block3));
+
+    let block4 = Block::Paragraph(vec![
+        Inline::Text(r#"<a id="sbo-rt-content"></a>"#.to_string()),
+        Inline::Text("Chapter 1".to_string()),
+    ]);
+    assert!(!is_standalone_anchor_block(&block4));
+}
