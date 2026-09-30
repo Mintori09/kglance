@@ -493,22 +493,35 @@ fn start_thumbnail_loading_if_needed(app: &KglanceApp) -> Task<Message> {
     let is_have_pdf = !app.state.file_name.is_empty() && pdf.page_count > 0;
 
     if is_have_pdf {
-        crate::features::pdf::lazy_handler::lazy_load_thumbnails(
-            app.state.file_name.clone(),
-            pdf.page_count,
-            pdf.visible_thumb_page.clone(),
-            pdf.thumb_generation_id.clone(),
-            |page_index, page_data| {
-                crate::app::messages::PdfMsg::ThumbReady(
-                    page_index,
-                    page_data.data,
-                    page_data.width,
-                    page_data.height,
-                )
-                .into()
-            },
-            crate::app::messages::PdfMsg::PagesLoaded(Vec::new()).into(),
-        )
+        let is_typst = matches!(
+            app.current_content,
+            Some(crate::core::PreviewData::Typst { .. })
+        );
+        if is_typst {
+            crate::features::typst::handler::lazy_load_typst_thumbnails(
+                app.state.file_name.clone(),
+                pdf.page_count,
+                pdf.visible_thumb_page.clone(),
+                pdf.thumb_generation_id.clone(),
+            )
+        } else {
+            crate::features::pdf::lazy_handler::lazy_load_thumbnails(
+                app.state.file_name.clone(),
+                pdf.page_count,
+                pdf.visible_thumb_page.clone(),
+                pdf.thumb_generation_id.clone(),
+                |page_index, page_data| {
+                    crate::app::messages::PdfMsg::ThumbReady(
+                        page_index,
+                        page_data.data,
+                        page_data.width,
+                        page_data.height,
+                    )
+                    .into()
+                },
+                crate::app::messages::PdfMsg::PagesLoaded(Vec::new()).into(),
+            )
+        }
     } else {
         Task::none()
     }

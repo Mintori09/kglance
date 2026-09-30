@@ -744,11 +744,11 @@ impl KglanceApp {
                 && self.state.typst.pdf.sidebar_mode
                     == crate::core::types::PdfSidebarMode::Thumbnails
             {
-                Some(crate::features::pdf::handler::lazy_load_thumbnails(
+                Some(crate::features::typst::handler::lazy_load_typst_thumbnails(
                     typst_path.clone(),
                     page_count,
-                    visible_page.clone(),
-                    generation_id.clone(),
+                    self.state.typst.pdf.visible_thumb_page.clone(),
+                    self.state.typst.pdf.thumb_generation_id.clone(),
                 ))
             } else {
                 None
