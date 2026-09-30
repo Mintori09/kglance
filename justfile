@@ -13,6 +13,7 @@ push: ci
 
 build:
     cargo build --all
+    notify-send "Build successfully!"
 
 test *ARGS:
     cargo nextest run --test-threads 3 {{ARGS}}

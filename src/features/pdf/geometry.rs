@@ -252,4 +252,20 @@ mod tests {
         assert_eq!(find_visible_thumbnail_page(&offsets, 150.0, 300.0), 1);
         assert_eq!(find_visible_thumbnail_page(&offsets, 550.0, 300.0), 3);
     }
+
+    #[test]
+    fn test_visible_page_range_normal() {
+        let offsets = vec![0.0, 1000.0, 2000.0];
+        let ends = vec![1000.0, 2000.0, 3000.0];
+        let vh = 800.0;
+
+        // Top of document
+        assert_eq!(visible_page_range(&offsets, &ends, 0.0, vh), Some(0..=0));
+
+        // Middle of document
+        assert_eq!(visible_page_range(&offsets, &ends, 500.0, vh), Some(0..=1));
+
+        // Near bottom
+        assert_eq!(visible_page_range(&offsets, &ends, 2200.0, vh), Some(2..=2));
+    }
 }
