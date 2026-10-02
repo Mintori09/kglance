@@ -169,6 +169,10 @@ harness = false
 name = "json_transition_bench"
 harness = false
 
+[[bench]]
+name = "code_scroll_benchmark"
+harness = false
+
 [[bin]]
 name = "kglance"
 path = "src/main.rs"
