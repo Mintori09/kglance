@@ -1,5 +1,5 @@
 pub mod button;
-pub mod code_editor;
+pub mod code_viewer;
 pub mod content_layout;
 pub mod paragraph_cache;
 pub mod scroll_pane;

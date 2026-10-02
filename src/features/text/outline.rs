@@ -60,6 +60,72 @@ fn extract_name_until(line: &str, delimiters: &[char]) -> String {
     trimmed[..end_idx].trim().to_string()
 }
 
+fn strip_rust_visibility(s: &str) -> &str {
+    let trimmed = s.trim_start();
+    if let Some(rest) = trimmed.strip_prefix("pub") {
+        let rest = rest.trim_start();
+        if rest.starts_with('(')
+            && let Some(close_paren) = rest.find(')')
+        {
+            return rest[close_paren + 1..].trim_start();
+        }
+        return rest;
+    }
+    trimmed
+}
+
+fn strip_rust_fn_modifiers(mut s: &str) -> &str {
+    loop {
+        if let Some(rest) = s.strip_prefix("async ") {
+            s = rest.trim_start();
+        } else if s.starts_with("const fn ") || s.starts_with("const unsafe ") {
+            s = s.strip_prefix("const ").unwrap().trim_start();
+        } else if let Some(rest) = s.strip_prefix("unsafe ") {
+            s = rest.trim_start();
+        } else if let Some(rest) = s.strip_prefix("extern ") {
+            let rest = rest.trim_start();
+            if let Some(quoted) = rest.strip_prefix('"')
+                && let Some(quote_end) = quoted.find('"')
+            {
+                s = quoted[quote_end + 1..].trim_start();
+                continue;
+            }
+            s = rest;
+        } else {
+            break;
+        }
+    }
+    s
+}
+
+fn parse_rust_impl_target(mut rest: &str) -> String {
+    rest = rest.trim_start();
+    if rest.starts_with('<') {
+        let mut depth = 0;
+        let mut end_generic = 0;
+        for (i, c) in rest.char_indices() {
+            if c == '<' {
+                depth += 1;
+            } else if c == '>' {
+                depth -= 1;
+                if depth == 0 {
+                    end_generic = i + 1;
+                    break;
+                }
+            }
+        }
+        if end_generic > 0 {
+            rest = rest[end_generic..].trim_start();
+        }
+    }
+    let name = extract_name_until(rest, &['{', '\n', ';']);
+    if let Some(idx) = name.find(" where") {
+        name[..idx].trim().to_string()
+    } else {
+        name
+    }
+}
+
 fn extract_rust_symbols(content: &str) -> Vec<CodeSymbol> {
     let mut symbols = Vec::new();
 
@@ -72,23 +138,10 @@ fn extract_rust_symbols(content: &str) -> Vec<CodeSymbol> {
             continue;
         }
 
-        let clean_line = line.strip_prefix("pub ").unwrap_or(line);
-        let clean_line = clean_line
-            .strip_prefix("(crate) ")
-            .unwrap_or(clean_line)
-            .trim_start();
+        let clean_line = strip_rust_visibility(line);
+        let fn_candidate = strip_rust_fn_modifiers(clean_line);
 
-        if let Some(rest) = clean_line.strip_prefix("fn ") {
-            let name = extract_name_until(rest, &['(', '<', '{']);
-            if !name.is_empty() {
-                symbols.push(CodeSymbol {
-                    name,
-                    kind: SymbolKind::Function,
-                    line_number,
-                    indent_level: indent,
-                });
-            }
-        } else if let Some(rest) = clean_line.strip_prefix("async fn ") {
+        if let Some(rest) = fn_candidate.strip_prefix("fn ") {
             let name = extract_name_until(rest, &['(', '<', '{']);
             if !name.is_empty() {
                 symbols.push(CodeSymbol {
@@ -129,11 +182,10 @@ fn extract_rust_symbols(content: &str) -> Vec<CodeSymbol> {
                 });
             }
         } else if let Some(rest) = clean_line.strip_prefix("impl") {
-            let rest = rest.trim_start();
-            let name = extract_name_until(rest, &['{', '<', '\n']);
+            let name = parse_rust_impl_target(rest);
             if !name.is_empty() {
                 symbols.push(CodeSymbol {
-                    name: format!("impl {}", name),
+                    name: format!("impl {name}"),
                     kind: SymbolKind::Trait,
                     line_number,
                     indent_level: indent,
@@ -155,6 +207,16 @@ fn extract_rust_symbols(content: &str) -> Vec<CodeSymbol> {
                 symbols.push(CodeSymbol {
                     name,
                     kind: SymbolKind::Type,
+                    line_number,
+                    indent_level: indent,
+                });
+            }
+        } else if let Some(rest) = clean_line.strip_prefix("const ") {
+            let name = extract_name_until(rest, &[':', '=', ';', '<']);
+            if !name.is_empty() {
+                symbols.push(CodeSymbol {
+                    name,
+                    kind: SymbolKind::Const,
                     line_number,
                     indent_level: indent,
                 });
@@ -472,6 +534,43 @@ fn calculate_total(a: i32, b: i32) -> i32 {
         assert_eq!(symbols[3].kind, SymbolKind::Enum);
         assert_eq!(symbols[4].name, "calculate_total");
         assert_eq!(symbols[4].kind, SymbolKind::Function);
+    }
+
+    #[test]
+    fn extracts_advanced_rust_symbols() {
+        let code = r#"
+pub(crate) struct InternalState<T> {
+    data: T,
+}
+
+pub(super) enum EventKind {
+    Tick,
+}
+
+impl<T: Clone> InternalState<T> {
+    pub(crate) const fn new(data: T) -> Self {
+        Self { data }
+    }
+
+    pub async unsafe fn process(&self) {}
+}
+
+pub const MAX_BUFFER_SIZE: usize = 1024;
+"#;
+        let symbols = extract_symbols(code, "rs");
+        assert_eq!(symbols.len(), 6);
+        assert_eq!(symbols[0].name, "InternalState");
+        assert_eq!(symbols[0].kind, SymbolKind::Struct);
+        assert_eq!(symbols[1].name, "EventKind");
+        assert_eq!(symbols[1].kind, SymbolKind::Enum);
+        assert_eq!(symbols[2].name, "impl InternalState<T>");
+        assert_eq!(symbols[2].kind, SymbolKind::Trait);
+        assert_eq!(symbols[3].name, "new");
+        assert_eq!(symbols[3].kind, SymbolKind::Function);
+        assert_eq!(symbols[4].name, "process");
+        assert_eq!(symbols[4].kind, SymbolKind::Function);
+        assert_eq!(symbols[5].name, "MAX_BUFFER_SIZE");
+        assert_eq!(symbols[5].kind, SymbolKind::Const);
     }
 
     #[test]
