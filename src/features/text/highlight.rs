@@ -1,0 +1,320 @@
+use crate::features::text::document::CodeDocument;
+use crate::ui::theme::AppTheme;
+use crate::ui::theme::color::primitive::syntect_to_iced_color;
+use iced::{Color, Font};
+use lru::LruCache;
+use std::num::NonZeroUsize;
+use std::sync::OnceLock;
+use syntect::highlighting::{HighlightIterator, HighlightState, Highlighter, ThemeSet};
+use syntect::parsing::{ParseState, ScopeStack, SyntaxReference, SyntaxSet};
+
+/// Structure representing a syntax-highlighted span.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HighlightedSpan {
+    /// Starting byte index in the line.
+    pub start_byte: usize,
+    /// Ending byte index in the line.
+    pub end_byte: usize,
+    /// Color from theme.
+    pub color: Color,
+    /// Font style.
+    pub font: Font,
+}
+
+/// Checkpoint storing Syntect parse state for fast arbitrary line seeking.
+#[derive(Clone)]
+pub struct SyntaxCheckpoint {
+    pub line_idx: usize,
+    pub parse_state: ParseState,
+    pub highlight_state: HighlightState,
+}
+
+/// Global syntax set lazily initialized once.
+fn global_syntax_set() -> &'static SyntaxSet {
+    static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
+    SYNTAX_SET.get_or_init(SyntaxSet::load_defaults_newlines)
+}
+
+/// Global theme set lazily initialized once.
+fn global_theme_set() -> &'static ThemeSet {
+    static THEME_SET: OnceLock<ThemeSet> = OnceLock::new();
+    THEME_SET.get_or_init(ThemeSet::load_defaults)
+}
+
+/// Finds matching syntax based on file extension.
+pub fn find_syntax_for_extension(ext: &str) -> &'static SyntaxReference {
+    let ss = global_syntax_set();
+    let clean_ext = ext.trim_start_matches('.').to_ascii_lowercase();
+
+    ss.find_syntax_by_extension(&clean_ext)
+        .or_else(|| ss.find_syntax_by_token(&clean_ext))
+        .unwrap_or_else(|| ss.find_syntax_plain_text())
+}
+
+/// Cache managing syntax highlighting tokens and checkpoints.
+pub struct SyntaxCache {
+    extension: String,
+    checkpoint_interval: usize,
+    checkpoints: Vec<SyntaxCheckpoint>,
+    token_cache: LruCache<usize, Vec<HighlightedSpan>>,
+}
+
+impl std::fmt::Debug for SyntaxCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SyntaxCache")
+            .field("extension", &self.extension)
+            .field("checkpoint_interval", &self.checkpoint_interval)
+            .field("checkpoints_count", &self.checkpoints.len())
+            .field("token_cache_len", &self.token_cache.len())
+            .finish()
+    }
+}
+
+impl Clone for SyntaxCache {
+    fn clone(&self) -> Self {
+        let capacity = NonZeroUsize::new(1024).unwrap_or(NonZeroUsize::MIN);
+        let mut new_cache = LruCache::new(capacity);
+        for (k, v) in self.token_cache.iter() {
+            new_cache.put(*k, v.clone());
+        }
+        Self {
+            extension: self.extension.clone(),
+            checkpoint_interval: self.checkpoint_interval,
+            checkpoints: self.checkpoints.clone(),
+            token_cache: new_cache,
+        }
+    }
+}
+
+impl SyntaxCache {
+    /// Initializes a new SyntaxCache.
+    pub fn new(extension: impl Into<String>, checkpoint_interval: usize) -> Self {
+        let capacity = NonZeroUsize::new(4096).expect("4096 is non-zero");
+        Self {
+            extension: extension.into(),
+            checkpoint_interval: checkpoint_interval.max(16),
+            checkpoints: Vec::new(),
+            token_cache: LruCache::new(capacity),
+        }
+    }
+
+    /// Changes file extension and clears cache.
+    pub fn set_extension(&mut self, ext: impl Into<String>) {
+        let new_ext = ext.into();
+        if self.extension != new_ext {
+            self.extension = new_ext;
+            self.clear();
+        }
+    }
+
+    /// Clears all cached tokens and checkpoints.
+    pub fn clear(&mut self) {
+        self.checkpoints.clear();
+        self.token_cache.clear();
+    }
+
+    /// Retrieves or tokenizes highlight spans for a contiguous line range in a single pass O(N).
+    pub fn get_or_tokenize_range(
+        &mut self,
+        start_line: usize,
+        end_line: usize,
+        doc: &CodeDocument,
+        theme: AppTheme,
+    ) -> Vec<Vec<HighlightedSpan>> {
+        let total_lines = doc.total_lines();
+        if total_lines == 0 || start_line > end_line {
+            return Vec::new();
+        }
+
+        let end_line = end_line.min(total_lines.saturating_sub(1));
+        let count = end_line.saturating_sub(start_line) + 1;
+
+        // If all lines in range are already cached, return immediately O(1)
+        let all_cached = (start_line..=end_line).all(|l| self.token_cache.contains(&l));
+        if all_cached {
+            let mut result = Vec::with_capacity(count);
+            for l in start_line..=end_line {
+                if let Some(spans) = self.token_cache.get(&l) {
+                    result.push(spans.clone());
+                } else {
+                    result.push(Vec::new());
+                }
+            }
+            return result;
+        }
+
+        let syntax = find_syntax_for_extension(&self.extension);
+        let ts = global_theme_set();
+        let syntect_theme = ts
+            .themes
+            .get(theme.syntect_theme())
+            .or_else(|| ts.themes.get("base16-ocean.dark"))
+            .unwrap_or_else(|| ts.themes.values().next().unwrap());
+
+        let highlighter = Highlighter::new(syntect_theme);
+        let ss = global_syntax_set();
+
+        // Find closest checkpoint <= start_line
+        let (checkpoint_line, mut current_state, mut highlight_state) =
+            self.find_closest_checkpoint(start_line, syntax, &highlighter);
+
+        // Iterate sequentially from checkpoint to end_line
+        for idx in checkpoint_line..=end_line {
+            let raw_line = doc.get_line_raw(idx);
+
+            // Save checkpoint if interval is reached
+            if idx > 0 && idx % self.checkpoint_interval == 0 {
+                let has_checkpoint = self.checkpoints.iter().any(|cp| cp.line_idx == idx);
+                if !has_checkpoint {
+                    self.checkpoints.push(SyntaxCheckpoint {
+                        line_idx: idx,
+                        parse_state: current_state.clone(),
+                        highlight_state: highlight_state.clone(),
+                    });
+                }
+            }
+
+            let ops = current_state.parse_line(raw_line, ss).unwrap_or_default();
+
+            if idx >= start_line {
+                // Collect spans only for visible lines in requested range
+                let ranges =
+                    HighlightIterator::new(&mut highlight_state, &ops[..], raw_line, &highlighter);
+
+                let mut spans = Vec::new();
+                let mut current_byte = 0;
+
+                for (style, text) in ranges {
+                    let text_bytes = text.len();
+                    let trimmed_text = text.trim_end_matches(['\r', '\n']);
+                    if !trimmed_text.is_empty() {
+                        let color = syntect_to_iced_color(style.foreground);
+                        spans.push(HighlightedSpan {
+                            start_byte: current_byte,
+                            end_byte: current_byte + trimmed_text.len(),
+                            color,
+                            font: Font::MONOSPACE,
+                        });
+                    }
+                    current_byte += text_bytes;
+                }
+
+                self.token_cache.put(idx, spans);
+            } else {
+                // For lines before start_line, run iterator to update highlight_state (Zero-Allocation)
+                for _ in
+                    HighlightIterator::new(&mut highlight_state, &ops[..], raw_line, &highlighter)
+                {
+                }
+            }
+        }
+
+        let mut result = Vec::with_capacity(count);
+        for l in start_line..=end_line {
+            if let Some(spans) = self.token_cache.get(&l) {
+                result.push(spans.clone());
+            } else {
+                result.push(Vec::new());
+            }
+        }
+        result
+    }
+
+    /// Retrieves or tokenizes highlight spans for a specific line.
+    pub fn get_or_tokenize_line(
+        &mut self,
+        line_idx: usize,
+        doc: &CodeDocument,
+        theme: AppTheme,
+    ) -> &[HighlightedSpan] {
+        if !self.token_cache.contains(&line_idx) {
+            let _ = self.get_or_tokenize_range(line_idx, line_idx, doc, theme);
+        }
+
+        self.token_cache
+            .get(&line_idx)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    /// Finds closest checkpoint at or before `target_line`.
+    fn find_closest_checkpoint(
+        &self,
+        target_line: usize,
+        syntax: &SyntaxReference,
+        highlighter: &Highlighter,
+    ) -> (usize, ParseState, HighlightState) {
+        if self.checkpoints.is_empty() || target_line < self.checkpoint_interval {
+            return (
+                0,
+                ParseState::new(syntax),
+                HighlightState::new(highlighter, ScopeStack::new()),
+            );
+        }
+
+        let mut best_cp: Option<&SyntaxCheckpoint> = None;
+        for cp in &self.checkpoints {
+            if cp.line_idx <= target_line {
+                if let Some(current) = best_cp {
+                    if cp.line_idx > current.line_idx {
+                        best_cp = Some(cp);
+                    }
+                } else {
+                    best_cp = Some(cp);
+                }
+            }
+        }
+
+        if let Some(cp) = best_cp {
+            (
+                cp.line_idx,
+                cp.parse_state.clone(),
+                cp.highlight_state.clone(),
+            )
+        } else {
+            (
+                0,
+                ParseState::new(syntax),
+                HighlightState::new(highlighter, ScopeStack::new()),
+            )
+        }
+    }
+}
+
+impl Default for SyntaxCache {
+    fn default() -> Self {
+        Self::new("rs", 128)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_syntax_cache_tokenization() {
+        let code = "fn main() {\n    let x = 42;\n}";
+        let doc = CodeDocument::new(code);
+        let mut cache = SyntaxCache::new("rs", 64);
+
+        let spans = cache.get_or_tokenize_line(0, &doc, AppTheme::Dark).to_vec();
+        assert!(!spans.is_empty());
+        assert_eq!(spans[0].start_byte, 0);
+
+        let spans_cached = cache.get_or_tokenize_line(0, &doc, AppTheme::Dark);
+        assert_eq!(spans.as_slice(), spans_cached);
+    }
+
+    #[test]
+    fn test_syntax_checkpoints_generation() {
+        let lines: Vec<String> = (0..300).map(|i| format!("let var_{i} = {i};\n")).collect();
+        let full_code = lines.concat();
+        let doc = CodeDocument::new(full_code);
+        let mut cache = SyntaxCache::new("rs", 64);
+
+        // Access line 200 => must generate checkpoints at 64, 128, 192
+        let spans = cache.get_or_tokenize_line(200, &doc, AppTheme::Dark);
+        assert!(!spans.is_empty());
+        assert!(!cache.checkpoints.is_empty());
+    }
+}

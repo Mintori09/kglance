@@ -82,17 +82,27 @@ impl Default for ImageState {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TextState {
-    pub content: iced::widget::text_editor::Content,
+    pub document: crate::features::text::CodeDocument,
+    pub syntax_cache: crate::features::text::SyntaxCache,
+    pub cached_tokens: Vec<Vec<crate::features::text::HighlightedSpan>>,
+    pub cached_tokens_start_line: usize,
+    pub cached_tokens_version: usize,
     pub extension: String,
-    pub line_numbers: String,
     pub wrap: bool,
+    pub selection: Option<crate::ui::components::code_viewer::SelectionRange>,
+    pub anchor: crate::features::text::ViewportAnchor,
+    pub display_map: crate::features::text::DisplayMap,
+    pub indexer: crate::features::text::BackgroundIndexer,
+    pub policy: crate::features::text::PerformancePolicy,
     pub search_visible: bool,
     pub search_query: String,
     pub search_matches: Vec<(usize, usize)>,
     pub search_match_index: usize,
     pub search_info: String,
+    pub goto_line_visible: bool,
+    pub goto_line_query: String,
     pub scroll_y: f32,
     pub viewport_height: f32,
     pub total_content_height: f32,
@@ -102,22 +112,73 @@ pub struct TextState {
     pub symbols: Vec<crate::features::text::CodeSymbol>,
     pub outline_visible: bool,
     pub sidebar_width: f32,
+    pub sidebar_resizing: bool,
+    pub sidebar_drag_start_x: Option<f32>,
+    pub sidebar_drag_start_width: f32,
     pub scroll_controller: crate::core::scroll::ScrollController,
     pub smooth_scroll: SmoothScrollState,
+}
+
+impl TextState {
+    /// Select all text within the document.
+    pub fn select_all(&mut self) {
+        let total_lines = self.document.total_lines();
+        if total_lines == 0 {
+            self.selection = None;
+            return;
+        }
+
+        let last_line_idx = total_lines.saturating_sub(1);
+        let last_line = self.document.get_line(last_line_idx);
+        let last_line_len = last_line.chars().count();
+
+        self.selection = Some(crate::ui::components::code_viewer::SelectionRange::new(
+            crate::ui::components::code_viewer::TextPosition::new(0, 0),
+            crate::ui::components::code_viewer::TextPosition::new(last_line_idx, last_line_len),
+        ));
+    }
+
+    /// Extract the currently selected text, if any.
+    pub fn selected_text(&self) -> Option<String> {
+        let sel = self.selection?;
+        if sel.is_empty() {
+            return None;
+        }
+        let (start, end) = sel.normalized();
+        Some(
+            self.document
+                .extract_range(start.line, start.col, end.line, end.col),
+        )
+    }
+
+    /// Clear the current selection.
+    pub fn clear_selection(&mut self) {
+        self.selection = None;
+    }
 }
 
 impl Default for TextState {
     fn default() -> Self {
         Self {
-            content: iced::widget::text_editor::Content::new(),
+            document: crate::features::text::CodeDocument::default(),
+            syntax_cache: crate::features::text::SyntaxCache::default(),
+            cached_tokens: Vec::new(),
+            cached_tokens_start_line: 0,
+            cached_tokens_version: 0,
             extension: String::new(),
-            line_numbers: String::new(),
             wrap: true,
+            selection: None,
+            anchor: crate::features::text::ViewportAnchor::default(),
+            display_map: crate::features::text::DisplayMap::default(),
+            indexer: crate::features::text::BackgroundIndexer::default(),
+            policy: crate::features::text::PerformancePolicy::default(),
             search_visible: false,
             search_query: String::new(),
             search_matches: Vec::new(),
             search_match_index: 0,
             search_info: String::new(),
+            goto_line_visible: false,
+            goto_line_query: String::new(),
             scroll_y: 0.0,
             viewport_height: 800.0,
             total_content_height: 0.0,
@@ -126,7 +187,10 @@ impl Default for TextState {
             reading_time_mins: 0,
             symbols: Vec::new(),
             outline_visible: false,
-            sidebar_width: 220.0,
+            sidebar_width: 250.0,
+            sidebar_resizing: false,
+            sidebar_drag_start_x: None,
+            sidebar_drag_start_width: 250.0,
             scroll_controller: crate::core::scroll::ScrollController::default(),
             smooth_scroll: SmoothScrollState::default(),
         }
@@ -496,7 +560,7 @@ impl Default for PdfState {
 #[derive(Debug, Clone, Default)]
 pub struct TypstState {
     pub pdf: PdfState,
-    pub source_content: iced::widget::text_editor::Content,
+    pub source_text: TextState,
     pub show_source: bool,
     pub error: Option<String>,
 }
@@ -593,7 +657,7 @@ pub struct JsonState {
     pub tree_mode: bool,
     pub scroll_y: f32,
     pub has_parse_error: bool,
-    pub raw_editor: iced::widget::text_editor::Content,
+    pub raw_text: TextState,
     pub search_visible: bool,
     pub search_query: String,
     pub search_matches: Vec<usize>,
@@ -615,7 +679,7 @@ impl Default for JsonState {
             tree_mode: false,
             scroll_y: 0.0,
             has_parse_error: false,
-            raw_editor: iced::widget::text_editor::Content::new(),
+            raw_text: TextState::default(),
             search_visible: false,
             search_query: String::new(),
             search_matches: Vec::new(),
