@@ -80,7 +80,7 @@ impl KglanceApp {
                     viewport_height: state.viewport_height,
                 })
             }
-            Some(PreviewData::Pdf { .. }) | Some(PreviewData::Typst { .. }) => {
+            Some(PreviewData::Pdf { .. }) => {
                 let state = crate::features::pdf::update::active_pdf_state_mut(self);
                 Some(ActiveScrollTarget {
                     smooth_scroll: &mut state.smooth_scroll,
@@ -89,6 +89,41 @@ impl KglanceApp {
                     total_content_height: state.total_content_height,
                     viewport_height: state.viewport_height,
                 })
+            }
+            Some(PreviewData::Typst { .. }) => {
+                if self.state.typst.show_source || self.state.typst.error.is_some() {
+                    let state = &mut self.state.typst.source_text;
+                    Some(ActiveScrollTarget {
+                        smooth_scroll: &mut state.smooth_scroll,
+                        scroll_controller: &mut state.scroll_controller,
+                        scroll_y: &mut state.scroll_y,
+                        total_content_height: state.total_content_height,
+                        viewport_height: state.viewport_height,
+                    })
+                } else {
+                    let state = crate::features::pdf::update::active_pdf_state_mut(self);
+                    Some(ActiveScrollTarget {
+                        smooth_scroll: &mut state.smooth_scroll,
+                        scroll_controller: &mut state.scroll_controller,
+                        scroll_y: &mut state.scroll_y,
+                        total_content_height: state.total_content_height,
+                        viewport_height: state.viewport_height,
+                    })
+                }
+            }
+            Some(PreviewData::Json { .. }) => {
+                if !self.state.json.tree_mode {
+                    let state = &mut self.state.json.raw_text;
+                    Some(ActiveScrollTarget {
+                        smooth_scroll: &mut state.smooth_scroll,
+                        scroll_controller: &mut state.scroll_controller,
+                        scroll_y: &mut state.scroll_y,
+                        total_content_height: state.total_content_height,
+                        viewport_height: state.viewport_height,
+                    })
+                } else {
+                    None
+                }
             }
             Some(PreviewData::Spreadsheet { .. }) => {
                 let state = &mut self.state.spreadsheet;
@@ -294,7 +329,15 @@ impl KglanceApp {
                 self.move_json_selection(&visible, 1);
                 Some(Task::none())
             }
+            Key::Character(character) if character == "j" => {
+                self.move_json_selection(&visible, 1);
+                Some(Task::none())
+            }
             Key::Named(Named::ArrowUp) => {
+                self.move_json_selection(&visible, -1);
+                Some(Task::none())
+            }
+            Key::Character(character) if character == "k" => {
                 self.move_json_selection(&visible, -1);
                 Some(Task::none())
             }
@@ -302,7 +345,15 @@ impl KglanceApp {
                 self.expand_or_enter_json_node();
                 Some(Task::none())
             }
+            Key::Character(character) if character == "l" => {
+                self.expand_or_enter_json_node();
+                Some(Task::none())
+            }
             Key::Named(Named::ArrowLeft) => {
+                self.collapse_or_exit_json_node();
+                Some(Task::none())
+            }
+            Key::Character(character) if character == "h" => {
                 self.collapse_or_exit_json_node();
                 Some(Task::none())
             }
@@ -675,6 +726,15 @@ mod tests {
             crate::core::scroll::GestureState::Dragging
         );
 
+        // Simulate intermediate UI scrollable viewport event
+        let _ = crate::features::text::update::handle_text_scrolled_values(
+            &mut app, 50.0, 800.0, 800.0, 10000.0,
+        );
+        assert_eq!(
+            app.state.text.scroll_controller.state(),
+            crate::core::scroll::GestureState::Dragging
+        );
+
         // 2. Second rapid swipe
         std::thread::sleep(std::time::Duration::from_millis(15));
         let _ = crate::features::text::update::handle_wheel_scrolled(
@@ -682,6 +742,15 @@ mod tests {
             iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -30.0 },
         );
         assert_eq!(app.state.text.scroll_y, 125.0);
+        assert_eq!(
+            app.state.text.scroll_controller.state(),
+            crate::core::scroll::GestureState::Dragging
+        );
+
+        // Simulate intermediate UI scrollable viewport event
+        let _ = crate::features::text::update::handle_text_scrolled_values(
+            &mut app, 125.0, 800.0, 800.0, 10000.0,
+        );
         assert_eq!(
             app.state.text.scroll_controller.state(),
             crate::core::scroll::GestureState::Dragging
@@ -707,5 +776,28 @@ mod tests {
 
         // Must glide significantly further than swipe displacement
         assert!(app.state.text.scroll_y > 125.0 + 100.0);
+    }
+
+    #[test]
+    fn test_text_gt_shortcut_toggles_outline() {
+        use crate::app::test_util::text_content;
+
+        let code = "fn main() {\n    println!(\"Hello\");\n}\n";
+        let mut app = test_app(Some(text_content(code, "rs")));
+        assert!(!app.state.text.outline_visible);
+
+        let g_key = iced::keyboard::Key::Character("g".into());
+        let t_key = iced::keyboard::Key::Character("t".into());
+        let modifiers = iced::keyboard::Modifiers::default();
+
+        let _ = app.handle_scroll_shortcuts(&g_key, modifiers);
+        assert!(app.pending_g);
+
+        let task = app.handle_scroll_shortcuts(&t_key, modifiers);
+        assert!(task.is_some());
+        assert!(!app.pending_g);
+
+        let _ = app.update(crate::app::messages::TextMsg::ToggleOutline.into());
+        assert!(app.state.text.outline_visible);
     }
 }

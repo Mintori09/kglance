@@ -153,14 +153,30 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
         },
 
         Message::Text(msg) => match msg {
-            crate::app::messages::TextMsg::Edit(action) => {
-                crate::features::text::update::handle_text_edit(app, action)
+            crate::app::messages::TextMsg::SelectionChanged(selection) => {
+                crate::features::text::update::handle_selection_changed(app, selection)
             }
-            crate::app::messages::TextMsg::SearchQueryChanged(_) => Task::none(),
-            crate::app::messages::TextMsg::SearchNext => Task::none(),
-            crate::app::messages::TextMsg::SearchPrev => Task::none(),
-            crate::app::messages::TextMsg::SearchClosed => Task::none(),
-            crate::app::messages::TextMsg::WrapToggled => Task::none(),
+            crate::app::messages::TextMsg::CopyRequested(text) => {
+                crate::features::text::update::handle_copy_requested(app, text)
+            }
+            crate::app::messages::TextMsg::TokensReady(result) => {
+                crate::features::text::update::handle_tokens_ready(app, result)
+            }
+            crate::app::messages::TextMsg::SearchQueryChanged(query) => {
+                crate::features::text::update::handle_search_query_changed(app, query)
+            }
+            crate::app::messages::TextMsg::SearchNext => {
+                crate::features::text::update::handle_search_next(app)
+            }
+            crate::app::messages::TextMsg::SearchPrev => {
+                crate::features::text::update::handle_search_prev(app)
+            }
+            crate::app::messages::TextMsg::SearchClosed => {
+                crate::features::text::update::handle_search_closed(app)
+            }
+            crate::app::messages::TextMsg::WrapToggled => {
+                crate::features::text::update::handle_wrap_toggled(app)
+            }
             crate::app::messages::TextMsg::Scrolled(viewport) => {
                 crate::features::text::update::handle_text_scrolled(app, viewport)
             }
@@ -172,6 +188,18 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::TextMsg::SymbolClicked(line) => {
                 crate::features::text::update::handle_symbol_clicked(app, line)
+            }
+            crate::app::messages::TextMsg::GotoLineToggle => {
+                crate::features::text::update::handle_goto_line_toggle(app)
+            }
+            crate::app::messages::TextMsg::GotoLineQueryChanged(query) => {
+                crate::features::text::update::handle_goto_line_query_changed(app, query)
+            }
+            crate::app::messages::TextMsg::GotoLineSubmitted => {
+                crate::features::text::update::handle_goto_line_submitted(app)
+            }
+            crate::app::messages::TextMsg::GotoLineClosed => {
+                crate::features::text::update::handle_goto_line_closed(app)
             }
         },
         Message::Media(msg) => match msg {
@@ -250,6 +278,16 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::TypstMsg::ToggleSource => {
                 crate::features::typst::update::handle_toggle_source(app)
+            }
+            crate::app::messages::TypstMsg::SelectionChanged(sel) => {
+                app.state.typst.source_text.selection = sel;
+                iced::Task::none()
+            }
+            crate::app::messages::TypstMsg::SourceScrolled(vp) => {
+                crate::features::typst::update::handle_source_scrolled(app, vp)
+            }
+            crate::app::messages::TypstMsg::SourceWheelScrolled(delta) => {
+                crate::features::typst::update::handle_source_wheel_scrolled(app, delta)
             }
         },
         Message::Spreadsheet(msg) => match msg {
@@ -375,8 +413,14 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::JsonMsg::Scrolled(y) => {
                 crate::features::json::update::handle_scrolled(app, y)
             }
-            crate::app::messages::JsonMsg::RawEdit(act) => {
-                crate::features::json::update::handle_raw_edit(app, act)
+            crate::app::messages::JsonMsg::RawScrolled(vp) => {
+                crate::features::json::update::handle_raw_scrolled(app, vp)
+            }
+            crate::app::messages::JsonMsg::RawWheelScrolled(delta) => {
+                crate::features::json::update::handle_raw_wheel_scrolled(app, delta)
+            }
+            crate::app::messages::JsonMsg::RawSelectionChanged(sel) => {
+                crate::features::json::update::handle_raw_selection_changed(app, sel)
             }
             crate::app::messages::JsonMsg::SearchToggle => {
                 crate::features::json::update::handle_search_toggle(app)
@@ -495,6 +539,45 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::SettingsMsg::WordWrapChanged(enabled) => {
                 app.state.word_wrap = enabled;
+                app.state.text.wrap = enabled;
+                let wrap_mode = if enabled {
+                    crate::features::text::WrapMode::Word
+                } else {
+                    crate::features::text::WrapMode::None
+                };
+                app.state.text.display_map.update_geometry(
+                    &app.state.text.document,
+                    app.state.text.display_map.viewport_width,
+                    app.state.font_size,
+                    wrap_mode,
+                );
+                app.state.text.total_content_height =
+                    app.state.text.display_map.total_content_height();
+
+                app.state.json.raw_text.wrap = enabled;
+                app.state.json.raw_text.display_map.update_geometry(
+                    &app.state.json.raw_text.document,
+                    app.state.json.raw_text.display_map.viewport_width,
+                    app.state.font_size,
+                    wrap_mode,
+                );
+                app.state.json.raw_text.total_content_height =
+                    app.state.json.raw_text.display_map.total_content_height();
+
+                app.state.typst.source_text.wrap = enabled;
+                app.state.typst.source_text.display_map.update_geometry(
+                    &app.state.typst.source_text.document,
+                    app.state.typst.source_text.display_map.viewport_width,
+                    app.state.font_size,
+                    wrap_mode,
+                );
+                app.state.typst.source_text.total_content_height = app
+                    .state
+                    .typst
+                    .source_text
+                    .display_map
+                    .total_content_height();
+
                 let mut config = crate::core::config::ConfigManager::load_or_create();
                 config.ui.word_wrap = enabled;
                 let _ = crate::core::config::ConfigManager::save(&config);
@@ -515,11 +598,47 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             Some(
                 crate::core::PreviewData::Markdown { .. } | crate::core::PreviewData::Epub { .. },
             ) => crate::features::markdown::update::handle_smooth_scroll_tick(app, now),
-            Some(crate::core::PreviewData::Pdf { .. } | crate::core::PreviewData::Typst { .. }) => {
+            Some(crate::core::PreviewData::Pdf { .. }) => {
                 crate::features::pdf::update::handle_smooth_scroll_tick(app, now)
+            }
+            Some(crate::core::PreviewData::Typst { .. }) => {
+                if app.state.typst.show_source || app.state.typst.error.is_some() {
+                    let theme = app.state.app_theme;
+                    let (task, finished) =
+                        crate::features::text::update::advance_text_state_smooth_scroll(
+                            &mut app.state.typst.source_text,
+                            theme,
+                            "typst_source_scroll",
+                            now,
+                        );
+                    if finished {
+                        app.record_read_position();
+                    }
+                    task
+                } else {
+                    crate::features::pdf::update::handle_smooth_scroll_tick(app, now)
+                }
             }
             Some(crate::core::PreviewData::Text { .. }) => {
                 crate::features::text::update::handle_smooth_scroll_tick(app, now)
+            }
+            Some(crate::core::PreviewData::Json { .. }) => {
+                if !app.state.json.tree_mode {
+                    let theme = app.state.app_theme;
+                    let (task, finished) =
+                        crate::features::text::update::advance_text_state_smooth_scroll(
+                            &mut app.state.json.raw_text,
+                            theme,
+                            "json_raw_scroll",
+                            now,
+                        );
+                    if finished {
+                        app.record_read_position();
+                    }
+                    task
+                } else {
+                    Task::none()
+                }
             }
             Some(crate::core::PreviewData::Spreadsheet { .. }) => {
                 crate::features::csv::update::handle_smooth_scroll_tick(app, now)

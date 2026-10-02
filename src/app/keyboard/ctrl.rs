@@ -35,6 +35,7 @@ impl KglanceApp {
             "-" => self.handle_zoom_or_font(-1.0),
             "0" => self.handle_image_reset(),
             "f" | "F" => self.handle_ctrl_f(),
+            "g" | "G" => self.handle_ctrl_g(),
             "e" | "E" | "i" | "I" | "P" => self.handle_json_shortcut(c),
             "w" | "W" => self.handle_toggle_word_wrap(),
             _ => None,
@@ -50,6 +51,45 @@ impl KglanceApp {
         }
 
         self.state.word_wrap = !self.state.word_wrap;
+        self.state.text.wrap = self.state.word_wrap;
+        let wrap_mode = if self.state.word_wrap {
+            crate::features::text::WrapMode::Word
+        } else {
+            crate::features::text::WrapMode::None
+        };
+        self.state.text.display_map.update_geometry(
+            &self.state.text.document,
+            self.state.text.display_map.viewport_width,
+            self.state.font_size,
+            wrap_mode,
+        );
+        self.state.text.total_content_height = self.state.text.display_map.total_content_height();
+
+        if matches!(self.current_content, Some(PreviewData::Json { .. })) {
+            self.state.json.raw_text.wrap = self.state.word_wrap;
+            self.state.json.raw_text.display_map.update_geometry(
+                &self.state.json.raw_text.document,
+                self.state.json.raw_text.display_map.viewport_width,
+                self.state.font_size,
+                wrap_mode,
+            );
+            self.state.json.raw_text.total_content_height =
+                self.state.json.raw_text.display_map.total_content_height();
+        } else if matches!(self.current_content, Some(PreviewData::Typst { .. })) {
+            self.state.typst.source_text.wrap = self.state.word_wrap;
+            self.state.typst.source_text.display_map.update_geometry(
+                &self.state.typst.source_text.document,
+                self.state.typst.source_text.display_map.viewport_width,
+                self.state.font_size,
+                wrap_mode,
+            );
+            self.state.typst.source_text.total_content_height = self
+                .state
+                .typst
+                .source_text
+                .display_map
+                .total_content_height();
+        }
 
         let mut config = crate::core::config::ConfigManager::load_or_create();
         config.ui.word_wrap = self.state.word_wrap;
@@ -104,10 +144,35 @@ impl KglanceApp {
         Some(Task::none())
     }
 
+    fn active_code_viewer_mut(&mut self) -> Option<&mut crate::core::TextState> {
+        match self.current_content {
+            Some(PreviewData::Text { .. }) => Some(&mut self.state.text),
+            Some(PreviewData::Json { .. }) if !self.state.json.tree_mode => {
+                Some(&mut self.state.json.raw_text)
+            }
+            Some(PreviewData::Typst { .. }) if self.state.typst.show_source => {
+                Some(&mut self.state.typst.source_text)
+            }
+            _ => None,
+        }
+    }
+
+    fn active_code_viewer(&self) -> Option<&crate::core::TextState> {
+        match self.current_content {
+            Some(PreviewData::Text { .. }) => Some(&self.state.text),
+            Some(PreviewData::Json { .. }) if !self.state.json.tree_mode => {
+                Some(&self.state.json.raw_text)
+            }
+            Some(PreviewData::Typst { .. }) if self.state.typst.show_source => {
+                Some(&self.state.typst.source_text)
+            }
+            _ => None,
+        }
+    }
+
     fn handle_ctrl_a(&mut self) -> Option<Task<Message>> {
-        if matches!(self.current_content, Some(PreviewData::Text { .. })) {
-            use iced::widget::text_editor::Action;
-            self.state.text.content.perform(Action::SelectAll);
+        if let Some(viewer) = self.active_code_viewer_mut() {
+            viewer.select_all();
             Some(Task::none())
         } else if matches!(
             self.current_content,
@@ -120,36 +185,34 @@ impl KglanceApp {
     }
 
     fn handle_ctrl_copy(&mut self) -> Option<Task<Message>> {
-        let text = match self.current_content {
-            Some(PreviewData::Text { .. }) => self.state.text.content.selection(),
+        let text = if let Some(viewer) = self.active_code_viewer() {
+            viewer.selected_text()
+        } else {
+            match self.current_content {
+                Some(PreviewData::Json { .. }) if self.state.json.tree_mode => {
+                    self.state.json.active_node.and_then(|idx| {
+                        crate::features::json::parser::JsonParser::extract_subtree_json(
+                            &self.state.json.nodes,
+                            idx,
+                        )
+                    })
+                }
 
-            Some(PreviewData::Json { .. }) if !self.state.json.tree_mode => {
-                self.state.json.raw_editor.selection()
+                Some(PreviewData::Markdown { .. } | PreviewData::Epub { .. }) => {
+                    let previous = crate::features::markdown::update::active_markdown_state(self)
+                        .selected_text
+                        .clone();
+
+                    crate::features::markdown::update::update_selected_text_from_range(self);
+
+                    crate::features::markdown::update::active_markdown_state(self)
+                        .selected_text
+                        .clone()
+                        .or(previous)
+                }
+
+                _ => None,
             }
-
-            Some(PreviewData::Json { .. }) if self.state.json.tree_mode => {
-                self.state.json.active_node.and_then(|idx| {
-                    crate::features::json::parser::JsonParser::extract_subtree_json(
-                        &self.state.json.nodes,
-                        idx,
-                    )
-                })
-            }
-
-            Some(PreviewData::Markdown { .. } | PreviewData::Epub { .. }) => {
-                let previous = crate::features::markdown::update::active_markdown_state(self)
-                    .selected_text
-                    .clone();
-
-                crate::features::markdown::update::update_selected_text_from_range(self);
-
-                crate::features::markdown::update::active_markdown_state(self)
-                    .selected_text
-                    .clone()
-                    .or(previous)
-            }
-
-            _ => None,
         }?;
 
         if text.is_empty() {
@@ -273,6 +336,19 @@ impl KglanceApp {
                             })
                         }
                         Some(PreviewData::Text { .. }) => {
+                            let wrap_mode = if self.state.word_wrap {
+                                crate::features::text::WrapMode::Word
+                            } else {
+                                crate::features::text::WrapMode::None
+                            };
+                            self.state.text.display_map.update_geometry(
+                                &self.state.text.document,
+                                self.state.text.display_map.viewport_width,
+                                new_size,
+                                wrap_mode,
+                            );
+                            self.state.text.total_content_height =
+                                self.state.text.display_map.total_content_height();
                             let old_lh = old_size * 1.35;
                             let new_lh = new_size * 1.35;
                             let line_index = (self.state.text.scroll_y / old_lh).max(0.0);
@@ -338,6 +414,7 @@ impl KglanceApp {
                 self.state.text.search_visible = !self.state.text.search_visible;
 
                 if self.state.text.search_visible {
+                    self.state.text.goto_line_visible = false;
                     Some(iced::widget::operation::focus("txt_search_input"))
                 } else {
                     self.state.text.search_query.clear();
@@ -386,6 +463,15 @@ impl KglanceApp {
                 _ => None,
             },
 
+            _ => None,
+        }
+    }
+
+    fn handle_ctrl_g(&mut self) -> Option<Task<Message>> {
+        match self.current_content {
+            Some(PreviewData::Text { .. }) => {
+                Some(crate::features::text::update::handle_goto_line_toggle(self))
+            }
             _ => None,
         }
     }
@@ -670,5 +756,95 @@ mod tests {
             json_tree_app.state.json.scroll_y,
             (220.0 / old_row_h) * new_row_h
         );
+    }
+
+    #[test]
+    fn ctrl_g_toggles_goto_line_and_submits() {
+        let code = (1..=100)
+            .map(|i| format!("Line {i} content"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut app = test_app(Some(crate::app::test_util::text_content(&code, "rs")));
+        app.state.text.viewport_height = 800.0;
+        app.state.text.total_content_height = 100.0 * (app.state.font_size * 1.35);
+
+        let g_key = iced::keyboard::Key::Character("g".into());
+        let modifiers = iced::keyboard::Modifiers::CTRL;
+
+        // 1. Press Ctrl+G -> opens Goto Line bar
+        let task = app.handle_ctrl_shortcuts(&g_key, modifiers);
+        assert!(task.is_some());
+        assert!(app.state.text.goto_line_visible);
+
+        // 2. Input line number 42
+        let _ = crate::features::text::update::handle_goto_line_query_changed(
+            &mut app,
+            "42".to_string(),
+        );
+        assert_eq!(app.state.text.goto_line_query, "42");
+
+        // 3. Submit
+        let _ = crate::features::text::update::handle_goto_line_submitted(&mut app);
+        assert!(!app.state.text.goto_line_visible);
+        assert!(app.state.text.smooth_scroll.is_animating);
+        let expected_y = app.state.text.display_map.get_line_y(41);
+        assert_eq!(app.state.text.smooth_scroll.target_y(), expected_y);
+
+        // 4. Test mutual exclusivity with Ctrl+F
+        let f_key = iced::keyboard::Key::Character("f".into());
+        let _ = app.handle_ctrl_shortcuts(&g_key, modifiers);
+        assert!(app.state.text.goto_line_visible);
+        let _ = app.handle_ctrl_shortcuts(&f_key, modifiers);
+        assert!(app.state.text.search_visible);
+        assert!(!app.state.text.goto_line_visible);
+    }
+
+    #[test]
+    fn wrap_toggle_recalculates_toc_line_numbers_and_symbol_positions() {
+        // Line 1 is very long and will wrap across multiple rows when wrap is enabled
+        let long_line = "let very_long_variable_definition = ".repeat(10);
+        let trailing = (1..=50)
+            .map(|i| format!("fn f_{i}() {{}}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let code = format!("{long_line}\nfn target_function() {{}}\n{trailing}");
+        let mut app = test_app(Some(crate::app::test_util::text_content(&code, "rs")));
+        app.state.text.display_map.viewport_width = 300.0;
+        app.state.text.viewport_height = 200.0;
+
+        // 1. Initial state (word_wrap enabled)
+        app.state.word_wrap = true;
+        app.state.text.wrap = true;
+        app.state.text.display_map.update_geometry(
+            &app.state.text.document,
+            300.0,
+            app.state.font_size,
+            crate::features::text::WrapMode::Word,
+        );
+        app.state.text.total_content_height = app.state.text.display_map.total_content_height();
+
+        let wrapped_line_2_y = app.state.text.display_map.get_line_y(1);
+        let line_height = app.state.font_size * 1.35;
+        // With wrap on, line 2 Y must be > 1 * line_height because line 1 wrapped into multiple rows
+        assert!(wrapped_line_2_y > line_height);
+
+        // Clicking symbol at line 2 navigates to wrapped Y position
+        let _ = crate::features::text::update::handle_symbol_clicked(&mut app, 2);
+        assert_eq!(app.state.text.smooth_scroll.target_y(), wrapped_line_2_y);
+
+        // 2. Toggle word wrap off
+        let w_key = iced::keyboard::Key::Character("w".into());
+        let modifiers = iced::keyboard::Modifiers::CTRL;
+        let _ = app.handle_ctrl_shortcuts(&w_key, modifiers);
+        assert!(!app.state.word_wrap);
+        assert!(!app.state.text.wrap);
+
+        let unwrapped_line_2_y = app.state.text.display_map.get_line_y(1);
+        // With wrap off, line 2 Y is exactly 1 * line_height
+        assert_eq!(unwrapped_line_2_y, line_height);
+
+        // Clicking symbol at line 2 now navigates to the new unwrapped Y position
+        let _ = crate::features::text::update::handle_symbol_clicked(&mut app, 2);
+        assert_eq!(app.state.text.smooth_scroll.target_y(), unwrapped_line_2_y);
     }
 }

@@ -78,7 +78,9 @@ impl KglanceApp {
         }
 
         match &self.current_content {
-            Some(PreviewData::Text { .. }) => self.state.text.search_visible,
+            Some(PreviewData::Text { .. }) => {
+                self.state.text.search_visible || self.state.text.goto_line_visible
+            }
             Some(PreviewData::Json { .. }) => self.state.json.search_visible,
             Some(PreviewData::Markdown { .. }) => self.state.markdown.search_visible,
             Some(PreviewData::Spreadsheet { .. }) => self.state.spreadsheet.search_visible,
@@ -93,8 +95,14 @@ impl KglanceApp {
         }
 
         match &self.current_content {
-            Some(PreviewData::Text { .. }) if self.state.text.search_visible => {
-                self.close_text_search();
+            Some(PreviewData::Text { .. }) => {
+                if self.state.text.search_visible {
+                    self.close_text_search();
+                }
+                if self.state.text.goto_line_visible {
+                    self.state.text.goto_line_visible = false;
+                    self.state.text.goto_line_query.clear();
+                }
             }
             Some(PreviewData::Json { .. }) => {
                 self.close_json_search_or_editing();
