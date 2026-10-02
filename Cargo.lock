@@ -3187,6 +3187,7 @@ dependencies = [
  "kamadak-exif",
  "lru 0.18.4",
  "md5",
+ "memchr",
  "mermaid-rs-renderer",
  "mupdf",
  "notify",

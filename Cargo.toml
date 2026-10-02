@@ -48,6 +48,7 @@ iced_video_player = "0.6"
 zbus = "5.19.0"
 csv = "1.4.0"
 chrono = "0.4.45"
+memchr = "2.8"
 tokio = { version = "1.53.1", features = [
   "rt-multi-thread",
   "macros",
