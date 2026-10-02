@@ -187,14 +187,13 @@ fn build_content<'a>(
     font_family_mono: Option<&str>,
     word_wrap: bool,
 ) -> Element<'a, Message> {
-    let view_content = if state.tree_mode {
-        render_tree(state, theme, font_size)
+    if state.tree_mode {
+        let view_content = render_tree(state, theme, font_size);
+        scroll_pane(CONTENT_SCROLL_ID, view_content)
+            .container_padding(CONTENT_CONTAINER_PADDING)
+            .on_scroll(|viewport| JsonMsg::Scrolled(viewport.absolute_offset().y).into())
+            .build()
     } else {
         render_raw(state, theme, font_size, font_family_mono, word_wrap)
-    };
-
-    scroll_pane(CONTENT_SCROLL_ID, view_content)
-        .container_padding(CONTENT_CONTAINER_PADDING)
-        .on_scroll(|viewport| JsonMsg::Scrolled(viewport.absolute_offset().y).into())
-        .build()
+    }
 }

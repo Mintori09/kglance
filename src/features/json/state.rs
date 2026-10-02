@@ -21,9 +21,12 @@ pub fn populate_state(
 
     let parsed_cache_hit = state.json.parsed_cache.clone();
 
-    // Lazy initialization: do not parse and layout large text into Content synchronously during file transitions.
-    // Content will be materialized on demand when entering Raw mode.
-    let raw_editor = iced::widget::text_editor::Content::<iced::Renderer>::new();
+    let raw_text = crate::features::text::create_text_state(
+        pretty.to_string(),
+        "json",
+        state.font_size,
+        state.word_wrap,
+    );
 
     state.json = JsonState {
         nodes: nodes.to_vec(),
@@ -33,7 +36,7 @@ pub fn populate_state(
         tree_mode: old_tree_mode,
         scroll_y: old_scroll,
         has_parse_error,
-        raw_editor,
+        raw_text,
         search_visible: false,
         search_query: String::new(),
         search_matches: Vec::new(),
