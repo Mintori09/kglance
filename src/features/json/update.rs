@@ -7,13 +7,17 @@ pub fn handle_toggle_mode(app: &mut KglanceApp) -> Task<Message> {
     app.state.json.tree_mode = !app.state.json.tree_mode;
 
     if !app.state.json.tree_mode {
-        let s = &mut app.state.json;
-        let content = if s.raw_pretty {
-            &s.pretty_content
+        let content = if app.state.json.raw_pretty {
+            app.state.json.pretty_content.clone()
         } else {
-            &s.minified_content
+            app.state.json.minified_content.clone()
         };
-        s.raw_editor = iced::widget::text_editor::Content::with_text(content);
+        app.state.json.raw_text = crate::features::text::create_text_state(
+            content,
+            "json",
+            app.state.font_size,
+            app.state.text.wrap,
+        );
     }
 
     Task::none()
@@ -37,14 +41,69 @@ pub fn handle_scrolled(app: &mut KglanceApp, y: f32) -> Task<Message> {
     Task::none()
 }
 
-pub fn handle_raw_edit(
+pub fn handle_raw_selection_changed(
     app: &mut KglanceApp,
-    action: iced::widget::text_editor::Action,
+    selection: Option<crate::ui::components::code_viewer::SelectionRange>,
 ) -> Task<Message> {
-    if !matches!(action, iced::widget::text_editor::Action::Edit(_)) {
-        app.state.json.raw_editor.perform(action);
-    }
+    app.state.json.raw_text.selection = selection;
     Task::none()
+}
+
+pub fn handle_raw_scrolled(
+    app: &mut KglanceApp,
+    viewport: iced::widget::scrollable::Viewport,
+) -> Task<Message> {
+    if app.ctrl_held {
+        return Task::none();
+    }
+    let y = viewport.absolute_offset().y;
+    let vh = viewport.bounds().height;
+    let total_h = viewport.content_bounds().height;
+
+    let text_state = &mut app.state.json.raw_text;
+    if vh > 0.0 {
+        text_state.viewport_height = vh;
+    }
+    if total_h > 0.0 {
+        text_state.total_content_height = total_h;
+    }
+
+    let is_animating = text_state.smooth_scroll.is_animating
+        || text_state.scroll_controller.is_animating()
+        || text_state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging;
+    if is_animating {
+        return Task::none();
+    }
+
+    let delta_y = (text_state.scroll_y - y).abs();
+    let delta_vh = (text_state.viewport_height - vh).abs();
+    if delta_y < 1.0 && delta_vh < 1.0 {
+        return Task::none();
+    }
+
+    text_state.smooth_scroll.stop(y);
+    text_state.scroll_controller.stop(y);
+    text_state.scroll_y = y;
+
+    let theme = app.state.app_theme;
+    crate::features::text::update_tokens_for_viewport(&mut app.state.json.raw_text, y, theme);
+    Task::none()
+}
+
+pub fn handle_raw_wheel_scrolled(
+    app: &mut KglanceApp,
+    delta: iced::mouse::ScrollDelta,
+) -> Task<Message> {
+    if app.ctrl_held {
+        return Task::none();
+    }
+    let theme = app.state.app_theme;
+    crate::features::text::update::handle_text_state_wheel_scrolled(
+        &mut app.state.json.raw_text,
+        theme,
+        "json_raw_scroll",
+        delta,
+    )
 }
 
 pub fn handle_search_toggle(app: &mut KglanceApp) -> Task<Message> {
@@ -249,7 +308,7 @@ pub fn handle_toggle_format(app: &mut KglanceApp) -> Task<Message> {
     s.raw_pretty = !s.raw_pretty;
 
     let content = if s.raw_pretty {
-        &s.pretty_content
+        s.pretty_content.clone()
     } else {
         if s.minified_content.is_empty() {
             s.minified_content = serde_json::from_str::<serde_json::Value>(&s.pretty_content)
@@ -257,10 +316,15 @@ pub fn handle_toggle_format(app: &mut KglanceApp) -> Task<Message> {
                 .and_then(|v| serde_json::to_string(&v).ok())
                 .unwrap_or_else(|| s.pretty_content.clone());
         }
-        &s.minified_content
+        s.minified_content.clone()
     };
 
-    s.raw_editor = iced::widget::text_editor::Content::with_text(content);
+    s.raw_text = crate::features::text::create_text_state(
+        content,
+        "json",
+        app.state.font_size,
+        app.state.text.wrap,
+    );
 
     Task::none()
 }

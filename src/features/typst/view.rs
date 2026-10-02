@@ -1,14 +1,9 @@
 use crate::app::Message;
 use crate::core::TypstState;
-use crate::ui::components::code_editor::code_editor;
+use crate::ui::components::code_viewer::VirtualCodeViewer;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::theme::font::get_code_font;
 use iced::Element;
-use iced::widget::text_editor::Action;
-
-fn ignore_editor_action(_: Action) -> Message {
-    Message::None
-}
 
 pub fn view_typst<'a>(
     state: &'a TypstState,
@@ -19,18 +14,23 @@ pub fn view_typst<'a>(
 ) -> Element<'a, Message> {
     if state.show_source || state.error.is_some() {
         let font = get_code_font(font_family_mono);
-        let editor = code_editor(
-            &state.source_content,
-            "typ",
-            theme,
-            font_size,
-            font,
-            word_wrap,
-            ignore_editor_action,
-        );
+        let viewer =
+            VirtualCodeViewer::<Message>::new(&state.source_text.document, font_size, font, theme)
+                .display_map(&state.source_text.display_map)
+                .wrap(word_wrap)
+                .tokens(
+                    &state.source_text.cached_tokens,
+                    state.source_text.cached_tokens_start_line,
+                )
+                .selection(state.source_text.selection)
+                .on_select(|sel| crate::app::messages::TypstMsg::SelectionChanged(sel).into())
+                .on_copy(|text| crate::app::messages::ActionMsg::CopyCode(text).into());
 
-        let editor_pane = scroll_pane("typst_source_scroll", editor)
-            .container_padding(4.0)
+        let editor_pane = scroll_pane("typst_source_scroll", viewer)
+            .filter_wheel(true)
+            .container_padding(0.0)
+            .on_scroll(|vp| crate::app::messages::TypstMsg::SourceScrolled(vp).into())
+            .on_wheel(|delta| crate::app::messages::TypstMsg::SourceWheelScrolled(delta).into())
             .build();
 
         if let Some(err_msg) = &state.error {

@@ -1,7 +1,8 @@
 use crate::app::Message;
 use crate::core::types::JsonState;
 use crate::parsers::json::JsonNode;
-use crate::ui::components::code_editor::code_editor;
+use crate::ui::components::code_viewer::VirtualCodeViewer;
+use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::theme::tokens::spacing;
 use iced::widget::{button, container, row, text};
 use iced::{Element, Length, Padding};
@@ -186,20 +187,28 @@ pub fn render_breadcrumbs<'a>(
 
 pub fn render_raw<'a>(
     state: &'a JsonState,
-    theme: AppTheme,
+    theme: crate::ui::theme::AppTheme,
     font_size: f32,
     font_family_mono: Option<&str>,
-    word_wrap: bool,
+    _word_wrap: bool,
 ) -> Element<'a, Message> {
     let mono_font = crate::ui::theme::font::get_code_font(font_family_mono);
 
-    code_editor(
-        &state.raw_editor,
-        "json",
-        theme,
-        font_size,
-        mono_font,
-        word_wrap,
-        |action| crate::app::messages::JsonMsg::RawEdit(action).into(),
-    )
+    let viewer =
+        VirtualCodeViewer::<Message>::new(&state.raw_text.document, font_size, mono_font, theme)
+            .display_map(&state.raw_text.display_map)
+            .tokens(
+                &state.raw_text.cached_tokens,
+                state.raw_text.cached_tokens_start_line,
+            )
+            .selection(state.raw_text.selection)
+            .on_select(|sel| crate::app::messages::JsonMsg::RawSelectionChanged(sel).into())
+            .on_copy(|text| crate::app::messages::ActionMsg::CopyCode(text).into());
+
+    scroll_pane("json_raw_scroll", viewer)
+        .filter_wheel(true)
+        .container_padding(0.0)
+        .on_scroll(|vp| crate::app::messages::JsonMsg::RawScrolled(vp).into())
+        .on_wheel(|delta| crate::app::messages::JsonMsg::RawWheelScrolled(delta).into())
+        .build()
 }

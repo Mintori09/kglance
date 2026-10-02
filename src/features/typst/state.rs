@@ -61,9 +61,16 @@ pub fn populate_state(
 
     crate::features::pdf::geometry::recalculate_pdf_thumbnail_offsets(&mut typst_pdf_state);
 
+    let source_text = crate::features::text::create_text_state(
+        source.to_string(),
+        "typ",
+        state.font_size,
+        state.word_wrap,
+    );
+
     state.typst = crate::core::TypstState {
         pdf: typst_pdf_state,
-        source_content: iced::widget::text_editor::Content::with_text(source),
+        source_text,
         show_source: error.is_some(),
         error,
     };
