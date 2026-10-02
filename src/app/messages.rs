@@ -50,7 +50,9 @@ pub enum ImageMsg {
 
 #[derive(Debug, Clone)]
 pub enum TextMsg {
-    Edit(iced::widget::text_editor::Action),
+    SelectionChanged(Option<crate::ui::components::code_viewer::SelectionRange>),
+    CopyRequested(String),
+    TokensReady(crate::features::text::IndexResult),
     SearchQueryChanged(String),
     SearchNext,
     SearchPrev,
@@ -60,6 +62,10 @@ pub enum TextMsg {
     WheelScrolled(iced::mouse::ScrollDelta),
     ToggleOutline,
     SymbolClicked(usize),
+    GotoLineToggle,
+    GotoLineQueryChanged(String),
+    GotoLineSubmitted,
+    GotoLineClosed,
 }
 
 #[derive(Debug, Clone)]
@@ -97,6 +103,9 @@ pub enum TypstMsg {
     Scrolled(iced::widget::scrollable::Viewport),
     CompileError,
     ToggleSource,
+    SelectionChanged(Option<crate::ui::components::code_viewer::SelectionRange>),
+    SourceScrolled(iced::widget::scrollable::Viewport),
+    SourceWheelScrolled(iced::mouse::ScrollDelta),
 }
 
 #[derive(Debug, Clone)]
@@ -170,7 +179,9 @@ pub enum JsonMsg {
     ToggleMode,
     ToggleNode(usize),
     Scrolled(f32),
-    RawEdit(iced::widget::text_editor::Action),
+    RawScrolled(iced::widget::scrollable::Viewport),
+    RawWheelScrolled(iced::mouse::ScrollDelta),
+    RawSelectionChanged(Option<crate::ui::components::code_viewer::SelectionRange>),
     SearchToggle,
     SearchQueryChanged(String),
     SearchNext,

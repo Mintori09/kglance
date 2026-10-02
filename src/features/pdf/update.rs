@@ -251,7 +251,10 @@ pub fn handle_scrolled(
     let view_h = viewport.bounds().height;
 
     let pdf_state = active_pdf_state_mut(app);
-    if pdf_state.scroll_controller.is_animating() || pdf_state.smooth_scroll.is_animating {
+    if pdf_state.scroll_controller.is_animating()
+        || pdf_state.smooth_scroll.is_animating
+        || pdf_state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+    {
         return Task::none();
     }
 

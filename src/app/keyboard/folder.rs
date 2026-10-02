@@ -52,8 +52,10 @@ impl KglanceApp {
                 Some(self.snap_to_bottom())
             }
             iced::keyboard::Key::Named(Named::ArrowLeft) => self.navigate_to_parent_folder(),
+            iced::keyboard::Key::Character(c) if c == "h" => self.navigate_to_parent_folder(),
             iced::keyboard::Key::Named(Named::ArrowRight)
             | iced::keyboard::Key::Named(Named::Enter) => self.open_selected_row(),
+            iced::keyboard::Key::Character(c) if c == "l" => self.open_selected_row(),
             iced::keyboard::Key::Named(Named::Home) => {
                 self.pending_home = false;
                 self.state.folder.selected_index = Some(0);

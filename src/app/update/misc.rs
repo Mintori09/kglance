@@ -82,6 +82,10 @@ pub fn handle_sidebar_drag_started(app: &mut KglanceApp) -> Task<Message> {
     app.state.epub.sidebar_drag_start_x = None;
     app.state.epub.sidebar_drag_start_width = app.state.epub.sidebar_width;
 
+    app.state.text.sidebar_resizing = true;
+    app.state.text.sidebar_drag_start_x = None;
+    app.state.text.sidebar_drag_start_width = app.state.text.sidebar_width;
+
     let pdf = active_pdf_state_mut(app);
     pdf.sidebar_resizing = true;
     pdf.sidebar_drag_start_x = None;
@@ -92,6 +96,7 @@ pub fn handle_sidebar_drag_started(app: &mut KglanceApp) -> Task<Message> {
 pub fn handle_sidebar_drag_ended(app: &mut KglanceApp) -> Task<Message> {
     app.state.markdown.sidebar_resizing = false;
     app.state.epub.sidebar_resizing = false;
+    app.state.text.sidebar_resizing = false;
     let win_w = app.state.current_window_size.width;
     let pdf = active_pdf_state_mut(app);
     let desired_w = pdf.desired_width;
@@ -179,6 +184,16 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
             550.0,
         );
     }
+    if app.state.text.sidebar_resizing {
+        apply_sidebar_drag(
+            &mut app.state.text.sidebar_drag_start_x,
+            &mut app.state.text.sidebar_drag_start_width,
+            &mut app.state.text.sidebar_width,
+            x,
+            140.0,
+            550.0,
+        );
+    }
     let win_w = app.state.current_window_size.width;
     let pdf = active_pdf_state_mut(app);
     if pdf.sidebar_resizing {
@@ -241,16 +256,71 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
         app.state.markdown.viewport_height = height;
         app.state.epub.markdown_state.viewport_height = height;
 
-        if (old_w - width).abs() > 1.0
-            && let Some(crate::core::PreviewData::Markdown { blocks, .. }) = &app.current_content
-        {
-            let content_width = app.state.markdown_content_width();
-            crate::features::markdown::recompute_markdown_layout(
-                &mut app.state.markdown,
-                blocks,
-                app.state.font_size,
-                content_width,
-            );
+        if (old_w - width).abs() > 1.0 {
+            if let Some(crate::core::PreviewData::Markdown { blocks, .. }) = &app.current_content {
+                let content_width = app.state.markdown_content_width();
+                crate::features::markdown::recompute_markdown_layout(
+                    &mut app.state.markdown,
+                    blocks,
+                    app.state.font_size,
+                    content_width,
+                );
+            } else if matches!(
+                app.current_content,
+                Some(crate::core::PreviewData::Text { .. })
+            ) {
+                let wrap_mode = if app.state.word_wrap {
+                    crate::features::text::WrapMode::Word
+                } else {
+                    crate::features::text::WrapMode::None
+                };
+                app.state.text.display_map.update_geometry(
+                    &app.state.text.document,
+                    width,
+                    app.state.font_size,
+                    wrap_mode,
+                );
+                app.state.text.total_content_height =
+                    app.state.text.display_map.total_content_height();
+            } else if matches!(
+                app.current_content,
+                Some(crate::core::PreviewData::Json { .. })
+            ) {
+                let wrap_mode = if app.state.word_wrap {
+                    crate::features::text::WrapMode::Word
+                } else {
+                    crate::features::text::WrapMode::None
+                };
+                app.state.json.raw_text.display_map.update_geometry(
+                    &app.state.json.raw_text.document,
+                    width,
+                    app.state.font_size,
+                    wrap_mode,
+                );
+                app.state.json.raw_text.total_content_height =
+                    app.state.json.raw_text.display_map.total_content_height();
+            } else if matches!(
+                app.current_content,
+                Some(crate::core::PreviewData::Typst { .. })
+            ) {
+                let wrap_mode = if app.state.word_wrap {
+                    crate::features::text::WrapMode::Word
+                } else {
+                    crate::features::text::WrapMode::None
+                };
+                app.state.typst.source_text.display_map.update_geometry(
+                    &app.state.typst.source_text.document,
+                    width,
+                    app.state.font_size,
+                    wrap_mode,
+                );
+                app.state.typst.source_text.total_content_height = app
+                    .state
+                    .typst
+                    .source_text
+                    .display_map
+                    .total_content_height();
+            }
         }
     }
 
@@ -284,6 +354,8 @@ mod tests {
         assert!(app.state.markdown.sidebar_drag_start_x.is_none());
         assert!(app.state.epub.sidebar_resizing);
         assert!(app.state.epub.sidebar_drag_start_x.is_none());
+        assert!(app.state.text.sidebar_resizing);
+        assert!(app.state.text.sidebar_drag_start_x.is_none());
         assert!(app.state.pdf.sidebar_resizing);
         assert!(app.state.pdf.sidebar_drag_start_x.is_none());
     }
@@ -311,6 +383,17 @@ mod tests {
     }
 
     #[test]
+    fn mouse_moved_resizes_text_sidebar() {
+        let mut app = test_app(None);
+        app.state.text.sidebar_width = 250.0;
+        let _ = handle_sidebar_drag_started(&mut app);
+        let _ = handle_mouse_moved(&mut app, 300.0, 100.0);
+        let _ = handle_mouse_moved(&mut app, 350.0, 100.0);
+        assert_eq!(app.state.text.sidebar_width, 300.0);
+        assert_eq!(app.state.text.sidebar_drag_start_x, Some(300.0));
+    }
+
+    #[test]
     fn mouse_moved_clamps_epub_width() {
         let mut app = test_app(None);
         app.state.epub.sidebar_width = 200.0;
@@ -327,6 +410,7 @@ mod tests {
         let _ = handle_sidebar_drag_ended(&mut app);
         assert!(!app.state.markdown.sidebar_resizing);
         assert!(!app.state.epub.sidebar_resizing);
+        assert!(!app.state.text.sidebar_resizing);
         assert!(!app.state.pdf.sidebar_resizing);
     }
 

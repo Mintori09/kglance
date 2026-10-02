@@ -880,17 +880,8 @@ impl KglanceApp {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let (preview_body, edge_to_edge) = if let Some(content) = &self.current_content {
-            let edge_to_edge = matches!(
-                content,
-                PreviewData::Media { .. }
-                    | PreviewData::Image { .. }
-                    | PreviewData::Pdf { .. }
-                    | PreviewData::Typst { .. }
-                    | PreviewData::Markdown { .. }
-                    | PreviewData::Epub { .. }
-            );
-            let body: Element<'_, Message> = match content {
+        let preview_body = if let Some(content) = &self.current_content {
+            match content {
                 PreviewData::Text { .. } => crate::ui::views::view_text(
                     &self.state.text,
                     self.state.app_theme,
@@ -964,17 +955,16 @@ impl KglanceApp {
                     *height,
                 ),
                 PreviewData::Error(err) => iced::widget::text(err).size(18).into(),
-            };
-            (body, edge_to_edge)
+            }
         } else {
-            (iced::widget::text("No file loaded.").size(18).into(), false)
+            iced::widget::text("No file loaded.").size(18).into()
         };
 
         let is_mod = self.ctrl_held;
         let preview_body =
             crate::ui::components::scroll_pane::ScrollFilter::new(preview_body, is_mod).into();
 
-        crate::ui::window::view_window(&self.state, preview_body, edge_to_edge)
+        crate::ui::window::view_window(&self.state, preview_body)
     }
 
     /// Variant for [`iced::daemon`] which requires a `window::Id` parameter.
@@ -1096,17 +1086,43 @@ impl KglanceApp {
                     || md.scroll_controller.is_animating()
                     || md.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
             }
-            Some(crate::core::PreviewData::Pdf { .. } | crate::core::PreviewData::Typst { .. }) => {
+            Some(crate::core::PreviewData::Pdf { .. }) => {
                 let pdf = crate::features::pdf::update::active_pdf_state(self);
                 pdf.smooth_scroll.is_animating
                     || pdf.scroll_controller.is_animating()
                     || pdf.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+            }
+            Some(crate::core::PreviewData::Typst { .. }) => {
+                if self.state.typst.show_source || self.state.typst.error.is_some() {
+                    let text = &self.state.typst.source_text;
+                    text.smooth_scroll.is_animating
+                        || text.scroll_controller.is_animating()
+                        || text.scroll_controller.state()
+                            == crate::core::scroll::GestureState::Dragging
+                } else {
+                    let pdf = crate::features::pdf::update::active_pdf_state(self);
+                    pdf.smooth_scroll.is_animating
+                        || pdf.scroll_controller.is_animating()
+                        || pdf.scroll_controller.state()
+                            == crate::core::scroll::GestureState::Dragging
+                }
             }
             Some(crate::core::PreviewData::Text { .. }) => {
                 let text = &self.state.text;
                 text.smooth_scroll.is_animating
                     || text.scroll_controller.is_animating()
                     || text.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+            }
+            Some(crate::core::PreviewData::Json { .. }) => {
+                if !self.state.json.tree_mode {
+                    let text = &self.state.json.raw_text;
+                    text.smooth_scroll.is_animating
+                        || text.scroll_controller.is_animating()
+                        || text.scroll_controller.state()
+                            == crate::core::scroll::GestureState::Dragging
+                } else {
+                    false
+                }
             }
             Some(crate::core::PreviewData::Spreadsheet { .. }) => {
                 let sheet = &self.state.spreadsheet;

@@ -75,7 +75,10 @@ pub fn handle_spreadsheet_scrolled(
         state.total_content_height = total_h;
     }
 
-    if state.smooth_scroll.is_animating || state.scroll_controller.is_animating() {
+    if state.smooth_scroll.is_animating
+        || state.scroll_controller.is_animating()
+        || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+    {
         return Task::none();
     }
 
