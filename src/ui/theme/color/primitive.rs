@@ -61,7 +61,6 @@ pub(crate) const WHITE_005: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.05);
 pub(crate) const WHITE_006: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.06);
 pub(crate) const WHITE_010: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.10);
 pub(crate) const WHITE_012: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.12);
-pub(crate) const WHITE_015: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.15);
 pub(crate) const WHITE_020: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.20);
 
 pub(crate) const BLACK_005: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.05);

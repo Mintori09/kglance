@@ -11,7 +11,7 @@ fn test_word_mid_cursor() {
     assert_eq!(
         substr(text, range),
         "World",
-        "cursor giữa từ phải chọn đúng từ"
+        "cursor within word must select the correct word"
     );
 }
 
@@ -37,7 +37,7 @@ fn test_word_on_whitespace_returns_empty_or_space() {
     let selected = substr(text, range);
     assert!(
         selected.trim().is_empty() || selected == " ",
-        "cursor trên whitespace không được chọn vào từ bên cạnh, got: {selected:?}"
+        "cursor on whitespace must not select adjacent word, got: {selected:?}"
     );
 }
 
@@ -49,7 +49,7 @@ fn test_word_punctuation_not_included() {
 
     assert!(
         !selected.contains(','),
-        "dấu phẩy không được nằm trong từ được chọn, got: {selected:?}"
+        "comma must not be included in selected word, got: {selected:?}"
     );
 
     let range_word = expand_to_word_bounds(text, 1);
@@ -66,9 +66,9 @@ fn test_word_out_of_range_does_not_panic() {
     let text = "Hi";
     let range = expand_to_word_bounds(text, 9999);
 
-    assert!(range.0 <= text.len(), "start vượt biên");
-    assert!(range.1 <= text.len(), "end vượt biên");
-    assert!(range.0 <= range.1, "start phải <= end");
+    assert!(range.0 <= text.len(), "start out of bounds");
+    assert!(range.1 <= text.len(), "end out of bounds");
+    assert!(range.0 <= range.1, "start must be <= end");
 }
 
 #[test]
@@ -82,7 +82,7 @@ fn test_word_utf8_char_boundary() {
             let _ = &text[range.0..range.1];
         })
         .is_ok(),
-        "slice [start..end] phải hợp lệ trên char boundary"
+        "slice [start..end] must be valid on char boundary"
     );
 }
 
@@ -99,7 +99,7 @@ fn test_extract_multiple_spans_concat() {
     let widget = SelectableText::<(), iced::Theme, iced::Renderer>::new(spans, 14.0);
     let result = widget.extract_plain_text();
     assert_eq!(result, "Rust is great");
-    assert_eq!(result.len(), 13, "độ dài phải khớp chính xác");
+    assert_eq!(result.len(), 13, "length must match exactly");
 }
 
 #[test]
