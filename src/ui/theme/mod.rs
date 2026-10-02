@@ -23,6 +23,5 @@ pub use color::{AppTheme, ColorPalette, DARK_PALETTE, LIGHT_PALETTE};
 pub use default::{
     default_button, default_button_primary, default_card, default_checkbox, default_grid_card,
     default_inset, default_pick_list, default_raised, default_root, default_row_button,
-    default_rule, default_scrollable, default_slider, default_text_editor, default_text_input,
-    default_tooltip,
+    default_rule, default_scrollable, default_slider, default_text_input, default_tooltip,
 };

@@ -208,15 +208,6 @@ fn typst_toggle_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>>
     }
 }
 
-fn content<'a>(preview_body: Element<'a, Message>, edge_to_edge: bool) -> Element<'a, Message> {
-    let padding = if edge_to_edge { 0 } else { 10 };
-    container(preview_body)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .padding(padding)
-        .into()
-}
-
 fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     if state.toasts.is_empty() {
         return Element::from(container(text("")).padding(0));
@@ -271,7 +262,6 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
 pub fn view_window<'a>(
     state: &'a KglanceState,
     preview_body: Element<'a, Message>,
-    edge_to_edge: bool,
 ) -> Element<'a, Message> {
     let show_settings_modal = matches!(state.view_mode, crate::core::ViewMode::Settings);
 
@@ -283,7 +273,7 @@ pub fn view_window<'a>(
             state.grid_search_visible,
             &state.grid_search_query,
         ),
-        _ => content(preview_body, edge_to_edge),
+        _ => preview_body,
     };
 
     let layout = column![

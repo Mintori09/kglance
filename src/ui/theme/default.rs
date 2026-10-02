@@ -1,6 +1,4 @@
-use iced::widget::{
-    button, checkbox, container, pick_list, rule, scrollable, slider, text_editor, text_input,
-};
+use iced::widget::{button, checkbox, container, pick_list, rule, scrollable, slider, text_input};
 use iced::{Border, Color, Shadow, Theme};
 
 use crate::ui::theme::color::{AppTheme, BaseColors, primitive, roles};
@@ -241,25 +239,6 @@ pub fn default_text_input(theme: &Theme, status: text_input::Status) -> text_inp
         placeholder: p.text_dim,
         selection: role.accent,
         icon: p.text,
-    }
-}
-
-pub fn default_text_editor(theme: &Theme, _status: text_editor::Status) -> text_editor::Style {
-    let p = BaseColors::palette(theme);
-    let app_theme = AppTheme::from(theme);
-    text_editor::Style {
-        background: Color::TRANSPARENT.into(),
-        border: Border {
-            width: 0.0,
-            color: Color::TRANSPARENT,
-            radius: 0.0.into(),
-        },
-        placeholder: Color::TRANSPARENT,
-        value: p.text,
-        selection: match app_theme {
-            AppTheme::Light => primitive::BLACK_015,
-            AppTheme::Dark | AppTheme::Nord => primitive::WHITE_015,
-        },
     }
 }
 
