@@ -2,6 +2,7 @@ use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Padding};
 
 use crate::app::Message;
+use crate::features::text::display_map::DisplayMap;
 use crate::features::text::outline::{CodeSymbol, SymbolKind};
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::sidebar::sidebar_entry_style;
@@ -39,55 +40,71 @@ pub fn render_outline_sidebar<'a>(
     theme: AppTheme,
     width: f32,
     scroll_y: f32,
-    font_size: f32,
+    display_map: &DisplayMap,
 ) -> Element<'a, Message> {
     let bg_color = theme.palette().base.bg;
     let border_color = theme.palette().base.border;
 
-    let active_symbol_line = find_active_symbol_line(symbols, scroll_y, font_size);
+    let active_symbol_line = find_active_symbol_line(symbols, scroll_y, display_map);
 
-    let entries: Vec<Element<'a, Message>> = symbols
-        .iter()
-        .map(|sym| {
-            let is_active = active_symbol_line == Some(sym.line_number);
-            render_symbol_entry(sym, is_active, theme)
-        })
-        .collect();
+    let entries: Vec<Element<'a, Message>> = if symbols.is_empty() {
+        vec![
+            container(
+                text("No outline available")
+                    .size(NAME_FONT_SIZE)
+                    .color(theme.palette().base.text_dim),
+            )
+            .padding(Padding {
+                top: 12.0,
+                right: 8.0,
+                bottom: 12.0,
+                left: 8.0,
+            })
+            .into(),
+        ]
+    } else {
+        symbols
+            .iter()
+            .map(|sym| {
+                let is_active = active_symbol_line == Some(sym.line_number);
+                render_symbol_entry(sym, is_active, theme)
+            })
+            .collect()
+    };
 
-    let content = column![
+    container(
         scroll_pane(
             "text_outline_scroll",
             column(entries)
                 .spacing(OUTLINE_ITEM_SPACING)
-                .padding(OUTLINE_PADDING)
+                .padding(OUTLINE_PADDING),
         )
-        .build()
-    ]
-    .width(width)
-    .height(Length::Fill);
-
-    iced::widget::opaque(
-        container(content)
-            .width(width)
-            .height(Length::Fill)
-            .style(move |_| container::Style {
-                background: Some(bg_color.into()),
-                border: Border {
-                    width: 1.0,
-                    color: border_color,
-                    radius: 0.0.into(),
-                },
-                ..Default::default()
-            }),
+        .build(),
     )
+    .width(Length::Fixed(width))
+    .height(Length::Fill)
+    .style(move |_| container::Style {
+        background: Some(bg_color.into()),
+        border: Border {
+            width: 1.0,
+            color: border_color,
+            radius: 0.0.into(),
+        },
+        ..Default::default()
+    })
+    .into()
 }
 
-fn find_active_symbol_line(symbols: &[CodeSymbol], scroll_y: f32, font_size: f32) -> Option<usize> {
-    let line_height = font_size * 1.35;
+fn find_active_symbol_line(
+    symbols: &[CodeSymbol],
+    scroll_y: f32,
+    display_map: &DisplayMap,
+) -> Option<usize> {
     symbols
         .iter()
         .rposition(|sym| {
-            let sym_y = (sym.line_number.saturating_sub(1) as f32) * line_height;
+            let line_idx = sym.line_number.saturating_sub(1);
+            let sym_y = display_map.get_line_y(line_idx);
             sym_y <= scroll_y + SCROLL_OFFSET_MARGIN
         })
         .map(|idx| symbols[idx].line_number)
@@ -129,7 +146,13 @@ fn render_symbol_entry<'a>(
         ..Default::default()
     });
 
-    let name_label = text(&sym.name).size(NAME_FONT_SIZE).width(Length::Fill);
+    let name_label = container(
+        text(&sym.name)
+            .size(NAME_FONT_SIZE)
+            .wrapping(iced::widget::text::Wrapping::None),
+    )
+    .width(Length::Fill)
+    .clip(true);
 
     let line_label = text(sym.line_number.to_string())
         .size(LINE_FONT_SIZE)

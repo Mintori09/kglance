@@ -130,3 +130,36 @@ fn build_action_button<'a>(label: &'static str, on_press: Message) -> Element<'a
         .style(default_button)
         .into()
 }
+
+pub const GOTO_LINE_INPUT_ID: &str = "txt_goto_line_input";
+
+pub fn goto_line_bar<'a>(query: &'a str, total_lines: usize) -> Element<'a, Message> {
+    let placeholder = format!("Go to line (1–{total_lines})...");
+
+    let line_input: Element<'a, Message> = text_input(&placeholder, query)
+        .id(GOTO_LINE_INPUT_ID)
+        .on_input(|q| crate::app::messages::TextMsg::GotoLineQueryChanged(q).into())
+        .on_submit(crate::app::messages::TextMsg::GotoLineSubmitted.into())
+        .style(default_text_input)
+        .width(Length::Fill)
+        .into();
+
+    let go_button = build_action_button(
+        "Go",
+        crate::app::messages::TextMsg::GotoLineSubmitted.into(),
+    );
+    let close_button = build_action_button(
+        LABEL_CLOSE,
+        crate::app::messages::TextMsg::GotoLineClosed.into(),
+    );
+
+    let elements: Vec<Element<'a, Message>> = vec![line_input, go_button, close_button];
+
+    container(
+        row(elements)
+            .spacing(DEFAULT_SPACING)
+            .padding(DEFAULT_PADDING),
+    )
+    .width(Length::Fill)
+    .into()
+}
