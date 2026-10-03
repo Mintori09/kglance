@@ -7,6 +7,7 @@ use iced::Element;
 
 pub fn view_typst<'a>(
     state: &'a TypstState,
+    pdf_state: &'a crate::core::PdfState,
     theme: crate::ui::theme::AppTheme,
     font_size: f32,
     font_family_mono: Option<&str>,
@@ -68,6 +69,6 @@ pub fn view_typst<'a>(
             editor_pane
         }
     } else {
-        crate::ui::views::view_pdf(&state.pdf, font_size, theme)
+        crate::ui::views::view_pdf(pdf_state, font_size, theme)
     }
 }

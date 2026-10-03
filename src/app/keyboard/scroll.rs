@@ -81,7 +81,7 @@ impl KglanceApp {
                 })
             }
             Some(PreviewData::Pdf { .. }) => {
-                let state = crate::features::pdf::update::active_pdf_state_mut(self);
+                let state = &mut self.state.pdf;
                 Some(ActiveScrollTarget {
                     smooth_scroll: &mut state.smooth_scroll,
                     scroll_controller: &mut state.scroll_controller,
@@ -101,7 +101,7 @@ impl KglanceApp {
                         viewport_height: state.viewport_height,
                     })
                 } else {
-                    let state = crate::features::pdf::update::active_pdf_state_mut(self);
+                    let state = &mut self.state.pdf;
                     Some(ActiveScrollTarget {
                         smooth_scroll: &mut state.smooth_scroll,
                         scroll_controller: &mut state.scroll_controller,

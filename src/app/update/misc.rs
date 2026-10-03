@@ -1,7 +1,6 @@
 use crate::app::KglanceApp;
 use crate::app::messages::Message;
 use crate::features::markdown::update as markdown;
-use crate::features::pdf::update::active_pdf_state_mut;
 use iced::Task;
 use url::Url;
 
@@ -86,7 +85,7 @@ pub fn handle_sidebar_drag_started(app: &mut KglanceApp) -> Task<Message> {
     app.state.text.sidebar_drag_start_x = None;
     app.state.text.sidebar_drag_start_width = app.state.text.sidebar_width;
 
-    let pdf = active_pdf_state_mut(app);
+    let pdf = &mut app.state.pdf;
     pdf.sidebar_resizing = true;
     pdf.sidebar_drag_start_x = None;
     pdf.sidebar_drag_start_width = pdf.sidebar_width;
@@ -98,7 +97,7 @@ pub fn handle_sidebar_drag_ended(app: &mut KglanceApp) -> Task<Message> {
     app.state.epub.sidebar_resizing = false;
     app.state.text.sidebar_resizing = false;
     let win_w = app.state.current_window_size.width;
-    let pdf = active_pdf_state_mut(app);
+    let pdf = &mut app.state.pdf;
     let desired_w = pdf.desired_width;
     pdf.sidebar_resizing = false;
     crate::features::pdf::geometry::recalculate_pdf_thumbnail_offsets(pdf);
@@ -195,7 +194,7 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
         );
     }
     let win_w = app.state.current_window_size.width;
-    let pdf = active_pdf_state_mut(app);
+    let pdf = &mut app.state.pdf;
     if pdf.sidebar_resizing {
         let old_width = pdf.sidebar_width;
         let desired_w = pdf.desired_width;
@@ -348,7 +347,7 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
         }
     }
 
-    let pdf = active_pdf_state_mut(app);
+    let pdf = &mut app.state.pdf;
     let desired_w = pdf.desired_width;
     let sidebar_w = if pdf.sidebar_visible {
         pdf.sidebar_width + 1.0

@@ -171,7 +171,7 @@ impl KglanceApp {
                     )
                 } else {
                     crate::features::pdf::update::resize_pdf_preview(
-                        &mut self.state.typst.pdf,
+                        &mut self.state.pdf,
                         self.state.current_window_size.width,
                         direction,
                     )
@@ -314,7 +314,7 @@ impl KglanceApp {
                             )
                         } else {
                             Some(crate::features::pdf::update::reset_pdf_width(
-                                &mut self.state.typst.pdf,
+                                &mut self.state.pdf,
                                 self.state.current_window_size.width,
                             ))
                         }
