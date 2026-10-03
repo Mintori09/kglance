@@ -13,6 +13,11 @@ pub const SIDEBAR_ITEM_SPACING: f32 = 2.0;
 pub const SIDEBAR_ENTRY_PADDING_V: f32 = 4.0;
 pub const SIDEBAR_ENTRY_FONT_SIZE: f32 = 12.0;
 
+pub const DEFAULT_MIN_SIDEBAR_WIDTH: f32 = 140.0;
+pub const DEFAULT_MAX_SIDEBAR_WIDTH: f32 = 550.0;
+pub const PDF_MIN_SIDEBAR_WIDTH: f32 = 120.0;
+pub const PDF_MAX_SIDEBAR_WIDTH: f32 = 500.0;
+
 const ICON_EXPANDED: &str = "▼ ";
 const ICON_COLLAPSED: &str = "▶ ";
 
@@ -109,5 +114,115 @@ fn determine_drag_handle_color(is_resizing: bool, app_theme: AppTheme) -> Color 
         c.resizing
     } else {
         c.normal_drag
+    }
+}
+
+pub fn start_sidebar_drag(
+    is_resizing: &mut bool,
+    start_x: &mut Option<f32>,
+    start_width: &mut f32,
+    current_width: f32,
+) {
+    *is_resizing = true;
+    *start_x = None;
+    *start_width = current_width;
+}
+
+pub fn end_sidebar_drag(is_resizing: &mut bool) {
+    *is_resizing = false;
+}
+
+pub fn apply_sidebar_drag(
+    start_x: &mut Option<f32>,
+    start_width: &mut f32,
+    width: &mut f32,
+    x: f32,
+    min: f32,
+    max: f32,
+) {
+    match *start_x {
+        None => {
+            *start_x = Some(x);
+            *start_width = *width;
+        }
+        Some(anchor) => {
+            *width = (*start_width + (x - anchor)).clamp(min, max);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_start_and_end_sidebar_drag() {
+        let mut is_resizing = false;
+        let mut start_x = Some(10.0);
+        let mut start_width = 0.0;
+        let current_width = 250.0;
+
+        start_sidebar_drag(
+            &mut is_resizing,
+            &mut start_x,
+            &mut start_width,
+            current_width,
+        );
+        assert!(is_resizing);
+        assert_eq!(start_x, None);
+        assert_eq!(start_width, 250.0);
+
+        end_sidebar_drag(&mut is_resizing);
+        assert!(!is_resizing);
+    }
+
+    #[test]
+    fn test_apply_sidebar_drag() {
+        let mut start_x = None;
+        let mut start_width = 200.0;
+        let mut width = 200.0;
+
+        apply_sidebar_drag(
+            &mut start_x,
+            &mut start_width,
+            &mut width,
+            300.0,
+            100.0,
+            500.0,
+        );
+        assert_eq!(start_x, Some(300.0));
+        assert_eq!(width, 200.0);
+
+        apply_sidebar_drag(
+            &mut start_x,
+            &mut start_width,
+            &mut width,
+            350.0,
+            100.0,
+            500.0,
+        );
+        assert_eq!(width, 250.0);
+
+        // Clamping to max
+        apply_sidebar_drag(
+            &mut start_x,
+            &mut start_width,
+            &mut width,
+            900.0,
+            100.0,
+            500.0,
+        );
+        assert_eq!(width, 500.0);
+
+        // Clamping to min
+        apply_sidebar_drag(
+            &mut start_x,
+            &mut start_width,
+            &mut width,
+            0.0,
+            100.0,
+            500.0,
+        );
+        assert_eq!(width, 100.0);
     }
 }

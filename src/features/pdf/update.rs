@@ -606,10 +606,12 @@ fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
 }
 
 pub fn handle_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task<Message> {
+    use crate::ui::components::sidebar::{PDF_MAX_SIDEBAR_WIDTH, PDF_MIN_SIDEBAR_WIDTH};
+
     let win_w = app.state.current_window_size.width;
     let pdf_state = active_pdf_state_mut(app);
     let desired_w = pdf_state.desired_width;
-    pdf_state.sidebar_width = width.clamp(120.0, 500.0);
+    pdf_state.sidebar_width = width.clamp(PDF_MIN_SIDEBAR_WIDTH, PDF_MAX_SIDEBAR_WIDTH);
     crate::features::pdf::geometry::recalculate_pdf_thumbnail_offsets(pdf_state);
     let sidebar_w = if pdf_state.sidebar_visible {
         pdf_state.sidebar_width + 1.0
