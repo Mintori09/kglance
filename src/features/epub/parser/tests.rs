@@ -467,3 +467,90 @@ fn test_epub_sbo_rt_content_not_displayed() {
         "Hello"
     );
 }
+
+#[test]
+fn test_epub_various_anchor_formats() {
+    let html = r#"
+        <html>
+        <body>
+            <h1>Chapter Title</h1>
+            <p>Intro text</p>
+            <p><a id="empty_a"/>Empty anchor before paragraph</p>
+            <h2><span id="span_id">Section with Span ID</span></h2>
+            <p>Span section body</p>
+            <h3 xml:id="xml_heading">Heading with xml:id</h3>
+            <p>XML body</p>
+            <div id="encoded space">
+                <h4>Section with Space</h4>
+            </div>
+        </body>
+        </html>
+    "#;
+
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+
+    // 1. Empty tag anchor <a id="empty_a"/>
+    let idx1 = super::find_block_index(&blocks, Some("empty_a"), None);
+    assert!(
+        idx1.is_some(),
+        "Self-closing <a id='empty_a'/> must be found"
+    );
+
+    // 2. <span id="span_id"> inside heading
+    let idx2 = super::find_block_index(&blocks, Some("span_id"), None);
+    assert!(idx2.is_some(), "<span id='span_id'> must be found");
+
+    // 3. xml:id attribute
+    let idx3 = super::find_block_index(&blocks, Some("xml_heading"), None);
+    assert!(idx3.is_some(), "xml:id='xml_heading' must be found");
+
+    // 4. URL-encoded anchor matching
+    let idx4 = super::find_block_index(&blocks, Some("encoded%20space"), None);
+    assert!(
+        idx4.is_some(),
+        "URL-encoded anchor 'encoded%20space' must match 'encoded space'"
+    );
+}
+
+#[test]
+fn test_epub_toc_heading_resolution() {
+    let html = r#"
+        <!DOCTYPE html>
+        <html>
+        <body>
+            <p>Introductory remarks before chapter.</p>
+            <h1>Chapter 1: The Beginning</h1>
+            <p>Body paragraph 1.</p>
+            <h2 id="sec1-1">1.1&nbsp;First Steps</h2>
+            <p>Section 1 body.</p>
+            <h2 id="sec1-2">1.2 Second Steps</h2>
+            <p>Section 2 body.</p>
+            <h3>1.2.1 Deep Details</h3>
+            <p>Deep details body.</p>
+        </body>
+        </html>
+    "#;
+
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+
+    // 1. With anchor: id="sec1-1"
+    let idx_1_1 = super::find_block_index(&blocks, Some("sec1-1"), Some("1.1 First Steps"));
+    assert!(idx_1_1.is_some(), "Anchor 'sec1-1' must be resolved");
+
+    // 2. Without anchor, matching title with non-breaking space &nbsp;
+    let idx_nbsp = super::find_block_index(&blocks, None, Some("1.1\u{a0}First Steps"));
+    assert_eq!(
+        idx_nbsp, idx_1_1,
+        "Non-breaking space title must resolve to the same heading"
+    );
+
+    // 3. Sub-heading without anchor, matching by title
+    let idx_deep = super::find_block_index(&blocks, None, Some("1.2.1 Deep Details"));
+    assert!(idx_deep.is_some(), "Deep Details must be resolved by title");
+    assert!(
+        idx_deep.unwrap() > idx_1_1.unwrap(),
+        "Sub-heading must be further down in blocks"
+    );
+}

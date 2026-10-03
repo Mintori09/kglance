@@ -94,30 +94,31 @@ pub fn strip_anchor_tags(s: &str) -> String {
         return s.to_string();
     }
     let mut out = String::with_capacity(s.len());
-    let len = s.len();
-    let mut i = 0;
+    let mut remainder = s;
 
-    while i < len {
-        if i + 4 <= len && s[i..i + 4].eq_ignore_ascii_case("</a>") {
-            i += 4;
+    while !remainder.is_empty() {
+        if remainder.starts_with("</a>") || remainder.starts_with("</A>") {
+            remainder = &remainder[4..];
             continue;
         }
-        if i + 3 <= len && s[i..i + 3].eq_ignore_ascii_case("<a>") {
-            i += 3;
+        if remainder.starts_with("<a>") || remainder.starts_with("<A>") {
+            remainder = &remainder[3..];
             continue;
         }
-        if i + 3 <= len
-            && (s[i..i + 3].eq_ignore_ascii_case("<a ")
-                || s[i..i + 3].eq_ignore_ascii_case("<a\n")
-                || s[i..i + 3].eq_ignore_ascii_case("<a\t"))
-            && let Some(end_offset) = s[i..].find('>')
+        if (remainder.starts_with("<a ")
+            || remainder.starts_with("<A ")
+            || remainder.starts_with("<a\n")
+            || remainder.starts_with("<A\n")
+            || remainder.starts_with("<a\t")
+            || remainder.starts_with("<A\t"))
+            && let Some(end_offset) = remainder.find('>')
         {
-            i += end_offset + 1;
+            remainder = &remainder[end_offset + 1..];
             continue;
         }
-        if let Some(ch) = s[i..].chars().next() {
+        if let Some(ch) = remainder.chars().next() {
             out.push(ch);
-            i += ch.len_utf8();
+            remainder = &remainder[ch.len_utf8()..];
         } else {
             break;
         }

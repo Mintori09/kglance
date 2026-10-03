@@ -173,19 +173,6 @@ impl HtmlToMarkdownConverter {
                     self.append_str("`");
                 }
             }
-            "span" => {
-                if has_class_or_attr(e, "class", "math inline") {
-                    self.in_math = true;
-                    self.math_buffer.clear();
-                    self.math_annotation_tex = None;
-                    self.in_math_display = false;
-                } else if has_class_or_attr(e, "class", "math display") {
-                    self.in_math = true;
-                    self.math_buffer.clear();
-                    self.math_annotation_tex = None;
-                    self.in_math_display = true;
-                }
-            }
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
                 let hashes = match name {
                     "h1" => "#",
@@ -196,21 +183,41 @@ impl HtmlToMarkdownConverter {
                     "h6" => "######",
                     _ => "#",
                 };
-                let id_attr =
-                    extract_attr_from_event(e, "id").or_else(|| extract_attr_from_event(e, "name"));
+                let id_attr = extract_id_or_name(e);
                 if let Some(id) = id_attr {
                     self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n{hashes} "));
                 } else {
                     self.append_str(&format!("\n\n{hashes} "));
                 }
             }
-            "p" | "div" | "blockquote" | "section" | "a" => {
-                let id_attr =
-                    extract_attr_from_event(e, "id").or_else(|| extract_attr_from_event(e, "name"));
-                if let Some(id) = id_attr {
-                    self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n"));
+            "p" | "div" | "blockquote" | "section" | "article" | "header" | "footer" | "aside"
+            | "figure" | "figcaption" | "main" | "body" | "dt" | "dd" => {
+                if let Some(id) = extract_id_or_name(e) {
+                    self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n"));
                 }
                 self.ensure_newline();
+            }
+            "a" | "span" => {
+                if let Some(id) = extract_id_or_name(e) {
+                    if self.output.ends_with('\n') || self.output.is_empty() {
+                        self.append_str(&format!("<a id=\"{id}\"></a>\n\n"));
+                    } else {
+                        self.append_str(&format!("<a id=\"{id}\"></a> "));
+                    }
+                }
+                if name == "span" {
+                    if has_class_or_attr(e, "class", "math inline") {
+                        self.in_math = true;
+                        self.math_buffer.clear();
+                        self.math_annotation_tex = None;
+                        self.in_math_display = false;
+                    } else if has_class_or_attr(e, "class", "math display") {
+                        self.in_math = true;
+                        self.math_buffer.clear();
+                        self.math_annotation_tex = None;
+                        self.in_math_display = true;
+                    }
+                }
             }
             "ul" => {
                 self.list_stack.push(ListContext {
@@ -225,6 +232,9 @@ impl HtmlToMarkdownConverter {
                 });
             }
             "li" => {
+                if let Some(id) = extract_id_or_name(e) {
+                    self.append_str(&format!("<a id=\"{id}\"></a> "));
+                }
                 self.ensure_newline();
                 let indent_level = self.list_stack.len().saturating_sub(1);
                 let indent = "  ".repeat(indent_level);
@@ -240,8 +250,18 @@ impl HtmlToMarkdownConverter {
                     self.append_str("- ");
                 }
             }
-            "b" | "strong" => self.append_str("**"),
-            "i" | "em" => self.append_str("*"),
+            "b" | "strong" => {
+                if let Some(id) = extract_id_or_name(e) {
+                    self.append_str(&format!("<a id=\"{id}\"></a> "));
+                }
+                self.append_str("**");
+            }
+            "i" | "em" => {
+                if let Some(id) = extract_id_or_name(e) {
+                    self.append_str(&format!("<a id=\"{id}\"></a> "));
+                }
+                self.append_str("*");
+            }
             "sub" => {
                 self.sub_depth += 1;
                 self.append_str("~");
@@ -251,7 +271,15 @@ impl HtmlToMarkdownConverter {
                 self.append_str("^");
             }
             "hr" => self.append_str("\n\n---\n\n"),
-            _ => {}
+            _ => {
+                if let Some(id) = extract_id_or_name(e) {
+                    if self.output.ends_with('\n') || self.output.is_empty() {
+                        self.append_str(&format!("<a id=\"{id}\"></a>\n\n"));
+                    } else {
+                        self.append_str(&format!("<a id=\"{id}\"></a> "));
+                    }
+                }
+            }
         }
     }
 
@@ -369,6 +397,14 @@ impl HtmlToMarkdownConverter {
     fn handle_empty_tag(&mut self, name: &str, e: &quick_xml::events::BytesStart) {
         if self.skip_depth > 0 {
             return;
+        }
+
+        if let Some(id) = extract_id_or_name(e) {
+            if self.output.ends_with('\n') || self.output.is_empty() {
+                self.append_str(&format!("<a id=\"{id}\"></a>\n\n"));
+            } else {
+                self.append_str(&format!("<a id=\"{id}\"></a> "));
+            }
         }
 
         match name {
@@ -846,7 +882,7 @@ pub fn extract_headings_from_html(html: &str) -> Vec<HtmlHeading> {
                 let name = e.name();
                 if let Some(level) = parse_heading_tag(name.as_ref()) {
                     current_heading_level = Some(level);
-                    current_heading_id = extract_attr_from_event(e, "id");
+                    current_heading_id = extract_id_or_name(e);
                     current_heading_text.clear();
                 }
             }
@@ -895,10 +931,18 @@ fn parse_heading_tag(name: &str) -> Option<u8> {
     }
 }
 
-fn extract_attr_from_event(e: &quick_xml::events::BytesStart, attr_name: &str) -> Option<String> {
+pub(crate) fn extract_id_or_name(e: &quick_xml::events::BytesStart) -> Option<String> {
     for attr in e.attributes().flatten() {
-        if attr.key.as_ref().eq_ignore_ascii_case(attr_name) {
-            return Some(attr.value.to_string());
+        let key = attr.key.as_ref();
+        if key.eq_ignore_ascii_case("id")
+            || key.eq_ignore_ascii_case("name")
+            || key.eq_ignore_ascii_case("xml:id")
+        {
+            let val = attr.value.to_string();
+            let trimmed = val.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
         }
     }
     None

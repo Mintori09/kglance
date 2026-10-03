@@ -79,6 +79,20 @@ pub fn populate_state(
     }
 
     let old_sidebar_width = state.epub.sidebar_width;
+    let mut scroll_y = old_scroll;
+    if scroll_y == 0.0
+        && let Some(active_ch) = chapters.get(active_chapter)
+        && let Some(b_idx) = crate::features::epub::parser::find_block_index(
+            &active_ch.blocks,
+            active_ch.anchor.as_deref(),
+            Some(&active_ch.title),
+        )
+        && let Some(&y) = markdown_state.block_y_offsets.get(b_idx)
+    {
+        scroll_y = y;
+        markdown_state.scroll_y = y;
+    }
+
     state.epub = EpubState {
         title: title.to_string(),
         author: author.to_string(),
@@ -93,7 +107,7 @@ pub fn populate_state(
         sidebar_resizing: false,
         sidebar_drag_start_x: None,
         sidebar_drag_start_width: 240.0,
-        scroll_y: old_scroll,
+        scroll_y,
         collapsed_chapters: old_collapsed,
         markdown_state,
     };
