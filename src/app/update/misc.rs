@@ -269,6 +269,7 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
                 app.current_content,
                 Some(crate::core::PreviewData::Text { .. })
             ) {
+                app.state.text.viewport_height = height;
                 let wrap_mode = if app.state.word_wrap {
                     crate::features::text::WrapMode::Word
                 } else {
@@ -282,10 +283,18 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
                 );
                 app.state.text.total_content_height =
                     app.state.text.display_map.total_content_height();
+                let theme = app.state.app_theme;
+                let scroll_y = app.state.text.scroll_y;
+                crate::features::text::update_tokens_for_viewport(
+                    &mut app.state.text,
+                    scroll_y,
+                    theme,
+                );
             } else if matches!(
                 app.current_content,
                 Some(crate::core::PreviewData::Json { .. })
             ) {
+                app.state.json.raw_text.viewport_height = height;
                 let wrap_mode = if app.state.word_wrap {
                     crate::features::text::WrapMode::Word
                 } else {
@@ -299,10 +308,18 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
                 );
                 app.state.json.raw_text.total_content_height =
                     app.state.json.raw_text.display_map.total_content_height();
+                let theme = app.state.app_theme;
+                let scroll_y = app.state.json.raw_text.scroll_y;
+                crate::features::text::update_tokens_for_viewport(
+                    &mut app.state.json.raw_text,
+                    scroll_y,
+                    theme,
+                );
             } else if matches!(
                 app.current_content,
                 Some(crate::core::PreviewData::Typst { .. })
             ) {
+                app.state.typst.source_text.viewport_height = height;
                 let wrap_mode = if app.state.word_wrap {
                     crate::features::text::WrapMode::Word
                 } else {
@@ -320,6 +337,13 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
                     .source_text
                     .display_map
                     .total_content_height();
+                let theme = app.state.app_theme;
+                let scroll_y = app.state.typst.source_text.scroll_y;
+                crate::features::text::update_tokens_for_viewport(
+                    &mut app.state.typst.source_text,
+                    scroll_y,
+                    theme,
+                );
             }
         }
     }

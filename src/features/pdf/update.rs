@@ -637,6 +637,66 @@ pub fn handle_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task<Message>
     Task::none()
 }
 
+pub fn resize_pdf_preview(
+    pdf: &mut crate::core::PdfState,
+    window_width: f32,
+    direction: f32,
+) -> Option<Task<Message>> {
+    let old_width = pdf.desired_width;
+    let mut new_width = (old_width + direction * 50.0).clamp(300.0, 2400.0);
+
+    if new_width == old_width {
+        return Some(Task::none());
+    }
+
+    let sidebar_width = if pdf.sidebar_visible {
+        pdf.sidebar_width + 1.0
+    } else {
+        0.0
+    };
+
+    let max_width = (window_width - sidebar_width - 40.0).clamp(300.0, 2400.0);
+
+    if new_width > max_width {
+        new_width = max_width;
+    }
+
+    let scroll_y =
+        crate::features::pdf::view::rescale_pdf_and_anchor(pdf, old_width, new_width, max_width);
+
+    Some(iced::widget::operation::scroll_to(
+        "content_scroll",
+        iced::widget::operation::AbsoluteOffset {
+            x: 0.0,
+            y: scroll_y,
+        },
+    ))
+}
+
+pub fn reset_pdf_width(pdf: &mut crate::core::PdfState, window_width: f32) -> Task<Message> {
+    let old_width = pdf.desired_width;
+    let new_width = 800.0;
+
+    let sidebar_width = if pdf.sidebar_visible {
+        pdf.sidebar_width + 1.0
+    } else {
+        0.0
+    };
+
+    let max_width = (window_width - sidebar_width - 40.0).clamp(300.0, 2400.0);
+
+    let scroll_y =
+        crate::features::pdf::view::rescale_pdf_and_anchor(pdf, old_width, new_width, max_width);
+
+    iced::widget::operation::scroll_to(
+        "content_scroll",
+        iced::widget::operation::AbsoluteOffset {
+            x: 0.0,
+            y: scroll_y,
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

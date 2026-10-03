@@ -410,8 +410,11 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::JsonMsg::ToggleNode(idx) => {
                 crate::features::json::update::handle_toggle_node(app, idx)
             }
-            crate::app::messages::JsonMsg::Scrolled(y) => {
-                crate::features::json::update::handle_scrolled(app, y)
+            crate::app::messages::JsonMsg::Scrolled(vp) => {
+                crate::features::json::update::handle_scrolled(app, vp)
+            }
+            crate::app::messages::JsonMsg::WheelScrolled(delta) => {
+                crate::features::json::update::handle_wheel_scrolled(app, delta)
             }
             crate::app::messages::JsonMsg::RawScrolled(vp) => {
                 crate::features::json::update::handle_raw_scrolled(app, vp)
@@ -475,7 +478,37 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 Task::none()
             }
             crate::app::messages::SettingsMsg::FontSizeChanged(s) => {
+                let old_size = app.state.font_size;
                 app.state.font_size = s;
+                let win_w = app.state.current_window_size.width;
+                let theme = app.state.app_theme;
+                let word_wrap = app.state.word_wrap;
+
+                crate::features::text::rescale_text_geometry(
+                    &mut app.state.text,
+                    old_size,
+                    s,
+                    word_wrap,
+                    win_w,
+                    theme,
+                );
+                crate::features::text::rescale_text_geometry(
+                    &mut app.state.json.raw_text,
+                    old_size,
+                    s,
+                    word_wrap,
+                    win_w,
+                    theme,
+                );
+                crate::features::text::rescale_text_geometry(
+                    &mut app.state.typst.source_text,
+                    old_size,
+                    s,
+                    word_wrap,
+                    win_w,
+                    theme,
+                );
+
                 let mut config = crate::core::config::ConfigManager::load_or_create();
                 config.ui.font_size = s;
                 let _ = crate::core::config::ConfigManager::save(&config);
@@ -545,29 +578,57 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 } else {
                     crate::features::text::WrapMode::None
                 };
+                let win_w = if app.state.current_window_size.width > 0.0 {
+                    app.state.current_window_size.width
+                } else if app.state.window_width > 0.0 {
+                    app.state.window_width
+                } else {
+                    1024.0
+                };
+                let sidebar_w =
+                    if app.state.text.outline_visible && app.state.text.sidebar_width > 0.0 {
+                        app.state.text.sidebar_width
+                    } else {
+                        0.0
+                    };
+                let available_w = (win_w - sidebar_w).max(200.0);
+
                 app.state.text.display_map.update_geometry(
                     &app.state.text.document,
-                    app.state.text.display_map.viewport_width,
+                    available_w,
                     app.state.font_size,
                     wrap_mode,
                 );
+                let theme = app.state.app_theme;
+                let text_scroll_y = app.state.text.scroll_y;
                 app.state.text.total_content_height =
                     app.state.text.display_map.total_content_height();
+                crate::features::text::update_tokens_for_viewport(
+                    &mut app.state.text,
+                    text_scroll_y,
+                    theme,
+                );
 
                 app.state.json.raw_text.wrap = enabled;
                 app.state.json.raw_text.display_map.update_geometry(
                     &app.state.json.raw_text.document,
-                    app.state.json.raw_text.display_map.viewport_width,
+                    win_w,
                     app.state.font_size,
                     wrap_mode,
                 );
                 app.state.json.raw_text.total_content_height =
                     app.state.json.raw_text.display_map.total_content_height();
+                let json_scroll_y = app.state.json.raw_text.scroll_y;
+                crate::features::text::update_tokens_for_viewport(
+                    &mut app.state.json.raw_text,
+                    json_scroll_y,
+                    theme,
+                );
 
                 app.state.typst.source_text.wrap = enabled;
                 app.state.typst.source_text.display_map.update_geometry(
                     &app.state.typst.source_text.document,
-                    app.state.typst.source_text.display_map.viewport_width,
+                    win_w,
                     app.state.font_size,
                     wrap_mode,
                 );
@@ -577,6 +638,12 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
                     .source_text
                     .display_map
                     .total_content_height();
+                let typst_scroll_y = app.state.typst.source_text.scroll_y;
+                crate::features::text::update_tokens_for_viewport(
+                    &mut app.state.typst.source_text,
+                    typst_scroll_y,
+                    theme,
+                );
 
                 let mut config = crate::core::config::ConfigManager::load_or_create();
                 config.ui.word_wrap = enabled;
@@ -637,7 +704,7 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
                     }
                     task
                 } else {
-                    Task::none()
+                    crate::features::json::update::handle_smooth_scroll_tick(app, now)
                 }
             }
             Some(crate::core::PreviewData::Spreadsheet { .. }) => {

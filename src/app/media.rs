@@ -149,38 +149,88 @@ impl super::KglanceApp {
                             }
                         }
                         Some(PreviewData::Text { .. }) => {
-                            let old_lh = old_font_size * 1.35;
-                            let new_lh = next_font_size * 1.35;
-                            let line_index = (self.state.text.scroll_y / old_lh).max(0.0);
-                            self.state.text.scroll_y = (line_index * new_lh).max(0.0);
+                            let win_w = self.state.current_window_size.width;
+                            let theme = self.state.app_theme;
+                            let word_wrap = self.state.word_wrap;
+                            let new_scroll_y = crate::features::text::rescale_text_geometry(
+                                &mut self.state.text,
+                                old_font_size,
+                                next_font_size,
+                                word_wrap,
+                                win_w,
+                                theme,
+                            );
                             operation::scroll_to(
                                 "content_scroll",
                                 AbsoluteOffset {
                                     x: 0.0,
-                                    y: self.state.text.scroll_y,
+                                    y: new_scroll_y,
                                 },
                             )
                         }
                         Some(PreviewData::Json { .. }) => {
-                            let new_scroll_y = if self.state.json.tree_mode {
+                            if self.state.json.tree_mode {
                                 let old_row_h = (old_font_size * 1.2).max(18.0) + 4.0;
                                 let new_row_h = (next_font_size * 1.2).max(18.0) + 4.0;
-                                let node_index = (self.state.json.scroll_y / old_row_h).max(0.0);
-                                (node_index * new_row_h).max(0.0)
+                                let node_index = if old_row_h > 0.0 {
+                                    (self.state.json.scroll_y / old_row_h).max(0.0)
+                                } else {
+                                    0.0
+                                };
+                                let new_scroll_y = (node_index * new_row_h).max(0.0);
+                                self.state.json.scroll_y = new_scroll_y;
+                                operation::scroll_to(
+                                    "content_scroll",
+                                    AbsoluteOffset {
+                                        x: 0.0,
+                                        y: new_scroll_y,
+                                    },
+                                )
                             } else {
-                                let old_lh = old_font_size * 1.35;
-                                let new_lh = next_font_size * 1.35;
-                                let line_index = (self.state.json.scroll_y / old_lh).max(0.0);
-                                (line_index * new_lh).max(0.0)
-                            };
-                            self.state.json.scroll_y = new_scroll_y;
-                            operation::scroll_to(
-                                "content_scroll",
-                                AbsoluteOffset {
-                                    x: 0.0,
-                                    y: self.state.json.scroll_y,
-                                },
-                            )
+                                let win_w = self.state.current_window_size.width;
+                                let theme = self.state.app_theme;
+                                let word_wrap = self.state.word_wrap;
+                                let new_scroll_y = crate::features::text::rescale_text_geometry(
+                                    &mut self.state.json.raw_text,
+                                    old_font_size,
+                                    next_font_size,
+                                    word_wrap,
+                                    win_w,
+                                    theme,
+                                );
+                                self.state.json.scroll_y = new_scroll_y;
+                                operation::scroll_to(
+                                    "json_raw_scroll",
+                                    AbsoluteOffset {
+                                        x: 0.0,
+                                        y: new_scroll_y,
+                                    },
+                                )
+                            }
+                        }
+                        Some(PreviewData::Typst { .. }) => {
+                            if self.state.typst.show_source {
+                                let win_w = self.state.current_window_size.width;
+                                let theme = self.state.app_theme;
+                                let word_wrap = self.state.word_wrap;
+                                let new_scroll_y = crate::features::text::rescale_text_geometry(
+                                    &mut self.state.typst.source_text,
+                                    old_font_size,
+                                    next_font_size,
+                                    word_wrap,
+                                    win_w,
+                                    theme,
+                                );
+                                operation::scroll_to(
+                                    "typst_source_scroll",
+                                    AbsoluteOffset {
+                                        x: 0.0,
+                                        y: new_scroll_y,
+                                    },
+                                )
+                            } else {
+                                Task::none()
+                            }
                         }
                         _ => Task::none(),
                     }
