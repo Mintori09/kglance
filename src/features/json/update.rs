@@ -12,11 +12,20 @@ pub fn handle_toggle_mode(app: &mut KglanceApp) -> Task<Message> {
         } else {
             app.state.json.minified_content.clone()
         };
+        let win_w = if app.state.current_window_size.width > 0.0 {
+            app.state.current_window_size.width
+        } else if app.state.window_width > 0.0 {
+            app.state.window_width
+        } else {
+            1024.0
+        };
         app.state.json.raw_text = crate::features::text::create_text_state(
             content,
             "json",
             app.state.font_size,
-            app.state.text.wrap,
+            app.state.word_wrap,
+            app.state.app_theme,
+            win_w,
         );
     }
 
@@ -33,11 +42,163 @@ pub fn handle_toggle_node(app: &mut KglanceApp, index: usize) -> Task<Message> {
     Task::none()
 }
 
-pub fn handle_scrolled(app: &mut KglanceApp, y: f32) -> Task<Message> {
+pub fn handle_scrolled(
+    app: &mut KglanceApp,
+    viewport: iced::widget::scrollable::Viewport,
+) -> Task<Message> {
     if app.ctrl_held {
         return Task::none();
     }
-    app.state.json.scroll_y = y;
+    let y = viewport.absolute_offset().y;
+    let vh = viewport.bounds().height;
+    let total_h = viewport.content_bounds().height;
+
+    let state = &mut app.state.json;
+    if vh > 0.0 {
+        state.viewport_height = vh;
+    }
+    if total_h > 0.0 {
+        state.total_content_height = total_h;
+    }
+
+    if state.smooth_scroll.is_animating
+        || state.scroll_controller.is_animating()
+        || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+    {
+        return Task::none();
+    }
+
+    let delta_y = (state.scroll_y - y).abs();
+    if delta_y < 1.0 {
+        return Task::none();
+    }
+
+    state.smooth_scroll.stop(y);
+    state.scroll_controller.stop(y);
+    state.scroll_y = y;
+    Task::none()
+}
+
+pub fn handle_wheel_scrolled(
+    app: &mut KglanceApp,
+    delta: iced::mouse::ScrollDelta,
+) -> Task<Message> {
+    if app.ctrl_held {
+        return Task::none();
+    }
+    let state = &mut app.state.json;
+    if state.viewport_height <= 0.0 {
+        return Task::none();
+    }
+    let vh = state.viewport_height;
+    let extent = crate::core::scroll::ViewportExtent {
+        content_height: state.total_content_height,
+        viewport_height: vh,
+    };
+    let max_y = extent.max_scroll_y();
+
+    match delta {
+        iced::mouse::ScrollDelta::Lines { y, .. } => {
+            if y.abs() > f32::EPSILON {
+                let line_height =
+                    (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION).clamp(50.0, 240.0);
+                let step = -y * line_height;
+                state
+                    .smooth_scroll
+                    .start_interactive(state.scroll_y, step, max_y);
+            }
+            Task::none()
+        }
+        iced::mouse::ScrollDelta::Pixels { x, y } => {
+            let now = std::time::Instant::now();
+            let scaled_delta_y = -y * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
+            let scaled_delta_x = -x * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
+
+            state.scroll_controller.set_position_y(state.scroll_y);
+            state.scroll_controller.handle_input(
+                crate::core::scroll::ScrollInput::Motion {
+                    delta_x: scaled_delta_x,
+                    delta_y: scaled_delta_y,
+                    time: now,
+                },
+                extent,
+            );
+
+            let new_y = state.scroll_controller.position_y();
+            state.scroll_y = new_y;
+            state.smooth_scroll.stop(new_y);
+
+            iced::widget::operation::scroll_to(
+                "content_scroll",
+                iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
+            )
+        }
+    }
+}
+
+pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) -> Task<Message> {
+    let state = &mut app.state.json;
+    let extent = crate::core::scroll::ViewportExtent {
+        content_height: state.total_content_height,
+        viewport_height: state.viewport_height,
+    };
+    let max_y = extent.max_scroll_y();
+
+    // 1. ScrollController check
+    if (state.scroll_controller.is_animating()
+        || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging)
+        && let Some(next_y) = state.scroll_controller.update(now, extent)
+    {
+        state.scroll_y = next_y;
+        state.smooth_scroll.stop(next_y);
+        let is_finished = !state.scroll_controller.is_animating();
+
+        let scroll_task = if is_finished && next_y >= max_y - 1.0 {
+            iced::widget::operation::snap_to(
+                "content_scroll",
+                iced::widget::operation::RelativeOffset { x: 0.0, y: 1.0 },
+            )
+        } else if is_finished && next_y <= 1.0 {
+            iced::widget::operation::snap_to(
+                "content_scroll",
+                iced::widget::operation::RelativeOffset { x: 0.0, y: 0.0 },
+            )
+        } else {
+            iced::widget::operation::scroll_to(
+                "content_scroll",
+                iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
+            )
+        };
+
+        return scroll_task;
+    }
+
+    // 2. SmoothScroller check (keyboard navigation & discrete wheel step)
+    if let Some(next_y) = state.smooth_scroll.tick(state.scroll_y, now, max_y) {
+        state.scroll_y = next_y;
+        state.scroll_controller.set_position_y(next_y);
+        let is_finished = !state.smooth_scroll.is_animating;
+
+        let scroll_task = if is_finished && next_y >= max_y - 1.0 {
+            iced::widget::operation::snap_to(
+                "content_scroll",
+                iced::widget::operation::RelativeOffset { x: 0.0, y: 1.0 },
+            )
+        } else if is_finished && next_y <= 1.0 {
+            iced::widget::operation::snap_to(
+                "content_scroll",
+                iced::widget::operation::RelativeOffset { x: 0.0, y: 0.0 },
+            )
+        } else {
+            iced::widget::operation::scroll_to(
+                "content_scroll",
+                iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
+            )
+        };
+
+        return scroll_task;
+    }
+
     Task::none()
 }
 
@@ -58,6 +219,7 @@ pub fn handle_raw_scrolled(
     }
     let y = viewport.absolute_offset().y;
     let vh = viewport.bounds().height;
+    let vw = viewport.bounds().width;
     let total_h = viewport.content_bounds().height;
 
     let text_state = &mut app.state.json.raw_text;
@@ -66,6 +228,20 @@ pub fn handle_raw_scrolled(
     }
     if total_h > 0.0 {
         text_state.total_content_height = total_h;
+    }
+    if vw > 0.0 && (vw - text_state.display_map.viewport_width).abs() > 20.0 {
+        let wrap_mode = if app.state.word_wrap {
+            crate::features::text::WrapMode::Word
+        } else {
+            crate::features::text::WrapMode::None
+        };
+        text_state.display_map.update_geometry(
+            &text_state.document,
+            vw,
+            app.state.font_size,
+            wrap_mode,
+        );
+        text_state.total_content_height = text_state.display_map.total_content_height();
     }
 
     let is_animating = text_state.smooth_scroll.is_animating
@@ -319,12 +495,78 @@ pub fn handle_toggle_format(app: &mut KglanceApp) -> Task<Message> {
         s.minified_content.clone()
     };
 
+    let win_w = if app.state.current_window_size.width > 0.0 {
+        app.state.current_window_size.width
+    } else if app.state.window_width > 0.0 {
+        app.state.window_width
+    } else {
+        1024.0
+    };
+
     s.raw_text = crate::features::text::create_text_state(
         content,
         "json",
         app.state.font_size,
-        app.state.text.wrap,
+        app.state.word_wrap,
+        app.state.app_theme,
+        win_w,
     );
 
     Task::none()
+}
+
+pub const FONT_MIN: f32 = 8.0;
+pub const FONT_MAX: f32 = 48.0;
+
+pub fn zoom_json_font(app: &mut KglanceApp, direction: f32) -> Option<Task<Message>> {
+    let target = app.state.font_size + direction;
+    rescale_json_font(app, target)
+}
+
+pub fn rescale_json_font(app: &mut KglanceApp, new_size: f32) -> Option<Task<Message>> {
+    let old_size = app.state.font_size;
+    let new_size = new_size.clamp(FONT_MIN, FONT_MAX);
+    if (new_size - old_size).abs() < f32::EPSILON {
+        return Some(Task::none());
+    }
+    app.state.font_size = new_size;
+
+    if app.state.json.tree_mode {
+        let old_row_h = (old_size * 1.2).max(18.0) + 4.0;
+        let new_row_h = (new_size * 1.2).max(18.0) + 4.0;
+        let node_index = if old_row_h > 0.0 {
+            (app.state.json.scroll_y / old_row_h).max(0.0)
+        } else {
+            0.0
+        };
+        let new_scroll_y = (node_index * new_row_h).max(0.0);
+        app.state.json.scroll_y = new_scroll_y;
+        Some(iced::widget::operation::scroll_to(
+            "content_scroll",
+            iced::widget::operation::AbsoluteOffset {
+                x: 0.0,
+                y: new_scroll_y,
+            },
+        ))
+    } else {
+        let win_w = app.state.current_window_size.width;
+        let theme = app.state.app_theme;
+        let word_wrap = app.state.word_wrap;
+        let new_scroll_y = crate::features::text::rescale_text_geometry(
+            &mut app.state.json.raw_text,
+            old_size,
+            new_size,
+            word_wrap,
+            win_w,
+            theme,
+        );
+        app.state.json.scroll_y = new_scroll_y;
+        Some(iced::widget::operation::scroll_to(
+            "json_raw_scroll",
+            iced::widget::operation::AbsoluteOffset {
+                x: 0.0,
+                y: new_scroll_y,
+            },
+        ))
+    }
 }

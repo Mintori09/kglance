@@ -191,7 +191,9 @@ fn build_content<'a>(
         let view_content = render_tree(state, theme, font_size);
         scroll_pane(CONTENT_SCROLL_ID, view_content)
             .container_padding(CONTENT_CONTAINER_PADDING)
-            .on_scroll(|viewport| JsonMsg::Scrolled(viewport.absolute_offset().y).into())
+            .filter_wheel(true)
+            .on_scroll(|viewport| JsonMsg::Scrolled(viewport).into())
+            .on_wheel(|delta| JsonMsg::WheelScrolled(delta).into())
             .build()
     } else {
         render_raw(state, theme, font_size, font_family_mono, word_wrap)

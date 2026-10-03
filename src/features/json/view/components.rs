@@ -190,18 +190,24 @@ pub fn render_raw<'a>(
     theme: crate::ui::theme::AppTheme,
     font_size: f32,
     font_family_mono: Option<&str>,
-    _word_wrap: bool,
+    word_wrap: bool,
 ) -> Element<'a, Message> {
     let mono_font = crate::ui::theme::font::get_code_font(font_family_mono);
 
     let viewer =
         VirtualCodeViewer::<Message>::new(&state.raw_text.document, font_size, mono_font, theme)
             .display_map(&state.raw_text.display_map)
+            .wrap(word_wrap)
             .tokens(
                 &state.raw_text.cached_tokens,
                 state.raw_text.cached_tokens_start_line,
             )
             .selection(state.raw_text.selection)
+            .search(
+                &state.raw_text.search_query,
+                &state.raw_text.search_matches,
+                state.raw_text.search_match_index,
+            )
             .on_select(|sel| crate::app::messages::JsonMsg::RawSelectionChanged(sel).into())
             .on_copy(|text| crate::app::messages::ActionMsg::CopyCode(text).into());
 
