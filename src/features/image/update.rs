@@ -505,6 +505,28 @@ pub fn handle_video_thumbnail_loaded(app: &mut KglanceApp, data: Vec<u8>) -> Tas
     Task::none()
 }
 
+pub fn handle_image_reset(app: &mut KglanceApp) -> Option<Task<Message>> {
+    if !matches!(app.current_content, Some(PreviewData::Image { .. })) {
+        return None;
+    }
+
+    app.state.image.camera.zoom = 1.0;
+    app.state.image.camera.offset_x = 0.0;
+    app.state.image.camera.offset_y = 0.0;
+
+    Some(Task::none())
+}
+
+pub fn handle_image_zoom_step(app: &mut KglanceApp, direction: f32) -> Option<Task<Message>> {
+    const ZOOM_STEP: f32 = 0.2;
+    const ZOOM_MIN: f32 = 0.1;
+    const ZOOM_MAX: f32 = 10.0;
+
+    app.state.image.camera.zoom =
+        (app.state.image.camera.zoom + direction * ZOOM_STEP).clamp(ZOOM_MIN, ZOOM_MAX);
+    Some(Task::none())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

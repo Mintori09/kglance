@@ -178,7 +178,8 @@ pub enum EpubMsg {
 pub enum JsonMsg {
     ToggleMode,
     ToggleNode(usize),
-    Scrolled(f32),
+    Scrolled(iced::widget::scrollable::Viewport),
+    WheelScrolled(iced::mouse::ScrollDelta),
     RawScrolled(iced::widget::scrollable::Viewport),
     RawWheelScrolled(iced::mouse::ScrollDelta),
     RawSelectionChanged(Option<crate::ui::components::code_viewer::SelectionRange>),

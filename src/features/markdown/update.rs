@@ -1161,6 +1161,64 @@ fn collect_quote_plain_texts(
     }
 }
 
+pub const FONT_MIN: f32 = 8.0;
+pub const FONT_MAX: f32 = 48.0;
+
+pub fn zoom_markdown_font(app: &mut KglanceApp, direction: f32) -> Option<Task<Message>> {
+    let target = app.state.font_size + direction;
+    rescale_markdown_font(app, target)
+}
+
+pub fn rescale_markdown_font(app: &mut KglanceApp, new_size: f32) -> Option<Task<Message>> {
+    let old_size = app.state.font_size;
+    let new_size = new_size.clamp(FONT_MIN, FONT_MAX);
+    if (new_size - old_size).abs() < f32::EPSILON {
+        return Some(Task::none());
+    }
+    app.state.font_size = new_size;
+
+    match app.current_content {
+        Some(PreviewData::Markdown { ref blocks, .. }) => {
+            let content_width = app.state.markdown_content_width();
+            let new_scroll_y = crate::features::markdown::rescale_and_update_markdown_layout(
+                &mut app.state.markdown,
+                blocks,
+                old_size,
+                new_size,
+                content_width,
+            );
+            Some(iced::widget::operation::scroll_to(
+                "content_scroll",
+                iced::widget::operation::AbsoluteOffset {
+                    x: 0.0,
+                    y: new_scroll_y,
+                },
+            ))
+        }
+        Some(PreviewData::Epub { ref chapters, .. }) => {
+            let active_chapter = app.state.epub.active_chapter;
+            chapters.get(active_chapter).map(|chapter| {
+                let epub_content_width = app.state.epub_content_width();
+                let new_scroll_y = crate::features::markdown::rescale_and_update_markdown_layout(
+                    &mut app.state.epub.markdown_state,
+                    &chapter.blocks,
+                    old_size,
+                    new_size,
+                    epub_content_width,
+                );
+                iced::widget::operation::scroll_to(
+                    "content_scroll",
+                    iced::widget::operation::AbsoluteOffset {
+                        x: 0.0,
+                        y: new_scroll_y,
+                    },
+                )
+            })
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

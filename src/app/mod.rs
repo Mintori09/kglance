@@ -1121,7 +1121,11 @@ impl KglanceApp {
                         || text.scroll_controller.state()
                             == crate::core::scroll::GestureState::Dragging
                 } else {
-                    false
+                    let json = &self.state.json;
+                    json.smooth_scroll.is_animating
+                        || json.scroll_controller.is_animating()
+                        || json.scroll_controller.state()
+                            == crate::core::scroll::GestureState::Dragging
                 }
             }
             Some(crate::core::PreviewData::Spreadsheet { .. }) => {
