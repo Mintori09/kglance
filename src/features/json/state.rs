@@ -21,12 +21,25 @@ pub fn populate_state(
 
     let parsed_cache_hit = state.json.parsed_cache.clone();
 
+    let win_w = if state.current_window_size.width > 0.0 {
+        state.current_window_size.width
+    } else if state.window_width > 0.0 {
+        state.window_width
+    } else {
+        1024.0
+    };
+
     let raw_text = crate::features::text::create_text_state(
         pretty.to_string(),
         "json",
         state.font_size,
         state.word_wrap,
+        state.app_theme,
+        win_w,
     );
+
+    let mut scroll_ctrl = crate::core::scroll::ScrollController::default();
+    scroll_ctrl.set_position_y(old_scroll);
 
     state.json = JsonState {
         nodes: nodes.to_vec(),
@@ -35,6 +48,10 @@ pub fn populate_state(
         pretty_content: pretty.to_string(),
         tree_mode: old_tree_mode,
         scroll_y: old_scroll,
+        viewport_height: 0.0,
+        total_content_height: 0.0,
+        scroll_controller: scroll_ctrl,
+        smooth_scroll: crate::core::types::SmoothScrollState::default(),
         has_parse_error,
         raw_text,
         search_visible: false,
@@ -92,5 +109,16 @@ mod tests {
         assert!(state.json.expanded.contains(&0));
         assert!(state.json.expanded.contains(&1));
         assert!(!state.json.expanded.contains(&2));
+    }
+
+    #[test]
+    fn test_populate_state_raw_text_highlight() {
+        let mut state = KglanceState::default();
+        let json_str = "{\n  \"version\": 1,\n  \"name\": \"kglance\"\n}";
+        populate_state(&mut state, &[], json_str, false);
+
+        assert_eq!(state.json.raw_text.document.total_lines(), 4);
+        assert_eq!(state.json.raw_text.cached_tokens.len(), 4);
+        assert!(!state.json.raw_text.cached_tokens[1].is_empty());
     }
 }
