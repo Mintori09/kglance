@@ -76,6 +76,26 @@ pub fn extract_ncx_navpoints(ncx_xml: &str) -> Vec<NcxNavPoint> {
     entries
 }
 
+pub fn decode_url_component(s: &str) -> String {
+    let mut bytes = Vec::with_capacity(s.len());
+    let mut chars = s.as_bytes().iter().copied();
+    while let Some(b) = chars.next() {
+        if b == b'%' {
+            let h1 = chars.next();
+            let h2 = chars.next();
+            if let (Some(h1), Some(h2)) = (h1, h2)
+                && let Ok(val) =
+                    u8::from_str_radix(std::str::from_utf8(&[h1, h2]).unwrap_or(""), 16)
+            {
+                bytes.push(val);
+                continue;
+            }
+        }
+        bytes.push(b);
+    }
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
 fn try_emit_navpoint(frame: &mut NavPointFrame, entries: &mut Vec<NcxNavPoint>) {
     if frame.emitted {
         return;
@@ -85,7 +105,9 @@ fn try_emit_navpoint(frame: &mut NavPointFrame, entries: &mut Vec<NcxNavPoint>) 
     {
         let mut parts = src.split('#');
         let file_part = parts.next().unwrap_or(src).to_string();
-        let anchor = parts.next().map(ToString::to_string);
+        let anchor = parts
+            .next()
+            .map(|a| decode_url_component(a.trim_start_matches('#')));
         entries.push((label.clone(), frame.level, file_part, anchor));
         frame.emitted = true;
     }
@@ -148,7 +170,9 @@ pub fn extract_epub3_navpoints(nav_html: &str) -> Vec<NcxNavPoint> {
                             if !clean_label.is_empty() {
                                 let mut parts = href.split('#');
                                 let file_part = parts.next().unwrap_or(&href).to_string();
-                                let anchor = parts.next().map(ToString::to_string);
+                                let anchor = parts
+                                    .next()
+                                    .map(|a| decode_url_component(a.trim_start_matches('#')));
                                 entries.push((clean_label, list_depth.max(1), file_part, anchor));
                             }
                         }

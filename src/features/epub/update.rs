@@ -34,7 +34,25 @@ pub fn ensure_chapter_loaded(app: &mut KglanceApp, idx: usize) {
             let chapter_file_href = app.state.epub.chapters[idx].file_href.clone();
             let chapter_anchor = app.state.epub.chapters[idx].anchor.clone();
 
-            if !path_str.is_empty() {
+            let existing_blocks = app
+                .state
+                .epub
+                .chapters
+                .iter()
+                .find(|ch| ch.file_href == chapter_file_href && !ch.blocks.is_empty())
+                .map(|ch| ch.blocks.clone());
+
+            if let Some(blocks) = existing_blocks {
+                if let Some(crate::core::PreviewData::Epub {
+                    chapters: preview_chapters,
+                    ..
+                }) = &mut app.current_content
+                    && let Some(preview_ch) = preview_chapters.get_mut(idx)
+                {
+                    preview_ch.blocks = blocks.clone();
+                }
+                app.state.epub.chapters[idx].blocks = blocks;
+            } else if !path_str.is_empty() {
                 let path = std::path::Path::new(&path_str);
                 if let Ok((new_blocks, new_images)) =
                     crate::features::epub::parser::load_chapter_content_and_images_from_epub(
@@ -88,12 +106,48 @@ pub fn handle_chapter_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message>
     if idx < app.state.epub.chapters.len() {
         ensure_chapter_loaded(app, idx);
         app.record_read_position();
-        app.state.epub.markdown_state.scroll_y = 0.0;
-        app.state.epub.markdown_state.smooth_scroll.reset();
 
-        return operation::snap_to(
+        let chapter = &app.state.epub.chapters[idx];
+        let target_y = if let Some(block_idx) = crate::features::epub::parser::find_block_index(
+            &chapter.blocks,
+            chapter.anchor.as_deref(),
+            Some(&chapter.title),
+        ) {
+            app.state
+                .epub
+                .markdown_state
+                .block_y_offsets
+                .get(block_idx)
+                .copied()
+                .unwrap_or(0.0)
+        } else {
+            0.0
+        };
+
+        let max_y = crate::core::scroll::max_scroll_y(
+            app.state.epub.markdown_state.total_content_height,
+            app.state.epub.markdown_state.viewport_height,
+        );
+        let clamped_y = if max_y > 0.0 {
+            target_y.clamp(0.0, max_y)
+        } else {
+            target_y
+        };
+
+        app.state.epub.markdown_state.scroll_y = clamped_y;
+        app.state
+            .epub
+            .markdown_state
+            .scroll_controller
+            .stop(clamped_y);
+        app.state.epub.markdown_state.smooth_scroll.stop(clamped_y);
+
+        return operation::scroll_to(
             "content_scroll",
-            operation::RelativeOffset { x: 0.0, y: 0.0 },
+            operation::AbsoluteOffset {
+                x: 0.0,
+                y: clamped_y,
+            },
         );
     }
     Task::none()
@@ -338,6 +392,112 @@ mod tests {
         assert!(!app.state.epub.chapters[1].blocks.is_empty());
         assert_eq!(app.state.epub.markdown_state.scroll_y, 120.0);
         assert!(!app.state.epub.markdown_state.block_y_offsets.is_empty());
+
+        let _ = std::fs::remove_file(test_epub_path);
+    }
+
+    #[test]
+    fn test_toc_multiple_hierarchy_anchor_navigation() {
+        use std::fs::File;
+        use std::io::Write;
+
+        let temp_dir = std::env::temp_dir();
+        let test_epub_path = temp_dir.join("test_kglance_toc_hierarchy.epub");
+
+        let file = File::create(&test_epub_path).unwrap();
+        let mut zip = ::zip::ZipWriter::new(file);
+        let options = ::zip::write::SimpleFileOptions::default();
+
+        zip.start_file("META-INF/container.xml", options).unwrap();
+        zip.write_all(r#"<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#.as_bytes()).unwrap();
+
+        zip.start_file("OEBPS/content.opf", options).unwrap();
+        zip.write_all(r#"<?xml version="1.0"?><package><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Test</dc:title></metadata><manifest><item id="item1" href="ch1.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="item1"/></spine></package>"#.as_bytes()).unwrap();
+
+        zip.start_file("OEBPS/ch1.xhtml", options).unwrap();
+        let xhtml = r#"<html><body>
+            <h1>Chapter 1: Principles</h1>
+            <p>Intro paragraph 1 with lots of words to give vertical height to the document.</p>
+            <p>Intro paragraph 2 with lots of words to give vertical height to the document.</p>
+            <p>Intro paragraph 3 with lots of words to give vertical height to the document.</p>
+            <h2 id="sec1">1.1 Background</h2>
+            <p>Section 1.1 content paragraph 1.</p>
+            <p>Section 1.1 content paragraph 2.</p>
+            <h2 id="sec2">1.2 Analysis</h2>
+            <p>Section 1.2 content paragraph 1.</p>
+        </body></html>"#;
+        zip.write_all(xhtml.as_bytes()).unwrap();
+        zip.finish().unwrap();
+
+        let path_str = test_epub_path.to_string_lossy().to_string();
+
+        let chapters = vec![
+            crate::core::types::EpubChapterInfo {
+                title: "Chapter 1: Principles".to_string(),
+                level: 1,
+                anchor: None,
+                file_href: "ch1.xhtml".to_string(),
+                blocks: Vec::new(),
+            },
+            crate::core::types::EpubChapterInfo {
+                title: "1.1 Background".to_string(),
+                level: 2,
+                anchor: Some("sec1".to_string()),
+                file_href: "ch1.xhtml".to_string(),
+                blocks: Vec::new(),
+            },
+            crate::core::types::EpubChapterInfo {
+                title: "1.2 Analysis".to_string(),
+                level: 2,
+                anchor: Some("sec2".to_string()),
+                file_href: "ch1.xhtml".to_string(),
+                blocks: Vec::new(),
+            },
+        ];
+
+        let mut app = test_app(Some(crate::core::PreviewData::Epub {
+            title: "Test".to_string(),
+            author: "Author".to_string(),
+            chapters: chapters.clone(),
+            active_chapter: 0,
+            images: std::collections::HashMap::new(),
+        }));
+        app.state.file_name = path_str;
+        app.state.epub.chapters = chapters;
+        app.state.window_height = 200.0;
+
+        // 1. Initial load for Chapter 1 (index 0)
+        let _ = handle_chapter_clicked(&mut app, 0);
+        assert_eq!(app.state.epub.active_chapter, 0);
+        assert_eq!(app.state.epub.markdown_state.scroll_y, 0.0);
+        let total_blocks = app.state.epub.chapters[0].blocks.len();
+        assert!(total_blocks >= 7);
+
+        // 2. Click Section 1.1 (index 1) in hierarchy
+        let _ = handle_chapter_clicked(&mut app, 1);
+        assert_eq!(app.state.epub.active_chapter, 1);
+        let sec1_scroll_y = app.state.epub.markdown_state.scroll_y;
+        assert!(
+            sec1_scroll_y > 0.0,
+            "Clicking Section 1.1 must scroll down to anchor 'sec1', got {sec1_scroll_y}"
+        );
+        // All blocks of the chapter must still be preserved (not truncated!)
+        assert_eq!(app.state.epub.chapters[1].blocks.len(), total_blocks);
+
+        // 3. Click Section 1.2 (index 2) in hierarchy
+        let _ = handle_chapter_clicked(&mut app, 2);
+        assert_eq!(app.state.epub.active_chapter, 2);
+        let sec2_scroll_y = app.state.epub.markdown_state.scroll_y;
+        assert!(
+            sec2_scroll_y > sec1_scroll_y,
+            "Section 1.2 scroll Y ({sec2_scroll_y}) must be further down than Section 1.1 ({sec1_scroll_y})"
+        );
+        assert_eq!(app.state.epub.chapters[2].blocks.len(), total_blocks);
+
+        // 4. Click back to Chapter 1 root (index 0)
+        let _ = handle_chapter_clicked(&mut app, 0);
+        assert_eq!(app.state.epub.active_chapter, 0);
+        assert_eq!(app.state.epub.markdown_state.scroll_y, 0.0);
 
         let _ = std::fs::remove_file(test_epub_path);
     }

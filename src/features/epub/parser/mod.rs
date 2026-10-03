@@ -20,7 +20,7 @@ use html::{
     convert_html_to_markdown, decode_html_entities, extract_chapter_title_from_html,
     extract_filename, extract_headings_from_html, extract_tag_content,
 };
-use ncx::{NcxNavPoint, extract_epub3_navpoints, extract_ncx_navpoints};
+use ncx::{NcxNavPoint, decode_url_component, extract_epub3_navpoints, extract_ncx_navpoints};
 use opf::{
     extract_cover_image_href, extract_nav_href, extract_ncx_href, extract_opf_path,
     extract_spine_items, resolve_relative_path,
@@ -35,20 +35,12 @@ pub fn parse_chapter_content<R: Read + std::io::Seek>(
     archive: &mut zip::ZipArchive<R>,
     opf_path: &str,
     file_href: &str,
-    anchor: Option<&str>,
+    _anchor: Option<&str>,
 ) -> Result<Vec<Block>, ParseError> {
     let resolved_path = resolve_relative_path(opf_path, file_href);
     let html = read_archive_entry_string(archive, &resolved_path)?;
     let md = convert_html_to_markdown(&html);
     let blocks = parse_to_blocks(&md);
-
-    if let Some(anc) = anchor
-        && !anc.is_empty()
-        && let Some(start_idx) = find_block_index(&blocks, Some(anc), None)
-    {
-        return Ok(blocks[start_idx..].to_vec());
-    }
-
     Ok(blocks)
 }
 
@@ -298,12 +290,21 @@ fn build_lazy_chapters_from_spine<R: Read + std::io::Seek>(
     chapters
 }
 
-fn find_block_index(blocks: &[Block], anchor: Option<&str>, title: Option<&str>) -> Option<usize> {
+pub fn find_block_index(
+    blocks: &[Block],
+    anchor: Option<&str>,
+    title: Option<&str>,
+) -> Option<usize> {
     if let Some(anc) = anchor
         && !anc.is_empty()
     {
+        let anc_trimmed = anc.trim_start_matches('#');
+        let anc_decoded = decode_url_component(anc_trimmed);
+
         for (i, block) in blocks.iter().enumerate() {
-            if block_contains_anchor(block, anc) {
+            if block_contains_anchor(block, anc_trimmed)
+                || (!anc_decoded.is_empty() && block_contains_anchor(block, &anc_decoded))
+            {
                 if is_standalone_anchor_block(block) && i + 1 < blocks.len() {
                     return Some(i + 1);
                 }
@@ -315,10 +316,37 @@ fn find_block_index(blocks: &[Block], anchor: Option<&str>, title: Option<&str>)
     if let Some(t) = title
         && !t.is_empty()
     {
-        for (i, block) in blocks.iter().enumerate() {
-            let text = extract_text_from_block(block);
-            if text.contains(t) {
-                return Some(i);
+        let t_norm = normalize_for_matching(t);
+        if !t_norm.is_empty() {
+            // Pass 1: Prioritize Block::Heading exact normalized match
+            for (i, block) in blocks.iter().enumerate() {
+                if let Block::Heading { content, .. } = block {
+                    let h_text = normalize_for_matching(&flatten_inlines(content));
+                    if h_text == t_norm {
+                        return Some(i);
+                    }
+                }
+            }
+
+            // Pass 2: Block::Heading substring match
+            for (i, block) in blocks.iter().enumerate() {
+                if let Block::Heading { content, .. } = block {
+                    let h_text = normalize_for_matching(&flatten_inlines(content));
+                    if !h_text.is_empty() && (h_text.contains(&t_norm) || t_norm.contains(&h_text))
+                    {
+                        return Some(i);
+                    }
+                }
+            }
+
+            // Pass 3: Fallback to non-heading blocks (e.g. bold paragraph pseudo-headings)
+            for (i, block) in blocks.iter().enumerate() {
+                if let Block::Paragraph(content) = block {
+                    let p_text = normalize_for_matching(&flatten_inlines(content));
+                    if p_text == t_norm || p_text.starts_with(&t_norm) {
+                        return Some(i);
+                    }
+                }
             }
         }
     }
@@ -326,15 +354,30 @@ fn find_block_index(blocks: &[Block], anchor: Option<&str>, title: Option<&str>)
     None
 }
 
+fn normalize_for_matching(text: &str) -> String {
+    let stripped = crate::parsers::markdown::strip_anchor_tags(text);
+    stripped
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
 fn html_contains_anchor(html: &str, anchor: &str) -> bool {
-    let id_double = format!("id=\"{anchor}\"");
-    let id_single = format!("id='{anchor}'");
-    let name_double = format!("name=\"{anchor}\"");
-    let name_single = format!("name='{anchor}'");
-    html.contains(&id_double)
-        || html.contains(&id_single)
-        || html.contains(&name_double)
-        || html.contains(&name_single)
+    let html_lower = html.to_lowercase();
+    let anchor_lower = anchor.to_lowercase();
+    let id_double = format!("id=\"{anchor_lower}\"");
+    let id_single = format!("id='{anchor_lower}'");
+    let xml_id_double = format!("xml:id=\"{anchor_lower}\"");
+    let xml_id_single = format!("xml:id='{anchor_lower}'");
+    let name_double = format!("name=\"{anchor_lower}\"");
+    let name_single = format!("name='{anchor_lower}'");
+    html_lower.contains(&id_double)
+        || html_lower.contains(&id_single)
+        || html_lower.contains(&xml_id_double)
+        || html_lower.contains(&xml_id_single)
+        || html_lower.contains(&name_double)
+        || html_lower.contains(&name_single)
 }
 
 fn block_contains_anchor(block: &Block, anchor: &str) -> bool {
@@ -359,14 +402,18 @@ fn block_contains_anchor(block: &Block, anchor: &str) -> bool {
                     .iter()
                     .any(|b| block_contains_anchor(b, anchor))
         }),
+        Block::Table(table) => {
+            table.headers.iter().any(|h| {
+                let text = flatten_inlines(&h.content);
+                html_contains_anchor(&text, anchor) || text.contains(anchor)
+            }) || table.rows.iter().any(|row| {
+                row.iter().any(|cell| {
+                    let text = flatten_inlines(&cell.content);
+                    html_contains_anchor(&text, anchor) || text.contains(anchor)
+                })
+            })
+        }
         _ => false,
-    }
-}
-
-fn extract_text_from_block(block: &Block) -> String {
-    match block {
-        Block::Heading { content, .. } | Block::Paragraph(content) => flatten_inlines(content),
-        _ => String::new(),
     }
 }
 
