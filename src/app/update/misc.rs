@@ -51,7 +51,9 @@ pub fn handle_toast_dismissed(app: &mut KglanceApp, id: u64) -> Task<Message> {
 }
 
 pub fn handle_markdown_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task<Message> {
-    let new_w = width.clamp(140.0, 550.0);
+    use crate::ui::components::sidebar::{DEFAULT_MAX_SIDEBAR_WIDTH, DEFAULT_MIN_SIDEBAR_WIDTH};
+
+    let new_w = width.clamp(DEFAULT_MIN_SIDEBAR_WIDTH, DEFAULT_MAX_SIDEBAR_WIDTH);
     if (app.state.markdown.sidebar_width - new_w).abs() > 1.0 {
         app.state.markdown.sidebar_width = new_w;
         if let Some(crate::core::PreviewData::Markdown { blocks, .. }) = &app.current_content {
@@ -68,38 +70,62 @@ pub fn handle_markdown_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task
 }
 
 pub fn handle_epub_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task<Message> {
-    app.state.epub.sidebar_width = width.clamp(140.0, 550.0);
+    use crate::ui::components::sidebar::{DEFAULT_MAX_SIDEBAR_WIDTH, DEFAULT_MIN_SIDEBAR_WIDTH};
+
+    app.state.epub.sidebar_width =
+        width.clamp(DEFAULT_MIN_SIDEBAR_WIDTH, DEFAULT_MAX_SIDEBAR_WIDTH);
     Task::none()
 }
 
 pub fn handle_sidebar_drag_started(app: &mut KglanceApp) -> Task<Message> {
-    app.state.markdown.sidebar_resizing = true;
-    app.state.markdown.sidebar_drag_start_x = None;
-    app.state.markdown.sidebar_drag_start_width = app.state.markdown.sidebar_width;
+    use crate::ui::components::sidebar::start_sidebar_drag;
 
-    app.state.epub.sidebar_resizing = true;
-    app.state.epub.sidebar_drag_start_x = None;
-    app.state.epub.sidebar_drag_start_width = app.state.epub.sidebar_width;
-
-    app.state.text.sidebar_resizing = true;
-    app.state.text.sidebar_drag_start_x = None;
-    app.state.text.sidebar_drag_start_width = app.state.text.sidebar_width;
-
-    let pdf = &mut app.state.pdf;
-    pdf.sidebar_resizing = true;
-    pdf.sidebar_drag_start_x = None;
-    pdf.sidebar_drag_start_width = pdf.sidebar_width;
+    for (resizing, start_x, start_w, width) in [
+        (
+            &mut app.state.markdown.sidebar_resizing,
+            &mut app.state.markdown.sidebar_drag_start_x,
+            &mut app.state.markdown.sidebar_drag_start_width,
+            app.state.markdown.sidebar_width,
+        ),
+        (
+            &mut app.state.epub.sidebar_resizing,
+            &mut app.state.epub.sidebar_drag_start_x,
+            &mut app.state.epub.sidebar_drag_start_width,
+            app.state.epub.sidebar_width,
+        ),
+        (
+            &mut app.state.text.sidebar_resizing,
+            &mut app.state.text.sidebar_drag_start_x,
+            &mut app.state.text.sidebar_drag_start_width,
+            app.state.text.sidebar_width,
+        ),
+        (
+            &mut app.state.pdf.sidebar_resizing,
+            &mut app.state.pdf.sidebar_drag_start_x,
+            &mut app.state.pdf.sidebar_drag_start_width,
+            app.state.pdf.sidebar_width,
+        ),
+    ] {
+        start_sidebar_drag(resizing, start_x, start_w, width);
+    }
     Task::none()
 }
 
 pub fn handle_sidebar_drag_ended(app: &mut KglanceApp) -> Task<Message> {
-    app.state.markdown.sidebar_resizing = false;
-    app.state.epub.sidebar_resizing = false;
-    app.state.text.sidebar_resizing = false;
+    use crate::ui::components::sidebar::end_sidebar_drag;
+
+    for resizing in [
+        &mut app.state.markdown.sidebar_resizing,
+        &mut app.state.epub.sidebar_resizing,
+        &mut app.state.text.sidebar_resizing,
+        &mut app.state.pdf.sidebar_resizing,
+    ] {
+        end_sidebar_drag(resizing);
+    }
+
     let win_w = app.state.current_window_size.width;
     let pdf = &mut app.state.pdf;
     let desired_w = pdf.desired_width;
-    pdf.sidebar_resizing = false;
     crate::features::pdf::geometry::recalculate_pdf_thumbnail_offsets(pdf);
     let sidebar_w = if pdf.sidebar_visible {
         pdf.sidebar_width + 1.0
@@ -134,6 +160,11 @@ pub fn handle_mouse_released(app: &mut KglanceApp) -> Task<Message> {
 }
 
 pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message> {
+    use crate::ui::components::sidebar::{
+        DEFAULT_MAX_SIDEBAR_WIDTH, DEFAULT_MIN_SIDEBAR_WIDTH, PDF_MAX_SIDEBAR_WIDTH,
+        PDF_MIN_SIDEBAR_WIDTH, apply_sidebar_drag,
+    };
+
     markdown::active_markdown_state_mut(app).drag_last_y = y;
 
     if markdown::active_markdown_state(app).is_dragging_selection {
@@ -163,36 +194,37 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
         }
     }
 
-    if app.state.markdown.sidebar_resizing {
-        apply_sidebar_drag(
+    for (resizing, start_x, start_w, width, min, max) in [
+        (
+            app.state.markdown.sidebar_resizing,
             &mut app.state.markdown.sidebar_drag_start_x,
             &mut app.state.markdown.sidebar_drag_start_width,
             &mut app.state.markdown.sidebar_width,
-            x,
-            140.0,
-            550.0,
-        );
-    }
-    if app.state.epub.sidebar_resizing {
-        apply_sidebar_drag(
+            DEFAULT_MIN_SIDEBAR_WIDTH,
+            DEFAULT_MAX_SIDEBAR_WIDTH,
+        ),
+        (
+            app.state.epub.sidebar_resizing,
             &mut app.state.epub.sidebar_drag_start_x,
             &mut app.state.epub.sidebar_drag_start_width,
             &mut app.state.epub.sidebar_width,
-            x,
-            140.0,
-            550.0,
-        );
-    }
-    if app.state.text.sidebar_resizing {
-        apply_sidebar_drag(
+            DEFAULT_MIN_SIDEBAR_WIDTH,
+            DEFAULT_MAX_SIDEBAR_WIDTH,
+        ),
+        (
+            app.state.text.sidebar_resizing,
             &mut app.state.text.sidebar_drag_start_x,
             &mut app.state.text.sidebar_drag_start_width,
             &mut app.state.text.sidebar_width,
-            x,
-            140.0,
-            550.0,
-        );
+            DEFAULT_MIN_SIDEBAR_WIDTH,
+            DEFAULT_MAX_SIDEBAR_WIDTH,
+        ),
+    ] {
+        if resizing {
+            apply_sidebar_drag(start_x, start_w, width, x, min, max);
+        }
     }
+
     let win_w = app.state.current_window_size.width;
     let pdf = &mut app.state.pdf;
     if pdf.sidebar_resizing {
@@ -203,8 +235,8 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
             &mut pdf.sidebar_drag_start_width,
             &mut pdf.sidebar_width,
             x,
-            120.0,
-            500.0,
+            PDF_MIN_SIDEBAR_WIDTH,
+            PDF_MAX_SIDEBAR_WIDTH,
         );
         if (pdf.sidebar_width - old_width).abs() > 0.5 {
             crate::features::pdf::geometry::recalculate_pdf_thumbnail_offsets(pdf);
@@ -224,25 +256,6 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
         }
     }
     Task::none()
-}
-
-fn apply_sidebar_drag(
-    start_x: &mut Option<f32>,
-    start_width: &mut f32,
-    width: &mut f32,
-    x: f32,
-    min: f32,
-    max: f32,
-) {
-    match *start_x {
-        None => {
-            *start_x = Some(x);
-            *start_width = *width;
-        }
-        Some(anchor) => {
-            *width = (*start_width + (x - anchor)).clamp(min, max);
-        }
-    }
 }
 
 pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32) -> Task<Message> {
