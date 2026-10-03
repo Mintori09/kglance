@@ -65,11 +65,6 @@ pub enum ParsedContent {
         waveform_width: u32,
         waveform_height: u32,
     },
-    Office {
-        content: String,
-        format: String,
-        page_count: usize,
-    },
     Json {
         content: String,
         pretty: String,

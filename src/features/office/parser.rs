@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use chrono::NaiveDate;
@@ -6,11 +6,14 @@ use chrono::NaiveDate;
 use crate::features::common::parser::traits::{ParseError, PreviewParser};
 use crate::features::common::parser::types::ParsedContent;
 use crate::features::office::types::SheetData;
+
 pub struct OfficeParser;
 
 impl PreviewParser for OfficeParser {
     fn supported_extensions(&self) -> &[&str] {
-        &["docx", "xlsx", "pptx", "odt", "ods", "odp"]
+        &[
+            "docx", "doc", "xlsx", "xls", "pptx", "ppt", "odt", "ods", "odp",
+        ]
     }
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
@@ -23,12 +26,7 @@ impl PreviewParser for OfficeParser {
         let path_str = path.to_string_lossy().to_string();
 
         match ext.as_str() {
-            "docx" => {
-                if let Ok(pdf_content) = compile_docx_to_pdf(path) {
-                    return Ok(pdf_content);
-                }
-            }
-            "xlsx" => {
+            "xlsx" | "ods" => {
                 if let Ok(spreadsheet) = try_xlsx_direct(&path_str) {
                     return Ok(spreadsheet);
                 }
@@ -36,13 +34,66 @@ impl PreviewParser for OfficeParser {
             _ => {}
         }
 
-        fallback_lo(&path_str, &ext)
+        compile_office_to_pdf(path)
     }
 }
 
-pub fn get_or_compile_docx_to_pdf(docx_path: &Path) -> Result<std::path::PathBuf, ParseError> {
-    let metadata =
-        std::fs::metadata(docx_path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+fn convert_via_libreoffice(input_path: &Path, output_pdf_path: &Path) -> Result<(), ParseError> {
+    let temp_dir = tempfile::tempdir().map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let temp_profile = tempfile::tempdir().map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let profile_arg = format!(
+        "-env:UserInstallation=file://{}",
+        temp_profile.path().to_string_lossy()
+    );
+
+    let status = Command::new("soffice")
+        .args([
+            &profile_arg,
+            "--headless",
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            temp_dir.path().to_string_lossy().as_ref(),
+            input_path.to_string_lossy().as_ref(),
+        ])
+        .status()
+        .map_err(|e| ParseError::ParseFailed(format!("Failed to execute soffice: {e}")))?;
+
+    if !status.success() {
+        return Err(ParseError::ParseFailed(
+            "LibreOffice not available or conversion failed. Install libreoffice for office document preview.".into(),
+        ));
+    }
+
+    let stem = input_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("document");
+    let generated_pdf = temp_dir.path().join(format!("{stem}.pdf"));
+
+    if generated_pdf.exists() {
+        std::fs::copy(&generated_pdf, output_pdf_path)
+            .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        return Ok(());
+    }
+
+    if let Ok(entries) = std::fs::read_dir(temp_dir.path()) {
+        for entry in entries.flatten() {
+            if entry.path().extension().and_then(|e| e.to_str()) == Some("pdf") {
+                std::fs::copy(entry.path(), output_pdf_path)
+                    .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+                return Ok(());
+            }
+        }
+    }
+
+    Err(ParseError::ParseFailed(
+        "LibreOffice conversion produced no PDF file".into(),
+    ))
+}
+
+pub fn get_or_compile_office_to_pdf(path: &Path) -> Result<PathBuf, ParseError> {
+    let metadata = std::fs::metadata(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     let mtime = metadata
         .modified()
         .ok()
@@ -50,9 +101,9 @@ pub fn get_or_compile_docx_to_pdf(docx_path: &Path) -> Result<std::path::PathBuf
         .map(|d| d.as_millis())
         .unwrap_or(0);
     let size = metadata.len();
-    let hash_input = format!("{}:{mtime}:{size}", docx_path.to_string_lossy());
+    let hash_input = format!("{}:{mtime}:{size}", path.to_string_lossy());
     let hash = format!("{:x}", md5::compute(hash_input.as_bytes()));
-    let cache_dir = std::env::temp_dir().join("kglance_docx");
+    let cache_dir = std::env::temp_dir().join("kglance_office");
     let _ = std::fs::create_dir_all(&cache_dir);
     let cache_pdf = cache_dir.join(format!("{hash}.pdf"));
 
@@ -64,14 +115,26 @@ pub fn get_or_compile_docx_to_pdf(docx_path: &Path) -> Result<std::path::PathBuf
         return Ok(cache_pdf);
     }
 
-    docxide_pdf::convert_docx_to_pdf(docx_path, &cache_pdf)
-        .map_err(|e| ParseError::ParseFailed(format!("DOCX conversion failed: {e}")))?;
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
 
+    if ext == "docx" && docxide_pdf::convert_docx_to_pdf(path, &cache_pdf).is_ok() {
+        return Ok(cache_pdf);
+    }
+
+    convert_via_libreoffice(path, &cache_pdf)?;
     Ok(cache_pdf)
 }
 
-pub fn compile_docx_to_pdf(path: &Path) -> Result<ParsedContent, ParseError> {
-    let pdf_path = get_or_compile_docx_to_pdf(path)?;
+pub fn get_or_compile_docx_to_pdf(docx_path: &Path) -> Result<PathBuf, ParseError> {
+    get_or_compile_office_to_pdf(docx_path)
+}
+
+pub fn compile_office_to_pdf(path: &Path) -> Result<ParsedContent, ParseError> {
+    let pdf_path = get_or_compile_office_to_pdf(path)?;
     let doc = mupdf::Document::open(pdf_path.as_path())
         .map_err(|e| ParseError::ParseFailed(format!("Failed to open generated PDF: {e}")))?;
 
@@ -112,6 +175,10 @@ pub fn compile_docx_to_pdf(path: &Path) -> Result<ParsedContent, ParseError> {
         outline,
         page_dimensions,
     })
+}
+
+pub fn compile_docx_to_pdf(path: &Path) -> Result<ParsedContent, ParseError> {
+    compile_office_to_pdf(path)
 }
 
 fn excel_serial_to_date(serial: f64) -> String {
@@ -196,36 +263,6 @@ fn try_xlsx_direct(path: &str) -> Result<ParsedContent, ParseError> {
     }
 }
 
-fn fallback_lo(path: &str, _ext: &str) -> Result<ParsedContent, ParseError> {
-    let out_dir = tempfile::tempdir().map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-    let out_path = out_dir.path().join("page.png");
-
-    let status = Command::new("soffice")
-        .args([
-            "--headless",
-            "--convert-to",
-            "png",
-            "--outdir",
-            out_dir.path().to_string_lossy().as_ref(),
-            path,
-        ])
-        .status();
-
-    match status {
-        Ok(s) if s.success() => {
-            let content = format!("Converted via LibreOffice\nOutput: {}\n", out_path.display());
-            Ok(ParsedContent::Office {
-                content,
-                format: "Document (LO)".into(),
-                page_count: 1,
-            })
-        }
-        _ => Err(ParseError::ParseFailed(
-            "LibreOffice not available or conversion failed. Install libreoffice for office document preview.".into(),
-        )),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,6 +272,8 @@ mod tests {
         let parser = OfficeParser;
         assert!(parser.supported_extensions().contains(&"docx"));
         assert!(parser.supported_extensions().contains(&"xlsx"));
+        assert!(parser.supported_extensions().contains(&"pptx"));
+        assert!(parser.supported_extensions().contains(&"odp"));
     }
 
     #[test]
