@@ -598,7 +598,7 @@ where
                                         ),
                                         size: Pixels(self.font_size),
                                         line_height: iced::widget::text::LineHeight::Relative(1.35),
-                                        font: span.font,
+                                        font: self.font,
                                         align_x: iced::alignment::Horizontal::Left.into(),
                                         align_y: iced::alignment::Vertical::Top,
                                         shaping: iced::widget::text::Shaping::Basic,

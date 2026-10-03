@@ -72,10 +72,21 @@ pub fn update_tokens_for_viewport(
         return;
     }
 
-    let (visible_start, visible_end) =
+    if text_state.cached_tokens_start_line == 0 && text_state.cached_tokens.len() >= total_lines {
+        return;
+    }
+
+    let (visible_start_vrow, visible_end_vrow) =
         text_state
             .display_map
             .compute_visible_range(y, text_state.viewport_height, 0);
+
+    let (visible_start, _) = text_state
+        .display_map
+        .visual_row_to_line(visible_start_vrow);
+    let (visible_end, _) = text_state
+        .display_map
+        .visual_row_to_line(visible_end_vrow.saturating_sub(1));
 
     let current_start = text_state.cached_tokens_start_line;
     let current_end = current_start + text_state.cached_tokens.len();
@@ -86,7 +97,7 @@ pub fn update_tokens_for_viewport(
         || visible_end + threshold >= current_end;
 
     if needs_update {
-        let overscan = 50;
+        let overscan = 80;
         let start_line = visible_start.saturating_sub(overscan);
         let end_line = (visible_end + overscan).min(total_lines.saturating_sub(1));
 
@@ -184,10 +195,36 @@ pub fn handle_wrap_toggled(app: &mut KglanceApp) -> Task<Message> {
         wrap_mode,
     );
     app.state.text.total_content_height = app.state.text.display_map.total_content_height();
+
+    let text_state = &mut app.state.text;
+    let target_y = text_state
+        .display_map
+        .get_line_y(text_state.anchor.logical_line)
+        + text_state.anchor.visual_offset_px;
+    let max_y = crate::core::scroll::max_scroll_y(
+        text_state.total_content_height,
+        text_state.viewport_height,
+    );
+    let new_scroll_y = target_y.clamp(0.0, max_y);
+
+    text_state.smooth_scroll.stop(new_scroll_y);
+    text_state.scroll_controller.stop(new_scroll_y);
+    text_state.scroll_y = new_scroll_y;
+
+    let theme = app.state.app_theme;
+    update_tokens_for_viewport(&mut app.state.text, new_scroll_y, theme);
+
     let mut config = crate::core::config::ConfigManager::load_or_create();
     config.ui.word_wrap = app.state.word_wrap;
     let _ = crate::core::config::ConfigManager::save(&config);
-    Task::none()
+
+    iced::widget::operation::scroll_to(
+        CONTENT_SCROLL_ID,
+        iced::widget::operation::AbsoluteOffset {
+            x: 0.0,
+            y: new_scroll_y,
+        },
+    )
 }
 
 pub fn handle_text_scrolled(
@@ -485,4 +522,253 @@ pub fn handle_goto_line_closed(app: &mut KglanceApp) -> Task<Message> {
     app.state.text.goto_line_visible = false;
     app.state.text.goto_line_query.clear();
     Task::none()
+}
+
+pub fn handle_toggle_word_wrap(app: &mut KglanceApp) -> Option<Task<Message>> {
+    if !matches!(
+        app.current_content,
+        Some(
+            crate::core::PreviewData::Text { .. }
+                | crate::core::PreviewData::Json { .. }
+                | crate::core::PreviewData::Typst { .. }
+        )
+    ) {
+        return None;
+    }
+
+    app.state.word_wrap = !app.state.word_wrap;
+    app.state.text.wrap = app.state.word_wrap;
+    let wrap_mode = if app.state.word_wrap {
+        WrapMode::Word
+    } else {
+        WrapMode::None
+    };
+    let win_w = if app.state.current_window_size.width > 0.0 {
+        app.state.current_window_size.width
+    } else if app.state.window_width > 0.0 {
+        app.state.window_width
+    } else {
+        1024.0
+    };
+    let sidebar_w = if app.state.text.outline_visible && app.state.text.sidebar_width > 0.0 {
+        app.state.text.sidebar_width
+    } else {
+        0.0
+    };
+    let available_w = (win_w - sidebar_w).max(200.0);
+
+    app.state.text.display_map.update_geometry(
+        &app.state.text.document,
+        available_w,
+        app.state.font_size,
+        wrap_mode,
+    );
+    app.state.text.total_content_height = app.state.text.display_map.total_content_height();
+
+    let theme = app.state.app_theme;
+    let text_scroll_y = app.state.text.scroll_y;
+    update_tokens_for_viewport(&mut app.state.text, text_scroll_y, theme);
+
+    if matches!(
+        app.current_content,
+        Some(crate::core::PreviewData::Json { .. })
+    ) {
+        app.state.json.raw_text.wrap = app.state.word_wrap;
+        app.state.json.raw_text.display_map.update_geometry(
+            &app.state.json.raw_text.document,
+            win_w,
+            app.state.font_size,
+            wrap_mode,
+        );
+        app.state.json.raw_text.total_content_height =
+            app.state.json.raw_text.display_map.total_content_height();
+        let json_scroll_y = app.state.json.raw_text.scroll_y;
+        update_tokens_for_viewport(&mut app.state.json.raw_text, json_scroll_y, theme);
+    } else if matches!(
+        app.current_content,
+        Some(crate::core::PreviewData::Typst { .. })
+    ) {
+        app.state.typst.source_text.wrap = app.state.word_wrap;
+        app.state.typst.source_text.display_map.update_geometry(
+            &app.state.typst.source_text.document,
+            win_w,
+            app.state.font_size,
+            wrap_mode,
+        );
+        app.state.typst.source_text.total_content_height = app
+            .state
+            .typst
+            .source_text
+            .display_map
+            .total_content_height();
+        let typst_scroll_y = app.state.typst.source_text.scroll_y;
+        update_tokens_for_viewport(&mut app.state.typst.source_text, typst_scroll_y, theme);
+    }
+
+    let mut config = crate::core::config::ConfigManager::load_or_create();
+    config.ui.word_wrap = app.state.word_wrap;
+
+    if let Err(err) = crate::core::config::ConfigManager::save(&config) {
+        crate::log_error!("failed to save word-wrap preference: {err}");
+    }
+
+    Some(Task::none())
+}
+
+pub fn rescale_text_geometry(
+    text_state: &mut crate::core::TextState,
+    old_font_size: f32,
+    new_font_size: f32,
+    word_wrap: bool,
+    fallback_window_width: f32,
+    theme: crate::ui::theme::AppTheme,
+) -> f32 {
+    let wrap_mode = if word_wrap {
+        WrapMode::Word
+    } else {
+        WrapMode::None
+    };
+    let vp_w = if text_state.display_map.viewport_width > 0.0 {
+        text_state.display_map.viewport_width
+    } else {
+        fallback_window_width.max(800.0)
+    };
+    text_state
+        .display_map
+        .update_geometry(&text_state.document, vp_w, new_font_size, wrap_mode);
+    text_state.total_content_height = text_state.display_map.total_content_height();
+
+    let old_lh = old_font_size * 1.35;
+    let new_lh = new_font_size * 1.35;
+    let line_index = if old_lh > 0.0 {
+        (text_state.scroll_y / old_lh).max(0.0)
+    } else {
+        0.0
+    };
+    let new_scroll_y = (line_index * new_lh).max(0.0);
+    text_state.scroll_y = new_scroll_y;
+
+    update_tokens_for_viewport(text_state, new_scroll_y, theme);
+    new_scroll_y
+}
+
+pub const FONT_MIN: f32 = 8.0;
+pub const FONT_MAX: f32 = 48.0;
+
+pub fn zoom_text_font(app: &mut KglanceApp, direction: f32) -> Option<Task<Message>> {
+    let target = app.state.font_size + direction;
+    rescale_text_font(app, target)
+}
+
+pub fn rescale_text_font(app: &mut KglanceApp, new_size: f32) -> Option<Task<Message>> {
+    let old_size = app.state.font_size;
+    let new_size = new_size.clamp(FONT_MIN, FONT_MAX);
+    if (new_size - old_size).abs() < f32::EPSILON {
+        return Some(Task::none());
+    }
+    app.state.font_size = new_size;
+
+    let win_w = app.state.current_window_size.width;
+    let theme = app.state.app_theme;
+    let word_wrap = app.state.word_wrap;
+    let new_scroll_y = rescale_text_geometry(
+        &mut app.state.text,
+        old_size,
+        new_size,
+        word_wrap,
+        win_w,
+        theme,
+    );
+    Some(iced::widget::operation::scroll_to(
+        "content_scroll",
+        iced::widget::operation::AbsoluteOffset {
+            x: 0.0,
+            y: new_scroll_y,
+        },
+    ))
+}
+
+pub fn rescale_text_state_font(
+    text_state: &mut crate::core::TextState,
+    app_font_size: &mut f32,
+    new_size: f32,
+    word_wrap: bool,
+    fallback_window_width: f32,
+    theme: crate::ui::theme::AppTheme,
+    scroll_id: &'static str,
+) -> Option<Task<Message>> {
+    let old_size = *app_font_size;
+    let new_size = new_size.clamp(FONT_MIN, FONT_MAX);
+    if (new_size - old_size).abs() < f32::EPSILON {
+        return Some(Task::none());
+    }
+    *app_font_size = new_size;
+
+    let new_scroll_y = rescale_text_geometry(
+        text_state,
+        old_size,
+        new_size,
+        word_wrap,
+        fallback_window_width,
+        theme,
+    );
+    Some(iced::widget::operation::scroll_to(
+        scroll_id,
+        iced::widget::operation::AbsoluteOffset {
+            x: 0.0,
+            y: new_scroll_y,
+        },
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::features::text::create_text_state;
+    use crate::ui::theme::AppTheme;
+
+    #[test]
+    fn test_update_tokens_for_viewport_with_word_wrap() {
+        // Create 200 long lines that wrap to 5 rows each when viewport is narrow
+        let long_line =
+            "let very_long_variable_name_with_lots_of_data = \"some long string value\";\n";
+        let content: String = (0..200).map(|_| long_line).collect();
+
+        let mut state = create_text_state(
+            content,
+            "rs",
+            14.0,
+            true, // word_wrap enabled
+            AppTheme::Dark,
+            200.0, // narrow viewport forcing wrapping
+        );
+
+        // Scroll to mid-document (e.g. scroll_y = 5000.0)
+        let scroll_y = 5000.0;
+        state.viewport_height = 600.0;
+        update_tokens_for_viewport(&mut state, scroll_y, AppTheme::Dark);
+
+        // Verify that tokens were fetched for the logical lines at this scroll position
+        let (start_vrow, end_vrow) = state.display_map.compute_visible_range(scroll_y, 600.0, 0);
+        let (expected_start_line, _) = state.display_map.visual_row_to_line(start_vrow);
+        let (expected_end_line, _) = state
+            .display_map
+            .visual_row_to_line(end_vrow.saturating_sub(1));
+
+        let token_start = state.cached_tokens_start_line;
+        let token_end = token_start + state.cached_tokens.len();
+
+        assert!(
+            token_start <= expected_start_line,
+            "token_start ({token_start}) should be <= expected_start_line ({expected_start_line})"
+        );
+        assert!(
+            token_end >= expected_end_line,
+            "token_end ({token_end}) should be >= expected_end_line ({expected_end_line})"
+        );
+        assert!(
+            !state.cached_tokens.is_empty(),
+            "cached_tokens must not be empty"
+        );
+    }
 }

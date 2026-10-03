@@ -61,11 +61,21 @@ pub fn populate_state(
 
     crate::features::pdf::geometry::recalculate_pdf_thumbnail_offsets(&mut typst_pdf_state);
 
+    let win_w = if state.current_window_size.width > 0.0 {
+        state.current_window_size.width
+    } else if state.window_width > 0.0 {
+        state.window_width
+    } else {
+        1024.0
+    };
+
     let source_text = crate::features::text::create_text_state(
         source.to_string(),
         "typ",
         state.font_size,
         state.word_wrap,
+        state.app_theme,
+        win_w,
     );
 
     state.typst = crate::core::TypstState {
