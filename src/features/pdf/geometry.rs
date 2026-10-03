@@ -132,6 +132,8 @@ pub fn calculate_virtualized_layout(
 
 pub const THUMBNAIL_SPACING: f32 = 10.0;
 
+pub const PDF_CARD_PADDING: f32 = 6.0;
+
 pub fn compute_thumbnail_offsets(
     dims: &[PageDimensions],
     thumb_width: f32,
@@ -144,11 +146,12 @@ pub fn compute_thumbnail_offsets(
     let mut ends = Vec::with_capacity(dims.len());
     let mut heights = Vec::with_capacity(dims.len());
     let mut y = 0.0;
+    let img_width = (thumb_width - PDF_CARD_PADDING * 2.0).max(10.0);
 
     for (i, dim) in dims.iter().enumerate() {
         offsets.push(y);
         let ar = dim.aspect_ratio();
-        let item_h = (thumb_width / ar).max(20.0);
+        let item_h = (img_width / ar).max(20.0) + PDF_CARD_PADDING * 2.0;
         heights.push(item_h);
         y += item_h;
         ends.push(y);
@@ -210,21 +213,24 @@ mod tests {
                 height_pts: 200.0,
             },
         ];
-        let (offsets, ends, heights, total_h) = compute_thumbnail_offsets(&dims, 100.0, 10.0);
+        let (offsets, ends, heights, total_h) = compute_thumbnail_offsets(&dims, 112.0, 10.0);
+        // img_width = 112 - 12 = 100.0
+        // item 0: height = 100 / (100/200) + 12 = 212.0
+        // item 1: height = 100 / (200/200) + 12 = 112.0
         assert_eq!(offsets.len(), 2);
         assert_eq!(offsets[0], 0.0);
-        assert_eq!(heights[0], 200.0);
-        assert_eq!(ends[0], 200.0);
-        assert_eq!(offsets[1], 210.0);
-        assert_eq!(heights[1], 100.0);
-        assert_eq!(ends[1], 310.0);
-        assert_eq!(total_h, 310.0);
+        assert_eq!(heights[0], 212.0);
+        assert_eq!(ends[0], 212.0);
+        assert_eq!(offsets[1], 222.0);
+        assert_eq!(heights[1], 112.0);
+        assert_eq!(ends[1], 334.0);
+        assert_eq!(total_h, 334.0);
     }
 
     #[test]
     fn test_recalculate_pdf_thumbnail_offsets() {
         let mut pdf_state = crate::core::PdfState {
-            sidebar_width: 224.0, // thumb_width = 200.0
+            sidebar_width: 224.0, // thumb_width = 200.0 -> img_width = 188.0
             page_dimensions: vec![
                 PageDimensions {
                     width_pts: 100.0,
@@ -239,6 +245,7 @@ mod tests {
         };
 
         recalculate_pdf_thumbnail_offsets(&mut pdf_state);
+        // img_width = 188.0, item_h = 188 + 12 = 200.0
         assert_eq!(pdf_state.thumbnail_y_offsets.len(), 2);
         assert_eq!(pdf_state.thumbnail_y_offsets[0], 0.0);
         assert_eq!(pdf_state.thumbnail_y_offsets[1], 210.0); // 200 + 10

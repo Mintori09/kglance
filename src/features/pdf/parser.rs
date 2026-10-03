@@ -77,12 +77,20 @@ fn render_page_at_dpi(doc: &Document, page_index: i32, _dpi: f32) -> Result<Page
     })
 }
 
-fn resolve_document_path(path: &Path) -> std::borrow::Cow<'_, Path> {
-    if path
-        .extension()
+fn is_office_document(path: &Path) -> bool {
+    path.extension()
         .and_then(|e| e.to_str())
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("docx"))
-        && let Ok(pdf_path) = crate::features::office::parser::get_or_compile_docx_to_pdf(path)
+        .is_some_and(|ext| {
+            matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "docx" | "doc" | "pptx" | "ppt" | "odt" | "odp" | "ods" | "xlsx" | "xls"
+            )
+        })
+}
+
+fn resolve_document_path(path: &Path) -> std::borrow::Cow<'_, Path> {
+    if is_office_document(path)
+        && let Ok(pdf_path) = crate::features::office::parser::get_or_compile_office_to_pdf(path)
     {
         return std::borrow::Cow::Owned(pdf_path);
     }

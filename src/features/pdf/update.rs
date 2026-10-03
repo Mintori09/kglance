@@ -2,26 +2,14 @@ use crate::app::KglanceApp;
 use crate::app::messages::Message;
 use iced::Task;
 
+#[inline]
 pub fn active_pdf_state_mut(app: &mut KglanceApp) -> &mut crate::core::PdfState {
-    if matches!(
-        app.current_content,
-        Some(crate::core::PreviewData::Typst { .. })
-    ) {
-        &mut app.state.typst.pdf
-    } else {
-        &mut app.state.pdf
-    }
+    &mut app.state.pdf
 }
 
+#[inline]
 pub fn active_pdf_state(app: &KglanceApp) -> &crate::core::PdfState {
-    if matches!(
-        app.current_content,
-        Some(crate::core::PreviewData::Typst { .. })
-    ) {
-        &app.state.typst.pdf
-    } else {
-        &app.state.pdf
-    }
+    &app.state.pdf
 }
 
 pub const MAX_CACHED_PAGES: usize = crate::core::types::PageCache::MAX_COUNT;
@@ -58,6 +46,21 @@ pub fn promote_page_from_disk_if_cached(
         return true;
     }
     false
+}
+
+/// Promotes pages within PRELOAD_RADIUS from disk cache to UI GPU handle, and evicts distant pages.
+pub fn promote_window_pages(pdf_state: &mut crate::core::PdfState, current_page: usize) {
+    let count = pdf_state.page_count;
+    if count == 0 {
+        return;
+    }
+    let radius = crate::features::pdf::lazy_handler::PRELOAD_RADIUS;
+    let start = current_page.saturating_sub(radius);
+    let end = (current_page + radius).min(count.saturating_sub(1));
+    for p in start..=end {
+        promote_page_from_disk_if_cached(pdf_state, p);
+    }
+    evict_distant_pages(pdf_state, current_page);
 }
 
 pub fn handle_wheel_scrolled(
@@ -122,12 +125,7 @@ pub fn handle_wheel_scrolled(
                 pdf_state
                     .visible_page
                     .store(page_index, std::sync::atomic::Ordering::Relaxed);
-                let start = page_index.saturating_sub(2);
-                let end = (page_index + 2).min(count.saturating_sub(1));
-                for p in start..=end {
-                    promote_page_from_disk_if_cached(pdf_state, p);
-                }
-                evict_distant_pages(pdf_state, page_index);
+                promote_window_pages(pdf_state, page_index);
             }
 
             iced::widget::operation::scroll_to(
@@ -165,12 +163,7 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             pdf_state
                 .visible_page
                 .store(page_index, std::sync::atomic::Ordering::Relaxed);
-            let start = page_index.saturating_sub(2);
-            let end = (page_index + 2).min(count.saturating_sub(1));
-            for p in start..=end {
-                promote_page_from_disk_if_cached(pdf_state, p);
-            }
-            evict_distant_pages(pdf_state, page_index);
+            promote_window_pages(pdf_state, page_index);
         }
 
         let is_finished = !pdf_state.scroll_controller.is_animating();
@@ -208,12 +201,7 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             pdf_state
                 .visible_page
                 .store(page_index, std::sync::atomic::Ordering::Relaxed);
-            let start = page_index.saturating_sub(2);
-            let end = (page_index + 2).min(count.saturating_sub(1));
-            for p in start..=end {
-                promote_page_from_disk_if_cached(pdf_state, p);
-            }
-            evict_distant_pages(pdf_state, page_index);
+            promote_window_pages(pdf_state, page_index);
         }
 
         let is_finished = !pdf_state.smooth_scroll.is_animating;
@@ -278,13 +266,7 @@ pub fn handle_scrolled(
         pdf_state
             .visible_page
             .store(page_index, std::sync::atomic::Ordering::Relaxed);
-
-        let start = page_index.saturating_sub(2);
-        let end = (page_index + 2).min(count.saturating_sub(1));
-        for p in start..=end {
-            promote_page_from_disk_if_cached(pdf_state, p);
-        }
-        evict_distant_pages(pdf_state, page_index);
+        promote_window_pages(pdf_state, page_index);
 
         if pdf_state.sidebar_visible {
             match pdf_state.sidebar_mode {
@@ -549,16 +531,14 @@ fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
     pdf_state
         .visible_page
         .store(target, std::sync::atomic::Ordering::Relaxed);
-
-    let start = target.saturating_sub(2);
-    let end = (target + 2).min(count.saturating_sub(1));
-    for p in start..=end {
-        promote_page_from_disk_if_cached(pdf_state, p);
-    }
-    evict_distant_pages(pdf_state, target);
+    promote_window_pages(pdf_state, target);
 
     let target_y =
         crate::features::pdf::viewport::page_scroll_offset(&pdf_state.page_y_offsets, target);
+
+    pdf_state.scroll_y = target_y;
+    pdf_state.scroll_controller.set_position_y(target_y);
+    pdf_state.smooth_scroll.stop(target_y);
 
     let main_scroll = iced::widget::operation::scroll_to(
         "content_scroll",
@@ -571,6 +551,9 @@ fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
     if pdf_state.sidebar_visible {
         match pdf_state.sidebar_mode {
             crate::core::types::PdfSidebarMode::Thumbnails => {
+                pdf_state
+                    .visible_thumb_page
+                    .store(target, std::sync::atomic::Ordering::Relaxed);
                 if let Some(&thumb_y) = pdf_state.thumbnail_y_offsets.get(target) {
                     let thumb_end = pdf_state
                         .thumbnail_ends
@@ -584,6 +567,7 @@ fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
                     };
                     let item_h = thumb_end - thumb_y;
                     let target_thumb_y = (thumb_y - (s_h - item_h) / 2.0).max(0.0);
+                    pdf_state.sidebar_scroll_y = target_thumb_y;
                     let side_scroll = iced::widget::operation::scroll_to(
                         "pdf_thumb_scroll",
                         iced::widget::operation::AbsoluteOffset {
@@ -604,6 +588,7 @@ fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
                     const TOC_ITEM_HEIGHT: f32 = 30.0;
                     let item_y = active_pos as f32 * TOC_ITEM_HEIGHT;
                     let target_toc_y = (item_y - (s_h - TOC_ITEM_HEIGHT) / 2.0).max(0.0);
+                    pdf_state.sidebar_scroll_y = target_toc_y;
                     let side_scroll = iced::widget::operation::scroll_to(
                         "pdf_toc_scroll",
                         iced::widget::operation::AbsoluteOffset {
@@ -701,33 +686,12 @@ pub fn reset_pdf_width(pdf: &mut crate::core::PdfState, window_width: f32) -> Ta
 mod tests {
     use super::*;
     use crate::app::test_util::test_app;
-    use crate::core::PreviewData;
 
     #[test]
-    fn active_pdf_state_selects_regular_pdf_by_default() {
+    fn active_pdf_state_selects_shared_pdf_state() {
         let mut app = test_app(None);
         active_pdf_state_mut(&mut app).sidebar_width = 321.0;
         assert_eq!(app.state.pdf.sidebar_width, 321.0);
-        assert_eq!(app.state.typst.pdf.sidebar_width, 220.0);
-    }
-
-    #[test]
-    fn active_pdf_state_selects_typst_pdf_for_typst_content() {
-        let content = Some(PreviewData::Typst {
-            page_count: 1,
-            current_page: 0,
-            data: Vec::new(),
-            width: 0,
-            height: 0,
-            source: String::new(),
-            error: None,
-            outline: Vec::new(),
-            page_dimensions: Vec::new(),
-        });
-        let mut app = test_app(content);
-        active_pdf_state_mut(&mut app).sidebar_width = 432.0;
-        assert_eq!(app.state.typst.pdf.sidebar_width, 432.0);
-        assert_eq!(app.state.pdf.sidebar_width, 220.0);
     }
 
     #[test]
