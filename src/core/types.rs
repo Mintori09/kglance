@@ -225,8 +225,8 @@ pub struct PageCache {
 }
 
 impl PageCache {
-    pub const MAX_COUNT: usize = 8;
-    pub const MAX_BYTES: usize = 48 * 1024 * 1024; // 48 MiB logical budget
+    pub const MAX_COUNT: usize = 16;
+    pub const MAX_BYTES: usize = 192 * 1024 * 1024; // 192 MiB logical budget
 
     pub fn new(page_count: usize) -> Self {
         Self {
@@ -559,7 +559,6 @@ impl Default for PdfState {
 
 #[derive(Debug, Clone, Default)]
 pub struct TypstState {
-    pub pdf: PdfState,
     pub source_text: TextState,
     pub show_source: bool,
     pub error: Option<String>,

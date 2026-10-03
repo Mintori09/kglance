@@ -11,7 +11,7 @@ pub fn handle_scrolled(
 }
 
 pub fn handle_pages_loaded(app: &mut KglanceApp) -> Task<Message> {
-    pdf::pages_loaded(&mut app.state.typst.pdf);
+    pdf::pages_loaded(&mut app.state.pdf);
     Task::none()
 }
 
@@ -22,12 +22,12 @@ pub fn handle_page_ready(
     width: u32,
     height: u32,
 ) -> Task<Message> {
-    pdf::page_ready(&mut app.state.typst.pdf, index, data, width, height);
+    pdf::page_ready(&mut app.state.pdf, index, data, width, height);
     Task::none()
 }
 
 pub fn handle_compile_error(app: &mut KglanceApp) -> Task<Message> {
-    app.state.typst.pdf.active_page_tasks = app.state.typst.pdf.active_page_tasks.saturating_sub(1);
+    app.state.pdf.active_page_tasks = app.state.pdf.active_page_tasks.saturating_sub(1);
     if app.state.typst.error.is_none() {
         app.state.typst.error = Some("Failed to compile Typst document".to_string());
     }
