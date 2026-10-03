@@ -173,6 +173,10 @@ harness = false
 name = "code_scroll_benchmark"
 harness = false
 
+[[bench]]
+name = "epub_toc_heading_bench"
+harness = false
+
 [[bin]]
 name = "kglance"
 path = "src/main.rs"
