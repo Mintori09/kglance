@@ -12,6 +12,8 @@ pub fn create_text_state(
     extension: &str,
     font_size: f32,
     wrap: bool,
+    theme: AppTheme,
+    viewport_width: f32,
 ) -> crate::core::types::TextState {
     let doc = CodeDocument::new(content);
     let total_lines = doc.total_lines();
@@ -25,15 +27,22 @@ pub fn create_text_state(
 
     let policy = PerformancePolicy::default();
     let checkpoint_interval = policy.recommended_checkpoint_interval(total_lines);
-    let mut syntax_cache = SyntaxCache::new(extension, checkpoint_interval);
+    let mut syntax_cache = SyntaxCache::with_capacity(extension, checkpoint_interval, total_lines);
 
     let wrap_mode = if wrap { WrapMode::Word } else { WrapMode::None };
-    let display_map = DisplayMap::new(&doc, font_size, wrap_mode, 800.0);
+    let viewport_w = viewport_width.max(100.0);
+    let display_map = DisplayMap::new(&doc, font_size, wrap_mode, viewport_w);
     let total_content_height = display_map.total_content_height();
 
-    let prefetch_count = total_lines.min(60);
+    // Cache whole file for files <= 3,000 lines for instant highlighting without scroll lag,
+    // or prefetch a generous initial viewport for larger files.
+    let prefetch_count = if total_lines <= 3000 {
+        total_lines
+    } else {
+        total_lines.min(150)
+    };
     let initial_spans = if prefetch_count > 0 {
-        syntax_cache.get_or_tokenize_range(0, prefetch_count - 1, &doc, AppTheme::Dark)
+        syntax_cache.get_or_tokenize_range(0, prefetch_count - 1, &doc, theme)
     } else {
         Vec::new()
     };
@@ -98,11 +107,66 @@ pub fn populate_state(
 
     let old_outline_visible = state.text.outline_visible;
     let old_sidebar_width = state.text.sidebar_width;
-    let mut text_state = create_text_state(content, path_ext, state.font_size, state.word_wrap);
+    let win_w = if state.current_window_size.width > 0.0 {
+        state.current_window_size.width
+    } else if state.window_width > 0.0 {
+        state.window_width
+    } else {
+        1024.0
+    };
+    let sidebar_w = if old_outline_visible && old_sidebar_width > 0.0 {
+        old_sidebar_width
+    } else {
+        0.0
+    };
+    let available_w = (win_w - sidebar_w).max(200.0);
+
+    let mut text_state = create_text_state(
+        content,
+        path_ext,
+        state.font_size,
+        state.word_wrap,
+        state.app_theme,
+        available_w,
+    );
     text_state.outline_visible = old_outline_visible;
     if old_sidebar_width > 0.0 {
         text_state.sidebar_width = old_sidebar_width;
     }
     state.text = text_state;
     state.file_type_text = language.to_string();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_text_state_precaches_full_file_under_threshold() {
+        let lines: Vec<String> = (0..150)
+            .map(|i| format!("fn func_{i}() {{ let x = {i}; }}\n"))
+            .collect();
+        let content = lines.concat();
+        let state = create_text_state(content, "rs", 14.0, false, AppTheme::Dark, 800.0);
+
+        // Entire file (150 lines) should be pre-cached immediately
+        assert_eq!(state.document.total_lines(), 150);
+        assert_eq!(state.cached_tokens.len(), 150);
+        assert_eq!(state.cached_tokens_start_line, 0);
+        assert!(!state.cached_tokens[0].is_empty());
+        assert!(!state.cached_tokens[149].is_empty());
+    }
+
+    #[test]
+    fn test_create_text_state_large_file_prefetches_initial_viewport() {
+        let lines: Vec<String> = (0..4000)
+            .map(|i| format!("let line_{i} = {i};\n"))
+            .collect();
+        let content = lines.concat();
+        let state = create_text_state(content, "rs", 14.0, false, AppTheme::Dark, 800.0);
+
+        assert_eq!(state.document.total_lines(), 4000);
+        assert_eq!(state.cached_tokens.len(), 150);
+        assert_eq!(state.cached_tokens_start_line, 0);
+    }
 }

@@ -38,7 +38,46 @@ fn global_syntax_set() -> &'static SyntaxSet {
 /// Global theme set lazily initialized once.
 fn global_theme_set() -> &'static ThemeSet {
     static THEME_SET: OnceLock<ThemeSet> = OnceLock::new();
-    THEME_SET.get_or_init(ThemeSet::load_defaults)
+    THEME_SET.get_or_init(|| {
+        use std::str::FromStr;
+        use syntect::highlighting::{
+            Color as SyntectColor, ScopeSelectors, StyleModifier, ThemeItem,
+        };
+
+        let mut ts = ThemeSet::load_defaults();
+        if let Ok(key_scope) = ScopeSelectors::from_str("meta.structure.dictionary.key string") {
+            for (name, theme) in ts.themes.iter_mut() {
+                if name.starts_with("base16") {
+                    let key_color = theme
+                        .scopes
+                        .iter()
+                        .find(|item| {
+                            item.scope.selectors.iter().any(|sel| {
+                                let s = format!("{sel:?}");
+                                s.contains("variable") || s.contains("entity.name")
+                            })
+                        })
+                        .and_then(|item| item.style.foreground)
+                        .unwrap_or(SyntectColor {
+                            r: 102,
+                            g: 153,
+                            b: 204,
+                            a: 255,
+                        });
+
+                    theme.scopes.push(ThemeItem {
+                        scope: key_scope.clone(),
+                        style: StyleModifier {
+                            foreground: Some(key_color),
+                            background: None,
+                            font_style: None,
+                        },
+                    });
+                }
+            }
+        }
+        ts
+    })
 }
 
 /// Finds matching syntax based on file extension.
@@ -87,14 +126,23 @@ impl Clone for SyntaxCache {
 }
 
 impl SyntaxCache {
-    /// Initializes a new SyntaxCache.
+    /// Initializes a new SyntaxCache with default capacity.
     pub fn new(extension: impl Into<String>, checkpoint_interval: usize) -> Self {
-        let capacity = NonZeroUsize::new(4096).expect("4096 is non-zero");
+        Self::with_capacity(extension, checkpoint_interval, 4096)
+    }
+
+    /// Initializes a new SyntaxCache with custom capacity.
+    pub fn with_capacity(
+        extension: impl Into<String>,
+        checkpoint_interval: usize,
+        capacity: usize,
+    ) -> Self {
+        let cap = NonZeroUsize::new(capacity.max(4096)).expect("4096 is non-zero");
         Self {
             extension: extension.into(),
             checkpoint_interval: checkpoint_interval.max(16),
             checkpoints: Vec::new(),
-            token_cache: LruCache::new(capacity),
+            token_cache: LruCache::new(cap),
         }
     }
 
@@ -316,5 +364,28 @@ mod tests {
         let spans = cache.get_or_tokenize_line(200, &doc, AppTheme::Dark);
         assert!(!spans.is_empty());
         assert!(!cache.checkpoints.is_empty());
+    }
+
+    #[test]
+    fn test_json_highlight() {
+        let code = "{\n  \"key\": \"value\",\n  \"number\": 123,\n  \"bool\": true\n}";
+        let doc = CodeDocument::new(code);
+        let mut cache = SyntaxCache::new("json", 64);
+        let spans_line_1 = cache.get_or_tokenize_line(1, &doc, AppTheme::Dark);
+        let line_1 = doc.get_line(1);
+
+        let key_span = spans_line_1
+            .iter()
+            .find(|s| &line_1[s.start_byte..s.end_byte] == "key")
+            .expect("key span found");
+        let val_span = spans_line_1
+            .iter()
+            .find(|s| &line_1[s.start_byte..s.end_byte] == "value")
+            .expect("value span found");
+
+        assert_ne!(
+            key_span.color, val_span.color,
+            "JSON key and string value should have distinct highlight colors"
+        );
     }
 }
