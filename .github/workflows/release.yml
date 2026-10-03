@@ -7,9 +7,15 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Release tag (e.g. v0.2.9)"
+        description: "Release tag (e.g. v0.2.9, leave empty to derive from ref/Cargo.toml)"
         required: false
         default: ""
+        type: string
+      commit:
+        description: "Commit SHA, branch, or tag to build from (leave empty for default ref)"
+        required: false
+        default: ""
+        type: string
 
 env:
   BINARY: kglance
@@ -46,6 +52,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.commit || github.ref }}
 
       - name: Cache APT packages
         uses: actions/cache@v4
@@ -204,6 +212,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.commit || github.ref }}
 
       - name: Resolve Release Tag
         id: version
@@ -235,6 +245,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag_name }}
+          target_commitish: ${{ github.event.inputs.commit || github.sha }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
