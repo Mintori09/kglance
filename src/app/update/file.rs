@@ -115,75 +115,84 @@ pub fn handle_file_preview_error(app: &mut KglanceApp, path: String) -> Task<Mes
     app.show_toast(format!("\"{}\" cannot be previewed", name))
 }
 
-pub fn handle_file_changed(app: &mut KglanceApp, path: String) -> Task<Message> {
+pub fn handle_active_file_modified(app: &mut KglanceApp, path: String) -> Task<Message> {
     if app.is_daemon && app.window_id.is_none() {
         return Task::none();
     }
 
-    let path_obj = Path::new(&path);
-    let mut tasks = Vec::new();
+    if path != app.state.file_name {
+        return Task::none();
+    }
 
-    // 1. Asynchronously scan files of the active preview directory if the changed path belongs to it
+    let path_obj = Path::new(&path);
+    if !path_obj.exists() {
+        return handle_active_file_deleted(app, path);
+    }
+
+    crate::app::update::navigation::load_file_task(app, path, |err_path| {
+        crate::app::messages::SystemMsg::FilePreviewError(err_path).into()
+    })
+}
+
+pub fn handle_active_file_deleted(app: &mut KglanceApp, path: String) -> Task<Message> {
+    if app.is_daemon && app.window_id.is_none() {
+        return Task::none();
+    }
+
+    if path != app.state.file_name {
+        return Task::none();
+    }
+
+    let path_obj = Path::new(&path);
+    let name = path_obj
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or(path);
+    app.current_content = None;
+    app.state.content_ready = false;
+    app.show_toast(format!("File deleted: \"{name}\""))
+}
+
+pub fn handle_directory_changed(app: &mut KglanceApp, dir: std::path::PathBuf) -> Task<Message> {
+    if app.is_daemon && app.window_id.is_none() {
+        return Task::none();
+    }
+
     let active_dir = app.state.active_dir.clone().or_else(|| {
         Path::new(&app.state.file_name)
             .parent()
             .map(|p| p.to_path_buf())
     });
 
-    if let Some(parent) = active_dir {
-        let is_sibling_or_in_dir = path_obj.parent() == Some(&parent) || path_obj == parent;
-        if is_sibling_or_in_dir {
-            let parent_dir = parent.clone();
-            let sync_gen = app
-                .state
-                .dir_sync_generation_id
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-                + 1;
-            tasks.push(Task::perform(
-                async move {
-                    let files = tokio::task::spawn_blocking({
-                        let dir = parent_dir.clone();
-                        move || crate::core::navigation::scan_directory_files(&dir)
-                    })
-                    .await
-                    .unwrap_or_default();
-                    crate::app::messages::NavigationMsg::DirectorySyncCompleted {
-                        dir: parent_dir,
-                        files,
-                        generation_id: sync_gen,
-                    }
-                    .into()
-                },
-                |msg| msg,
-            ));
-        }
+    if let Some(parent) = active_dir
+        && parent == dir
+    {
+        let parent_dir = parent.clone();
+        let sync_gen = app
+            .state
+            .dir_sync_generation_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        return Task::perform(
+            async move {
+                let files = tokio::task::spawn_blocking({
+                    let dir = parent_dir.clone();
+                    move || crate::core::navigation::scan_directory_files(&dir)
+                })
+                .await
+                .unwrap_or_default();
+                crate::app::messages::NavigationMsg::DirectorySyncCompleted {
+                    dir: parent_dir,
+                    files,
+                    generation_id: sync_gen,
+                }
+                .into()
+            },
+            |msg| msg,
+        );
     }
 
-    // 2. Handle active file changes
-    if path == app.state.file_name {
-        if !path_obj.exists() {
-            let name = path_obj
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or(path);
-            app.current_content = None;
-            app.state.content_ready = false;
-            tasks.push(app.show_toast(format!("File deleted: \"{}\"", name)));
-            return Task::batch(tasks);
-        }
-
-        tasks.push(crate::app::update::navigation::load_file_task(
-            app,
-            path,
-            |err_path| crate::app::messages::SystemMsg::FilePreviewError(err_path).into(),
-        ));
-    }
-
-    if tasks.is_empty() {
-        Task::none()
-    } else {
-        Task::batch(tasks)
-    }
+    Task::none()
 }
 
 pub fn handle_directory_sync_completed(
@@ -279,14 +288,14 @@ pub fn handle_directory_sync_completed(
             if diff == 1 {
                 "1 new file added in folder".to_string()
             } else {
-                format!("{} new files added in folder", diff)
+                format!("{diff} new files added in folder")
             }
         } else {
             let diff = old_count - new_count;
             if diff == 1 {
                 "1 file removed from folder".to_string()
             } else {
-                format!("{} files removed from folder", diff)
+                format!("{diff} files removed from folder")
             }
         };
         tasks.push(app.show_toast(toast_msg));
@@ -311,7 +320,7 @@ mod tests {
         app.window_id = None;
         app.state.file_name = "/tmp/test.md".to_string();
 
-        let _task = handle_file_changed(&mut app, "/tmp/test.md".to_string());
+        let _task = handle_active_file_modified(&mut app, "/tmp/test.md".to_string());
         assert!(app.window_id.is_none());
         assert!(app.current_content.is_none());
     }
@@ -327,7 +336,7 @@ mod tests {
             language: "".into(),
         });
 
-        let _task = handle_file_changed(
+        let _task = handle_active_file_deleted(
             &mut app,
             "/tmp/non_existent_deleted_file_12345.md".to_string(),
         );

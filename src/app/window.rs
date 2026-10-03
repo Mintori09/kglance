@@ -215,6 +215,11 @@ impl KglanceApp {
     fn handle_window_close_requested(&mut self, window_id: window::Id) -> Task<Message> {
         self.video = None;
         if self.is_daemon {
+            if let Some(ref watcher) = self.file_watcher {
+                let _ = watcher
+                    .cmd_tx
+                    .send(crate::core::file_watcher::WatchCommand::Unwatch);
+            }
             self.current_content = None;
             self.state.reset_content_state();
             self.invalidate_render_generations();
