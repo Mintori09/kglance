@@ -239,7 +239,9 @@ pub enum SystemMsg {
     ToastDismissed(u64),
     OpenLink(String),
     FilePreviewError(String),
-    FileChanged(String),
+    ActiveFileModified(String),
+    ActiveFileDeleted(String),
+    DirectoryChanged(std::path::PathBuf),
     WindowResized(f32, f32),
     ReadPositionsTick,
 }

@@ -60,8 +60,14 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::SystemMsg::FilePreviewError(path) => {
                 file::handle_file_preview_error(app, path)
             }
-            crate::app::messages::SystemMsg::FileChanged(path) => {
-                file::handle_file_changed(app, path)
+            crate::app::messages::SystemMsg::ActiveFileModified(path) => {
+                file::handle_active_file_modified(app, path)
+            }
+            crate::app::messages::SystemMsg::ActiveFileDeleted(path) => {
+                file::handle_active_file_deleted(app, path)
+            }
+            crate::app::messages::SystemMsg::DirectoryChanged(dir) => {
+                file::handle_directory_changed(app, dir)
             }
             crate::app::messages::SystemMsg::ReadPositionsTick => {
                 if app.state.read_positions_dirty {

@@ -15,9 +15,16 @@ pub enum WatchCommand {
     Unwatch,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WatchedEvent {
+    ActiveFileModified(PathBuf),
+    ActiveFileDeleted(PathBuf),
+    DirectoryChanged(PathBuf),
+}
+
 pub struct FileWatcher {
     pub cmd_tx: Sender<WatchCommand>,
-    pub events: Arc<Mutex<Option<Receiver<PathBuf>>>>,
+    pub events: Arc<Mutex<Option<Receiver<WatchedEvent>>>>,
 }
 
 fn is_ignored_path(path: &std::path::Path) -> bool {
@@ -60,7 +67,8 @@ impl FileWatcher {
 
         thread::spawn(move || {
             let mut current_path: Option<PathBuf> = None;
-            let mut last_change: Option<Instant> = None;
+            let mut last_file_change: Option<Instant> = None;
+            let mut last_dir_change: Option<Instant> = None;
 
             loop {
                 if let Ok(cmd) = cmd_rx.try_recv() {
@@ -75,7 +83,7 @@ impl FileWatcher {
                                 let _ = watcher.unwatch(parent);
                             }
                             if let Some(parent) = path.parent()
-                                && let Err(e) = watcher.watch(parent, RecursiveMode::Recursive)
+                                && let Err(e) = watcher.watch(parent, RecursiveMode::NonRecursive)
                             {
                                 log_error!(
                                     "FileWatcher: failed to watch {}: {}",
@@ -84,7 +92,8 @@ impl FileWatcher {
                                 );
                             }
                             current_path = Some(path);
-                            last_change = None;
+                            last_file_change = None;
+                            last_dir_change = None;
                         }
                         WatchCommand::Unwatch => {
                             if let Some(ref old) = current_path
@@ -93,54 +102,76 @@ impl FileWatcher {
                                 let _ = watcher.unwatch(parent);
                             }
                             current_path = None;
-                            last_change = None;
+                            last_file_change = None;
+                            last_dir_change = None;
                         }
                     }
                 }
 
-                match rx_notify.recv_timeout(Duration::from_millis(100)) {
+                match rx_notify.recv_timeout(Duration::from_millis(50)) {
                     Ok(event) => {
                         if let Some(ref watched) = current_path
                             && let Some(parent) = watched.parent()
                         {
-                            let is_remove_main = matches!(event.kind, EventKind::Remove(_))
+                            let is_active_remove = matches!(event.kind, EventKind::Remove(_))
                                 && event.paths.iter().any(|p| p == watched);
 
-                            if is_remove_main {
-                                let _ = tx_result.send(watched.clone());
-                                last_change = None;
+                            if is_active_remove {
+                                let _ = tx_result
+                                    .send(WatchedEvent::ActiveFileDeleted(watched.clone()));
+                                last_file_change = None;
+                                last_dir_change = Some(Instant::now());
                                 continue;
                             }
 
-                            let has_valid_child_event = event
+                            let is_active_modified =
+                                matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_))
+                                    && event.paths.iter().any(|p| p == watched);
+
+                            if is_active_modified {
+                                last_file_change = Some(Instant::now());
+                            }
+
+                            let is_dir_membership_change = matches!(
+                                event.kind,
+                                EventKind::Create(_)
+                                    | EventKind::Remove(_)
+                                    | EventKind::Modify(notify::event::ModifyKind::Name(_))
+                            ) && event
                                 .paths
                                 .iter()
-                                .any(|p| p.starts_with(parent) && !is_ignored_path(p));
+                                .any(|p| p.parent() == Some(parent) && !is_ignored_path(p));
 
-                            if !has_valid_child_event {
-                                continue;
-                            }
-
-                            let is_change = matches!(
-                                event.kind,
-                                EventKind::Modify(_) | EventKind::Create(_) | EventKind::Remove(_)
-                            );
-
-                            if is_change {
-                                last_change = Some(Instant::now());
+                            if is_dir_membership_change {
+                                last_dir_change = Some(Instant::now());
                             }
                         }
                     }
-                    Err(mpsc::RecvTimeoutError::Timeout) => {
-                        if let Some(ref t) = last_change
-                            && t.elapsed() >= Duration::from_millis(200)
-                            && let Some(ref path) = current_path
-                        {
-                            let _ = tx_result.send(path.clone());
-                            last_change = None;
-                        }
-                    }
+                    Err(mpsc::RecvTimeoutError::Timeout) => {}
                     Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                }
+
+                // Debounce active file modified (150ms)
+                if let Some(ref t) = last_file_change
+                    && t.elapsed() >= Duration::from_millis(150)
+                {
+                    if let Some(ref path) = current_path {
+                        let _ = tx_result.send(WatchedEvent::ActiveFileModified(path.clone()));
+                    }
+                    last_file_change = None;
+                }
+
+                // Debounce directory changes (250ms)
+                if let Some(ref t) = last_dir_change
+                    && t.elapsed() >= Duration::from_millis(250)
+                {
+                    if let Some(ref path) = current_path
+                        && let Some(parent) = path.parent()
+                    {
+                        let _ =
+                            tx_result.send(WatchedEvent::DirectoryChanged(parent.to_path_buf()));
+                    }
+                    last_dir_change = None;
                 }
             }
         });
@@ -153,11 +184,11 @@ impl FileWatcher {
 }
 
 pub struct FileWatcherRecipe {
-    events: Arc<Mutex<Option<Receiver<PathBuf>>>>,
+    events: Arc<Mutex<Option<Receiver<WatchedEvent>>>>,
 }
 
 impl FileWatcherRecipe {
-    pub fn new(events: Arc<Mutex<Option<Receiver<PathBuf>>>>) -> Self {
+    pub fn new(events: Arc<Mutex<Option<Receiver<WatchedEvent>>>>) -> Self {
         Self { events }
     }
 }
@@ -181,18 +212,26 @@ impl subscription::Recipe for FileWatcherRecipe {
                     use iced::futures::SinkExt;
                     loop {
                         match rx.try_recv() {
-                            Ok(path) => {
-                                let _ = output
-                                    .send(
-                                        crate::app::messages::SystemMsg::FileChanged(
+                            Ok(event) => {
+                                let msg = match event {
+                                    WatchedEvent::ActiveFileModified(path) => {
+                                        crate::app::messages::SystemMsg::ActiveFileModified(
                                             path.to_string_lossy().to_string(),
                                         )
-                                        .into(),
-                                    )
-                                    .await;
+                                    }
+                                    WatchedEvent::ActiveFileDeleted(path) => {
+                                        crate::app::messages::SystemMsg::ActiveFileDeleted(
+                                            path.to_string_lossy().to_string(),
+                                        )
+                                    }
+                                    WatchedEvent::DirectoryChanged(dir) => {
+                                        crate::app::messages::SystemMsg::DirectoryChanged(dir)
+                                    }
+                                };
+                                let _ = output.send(msg.into()).await;
                             }
                             Err(mpsc::TryRecvError::Empty) => {
-                                tokio::time::sleep(Duration::from_millis(100)).await;
+                                tokio::time::sleep(Duration::from_millis(50)).await;
                             }
                             Err(mpsc::TryRecvError::Disconnected) => break,
                         }
@@ -201,5 +240,45 @@ impl subscription::Recipe for FileWatcherRecipe {
             )),
             None => iced_futures::boxed_stream(iced::futures::stream::empty()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn test_is_ignored_path() {
+        assert!(is_ignored_path(Path::new("/home/user/project/.git/HEAD")));
+        assert!(is_ignored_path(Path::new(
+            "/home/user/project/node_modules/pkg/index.js"
+        )));
+        assert!(is_ignored_path(Path::new(
+            "/home/user/project/target/debug/app"
+        )));
+        assert!(is_ignored_path(Path::new(
+            "/home/user/project/__pycache__/mod.pyc"
+        )));
+        assert!(is_ignored_path(Path::new(
+            "/home/user/project/.venv/bin/python"
+        )));
+
+        assert!(!is_ignored_path(Path::new("/tmp/test.md")));
+        assert!(!is_ignored_path(Path::new("/home/user/docs/readme.txt")));
+    }
+
+    #[test]
+    fn test_watched_event_equality() {
+        let p1 = PathBuf::from("/tmp/test.md");
+        let p2 = PathBuf::from("/tmp/test.md");
+        assert_eq!(
+            WatchedEvent::ActiveFileModified(p1.clone()),
+            WatchedEvent::ActiveFileModified(p2.clone())
+        );
+        assert_ne!(
+            WatchedEvent::ActiveFileModified(p1.clone()),
+            WatchedEvent::ActiveFileDeleted(p2)
+        );
     }
 }
