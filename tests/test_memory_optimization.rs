@@ -28,10 +28,10 @@ fn test_page_cache_enforces_count_limit_and_tracks_bytes() {
 fn test_page_cache_enforces_byte_budget() {
     let mut cache = PageCache::new(50);
 
-    // 4 entries of 2000x2000 (16 MiB decoded each) = 64 MiB > 48 MiB budget
-    for i in 0..4 {
+    // 16 entries of 2000x2000 (16 MiB decoded each) = 256 MiB > 192 MiB budget
+    for i in 0..16 {
         let entry = fake_entry(2000, 2000);
-        let res = cache.insert(i, entry, 3);
+        let res = cache.insert(i, entry, 15);
         assert_eq!(res, InsertResult::Inserted);
     }
 
@@ -45,8 +45,8 @@ fn test_page_cache_enforces_byte_budget() {
 #[test]
 fn test_page_cache_rejects_oversized_single_page() {
     let mut cache = PageCache::new(50);
-    // 4000x4000 = 64 MiB > 48 MiB MAX_BYTES
-    let oversized = fake_entry(4000, 4000);
+    // 8000x8000 = 256 MiB > 192 MiB MAX_BYTES
+    let oversized = fake_entry(8000, 8000);
     let res = cache.insert(0, oversized, 0);
     assert_eq!(res, InsertResult::RejectedOversized);
     assert_eq!(cache.count(), 0);
@@ -57,19 +57,21 @@ fn test_page_cache_rejects_oversized_single_page() {
 fn test_page_cache_eviction_tie_breaking() {
     let mut cache = PageCache::new(50);
 
-    // Populate 8 items around anchor 10
-    for &idx in &[9, 11, 8, 12, 7, 13, 6, 14] {
-        cache.insert(idx, fake_entry(10, 10), 10);
+    // Populate 16 items around anchor 20
+    for &idx in &[
+        19, 21, 18, 22, 17, 23, 16, 24, 15, 25, 14, 26, 13, 27, 12, 28,
+    ] {
+        cache.insert(idx, fake_entry(10, 10), 20);
     }
-    assert_eq!(cache.count(), 8);
+    assert_eq!(cache.count(), 16);
 
-    // Inserting 10 (dist 0) forces eviction of furthest (dist 4: 6 vs 14).
-    // On tie, higher index (14) is evicted first, preserving smaller index (6).
-    cache.insert(10, fake_entry(10, 10), 10);
-    assert_eq!(cache.count(), 8);
-    assert!(cache.get(10).is_some());
-    assert!(cache.get(6).is_some()); // distance 4, smaller index -> preserved
-    assert!(cache.get(14).is_none()); // distance 4, larger index -> evicted
+    // Inserting 20 (dist 0) forces eviction of furthest (dist 8: 12 vs 28).
+    // On tie, higher index (28) is evicted first, preserving smaller index (12).
+    cache.insert(20, fake_entry(10, 10), 20);
+    assert_eq!(cache.count(), 16);
+    assert!(cache.get(20).is_some());
+    assert!(cache.get(12).is_some()); // distance 8, smaller index -> preserved
+    assert!(cache.get(28).is_none()); // distance 8, larger index -> evicted
 }
 
 #[test]

@@ -97,17 +97,20 @@ pub async fn process_page_loading<F>(
         let current_page = visible_page.load(Ordering::Relaxed);
         let window_range = WindowRange::new(current_page, total_pages, PRELOAD_RADIUS);
 
-        for (idx, is_rendered) in rendered_pages.iter_mut().enumerate() {
-            if idx > 0 && !window_range.contains(idx) {
-                *is_rendered = false;
-            }
-        }
-
-        let unrendered_pages =
+        let mut unrendered_pages =
             find_unrendered_window_pages(&rendered_pages, &window_range, current_page);
+
         if unrendered_pages.is_empty() {
-            tokio::time::sleep(Duration::from_millis(50)).await;
-            continue;
+            let mut remaining: Vec<usize> = (0..total_pages)
+                .filter(|&idx| !rendered_pages[idx])
+                .collect();
+
+            if remaining.is_empty() {
+                break;
+            }
+
+            remaining.sort_by_key(|&idx| (idx as isize - current_page as isize).abs());
+            unrendered_pages = remaining;
         }
 
         let batch: Vec<usize> = unrendered_pages.into_iter().take(BATCH_SIZE).collect();
@@ -316,7 +319,13 @@ async fn render_and_send_thumbnail_batch<F>(
         );
         let mut results = Vec::with_capacity(rendered.len());
         for (idx, res) in rendered {
-            let compressed = res.map(|p| {
+            let compressed = res.map(|mut p| {
+                crate::features::pdf::compress::round_rgba_corners(
+                    &mut p.data,
+                    p.width,
+                    p.height,
+                    6.0,
+                );
                 let compressed_data = crate::features::pdf::compress::compress_rgba_to_png(
                     &p.data, p.width, p.height,
                 );

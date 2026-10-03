@@ -333,7 +333,10 @@ fn render_thumbnails_list<'a>(
         .load(std::sync::atomic::Ordering::Relaxed);
 
     let spacing = crate::features::pdf::geometry::THUMBNAIL_SPACING;
-    let mut thumbs_col = column![].spacing(spacing).padding(0.0);
+    let mut thumbs_col = column![]
+        .spacing(spacing)
+        .padding(0.0)
+        .align_x(Alignment::Center);
 
     for page_idx in 0..state.page_count {
         let is_active = page_idx == current_page;
@@ -359,24 +362,26 @@ fn render_thumb_item<'a>(
     theme: crate::ui::theme::AppTheme,
 ) -> Element<'a, Message> {
     let thumb_width = (state.sidebar_width - 24.0).clamp(100.0, 360.0);
+    let card_padding = crate::features::pdf::geometry::PDF_CARD_PADDING;
+    let img_width = (thumb_width - card_padding * 2.0).max(10.0);
     let aspect_ratio = state
         .page_dimensions
         .get(page_idx)
         .map(|d| d.aspect_ratio())
         .unwrap_or(1.0 / 1.414);
-    let thumb_height = (thumb_width / aspect_ratio).max(20.0);
+    let img_height = (img_width / aspect_ratio).max(20.0);
 
     let p = theme.palette().base;
 
     let thumb_img: Element<'a, Message> = if let Some(entry) = state.thumbnails.get(page_idx) {
         image(&entry.handle)
-            .width(Length::Fixed(thumb_width))
-            .height(Length::Fixed(thumb_height))
+            .width(Length::Fixed(img_width))
+            .height(Length::Fixed(img_height))
             .into()
     } else if let Some(entry) = state.pages.get(page_idx) {
         image(&entry.handle)
-            .width(Length::Fixed(thumb_width))
-            .height(Length::Fixed(thumb_height))
+            .width(Length::Fixed(img_width))
+            .height(Length::Fixed(img_height))
             .into()
     } else {
         container(
@@ -396,14 +401,14 @@ fn render_thumb_item<'a>(
                 ..Default::default()
             }),
         )
-        .width(Length::Fixed(thumb_width))
-        .height(Length::Fixed(thumb_height))
+        .width(Length::Fixed(img_width))
+        .height(Length::Fixed(img_height))
         .center_x(Length::Fill)
         .center_y(Length::Fill)
         .style(move |_| container::Style {
             background: Some(p.surface.scale_alpha(0.3).into()),
             border: Border {
-                radius: 4.0.into(),
+                radius: 6.0.into(),
                 width: 1.0,
                 color: p.border.scale_alpha(0.5),
             },
@@ -412,8 +417,8 @@ fn render_thumb_item<'a>(
         .into()
     };
 
-    let badge_bg = theme.palette().base.surface;
-    let badge_text_color = theme.palette().base.text;
+    let badge_bg = p.surface.scale_alpha(0.85);
+    let badge_text_color = p.text;
 
     let page_badge = container(text(format!("{}", page_idx + 1)).size(10).style(move |_| {
         iced::widget::text::Style {
@@ -425,40 +430,40 @@ fn render_thumb_item<'a>(
         background: Some(badge_bg.into()),
         border: Border {
             radius: 4.0.into(),
+            width: 1.0,
+            color: p.border.scale_alpha(0.3),
+        },
+        ..Default::default()
+    });
+
+    let card_stack = container(iced::widget::stack![
+        thumb_img,
+        container(page_badge)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Right)
+            .align_y(Alignment::End)
+            .padding(4)
+    ])
+    .width(Length::Fixed(img_width))
+    .height(Length::Fixed(img_height))
+    .style(move |_| container::Style {
+        background: Some(iced::Color::TRANSPARENT.into()),
+        border: Border {
+            radius: 6.0.into(),
             width: 0.0,
             color: iced::Color::TRANSPARENT,
         },
         ..Default::default()
     });
 
-    let card_stack = iced::widget::stack![
-        thumb_img,
-        container(page_badge)
-            .padding(4)
-            .align_y(Alignment::End)
-            .align_x(iced::alignment::Horizontal::Right)
-    ];
-
-    let border_color = if is_active {
-        theme.palette().sidebar.active_text
-    } else {
-        iced::Color::TRANSPARENT
-    };
-    let border_width = if is_active { 2.0 } else { 0.0 };
-
     button(card_stack)
         .on_press(crate::app::messages::PdfMsg::ThumbnailClicked(page_idx).into())
-        .width(Length::Fill)
+        .width(Length::Fixed(thumb_width))
         .style(move |iced_theme, status| {
-            let mut style = sidebar_entry_style(iced_theme, status, is_active, theme);
-            style.border = Border {
-                radius: 6.0.into(),
-                width: border_width,
-                color: border_color,
-            };
-            style
+            crate::ui::theme::default_grid_card(iced_theme, status, is_active)
         })
-        .padding(0)
+        .padding(card_padding)
         .into()
 }
 
