@@ -77,8 +77,22 @@ fn render_page_at_dpi(doc: &Document, page_index: i32, _dpi: f32) -> Result<Page
     })
 }
 
+fn resolve_document_path(path: &Path) -> std::borrow::Cow<'_, Path> {
+    if path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("docx"))
+        && let Ok(pdf_path) = crate::features::office::parser::get_or_compile_docx_to_pdf(path)
+    {
+        return std::borrow::Cow::Owned(pdf_path);
+    }
+    std::borrow::Cow::Borrowed(path)
+}
+
 pub fn render_pdf_page(path: &Path, page_index: u32) -> Result<PageData, ParseError> {
-    let doc = Document::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let resolved = resolve_document_path(path);
+    let doc =
+        Document::open(resolved.as_ref()).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     render_page(&doc, page_index as i32).map_err(|e| ParseError::ParseFailed(e.to_string()))
 }
 
@@ -98,7 +112,8 @@ pub fn render_pdf_pages_batch(
     path: &Path,
     pages: &[usize],
 ) -> Vec<(usize, Result<PageData, ParseError>)> {
-    let doc = match Document::open(path) {
+    let resolved = resolve_document_path(path);
+    let doc = match Document::open(resolved.as_ref()) {
         Ok(d) => d,
         Err(e) => {
             return pages
@@ -124,7 +139,8 @@ pub fn render_pdf_pages_batch_at_dpi(
     pages: &[usize],
     dpi: f32,
 ) -> Vec<(usize, Result<PageData, ParseError>)> {
-    let doc = match Document::open(path) {
+    let resolved = resolve_document_path(path);
+    let doc = match Document::open(resolved.as_ref()) {
         Ok(d) => d,
         Err(e) => {
             return pages
@@ -150,7 +166,9 @@ pub fn render_pdf_page_at_dpi(
     page_index: u32,
     dpi: f32,
 ) -> Result<PageData, ParseError> {
-    let doc = Document::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let resolved = resolve_document_path(path);
+    let doc =
+        Document::open(resolved.as_ref()).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     let res = render_page_at_dpi(&doc, page_index as i32, dpi)
         .map_err(|e| ParseError::ParseFailed(e.to_string()));
     empty_mupdf_store();

@@ -24,12 +24,8 @@ impl PreviewParser for OfficeParser {
 
         match ext.as_str() {
             "docx" => {
-                if let Ok(content) = try_docx_direct(&path_str) {
-                    return Ok(ParsedContent::Office {
-                        content,
-                        format: "DOCX".into(),
-                        page_count: 1,
-                    });
+                if let Ok(pdf_content) = compile_docx_to_pdf(path) {
+                    return Ok(pdf_content);
                 }
             }
             "xlsx" => {
@@ -44,71 +40,78 @@ impl PreviewParser for OfficeParser {
     }
 }
 
-fn try_docx_direct(path: &str) -> Result<String, ParseError> {
-    use std::io::Read;
+pub fn get_or_compile_docx_to_pdf(docx_path: &Path) -> Result<std::path::PathBuf, ParseError> {
+    let metadata =
+        std::fs::metadata(docx_path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let mtime = metadata
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let size = metadata.len();
+    let hash_input = format!("{}:{mtime}:{size}", docx_path.to_string_lossy());
+    let hash = format!("{:x}", md5::compute(hash_input.as_bytes()));
+    let cache_dir = std::env::temp_dir().join("kglance_docx");
+    let _ = std::fs::create_dir_all(&cache_dir);
+    let cache_pdf = cache_dir.join(format!("{hash}.pdf"));
 
-    let file = std::fs::File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-    let mut archive =
-        zip::ZipArchive::new(file).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-    let mut document = archive
-        .by_name("word/document.xml")
-        .map_err(|_| ParseError::ParseFailed("no document.xml".into()))?;
-    let mut xml = String::new();
-    document
-        .read_to_string(&mut xml)
-        .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-
-    let content = extract_docx_text(&xml);
-    if content.trim().is_empty() {
-        Err(ParseError::ParseFailed("empty document".into()))
-    } else {
-        Ok(content)
+    if cache_pdf.exists()
+        && std::fs::metadata(&cache_pdf)
+            .map(|m| m.len() > 0)
+            .unwrap_or(false)
+    {
+        return Ok(cache_pdf);
     }
+
+    docxide_pdf::convert_docx_to_pdf(docx_path, &cache_pdf)
+        .map_err(|e| ParseError::ParseFailed(format!("DOCX conversion failed: {e}")))?;
+
+    Ok(cache_pdf)
 }
 
-fn extract_docx_text(xml: &str) -> String {
-    let mut result = String::new();
-    let mut in_para = false;
-    let mut in_text = false;
-    let bytes = xml.as_bytes();
-    let len = bytes.len();
-    let mut i = 0;
+pub fn compile_docx_to_pdf(path: &Path) -> Result<ParsedContent, ParseError> {
+    let pdf_path = get_or_compile_docx_to_pdf(path)?;
+    let doc = mupdf::Document::open(pdf_path.as_path())
+        .map_err(|e| ParseError::ParseFailed(format!("Failed to open generated PDF: {e}")))?;
 
-    while i < len {
-        if bytes[i] == b'<' {
-            let tag_end = xml[i..].find('>').map(|p| i + p + 1).unwrap_or(len);
-            let tag = &xml[i..tag_end];
-            if tag.starts_with("<w:p") {
-                in_para = true;
-                if !result.is_empty() && !result.ends_with('\n') {
-                    result.push('\n');
-                }
-            } else if tag.starts_with("</w:p") {
-                in_para = false;
-                in_text = false;
-            } else if tag.starts_with("<w:t") && !tag.starts_with("</") {
-                in_text = true;
-            } else if tag.starts_with("</w:t") {
-                in_text = false;
-            } else if tag.starts_with("<w:br") && in_para {
-                result.push('\n');
-            }
-            i = tag_end;
-        } else if in_text {
-            let text_end = xml[i..].find('<').map(|p| i + p).unwrap_or(len);
-            result.push_str(&xml[i..text_end]);
-            i = text_end;
-        } else {
-            i += 1;
+    let page_count = doc
+        .page_count()
+        .map_err(|e| ParseError::ParseFailed(e.to_string()))? as u32;
+
+    let outline = crate::features::pdf::parser::extract_pdf_toc(&doc);
+    let page_dimensions = crate::features::pdf::dimensions::extract_page_dimensions(&doc)
+        .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+
+    let first_page = if page_count > 0 {
+        let raw_page = crate::features::pdf::parser::render_pdf_page(&pdf_path, 0)?;
+        let compressed = crate::features::pdf::compress::compress_rgba_to_png(
+            &raw_page.data,
+            raw_page.width,
+            raw_page.height,
+        )
+        .unwrap_or(raw_page.data);
+        crate::features::pdf::types::PageData {
+            width: raw_page.width,
+            height: raw_page.height,
+            data: compressed,
         }
-    }
+    } else {
+        crate::features::pdf::types::PageData {
+            width: 0,
+            height: 0,
+            data: Vec::new(),
+        }
+    };
 
-    result
-        .lines()
-        .map(|l| l.trim())
-        .filter(|l| !l.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n")
+    crate::features::pdf::parser::empty_mupdf_store();
+
+    Ok(ParsedContent::Pdf {
+        page_count,
+        first_page,
+        outline,
+        page_dimensions,
+    })
 }
 
 fn excel_serial_to_date(serial: f64) -> String {
@@ -220,5 +223,24 @@ fn fallback_lo(path: &str, _ext: &str) -> Result<ParsedContent, ParseError> {
         _ => Err(ParseError::ParseFailed(
             "LibreOffice not available or conversion failed. Install libreoffice for office document preview.".into(),
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_office_parser_supported_extensions() {
+        let parser = OfficeParser;
+        assert!(parser.supported_extensions().contains(&"docx"));
+        assert!(parser.supported_extensions().contains(&"xlsx"));
+    }
+
+    #[test]
+    fn test_docx_invalid_path_fails() {
+        let parser = OfficeParser;
+        let result = parser.parse(Path::new("/nonexistent/invalid_file.docx"));
+        assert!(result.is_err());
     }
 }
