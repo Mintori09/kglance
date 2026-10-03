@@ -157,15 +157,6 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                     language,
                 }
             }
-            ParsedContent::Office {
-                content,
-                format,
-                page_count,
-            } => crate::core::preview::PreviewData::Text {
-                content,
-                line_numbers: String::new(),
-                language: format!("Office ({}, {} pages)", format, page_count),
-            },
             ParsedContent::Json {
                 content,
                 pretty,
