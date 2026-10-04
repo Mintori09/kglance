@@ -13,7 +13,6 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
     },
     paragraph: ParagraphStyle { padding: [3, 0] },
     inline: InlineStyle {
-        inline_code_color: primitive::MD_INLINE_CODE,
         image_alt_color: primitive::GRAY_500,
         link_button_border_width: 0.0,
         wrap_spacing: 5.0,
@@ -38,14 +37,13 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
         cell_font_size: tables::FONT_SIZE_BODY,
     },
     list: ListStyle {
-        bullet_color: primitive::GRAY_500,
-        item_spacing: 6.0,
-        item_padding: 3.0,
-        sub_block_left_padding: spacing::XL,
+        item_spacing: 4.0,
+        item_padding: 2.0,
+        sub_block_left_padding: 20.0,
     },
     quote: QuoteStyle {
-        bar_width: spacing::XS,
-        content_padding: [8, 12],
+        bar_width: 3.0,
+        content_padding: [6, 14],
     },
     image: ImageStyle {
         max_width: 600.0,
@@ -60,7 +58,7 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
         font_size: 12.0,
         preview_truncate: 80,
     },
-    hr: HrStyle { padding: [8, 0] },
+    hr: HrStyle { padding: [4, 0] },
     math: MathStyle {
         font_scale: 1.0,
         stroke_width: 0.35,
@@ -114,7 +112,6 @@ pub(crate) struct ParagraphStyle {
 
 #[derive(Clone, Copy)]
 pub(crate) struct InlineStyle {
-    pub inline_code_color: Color,
     pub image_alt_color: Color,
     pub link_button_border_width: f32,
     pub wrap_spacing: f32,
@@ -145,7 +142,6 @@ pub(crate) struct TableStyle {
 
 #[derive(Clone, Copy)]
 pub(crate) struct ListStyle {
-    pub bullet_color: Color,
     pub item_spacing: f32,
     pub item_padding: f32,
     pub sub_block_left_padding: f32,

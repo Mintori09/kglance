@@ -14,6 +14,8 @@ pub struct MarkdownColors {
     pub table_border: Color,
     pub quote_accent: Color,
     pub quote_bg: Color,
+    pub inline_code_fg: Color,
+    pub inline_code_bg: Color,
     pub html_fg: Color,
     pub math: Color,
 }
@@ -28,6 +30,8 @@ impl MarkdownColors {
         table_border: primitive::MD_DARK_TABLE_BORDER,
         quote_accent: primitive::MD_DARK_QUOTE_ACCENT,
         quote_bg: primitive::MD_DARK_QUOTE_BG,
+        inline_code_fg: primitive::MD_DARK_INLINE_CODE,
+        inline_code_bg: primitive::MD_DARK_INLINE_CODE_BG,
         html_fg: primitive::GRAY_500,
         math: primitive::DARK_TEXT,
     };
@@ -41,6 +45,8 @@ impl MarkdownColors {
         table_border: primitive::MD_LIGHT_TABLE_BORDER,
         quote_accent: primitive::MD_LIGHT_QUOTE_ACCENT,
         quote_bg: primitive::MD_LIGHT_QUOTE_BG,
+        inline_code_fg: primitive::MD_LIGHT_INLINE_CODE,
+        inline_code_bg: primitive::MD_LIGHT_INLINE_CODE_BG,
         html_fg: primitive::GRAY_500,
         math: primitive::LIGHT_TEXT,
     };
@@ -52,8 +58,10 @@ impl MarkdownColors {
         table_header_text: primitive::NORD4,
         table_separator: primitive::NORD3,
         table_border: primitive::NORD3,
-        quote_accent: primitive::NORD9,
+        quote_accent: primitive::NORD8,
         quote_bg: primitive::NORD1,
+        inline_code_fg: primitive::NORD8,
+        inline_code_bg: primitive::WHITE_006,
         html_fg: primitive::NORD3,
         math: primitive::NORD4,
     };

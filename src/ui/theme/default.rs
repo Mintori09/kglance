@@ -249,26 +249,26 @@ pub fn default_scrollable(theme: &Theme, status: scrollable::Status) -> scrollab
     let (scroller_bg, scroller_radius, rail_bg) = match status {
         scrollable::Status::Dragged { .. } => (
             role.accent_pressed,
-            2.0,
+            3.0,
             Color {
-                a: 0.08,
+                a: 0.12,
                 ..p.border
             },
         ),
         scrollable::Status::Hovered { .. } => (
             role.accent_hover,
-            2.0,
+            3.0,
             Color {
-                a: 0.05,
+                a: 0.08,
                 ..p.border
             },
         ),
         _ => (
             Color {
-                a: 0.20,
-                ..p.border
+                a: 0.35,
+                ..p.text_dim
             },
-            2.0,
+            3.0,
             Color::TRANSPARENT,
         ),
     };

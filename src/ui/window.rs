@@ -32,20 +32,13 @@ fn left_metadata_text(state: &KglanceState) -> String {
 
     if is_markdown && state.markdown.word_count > 0 {
         let mins = state.markdown.reading_time_mins.max(1);
-
         parts.push(format!(
-            "{} words ({} chars)",
-            state.markdown.word_count, state.markdown.char_count
+            "{} words · {mins} min read",
+            state.markdown.word_count
         ));
-        parts.push(format!("{mins} min read"));
     } else if state.text.word_count > 0 {
         let mins = state.text.reading_time_mins.max(1);
-
-        parts.push(format!(
-            "{} words ({} chars)",
-            state.text.word_count, state.text.char_count
-        ));
-        parts.push(format!("{mins} min read"));
+        parts.push(format!("{} words · {mins} min read", state.text.word_count));
     }
 
     parts.join(" • ")
@@ -68,12 +61,14 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
 
     let counter = playlist_position_button(state);
     let page_counter = page_indicator(state);
+    let toc_btn = toc_toggle_button(state);
     let typst = typst_toggle_button(state);
     let info = image_info_button(state);
 
     let left_row = row![
         counter,
         page_counter,
+        toc_btn,
         text(left).size(11).style(metadata_style),
     ]
     .spacing(8)
@@ -96,6 +91,41 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     .width(Length::Fill)
     .style(default_raised)
     .into()
+}
+
+fn toc_toggle_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
+    let is_markdown = file_has_extension(state, "md") || file_has_extension(state, "markdown");
+    if is_markdown && !state.markdown.toc.is_empty() {
+        let style = if state.markdown.toc_visible {
+            iced::widget::button::primary
+        } else {
+            iced::widget::button::secondary
+        };
+        Some(
+            button(text("📑 Outline").size(11))
+                .on_press(crate::app::messages::MarkdownMsg::TocToggled.into())
+                .style(style)
+                .padding([2, 6])
+                .into(),
+        )
+    } else if (file_has_extension(state, "epub") || state.file_type_text.contains("EPUB"))
+        && !state.epub.markdown_state.toc.is_empty()
+    {
+        let style = if state.epub.sidebar_visible {
+            iced::widget::button::primary
+        } else {
+            iced::widget::button::secondary
+        };
+        Some(
+            button(text("📑 Chapters").size(11))
+                .on_press(crate::app::messages::EpubMsg::SidebarToggled.into())
+                .style(style)
+                .padding([2, 6])
+                .into(),
+        )
+    } else {
+        None
+    }
 }
 
 fn playlist_position_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {

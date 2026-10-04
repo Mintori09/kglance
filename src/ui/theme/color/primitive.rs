@@ -70,7 +70,10 @@ pub(crate) const BLACK_015: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.15);
 
 // ── Markdown: inline syntax (theme-independent) ────────────────────────────
 
-pub(crate) const MD_INLINE_CODE: Color = Color::from_rgb(0.8, 0.35, 0.35);
+pub(crate) const MD_DARK_INLINE_CODE: Color = Color::from_rgb(0.55, 0.78, 0.95);
+pub(crate) const MD_DARK_INLINE_CODE_BG: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.08);
+pub(crate) const MD_LIGHT_INLINE_CODE: Color = Color::from_rgb(0.18, 0.42, 0.68);
+pub(crate) const MD_LIGHT_INLINE_CODE_BG: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.06);
 
 // ── Markdown: link & task (shared via `roles`) ─────────────────────────────
 
@@ -99,10 +102,10 @@ pub(crate) const MD_LIGHT_TABLE_BORDER: Color = Color::from_rgb(0.6, 0.62, 0.65)
 
 // ── Markdown: quotes & html ────────────────────────────────────────────────
 
-pub(crate) const MD_DARK_QUOTE_ACCENT: Color = Color::from_rgb(0.45, 0.5, 0.65);
-pub(crate) const MD_DARK_QUOTE_BG: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.03);
-pub(crate) const MD_LIGHT_QUOTE_ACCENT: Color = Color::from_rgb(0.6, 0.5, 0.8);
-pub(crate) const MD_LIGHT_QUOTE_BG: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.02);
+pub(crate) const MD_DARK_QUOTE_ACCENT: Color = Color::from_rgb(0.3, 0.65, 1.0);
+pub(crate) const MD_DARK_QUOTE_BG: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.05);
+pub(crate) const MD_LIGHT_QUOTE_ACCENT: Color = Color::from_rgb(0.0, 0.55, 1.0);
+pub(crate) const MD_LIGHT_QUOTE_BG: Color = Color::from_rgba(0.0, 0.45, 0.9, 0.05);
 
 // ── Markdown: code block fallback foreground ────────────────────────────────
 

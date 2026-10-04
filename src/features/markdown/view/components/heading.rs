@@ -1,8 +1,9 @@
 use super::style::{STYLE, divider_line_style, heading_layout};
 use crate::app::Message;
-use crate::features::markdown::view::components::render_inlines;
+use crate::features::markdown::view::components::render_inlines_styled;
 use crate::parsers::markdown::Inline;
 use crate::ui::types::RenderContext;
+use iced::font::Weight;
 use iced::widget::{column, container, text};
 use iced::{Element, Length, Padding};
 
@@ -12,7 +13,13 @@ pub(crate) fn render_heading<'a>(
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
     let layout = heading_layout(level, ctx.font_size);
-    let heading_content = render_inlines(content, layout.font_size, ctx);
+    let (weight, color) = match level {
+        1 => (Some(Weight::Bold), Some(ctx.theme.palette().base.text)),
+        2 => (Some(Weight::Bold), Some(ctx.theme.palette().base.text)),
+        3 => (Some(Weight::Semibold), Some(ctx.theme.palette().base.text)),
+        _ => (Some(Weight::Medium), Some(ctx.theme.palette().base.text)),
+    };
+    let heading_content = render_inlines_styled(content, layout.font_size, weight, color, ctx);
     let heading = container(heading_content)
         .padding(Padding {
             top: layout.padding_top,

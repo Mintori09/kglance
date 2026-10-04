@@ -26,7 +26,7 @@ pub(crate) use heading::render_heading;
 pub(crate) use hr::render_horizontal_rule;
 pub(crate) use html::render_html;
 pub(crate) use image::render_inline_image;
-pub(crate) use inline::render_inlines;
+pub(crate) use inline::{render_inlines, render_inlines_styled};
 pub(crate) use list::render_list;
 pub(crate) use math::render_math_block;
 pub(crate) use mermaid::render_mermaid;

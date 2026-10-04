@@ -36,6 +36,9 @@ fn measure_intrinsic_block_height(
         active_match: 0,
         counter: &span_counter,
         theme: AppTheme::Light,
+        base_weight: None,
+        base_color: None,
+        font_size,
     };
 
     match block {
@@ -46,7 +49,7 @@ fn measure_intrinsic_block_height(
                 content: &spans[..],
                 bounds: Size::new(content_width, f32::INFINITY),
                 size: Pixels(layout.font_size),
-                line_height: iced::advanced::text::LineHeight::default(),
+                line_height: iced::advanced::text::LineHeight::Relative(1.35),
                 font: Font::default(),
                 align_x: alignment::Horizontal::Left.into(),
                 align_y: alignment::Vertical::Top,
@@ -68,7 +71,7 @@ fn measure_intrinsic_block_height(
                 content: &spans[..],
                 bounds: Size::new(content_width, f32::INFINITY),
                 size: Pixels(font_size),
-                line_height: iced::advanced::text::LineHeight::default(),
+                line_height: iced::advanced::text::LineHeight::Relative(1.5),
                 font: Font::default(),
                 align_x: alignment::Horizontal::Left.into(),
                 align_y: alignment::Vertical::Top,

@@ -338,7 +338,7 @@ where
                     content: &self.spans[..],
                     bounds: Size::new(max_width, f32::INFINITY),
                     size: Pixels(self.font_size),
-                    line_height: iced::advanced::text::LineHeight::default(),
+                    line_height: iced::advanced::text::LineHeight::Relative(1.5),
                     font: Font::default(),
                     align_x: alignment::Horizontal::Left.into(),
                     align_y: alignment::Vertical::Top,

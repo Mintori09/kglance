@@ -15,11 +15,22 @@ pub(crate) fn render_list<'a>(
     state: &'a crate::core::MarkdownState,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
+    render_list_level(ordered, start_number, items, state, ctx, 0)
+}
+
+fn render_list_level<'a>(
+    ordered: bool,
+    start_number: u64,
+    items: &'a [ListItem],
+    state: &'a crate::core::MarkdownState,
+    ctx: &RenderContext<'_>,
+    level: usize,
+) -> Element<'a, Message> {
     let mut item_elements = Vec::with_capacity(items.len());
     let mut current_idx = ctx.block_index + 1;
 
-    for (_index, item) in items.iter().enumerate() {
-        let prefix = create_list_prefix(ordered, start_number, _index, item, ctx);
+    for (index, item) in items.iter().enumerate() {
+        let prefix = create_list_prefix(ordered, start_number, index, item, ctx, level);
 
         let item_block_index = current_idx;
         current_idx += 1;
@@ -42,7 +53,14 @@ pub(crate) fn render_list<'a>(
                 block_index: current_idx,
                 ..*ctx
             };
-            let sub_element = render_block(current_idx, sub_block, state, &sub_ctx);
+            let sub_element = match sub_block {
+                crate::parsers::markdown::Block::List {
+                    ordered: sub_ord,
+                    start_number: sub_start,
+                    items: sub_items,
+                } => render_list_level(*sub_ord, *sub_start, sub_items, state, &sub_ctx, level + 1),
+                _ => render_block(current_idx, sub_block, state, &sub_ctx),
+            };
             current_idx += 10;
             children.push(
                 container(sub_element)
@@ -71,7 +89,7 @@ pub(crate) fn render_list<'a>(
     }
 
     column(item_elements)
-        .spacing(STYLE.general.section_spacing)
+        .spacing(STYLE.list.item_spacing)
         .into()
 }
 
@@ -81,6 +99,7 @@ fn create_list_prefix<'a>(
     index: usize,
     item: &ListItem,
     ctx: &RenderContext<'_>,
+    level: usize,
 ) -> Element<'a, Message> {
     if let Some(checked) = item.is_task {
         let symbol = if checked { "[x] " } else { "[ ] " };
@@ -96,15 +115,22 @@ fn create_list_prefix<'a>(
             .shaping(iced::widget::text::Shaping::Basic)
             .into()
     } else if ordered {
+        let color = ctx.theme.palette().roles.accent;
         text(format!("{}. ", start_number + index as u64))
             .size(ctx.font_size)
-            .color(STYLE.list.bullet_color)
+            .color(color)
             .shaping(iced::widget::text::Shaping::Basic)
             .into()
     } else {
-        text("• ")
+        let bullet = match level % 3 {
+            0 => "• ",
+            1 => "◦ ",
+            _ => "▪ ",
+        };
+        let color = ctx.theme.palette().roles.accent;
+        text(bullet)
             .size(ctx.font_size)
-            .color(STYLE.list.bullet_color)
+            .color(color)
             .shaping(iced::widget::text::Shaping::Basic)
             .into()
     }
