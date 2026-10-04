@@ -152,6 +152,9 @@ pub fn handle_mouse_pressed(app: &mut KglanceApp, _x: f32, _y: f32) -> Task<Mess
 
 pub fn handle_mouse_released(app: &mut KglanceApp) -> Task<Message> {
     let _ = handle_sidebar_drag_ended(app);
+    app.state.text.is_dragging_selection = false;
+    app.state.text.auto_scroll_delta = None;
+    app.state.text.drag_start = None;
     let s = markdown::active_markdown_state_mut(app);
     s.is_mouse_held = false;
     s.is_dragging_selection = false;
@@ -166,6 +169,38 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
     };
 
     markdown::active_markdown_state_mut(app).drag_last_y = y;
+
+    if app.state.text.is_dragging_selection {
+        const HEADER_HEIGHT: f32 = 40.0;
+        const FOOTER_HEIGHT: f32 = 30.0;
+        const MIN_CONTENT_HEIGHT: f32 = 100.0;
+
+        let win_height = app.state.current_window_size.height;
+        let top_bound = HEADER_HEIGHT;
+        let bottom_bound = (win_height - FOOTER_HEIGHT).max(top_bound + MIN_CONTENT_HEIGHT);
+
+        let overflow = if y < top_bound {
+            y - top_bound
+        } else if y > bottom_bound {
+            y - bottom_bound
+        } else {
+            0.0
+        };
+
+        let sidebar_w = if app.state.text.outline_visible {
+            app.state.text.sidebar_width + 4.0
+        } else {
+            0.0
+        };
+        app.state.text.drag_last_cursor = iced::Point::new((x - sidebar_w).max(0.0), y - top_bound);
+        if overflow != 0.0 {
+            let direction = overflow.signum();
+            let speed = (overflow.abs() * 0.8).clamp(5.0, 40.0) * direction;
+            app.state.text.auto_scroll_delta = Some(speed);
+        } else {
+            app.state.text.auto_scroll_delta = None;
+        }
+    }
 
     if markdown::active_markdown_state(app).is_dragging_selection {
         const HEADER_HEIGHT: f32 = 40.0;

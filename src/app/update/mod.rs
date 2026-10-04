@@ -162,6 +162,18 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::TextMsg::SelectionChanged(selection) => {
                 crate::features::text::update::handle_selection_changed(app, selection)
             }
+            crate::app::messages::TextMsg::SelectionDragStarted(pos) => {
+                crate::features::text::update::handle_selection_drag_started(app, pos)
+            }
+            crate::app::messages::TextMsg::SelectionDragEnded => {
+                crate::features::text::update::handle_selection_drag_ended(app)
+            }
+            crate::app::messages::TextMsg::AutoScroll(delta, cursor) => {
+                crate::features::text::update::handle_auto_scroll(app, delta, cursor)
+            }
+            crate::app::messages::TextMsg::AutoScrollTick => {
+                crate::features::text::update::handle_auto_scroll_tick(app)
+            }
             crate::app::messages::TextMsg::CopyRequested(text) => {
                 crate::features::text::update::handle_copy_requested(app, text)
             }
