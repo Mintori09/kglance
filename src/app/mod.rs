@@ -111,6 +111,19 @@ impl KglanceApp {
             .apply_config(&config.scroll);
         state.pdf.scroll_controller.apply_config(&config.scroll);
         state.text.scroll_controller.apply_config(&config.scroll);
+        state
+            .spreadsheet
+            .scroll_controller
+            .apply_config(&config.scroll);
+        state
+            .spreadsheet
+            .scroll_controller_x
+            .apply_config(&config.scroll);
+        state.spreadsheet.smooth_scroll.apply_config(&config.scroll);
+        state
+            .spreadsheet
+            .smooth_scroll_x
+            .apply_config(&config.scroll);
 
         if !initial_paths.is_empty() {
             state.playlist = initial_paths.to_vec();
@@ -1137,9 +1150,13 @@ impl KglanceApp {
             }
             Some(crate::core::PreviewData::Spreadsheet { .. }) => {
                 let sheet = &self.state.spreadsheet;
-                sheet.smooth_scroll.is_animating
+                sheet.smooth_scroll.is_animating()
                     || sheet.scroll_controller.is_animating()
                     || sheet.scroll_controller.state()
+                        == crate::core::scroll::GestureState::Dragging
+                    || sheet.smooth_scroll_x.is_animating()
+                    || sheet.scroll_controller_x.is_animating()
+                    || sheet.scroll_controller_x.state()
                         == crate::core::scroll::GestureState::Dragging
             }
             _ => false,

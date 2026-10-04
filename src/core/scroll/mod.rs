@@ -490,7 +490,8 @@ impl ScrollController {
 
     pub fn update(&mut self, now: Instant, extent: ViewportExtent) -> Option<f32> {
         if self.gesture.check_timeout(now) {
-            self.handle_input(ScrollInput::End { time: now }, extent);
+            let end_time = self.gesture.last_motion_time().unwrap_or(now);
+            self.handle_input(ScrollInput::End { time: end_time }, extent);
         }
 
         let dt = match self.last_tick.replace(now) {

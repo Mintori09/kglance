@@ -1,25 +1,210 @@
 use crate::app::KglanceApp;
 use crate::app::messages::Message;
+use crate::core::types::KglanceState;
+use crate::features::csv::types::{ColumnType, SheetInfo};
+use crate::features::csv::view::{ROWS_LIST_SPACING, estimate_row_height};
 use iced::Task;
 
 const CONTENT_SCROLL_ID: &str = "content_scroll";
+
+pub fn compute_prefix_widths(columns: &[crate::features::csv::types::ColumnMeta]) -> Vec<f32> {
+    let mut prefix = Vec::with_capacity(columns.len() + 1);
+    prefix.push(0.0);
+    let mut acc = 0.0;
+    for col in columns {
+        acc += col.width + crate::features::csv::view::COL_SPACING;
+        prefix.push(acc);
+    }
+    prefix
+}
+
+pub fn compute_total_content_width(sheet: &SheetInfo) -> f32 {
+    let mut total =
+        crate::features::csv::view::ROW_NUMBER_COL_WIDTH + crate::features::csv::view::COL_SPACING;
+    for col in &sheet.columns {
+        total += col.width + crate::features::csv::view::COL_SPACING;
+    }
+    total
+}
+
+pub fn populate_state(state: &mut KglanceState, sheets: &[SheetInfo], active_sheet: usize) {
+    state.spreadsheet.sheets = sheets.to_vec();
+    state.spreadsheet.active_sheet = active_sheet;
+    state.spreadsheet.sort_col = None;
+    state.spreadsheet.sort_ascending = None;
+    state.spreadsheet.search_query.clear();
+    state.spreadsheet.search_visible = false;
+    state.spreadsheet.scroll_x = 0.0;
+    state.spreadsheet.scroll_y = 0.0;
+    state.spreadsheet.smooth_scroll.stop(0.0);
+    state.spreadsheet.scroll_controller.stop(0.0);
+    state.spreadsheet.smooth_scroll_x.stop(0.0);
+    state.spreadsheet.scroll_controller_x.stop(0.0);
+
+    if let Some(sheet) = state.spreadsheet.sheets.get(active_sheet) {
+        let indices = recompute_display_indices(sheet, "", None, None);
+        let (row_heights, prefix_heights, total_h) = compute_height_structures(sheet, &indices);
+        let prefix_widths = compute_prefix_widths(&sheet.columns);
+        state.spreadsheet.display_indices = indices;
+        state.spreadsheet.row_heights = row_heights;
+        state.spreadsheet.prefix_heights = prefix_heights;
+        state.spreadsheet.prefix_widths = prefix_widths;
+        state.spreadsheet.total_content_height = total_h
+            + crate::features::csv::view::HEADER_HEIGHT
+            + crate::features::csv::view::ROWS_LIST_SPACING;
+        state.spreadsheet.total_content_width = compute_total_content_width(sheet);
+    } else {
+        state.spreadsheet.display_indices.clear();
+        state.spreadsheet.row_heights.clear();
+        state.spreadsheet.prefix_heights = vec![0.0];
+        state.spreadsheet.prefix_widths = vec![0.0];
+        state.spreadsheet.total_content_height = 0.0;
+        state.spreadsheet.total_content_width = 0.0;
+    }
+
+    state.file_type_text = "Spreadsheet".to_string();
+}
+
+pub fn compute_height_structures(
+    sheet: &SheetInfo,
+    display_indices: &[usize],
+) -> (Vec<f32>, Vec<f32>, f32) {
+    let mut row_heights = Vec::with_capacity(display_indices.len());
+    let mut prefix_heights = Vec::with_capacity(display_indices.len() + 1);
+    prefix_heights.push(0.0);
+
+    let mut acc = 0.0;
+    for &orig_idx in display_indices {
+        let h = if let Some(row_data) = sheet.rows.get(orig_idx) {
+            estimate_row_height(row_data, &sheet.columns)
+        } else {
+            crate::features::csv::view::ROW_HEIGHT
+        };
+        row_heights.push(h);
+        acc += h + ROWS_LIST_SPACING;
+        prefix_heights.push(acc);
+    }
+
+    (row_heights, prefix_heights, acc)
+}
+
+pub fn recompute_display_indices(
+    sheet: &SheetInfo,
+    search_query: &str,
+    sort_col: Option<usize>,
+    sort_ascending: Option<bool>,
+) -> Vec<usize> {
+    let trimmed_query = search_query.trim();
+    let mut indices: Vec<usize> = if trimmed_query.is_empty() {
+        (0..sheet.rows.len()).collect()
+    } else {
+        let query_lower = trimmed_query.to_lowercase();
+        (0..sheet.rows.len())
+            .filter(|&idx| {
+                if let Some(row) = sheet.rows.get(idx) {
+                    row.iter()
+                        .any(|cell| cell.to_lowercase().contains(&query_lower))
+                } else {
+                    false
+                }
+            })
+            .collect()
+    };
+
+    if let (Some(col), Some(ascending)) = (sort_col, sort_ascending) {
+        let col_type = sheet
+            .columns
+            .get(col)
+            .map(|c| c.col_type)
+            .unwrap_or(ColumnType::Text);
+
+        indices.sort_by(|&idx_a, &idx_b| {
+            let row_a = sheet.rows.get(idx_a);
+            let row_b = sheet.rows.get(idx_b);
+            let val_a = row_a
+                .and_then(|r| r.get(col))
+                .map(|s| s.trim())
+                .unwrap_or("");
+            let val_b = row_b
+                .and_then(|r| r.get(col))
+                .map(|s| s.trim())
+                .unwrap_or("");
+
+            // Empty values always sort to the end
+            if val_a.is_empty() && !val_b.is_empty() {
+                return std::cmp::Ordering::Greater;
+            }
+            if !val_a.is_empty() && val_b.is_empty() {
+                return std::cmp::Ordering::Less;
+            }
+            if val_a.is_empty() && val_b.is_empty() {
+                return std::cmp::Ordering::Equal;
+            }
+
+            let ord = match col_type {
+                ColumnType::Integer => {
+                    let num_a = val_a.parse::<i64>().ok();
+                    let num_b = val_b.parse::<i64>().ok();
+                    match (num_a, num_b) {
+                        (Some(a), Some(b)) => a.cmp(&b),
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        (None, None) => val_a.cmp(val_b),
+                    }
+                }
+                ColumnType::Float => {
+                    let num_a = val_a.parse::<f64>().ok();
+                    let num_b = val_b.parse::<f64>().ok();
+                    match (num_a, num_b) {
+                        (Some(a), Some(b)) => a.total_cmp(&b),
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        (None, None) => val_a.cmp(val_b),
+                    }
+                }
+                ColumnType::Text | ColumnType::Empty => {
+                    // Try numeric parsing if both values are valid floats
+                    if let (Ok(num_a), Ok(num_b)) = (val_a.parse::<f64>(), val_b.parse::<f64>()) {
+                        num_a.total_cmp(&num_b)
+                    } else {
+                        val_a.cmp(val_b)
+                    }
+                }
+            };
+
+            if ascending { ord } else { ord.reverse() }
+        });
+    }
+
+    indices
+}
 
 pub fn handle_sheet_tab_clicked(app: &mut KglanceApp, index: usize) -> Task<Message> {
     if index < app.state.spreadsheet.sheets.len() {
         app.state.spreadsheet.active_sheet = index;
         app.state.spreadsheet.sort_col = None;
         app.state.spreadsheet.sort_ascending = None;
+        app.state.spreadsheet.scroll_x = 0.0;
         app.state.spreadsheet.scroll_y = 0.0;
         app.state.spreadsheet.smooth_scroll.stop(0.0);
         app.state.spreadsheet.scroll_controller.stop(0.0);
-        let total_rows = app
-            .state
-            .spreadsheet
-            .sheets
-            .get(index)
-            .map_or(0, |s| s.rows.len());
-        app.state.spreadsheet.total_content_height =
-            total_rows as f32 * crate::features::csv::view::ROW_STEP;
+        app.state.spreadsheet.smooth_scroll_x.stop(0.0);
+        app.state.spreadsheet.scroll_controller_x.stop(0.0);
+
+        if let Some(sheet) = app.state.spreadsheet.sheets.get(index) {
+            let indices =
+                recompute_display_indices(sheet, &app.state.spreadsheet.search_query, None, None);
+            let (row_heights, prefix_heights, total_h) = compute_height_structures(sheet, &indices);
+            let prefix_widths = compute_prefix_widths(&sheet.columns);
+            app.state.spreadsheet.display_indices = indices;
+            app.state.spreadsheet.row_heights = row_heights;
+            app.state.spreadsheet.prefix_heights = prefix_heights;
+            app.state.spreadsheet.prefix_widths = prefix_widths;
+            app.state.spreadsheet.total_content_height = total_h
+                + crate::features::csv::view::HEADER_HEIGHT
+                + crate::features::csv::view::ROWS_LIST_SPACING;
+            app.state.spreadsheet.total_content_width = compute_total_content_width(sheet);
+        }
     }
     Task::none()
 }
@@ -39,20 +224,77 @@ pub fn handle_column_clicked(app: &mut KglanceApp, col: usize) -> Task<Message> 
         sort.sort_col = Some(col);
         sort.sort_ascending = Some(true);
     }
+
+    let active_idx = sort.active_sheet;
+    let query = sort.search_query.clone();
+    let sort_col = sort.sort_col;
+    let sort_ascending = sort.sort_ascending;
+
+    if let Some(sheet) = sort.sheets.get(active_idx) {
+        let indices = recompute_display_indices(sheet, &query, sort_col, sort_ascending);
+        let (row_heights, prefix_heights, total_h) = compute_height_structures(sheet, &indices);
+        sort.display_indices = indices;
+        sort.row_heights = row_heights;
+        sort.prefix_heights = prefix_heights;
+        sort.total_content_height = total_h
+            + crate::features::csv::view::HEADER_HEIGHT
+            + crate::features::csv::view::ROWS_LIST_SPACING;
+        sort.total_content_width = compute_total_content_width(sheet);
+    }
+
     Task::none()
 }
 
 pub fn handle_search_query_changed(app: &mut KglanceApp, query: String) -> Task<Message> {
-    app.state.spreadsheet.search_query = query;
-    app.state.spreadsheet.scroll_y = 0.0;
-    app.state.spreadsheet.smooth_scroll.stop(0.0);
-    app.state.spreadsheet.scroll_controller.stop(0.0);
+    let sort = &mut app.state.spreadsheet;
+    sort.search_query = query.clone();
+    sort.scroll_y = 0.0;
+    sort.smooth_scroll.stop(0.0);
+    sort.scroll_controller.stop(0.0);
+
+    let active_idx = sort.active_sheet;
+    let sort_col = sort.sort_col;
+    let sort_ascending = sort.sort_ascending;
+
+    if let Some(sheet) = sort.sheets.get(active_idx) {
+        let indices = recompute_display_indices(sheet, &query, sort_col, sort_ascending);
+        let (row_heights, prefix_heights, total_h) = compute_height_structures(sheet, &indices);
+        sort.display_indices = indices;
+        sort.row_heights = row_heights;
+        sort.prefix_heights = prefix_heights;
+        sort.total_content_height = total_h
+            + crate::features::csv::view::HEADER_HEIGHT
+            + crate::features::csv::view::ROWS_LIST_SPACING;
+        sort.total_content_width = compute_total_content_width(sheet);
+    }
+
     Task::none()
 }
 
 pub fn handle_search_closed(app: &mut KglanceApp) -> Task<Message> {
-    app.state.spreadsheet.search_visible = false;
-    app.state.spreadsheet.search_query.clear();
+    let sort = &mut app.state.spreadsheet;
+    sort.search_visible = false;
+    sort.search_query.clear();
+    sort.scroll_y = 0.0;
+    sort.smooth_scroll.stop(0.0);
+    sort.scroll_controller.stop(0.0);
+
+    let active_idx = sort.active_sheet;
+    let sort_col = sort.sort_col;
+    let sort_ascending = sort.sort_ascending;
+
+    if let Some(sheet) = sort.sheets.get(active_idx) {
+        let indices = recompute_display_indices(sheet, "", sort_col, sort_ascending);
+        let (row_heights, prefix_heights, total_h) = compute_height_structures(sheet, &indices);
+        sort.display_indices = indices;
+        sort.row_heights = row_heights;
+        sort.prefix_heights = prefix_heights;
+        sort.total_content_height = total_h
+            + crate::features::csv::view::HEADER_HEIGHT
+            + crate::features::csv::view::ROWS_LIST_SPACING;
+        sort.total_content_width = compute_total_content_width(sheet);
+    }
+
     Task::none()
 }
 
@@ -63,33 +305,53 @@ pub fn handle_spreadsheet_scrolled(
     if app.ctrl_held {
         return Task::none();
     }
+    let x = viewport.absolute_offset().x;
     let y = viewport.absolute_offset().y;
+    let vw = viewport.bounds().width;
     let vh = viewport.bounds().height;
+    let total_w = viewport.content_bounds().width;
     let total_h = viewport.content_bounds().height;
 
     let state = &mut app.state.spreadsheet;
+    let delta_vh = (state.viewport_height - vh).abs();
+    if vw > 0.0 {
+        state.viewport_width = vw;
+    }
     if vh > 0.0 {
         state.viewport_height = vh;
     }
-    if total_h > 0.0 {
+    if total_w > 0.0 && state.total_content_width <= 0.0 {
+        state.total_content_width = total_w;
+    }
+    if total_h > 0.0 && state.total_content_height <= 0.0 {
         state.total_content_height = total_h;
     }
 
-    if state.smooth_scroll.is_animating
+    let is_animating_y = state.smooth_scroll.is_animating()
         || state.scroll_controller.is_animating()
-        || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
-    {
+        || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging;
+
+    let is_animating_x = state.smooth_scroll_x.is_animating()
+        || state.scroll_controller_x.is_animating()
+        || state.scroll_controller_x.state() == crate::core::scroll::GestureState::Dragging;
+
+    if is_animating_y || is_animating_x {
         return Task::none();
     }
 
+    let delta_x = (state.scroll_x - x).abs();
     let delta_y = (state.scroll_y - y).abs();
-    if delta_y < 1.0 {
+    if delta_x < 4.0 && delta_y < 4.0 && delta_vh < 1.0 {
         return Task::none();
     }
 
     state.smooth_scroll.stop(y);
     state.scroll_controller.stop(y);
     state.scroll_y = y;
+
+    state.smooth_scroll_x.stop(x);
+    state.scroll_controller_x.stop(x);
+    state.scroll_x = x;
     Task::none()
 }
 
@@ -104,47 +366,98 @@ pub fn handle_wheel_scrolled(
     if state.viewport_height <= 0.0 {
         return Task::none();
     }
+    let vw = state.viewport_width;
     let vh = state.viewport_height;
-    let extent = crate::core::scroll::ViewportExtent {
+    let extent_y = crate::core::scroll::ViewportExtent {
         content_height: state.total_content_height,
         viewport_height: vh,
     };
-    let max_y = extent.max_scroll_y();
+    let extent_x = crate::core::scroll::ViewportExtent {
+        content_height: state.total_content_width,
+        viewport_height: vw,
+    };
+    let max_y = extent_y.max_scroll_y();
+    let max_x = extent_x.max_scroll_y();
 
     match delta {
-        iced::mouse::ScrollDelta::Lines { y, .. } => {
-            if y.abs() > f32::EPSILON {
-                let line_height =
-                    (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION).clamp(50.0, 240.0);
-                let step = -y * line_height;
-                state
-                    .smooth_scroll
-                    .start_interactive(state.scroll_y, step, max_y);
+        iced::mouse::ScrollDelta::Lines { x, y } => {
+            if app.shift_held {
+                // Shift + Wheel vertical scroll -> Redirect to horizontal scroll
+                let delta_h = if y.abs() > f32::EPSILON { y } else { x };
+                if delta_h.abs() > f32::EPSILON {
+                    let col_width = (vw * 0.15).clamp(80.0, 250.0);
+                    let step = -delta_h * col_width;
+                    state
+                        .smooth_scroll_x
+                        .start_interactive(state.scroll_x, step, max_x);
+                }
+            } else {
+                if y.abs() > f32::EPSILON {
+                    let line_height = (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION)
+                        .clamp(50.0, 240.0);
+                    let step = -y * line_height;
+                    state
+                        .smooth_scroll
+                        .start_interactive(state.scroll_y, step, max_y);
+                }
+                if x.abs() > f32::EPSILON {
+                    let col_width = (vw * 0.15).clamp(80.0, 250.0);
+                    let step = -x * col_width;
+                    state
+                        .smooth_scroll_x
+                        .start_interactive(state.scroll_x, step, max_x);
+                }
             }
             Task::none()
         }
         iced::mouse::ScrollDelta::Pixels { x, y } => {
             let now = std::time::Instant::now();
-            let scaled_delta_y = -y * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
-            let scaled_delta_x = -x * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
+            let (dx, dy) = if app.shift_held && x.abs() <= f32::EPSILON && y.abs() > f32::EPSILON {
+                // Shift + vertical pixel scroll -> redirect to horizontal
+                (y, 0.0)
+            } else {
+                (x, y)
+            };
 
-            state.scroll_controller.set_position_y(state.scroll_y);
-            state.scroll_controller.handle_input(
-                crate::core::scroll::ScrollInput::Motion {
-                    delta_x: scaled_delta_x,
-                    delta_y: scaled_delta_y,
-                    time: now,
-                },
-                extent,
-            );
+            let scaled_delta_y = -dy * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
+            let scaled_delta_x = -dx * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
 
-            let new_y = state.scroll_controller.position_y();
-            state.scroll_y = new_y;
-            state.smooth_scroll.stop(new_y);
+            if scaled_delta_y.abs() > f32::EPSILON {
+                state.scroll_controller.set_position_y(state.scroll_y);
+                state.scroll_controller.handle_input(
+                    crate::core::scroll::ScrollInput::Motion {
+                        delta_x: scaled_delta_x,
+                        delta_y: scaled_delta_y,
+                        time: now,
+                    },
+                    extent_y,
+                );
+                let new_y = state.scroll_controller.position_y();
+                state.scroll_y = new_y;
+                state.smooth_scroll.stop(new_y);
+            }
+
+            if scaled_delta_x.abs() > f32::EPSILON {
+                state.scroll_controller_x.set_position_y(state.scroll_x);
+                state.scroll_controller_x.handle_input(
+                    crate::core::scroll::ScrollInput::Motion {
+                        delta_x: 0.0,
+                        delta_y: scaled_delta_x,
+                        time: now,
+                    },
+                    extent_x,
+                );
+                let new_x = state.scroll_controller_x.position_y();
+                state.scroll_x = new_x;
+                state.smooth_scroll_x.stop(new_x);
+            }
 
             iced::widget::operation::scroll_to(
                 CONTENT_SCROLL_ID,
-                iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
+                iced::widget::operation::AbsoluteOffset {
+                    x: state.scroll_x,
+                    y: state.scroll_y,
+                },
             )
         }
     }
@@ -152,66 +465,58 @@ pub fn handle_wheel_scrolled(
 
 pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) -> Task<Message> {
     let state = &mut app.state.spreadsheet;
-    let extent = crate::core::scroll::ViewportExtent {
+    let extent_y = crate::core::scroll::ViewportExtent {
         content_height: state.total_content_height,
         viewport_height: state.viewport_height,
     };
-    let max_y = extent.max_scroll_y();
+    let extent_x = crate::core::scroll::ViewportExtent {
+        content_height: state.total_content_width,
+        viewport_height: state.viewport_width,
+    };
+    let max_y = extent_y.max_scroll_y();
+    let max_x = extent_x.max_scroll_y();
 
-    // 1. ScrollController check
+    let mut changed = false;
+
+    // 1. Vertical axis: Check ScrollController (touchpad kinetic fling & inertia)
     if (state.scroll_controller.is_animating()
         || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging)
-        && let Some(next_y) = state.scroll_controller.update(now, extent)
+        && let Some(next_y) = state.scroll_controller.update(now, extent_y)
     {
         state.scroll_y = next_y;
         state.smooth_scroll.stop(next_y);
-        let is_finished = !state.scroll_controller.is_animating();
-
-        let scroll_task = if is_finished && next_y >= max_y - 1.0 {
-            iced::widget::operation::snap_to(
-                CONTENT_SCROLL_ID,
-                iced::widget::operation::RelativeOffset { x: 0.0, y: 1.0 },
-            )
-        } else if is_finished && next_y <= 1.0 {
-            iced::widget::operation::snap_to(
-                CONTENT_SCROLL_ID,
-                iced::widget::operation::RelativeOffset { x: 0.0, y: 0.0 },
-            )
-        } else {
-            iced::widget::operation::scroll_to(
-                CONTENT_SCROLL_ID,
-                iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
-            )
-        };
-
-        return scroll_task;
-    }
-
-    // 2. SmoothScroller check (keyboard navigation & discrete wheel step)
-    if let Some(next_y) = state.smooth_scroll.tick(state.scroll_y, now, max_y) {
+        changed = true;
+    } else if let Some(next_y) = state.smooth_scroll.tick(state.scroll_y, now, max_y) {
+        // 2. Vertical axis: Check SmoothScroller (smooth mouse wheel lines)
         state.scroll_y = next_y;
         state.scroll_controller.set_position_y(next_y);
-        let is_finished = !state.smooth_scroll.is_animating;
-
-        let scroll_task = if is_finished && next_y >= max_y - 1.0 {
-            iced::widget::operation::snap_to(
-                CONTENT_SCROLL_ID,
-                iced::widget::operation::RelativeOffset { x: 0.0, y: 1.0 },
-            )
-        } else if is_finished && next_y <= 1.0 {
-            iced::widget::operation::snap_to(
-                CONTENT_SCROLL_ID,
-                iced::widget::operation::RelativeOffset { x: 0.0, y: 0.0 },
-            )
-        } else {
-            iced::widget::operation::scroll_to(
-                CONTENT_SCROLL_ID,
-                iced::widget::operation::AbsoluteOffset { x: 0.0, y: next_y },
-            )
-        };
-
-        return scroll_task;
+        changed = true;
     }
 
-    Task::none()
+    // 3. Horizontal axis: Check ScrollController (touchpad kinetic fling & inertia)
+    if (state.scroll_controller_x.is_animating()
+        || state.scroll_controller_x.state() == crate::core::scroll::GestureState::Dragging)
+        && let Some(next_x) = state.scroll_controller_x.update(now, extent_x)
+    {
+        state.scroll_x = next_x;
+        state.smooth_scroll_x.stop(next_x);
+        changed = true;
+    } else if let Some(next_x) = state.smooth_scroll_x.tick(state.scroll_x, now, max_x) {
+        // 4. Horizontal axis: Check SmoothScroller (smooth shift+wheel lines)
+        state.scroll_x = next_x;
+        state.scroll_controller_x.set_position_y(next_x);
+        changed = true;
+    }
+
+    if changed {
+        iced::widget::operation::scroll_to(
+            CONTENT_SCROLL_ID,
+            iced::widget::operation::AbsoluteOffset {
+                x: state.scroll_x,
+                y: state.scroll_y,
+            },
+        )
+    } else {
+        Task::none()
+    }
 }

@@ -9,8 +9,13 @@ struct TraceEvent {
 }
 
 fn run_trace(json_str: &str) -> (ScrollController, Instant) {
+    run_trace_with_pos(json_str, 0.0)
+}
+
+fn run_trace_with_pos(json_str: &str, start_pos: f32) -> (ScrollController, Instant) {
     let events: Vec<TraceEvent> = serde_json::from_str(json_str).expect("parse trace JSON");
     let mut controller = ScrollController::new();
+    controller.set_position_y(start_pos);
     let extent = ViewportExtent {
         content_height: 5000.0,
         viewport_height: 800.0,
@@ -261,4 +266,27 @@ fn spring_boundary_bounces_back_to_boundary() {
     );
     assert_eq!(controller.state(), GestureState::Idle);
     assert_eq!(controller.velocity(), 0.0);
+}
+
+#[test]
+fn update_timeout_triggers_flinging_from_fast_flick() {
+    let json = include_str!("../../../tests/traces/fast_flick.json");
+    let (mut controller, last_time) = run_trace_with_pos(json, 2500.0);
+    let extent = ViewportExtent {
+        content_height: 5000.0,
+        viewport_height: 800.0,
+    };
+
+    // Simulate 45ms passing without further motion (finger lifted)
+    let timeout_time = last_time + Duration::from_millis(45);
+    let next_y = controller.update(timeout_time, extent);
+
+    assert_eq!(controller.state(), GestureState::Flinging);
+    assert!(controller.is_animating());
+    assert!(
+        controller.velocity().abs() > 400.0,
+        "Velocity: {}",
+        controller.velocity()
+    );
+    assert!(next_y.is_some());
 }

@@ -21,6 +21,12 @@ pub fn scroll_pane<'a, Message: 'static>(
         container_padding: None,
         filter_wheel: false,
         on_wheel: None,
+        direction: scrollable::Direction::Vertical(
+            scrollable::Scrollbar::new()
+                .width(4)
+                .scroller_width(4)
+                .margin(2),
+        ),
     }
 }
 
@@ -32,6 +38,7 @@ pub struct ScrollPaneBuilder<'a, Message> {
     height: Length,
     container_padding: Option<Padding>,
     filter_wheel: bool,
+    direction: scrollable::Direction,
 }
 
 impl<'a, Message: 'static> ScrollPaneBuilder<'a, Message> {
@@ -66,6 +73,11 @@ impl<'a, Message: 'static> ScrollPaneBuilder<'a, Message> {
         self
     }
 
+    pub fn direction(mut self, direction: scrollable::Direction) -> Self {
+        self.direction = direction;
+        self
+    }
+
     pub fn build(self) -> Element<'a, Message> {
         let inner = if let Some(padding) = self.container_padding {
             container(self.content)
@@ -80,12 +92,7 @@ impl<'a, Message: 'static> ScrollPaneBuilder<'a, Message> {
 
         let mut scroll = scrollable(inner)
             .id(self.id)
-            .direction(scrollable::Direction::Vertical(
-                scrollable::Scrollbar::new()
-                    .width(4)
-                    .scroller_width(4)
-                    .margin(2),
-            ))
+            .direction(self.direction)
             .style(default_scrollable)
             .width(Length::Fill)
             .height(self.height);

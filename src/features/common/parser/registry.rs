@@ -322,10 +322,16 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 crate::core::preview::PreviewData::Spreadsheet {
                     sheets: sheets
                         .into_iter()
-                        .map(|s| crate::core::types::SheetInfo {
-                            name: s.name,
-                            headers: s.headers,
-                            rows: s.rows,
+                        .map(|s| {
+                            let columns = crate::features::csv::infer_column_types_and_widths(
+                                &s.headers, &s.rows,
+                            );
+                            crate::core::types::SheetInfo {
+                                name: s.name,
+                                headers: s.headers,
+                                rows: s.rows,
+                                columns,
+                            }
                         })
                         .collect(),
                     active_sheet: 0,

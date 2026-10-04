@@ -38,6 +38,18 @@ impl KglanceApp {
             Key::Character(character) if character == "d" => Some(self.scroll_page(0.5)),
             Key::Named(Named::PageUp) => Some(self.scroll_page(-0.85)),
             Key::Character(character) if character == "u" => Some(self.scroll_page(-0.5)),
+            Key::Character(character)
+                if character == "h"
+                    && matches!(self.current_content, Some(PreviewData::Spreadsheet { .. })) =>
+            {
+                Some(self.scroll_horizontal_by(-SCROLL_LINE_AMOUNT * 1.5))
+            }
+            Key::Character(character)
+                if character == "l"
+                    && matches!(self.current_content, Some(PreviewData::Spreadsheet { .. })) =>
+            {
+                Some(self.scroll_horizontal_by(SCROLL_LINE_AMOUNT * 1.5))
+            }
             Key::Character(character) if character == "g" && !modifiers.shift() => {
                 self.handle_g_shortcut()
             }
@@ -221,6 +233,33 @@ impl KglanceApp {
             AbsoluteOffset {
                 x: 0.0,
                 y: vertical_offset,
+            },
+        )
+    }
+
+    fn scroll_horizontal_by(&mut self, horizontal_offset: f32) -> Task<Message> {
+        self.reset_scroll_pending();
+
+        if let Some(PreviewData::Spreadsheet { .. }) = self.current_content {
+            let state = &mut self.state.spreadsheet;
+            if state.viewport_width <= 0.0 {
+                return Task::none();
+            }
+            let max_x =
+                crate::core::scroll::max_scroll_y(state.total_content_width, state.viewport_width);
+            let current_x = state.scroll_x;
+            state.scroll_controller_x.stop(current_x);
+            state
+                .smooth_scroll_x
+                .start_interactive(current_x, horizontal_offset, max_x);
+            return Task::none();
+        }
+
+        operation::scroll_by(
+            CONTENT_SCROLL_ID,
+            AbsoluteOffset {
+                x: horizontal_offset,
+                y: 0.0,
             },
         )
     }
