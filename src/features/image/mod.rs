@@ -16,6 +16,7 @@ pub use parser::*;
 pub use populate::populate_state as populate_image_state;
 pub use renderer::{CanvasRenderer, ImageRenderer};
 pub use state::ImageLoadState;
+pub use types::*;
 pub use update::decode_semaphore;
 pub use update::*;
 pub use view::view_image;
