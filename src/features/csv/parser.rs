@@ -165,6 +165,7 @@ pub fn infer_column_types_and_widths(headers: &[String], rows: &[Vec<String>]) -
 
         let mut is_integer = true;
         let mut is_float = true;
+        let mut is_date = true;
         let mut has_non_empty = false;
         let header_char_len = name.chars().count();
         let mut max_data_char_len = 0;
@@ -185,6 +186,9 @@ pub fn infer_column_types_and_widths(headers: &[String], rows: &[Vec<String>]) -
                     if is_float && trimmed.parse::<f64>().is_err() {
                         is_float = false;
                     }
+                    if is_date && try_parse_date_or_datetime(trimmed).is_none() {
+                        is_date = false;
+                    }
                 }
             }
         }
@@ -195,6 +199,8 @@ pub fn infer_column_types_and_widths(headers: &[String], rows: &[Vec<String>]) -
             ColumnType::Integer
         } else if is_float {
             ColumnType::Float
+        } else if is_date {
+            ColumnType::Date
         } else {
             ColumnType::Text
         };
@@ -212,4 +218,111 @@ pub fn infer_column_types_and_widths(headers: &[String], rows: &[Vec<String>]) -
     }
 
     columns
+}
+
+/// Parses a date or datetime string into a normalized sortable timestamp (seconds from epoch approximation).
+/// Supports ISO (YYYY-MM-DD), DMY (DD/MM/YYYY or DD-MM-YYYY), and optional time components (HH:MM:SS).
+pub fn try_parse_date_or_datetime(s: &str) -> Option<i64> {
+    let s = s.trim();
+    if s.is_empty() {
+        return None;
+    }
+
+    // Split date and optional time component
+    let mut parts = s.split(|c: char| c.is_whitespace() || c == 'T');
+    let date_part = parts.next()?;
+    let time_part = parts.next();
+
+    let (year, month, day) = parse_date_components(date_part)?;
+    if !(1..=12).contains(&month) || !(1..=31).contains(&day) || !(1000..=9999).contains(&year) {
+        return None;
+    }
+
+    let (hour, min, sec) = if let Some(tp) = time_part {
+        parse_time_components(tp)?
+    } else {
+        (0, 0, 0)
+    };
+
+    if hour > 23 || min > 59 || sec > 59 {
+        return None;
+    }
+
+    // Days since epoch approximation (enough for exact ordering)
+    let y = year as i64;
+    let m = month as i64;
+    let d = day as i64;
+
+    // Approximate cumulative days
+    let days = y * 365 + (y / 4) - (y / 100) + (y / 400) + (m * 30) + d;
+    let seconds = days * 86400 + (hour as i64 * 3600) + (min as i64 * 60) + (sec as i64);
+    Some(seconds)
+}
+
+fn parse_date_components(date_str: &str) -> Option<(u32, u32, u32)> {
+    if date_str.contains('-') {
+        let mut segs = date_str.split('-');
+        let first = segs.next()?;
+        let second = segs.next()?;
+        let third = segs.next()?;
+        if segs.next().is_some() {
+            return None;
+        }
+
+        // YYYY-MM-DD
+        if first.len() == 4 {
+            let y = first.parse().ok()?;
+            let m = second.parse().ok()?;
+            let d = third.parse().ok()?;
+            Some((y, m, d))
+        } else if third.len() == 4 {
+            // DD-MM-YYYY
+            let d = first.parse().ok()?;
+            let m = second.parse().ok()?;
+            let y = third.parse().ok()?;
+            Some((y, m, d))
+        } else {
+            None
+        }
+    } else if date_str.contains('/') {
+        let mut segs = date_str.split('/');
+        let first = segs.next()?;
+        let second = segs.next()?;
+        let third = segs.next()?;
+        if segs.next().is_some() {
+            return None;
+        }
+
+        if third.len() == 4 {
+            // DD/MM/YYYY
+            let d = first.parse().ok()?;
+            let m = second.parse().ok()?;
+            let y = third.parse().ok()?;
+            Some((y, m, d))
+        } else if first.len() == 4 {
+            // YYYY/MM/DD
+            let y = first.parse().ok()?;
+            let m = second.parse().ok()?;
+            let d = third.parse().ok()?;
+            Some((y, m, d))
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
+fn parse_time_components(time_str: &str) -> Option<(u32, u32, u32)> {
+    let mut parts = time_str.split(':');
+    let h = parts.next()?.parse().ok()?;
+    let m = parts.next()?.parse().ok()?;
+    let s = if let Some(sec_str) = parts.next() {
+        // Strip any millisecond/subsecond fraction
+        let sec_cleaned = sec_str.split('.').next().unwrap_or(sec_str);
+        sec_cleaned.parse().ok()?
+    } else {
+        0
+    };
+    Some((h, m, s))
 }

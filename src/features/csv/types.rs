@@ -7,6 +7,7 @@ pub enum ColumnType {
     Text,
     Integer,
     Float,
+    Date,
     Empty,
 }
 

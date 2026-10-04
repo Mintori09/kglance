@@ -452,6 +452,7 @@ fn render_table_rows<'a>(
 
             let text_align = match col_meta.col_type {
                 ColumnType::Integer | ColumnType::Float => alignment::Horizontal::Right,
+                ColumnType::Date => alignment::Horizontal::Center,
                 ColumnType::Text | ColumnType::Empty => alignment::Horizontal::Left,
             };
 

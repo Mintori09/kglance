@@ -162,6 +162,16 @@ pub fn recompute_display_indices(
                         (None, None) => val_a.cmp(val_b),
                     }
                 }
+                ColumnType::Date => {
+                    let date_a = crate::features::csv::parser::try_parse_date_or_datetime(val_a);
+                    let date_b = crate::features::csv::parser::try_parse_date_or_datetime(val_b);
+                    match (date_a, date_b) {
+                        (Some(a), Some(b)) => a.cmp(&b),
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        (None, None) => val_a.cmp(val_b),
+                    }
+                }
                 ColumnType::Text | ColumnType::Empty => {
                     // Try numeric parsing if both values are valid floats
                     if let (Ok(num_a), Ok(num_b)) = (val_a.parse::<f64>(), val_b.parse::<f64>()) {
