@@ -87,6 +87,10 @@ pub fn create_text_state(
         sidebar_drag_start_width: 250.0,
         scroll_controller: crate::core::scroll::ScrollController::default(),
         smooth_scroll: crate::core::types::SmoothScrollState::default(),
+        is_dragging_selection: false,
+        drag_start: None,
+        drag_last_cursor: iced::Point::ORIGIN,
+        auto_scroll_delta: None,
     }
 }
 

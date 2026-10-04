@@ -51,6 +51,10 @@ pub enum ImageMsg {
 #[derive(Debug, Clone)]
 pub enum TextMsg {
     SelectionChanged(Option<crate::ui::components::code_viewer::SelectionRange>),
+    SelectionDragStarted(crate::ui::components::code_viewer::TextPosition),
+    SelectionDragEnded,
+    AutoScroll(Option<f32>, iced::Point),
+    AutoScrollTick,
     CopyRequested(String),
     TokensReady(crate::features::text::IndexResult),
     SearchQueryChanged(String),

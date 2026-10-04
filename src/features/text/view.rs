@@ -56,6 +56,11 @@ pub fn view_text<'a>(
             state.search_match_index,
         )
         .on_select(|sel| crate::app::messages::TextMsg::SelectionChanged(sel).into())
+        .on_drag_start(|pos| crate::app::messages::TextMsg::SelectionDragStarted(pos).into())
+        .on_drag_end(|| crate::app::messages::TextMsg::SelectionDragEnded.into())
+        .on_auto_scroll(|delta, cursor| {
+            crate::app::messages::TextMsg::AutoScroll(delta, cursor).into()
+        })
         .on_copy(|text| crate::app::messages::TextMsg::CopyRequested(text).into());
 
     let code_element: Element<'a, Message> = code_viewer.into();

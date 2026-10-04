@@ -117,6 +117,10 @@ pub struct TextState {
     pub sidebar_drag_start_width: f32,
     pub scroll_controller: crate::core::scroll::ScrollController,
     pub smooth_scroll: SmoothScrollState,
+    pub is_dragging_selection: bool,
+    pub drag_start: Option<crate::ui::components::code_viewer::TextPosition>,
+    pub drag_last_cursor: iced::Point,
+    pub auto_scroll_delta: Option<f32>,
 }
 
 impl TextState {
@@ -193,6 +197,10 @@ impl Default for TextState {
             sidebar_drag_start_width: 250.0,
             scroll_controller: crate::core::scroll::ScrollController::default(),
             smooth_scroll: SmoothScrollState::default(),
+            is_dragging_selection: false,
+            drag_start: None,
+            drag_last_cursor: iced::Point::ORIGIN,
+            auto_scroll_delta: None,
         }
     }
 }

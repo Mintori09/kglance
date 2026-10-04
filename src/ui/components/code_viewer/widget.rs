@@ -22,6 +22,12 @@ struct State {
     last_click: Option<mouse::Click>,
 }
 
+type SelectCallback<'a, Message> = Box<dyn Fn(Option<SelectionRange>) -> Message + 'a>;
+type DragStartCallback<'a, Message> = Box<dyn Fn(TextPosition) -> Message + 'a>;
+type DragEndCallback<'a, Message> = Box<dyn Fn() -> Message + 'a>;
+type AutoScrollCallback<'a, Message> = Box<dyn Fn(Option<f32>, Point) -> Message + 'a>;
+type CopyCallback<'a, Message> = Box<dyn Fn(String) -> Message + 'a>;
+
 /// Custom 1-Pass virtualized source code viewer widget for Kglance.
 pub struct VirtualCodeViewer<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer> {
     doc: &'a CodeDocument,
@@ -36,8 +42,11 @@ pub struct VirtualCodeViewer<'a, Message, Theme = iced::Theme, Renderer = iced::
     search_query: &'a str,
     search_matches: &'a [(usize, usize)],
     search_match_index: usize,
-    on_select: Option<Box<dyn Fn(Option<SelectionRange>) -> Message + 'a>>,
-    on_copy: Option<Box<dyn Fn(String) -> Message + 'a>>,
+    on_select: Option<SelectCallback<'a, Message>>,
+    on_drag_start: Option<DragStartCallback<'a, Message>>,
+    on_drag_end: Option<DragEndCallback<'a, Message>>,
+    on_auto_scroll: Option<AutoScrollCallback<'a, Message>>,
+    on_copy: Option<CopyCallback<'a, Message>>,
     _phantom: std::marker::PhantomData<(Theme, Renderer)>,
 }
 
@@ -57,6 +66,9 @@ impl<'a, Message, Theme, Renderer> VirtualCodeViewer<'a, Message, Theme, Rendere
             search_matches: &[],
             search_match_index: 0,
             on_select: None,
+            on_drag_start: None,
+            on_drag_end: None,
+            on_auto_scroll: None,
             on_copy: None,
             _phantom: std::marker::PhantomData,
         }
@@ -103,6 +115,30 @@ impl<'a, Message, Theme, Renderer> VirtualCodeViewer<'a, Message, Theme, Rendere
         self
     }
 
+    pub fn on_drag_start<F>(mut self, f: F) -> Self
+    where
+        F: Fn(TextPosition) -> Message + 'a,
+    {
+        self.on_drag_start = Some(Box::new(f));
+        self
+    }
+
+    pub fn on_drag_end<F>(mut self, f: F) -> Self
+    where
+        F: Fn() -> Message + 'a,
+    {
+        self.on_drag_end = Some(Box::new(f));
+        self
+    }
+
+    pub fn on_auto_scroll<F>(mut self, f: F) -> Self
+    where
+        F: Fn(Option<f32>, Point) -> Message + 'a,
+    {
+        self.on_auto_scroll = Some(Box::new(f));
+        self
+    }
+
     pub fn on_copy<F>(mut self, f: F) -> Self
     where
         F: Fn(String) -> Message + 'a,
@@ -143,48 +179,13 @@ impl<'a, Message, Theme, Renderer> VirtualCodeViewer<'a, Message, Theme, Rendere
     }
 
     fn hit_test_position(&self, rel_pos: Point) -> TextPosition {
-        let line_h = self.line_height();
-        let gutter_w = self.gutter_width();
-        let char_w = self.char_width();
-
-        let vrow = (rel_pos.y / line_h).floor() as usize;
-        let (line_idx, sub_row_idx) = if let Some(d) = self.display_map {
-            d.visual_row_to_line(vrow)
-        } else {
-            (vrow.min(self.doc.total_lines().saturating_sub(1)), 0)
-        };
-
-        let x_in_code = (rel_pos.x - gutter_w).max(0.0);
-        let line_text = self.doc.get_line(line_idx);
-        let max_cols = self
-            .display_map
-            .map(|d| d.max_cols_per_row())
-            .unwrap_or(usize::MAX);
-
-        let sub_slices = if self.wrap {
-            crate::features::text::display_map::wrap_line_to_slices(line_text, max_cols)
-        } else {
-            vec![crate::features::text::display_map::VisualSubSlice {
-                start_byte: 0,
-                end_byte: line_text.len(),
-                start_col: 0,
-                end_col: line_text.chars().count(),
-            }]
-        };
-
-        let sub_slice = sub_slices.get(sub_row_idx).copied().unwrap_or(
-            crate::features::text::display_map::VisualSubSlice {
-                start_byte: 0,
-                end_byte: line_text.len(),
-                start_col: 0,
-                end_col: line_text.chars().count(),
-            },
-        );
-
-        let col_in_sub = (x_in_code / char_w).round() as usize;
-        let col_idx = (sub_slice.start_col + col_in_sub).min(sub_slice.end_col);
-
-        TextPosition::new(line_idx, col_idx)
+        crate::ui::components::code_viewer::selection::hit_test_position(
+            self.doc,
+            self.display_map,
+            self.wrap,
+            self.font_size,
+            rel_pos,
+        )
     }
 }
 
@@ -233,7 +234,7 @@ where
         _renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
-        _viewport: &Rectangle,
+        viewport: &Rectangle,
     ) {
         let state = tree.state.downcast_mut::<State>();
         let bounds = layout.bounds();
@@ -293,6 +294,9 @@ where
                             state.is_selecting = true;
                             state.drag_start = Some(pos);
                             let sel = SelectionRange::new(pos, pos);
+                            if let Some(on_drag_start) = &self.on_drag_start {
+                                shell.publish(on_drag_start(pos));
+                            }
                             if let Some(on_select) = &self.on_select {
                                 shell.publish(on_select(Some(sel)));
                             }
@@ -319,11 +323,39 @@ where
                             shell.publish(on_select(Some(sel)));
                         }
                     }
+
+                    let overflow = if cursor_pos.y < viewport.y {
+                        cursor_pos.y - viewport.y
+                    } else if cursor_pos.y > viewport.y + viewport.height {
+                        cursor_pos.y - (viewport.y + viewport.height)
+                    } else {
+                        0.0
+                    };
+
+                    if let Some(on_auto_scroll) = &self.on_auto_scroll {
+                        let viewport_rel = Point::new(
+                            (cursor_pos.x - viewport.x).max(0.0),
+                            cursor_pos.y - viewport.y,
+                        );
+                        if overflow != 0.0 {
+                            let direction = overflow.signum();
+                            let speed = (overflow.abs() * 0.8).clamp(5.0, 40.0) * direction;
+                            shell.publish(on_auto_scroll(Some(speed), viewport_rel));
+                        } else {
+                            shell.publish(on_auto_scroll(None, viewport_rel));
+                        }
+                    }
                 }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
                 state.is_mouse_held = false;
                 state.is_selecting = false;
+                if let Some(on_drag_end) = &self.on_drag_end {
+                    shell.publish(on_drag_end());
+                }
+                if let Some(on_auto_scroll) = &self.on_auto_scroll {
+                    shell.publish(on_auto_scroll(None, Point::ORIGIN));
+                }
             }
             Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) => {
                 if (modifiers.control() || modifiers.command())
@@ -385,6 +417,10 @@ where
         let selection_bg = Color::from_rgba(0.2, 0.4, 0.8, 0.35);
         let search_match_bg = Color::from_rgba(0.9, 0.7, 0.1, 0.4);
         let active_match_bg = Color::from_rgba(0.95, 0.45, 0.1, 0.7);
+        let bold_font = Font {
+            weight: iced::font::Weight::Bold,
+            ..self.font
+        };
 
         // Render pinned gutter background and separator line
         renderer.fill_quad(
@@ -444,6 +480,19 @@ where
             };
 
             let line_text = self.doc.get_line(line_idx);
+            let line_char_count = line_text.chars().count();
+            let sel_cols = self
+                .selection
+                .and_then(|sel| sel.line_col_range(line_idx, line_char_count));
+            let sel_bytes = sel_cols.and_then(|(start_col, end_col)| {
+                if start_col < end_col {
+                    let sb = char_to_byte_idx(line_text, start_col, line_char_count);
+                    let eb = char_to_byte_idx(line_text, end_col, line_char_count);
+                    if sb < eb { Some((sb, eb)) } else { None }
+                } else {
+                    None
+                }
+            });
             let sub_slices = if self.wrap {
                 crate::features::text::display_map::wrap_line_to_slices(line_text, max_cols)
             } else {
@@ -451,7 +500,7 @@ where
                     start_byte: 0,
                     end_byte: line_text.len(),
                     start_col: 0,
-                    end_col: line_text.chars().count(),
+                    end_col: line_char_count,
                 }]
             };
 
@@ -489,9 +538,7 @@ where
                 }
 
                 // b. Draw selection background if line intersects selection range
-                if let Some(sel) = self.selection
-                    && let Some((start_col, end_col)) =
-                        sel.line_col_range(line_idx, line_text.chars().count())
+                if let Some((start_col, end_col)) = sel_cols
                     && start_col < end_col
                 {
                     let row_sel_start = start_col.max(sub_slice.start_col);
@@ -573,6 +620,63 @@ where
                     None
                 };
 
+                let draw_piece = |renderer: &mut Renderer,
+                                  piece_start: usize,
+                                  piece_end: usize,
+                                  color: Color,
+                                  is_bold: bool| {
+                    if piece_start >= piece_end || piece_end > line_text.len() {
+                        return;
+                    }
+                    let piece_str = &line_text[piece_start..piece_end];
+                    let prefix = &line_text[sub_slice.start_byte..piece_start];
+                    let offset_chars = prefix.chars().count();
+                    let span_x = code_x + (offset_chars as f32 * char_w);
+                    let font = if is_bold { bold_font } else { self.font };
+
+                    renderer.fill_text(
+                        Text {
+                            content: piece_str.to_string(),
+                            bounds: Size::new((bounds.width - gutter_w).max(100.0), line_h),
+                            size: Pixels(self.font_size),
+                            line_height: iced::widget::text::LineHeight::Relative(1.35),
+                            font,
+                            align_x: iced::alignment::Horizontal::Left.into(),
+                            align_y: iced::alignment::Vertical::Top,
+                            shaping: iced::widget::text::Shaping::Auto,
+                            wrapping: iced::widget::text::Wrapping::None,
+                        },
+                        Point::new(span_x, row_y),
+                        color,
+                        *viewport,
+                    );
+                };
+
+                let draw_span_with_selection =
+                    |renderer: &mut Renderer, s_start: usize, s_end: usize, color: Color| {
+                        if let Some((sel_sb, sel_eb)) = sel_bytes {
+                            let row_sel_sb = sel_sb.max(sub_slice.start_byte);
+                            let row_sel_eb = sel_eb.min(sub_slice.end_byte);
+                            if row_sel_sb < row_sel_eb {
+                                if s_start < row_sel_sb {
+                                    let p_end = s_end.min(row_sel_sb);
+                                    draw_piece(renderer, s_start, p_end, color, false);
+                                }
+                                let b_start = s_start.max(row_sel_sb);
+                                let b_end = s_end.min(row_sel_eb);
+                                if b_start < b_end {
+                                    draw_piece(renderer, b_start, b_end, color, true);
+                                }
+                                if s_end > row_sel_eb {
+                                    let p_start = s_start.max(row_sel_eb);
+                                    draw_piece(renderer, p_start, s_end, color, false);
+                                }
+                                return;
+                            }
+                        }
+                        draw_piece(renderer, s_start, s_end, color, false);
+                    };
+
                 if let Some(spans) = token_spans
                     && !spans.is_empty()
                 {
@@ -584,72 +688,41 @@ where
                             let s_start = span.start_byte.max(sub_slice.start_byte);
                             let s_end = span.end_byte.min(sub_slice.end_byte);
                             if s_start < s_end && s_end <= line_text.len() {
-                                let span_text = &line_text[s_start..s_end];
-                                let prefix = &line_text[sub_slice.start_byte..s_start];
-                                let offset_chars = prefix.chars().count();
-                                let span_x = code_x + (offset_chars as f32 * char_w);
-
-                                renderer.fill_text(
-                                    Text {
-                                        content: span_text.to_string(),
-                                        bounds: Size::new(
-                                            (bounds.width - gutter_w).max(100.0),
-                                            line_h,
-                                        ),
-                                        size: Pixels(self.font_size),
-                                        line_height: iced::widget::text::LineHeight::Relative(1.35),
-                                        font: self.font,
-                                        align_x: iced::alignment::Horizontal::Left.into(),
-                                        align_y: iced::alignment::Vertical::Top,
-                                        shaping: iced::widget::text::Shaping::Auto,
-                                        wrapping: iced::widget::text::Wrapping::None,
-                                    },
-                                    Point::new(span_x, row_y),
-                                    span.color,
-                                    *viewport,
-                                );
+                                draw_span_with_selection(renderer, s_start, s_end, span.color);
                                 drawn_any = true;
                             }
                         }
                     }
                     if !drawn_any && !slice_str.is_empty() {
-                        renderer.fill_text(
-                            Text {
-                                content: slice_str.to_string(),
-                                bounds: Size::new((bounds.width - gutter_w).max(100.0), line_h),
-                                size: Pixels(self.font_size),
-                                line_height: iced::widget::text::LineHeight::Relative(1.35),
-                                font: self.font,
-                                align_x: iced::alignment::Horizontal::Left.into(),
-                                align_y: iced::alignment::Vertical::Top,
-                                shaping: iced::widget::text::Shaping::Auto,
-                                wrapping: iced::widget::text::Wrapping::None,
-                            },
-                            Point::new(code_x, row_y),
+                        draw_span_with_selection(
+                            renderer,
+                            sub_slice.start_byte,
+                            sub_slice.end_byte,
                             default_text_color,
-                            *viewport,
                         );
                     }
                 } else if !slice_str.is_empty() {
-                    renderer.fill_text(
-                        Text {
-                            content: slice_str.to_string(),
-                            bounds: Size::new((bounds.width - gutter_w).max(100.0), line_h),
-                            size: Pixels(self.font_size),
-                            line_height: iced::widget::text::LineHeight::Relative(1.35),
-                            font: self.font,
-                            align_x: iced::alignment::Horizontal::Left.into(),
-                            align_y: iced::alignment::Vertical::Top,
-                            shaping: iced::widget::text::Shaping::Auto,
-                            wrapping: iced::widget::text::Wrapping::None,
-                        },
-                        Point::new(code_x, row_y),
+                    draw_span_with_selection(
+                        renderer,
+                        sub_slice.start_byte,
+                        sub_slice.end_byte,
                         default_text_color,
-                        *viewport,
                     );
                 }
             }
         }
+    }
+}
+
+#[inline]
+fn char_to_byte_idx(s: &str, char_idx: usize, char_count: usize) -> usize {
+    if s.len() == char_count {
+        char_idx.min(s.len())
+    } else {
+        s.char_indices()
+            .nth(char_idx)
+            .map(|(idx, _)| idx)
+            .unwrap_or(s.len())
     }
 }
 

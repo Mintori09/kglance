@@ -16,6 +16,97 @@ pub fn handle_selection_changed(
     Task::none()
 }
 
+pub fn handle_selection_drag_started(
+    app: &mut KglanceApp,
+    pos: crate::ui::components::code_viewer::TextPosition,
+) -> Task<Message> {
+    app.state.text.is_dragging_selection = true;
+    app.state.text.drag_start = Some(pos);
+    Task::none()
+}
+
+pub fn handle_selection_drag_ended(app: &mut KglanceApp) -> Task<Message> {
+    app.state.text.is_dragging_selection = false;
+    app.state.text.auto_scroll_delta = None;
+    app.state.text.drag_start = None;
+    Task::none()
+}
+
+pub fn handle_auto_scroll(
+    app: &mut KglanceApp,
+    delta: Option<f32>,
+    cursor: iced::Point,
+) -> Task<Message> {
+    app.state.text.auto_scroll_delta = delta;
+    app.state.text.drag_last_cursor = cursor;
+    Task::none()
+}
+
+pub fn handle_auto_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
+    let Some(delta) = app.state.text.auto_scroll_delta else {
+        return Task::none();
+    };
+
+    let text_state = &mut app.state.text;
+    let max_y = crate::core::scroll::max_scroll_y(
+        text_state.total_content_height,
+        text_state.viewport_height,
+    );
+    let new_scroll_y = (text_state.scroll_y + delta).clamp(0.0, max_y);
+    let scroll_delta = (new_scroll_y - text_state.scroll_y).abs();
+
+    if scroll_delta < 0.1 {
+        if let Some(start_pos) = text_state.drag_start {
+            if delta > 0.0 {
+                let total_lines = text_state.document.total_lines();
+                if total_lines > 0 {
+                    let last_line = total_lines.saturating_sub(1);
+                    let last_col = text_state.document.get_line(last_line).chars().count();
+                    text_state.selection = Some(SelectionRange::new(
+                        start_pos,
+                        crate::ui::components::code_viewer::TextPosition::new(last_line, last_col),
+                    ));
+                }
+            } else if delta < 0.0 {
+                text_state.selection = Some(SelectionRange::new(
+                    start_pos,
+                    crate::ui::components::code_viewer::TextPosition::new(0, 0),
+                ));
+            }
+        }
+        return Task::none();
+    }
+
+    text_state.scroll_y = new_scroll_y;
+    text_state.smooth_scroll.stop(new_scroll_y);
+    text_state.scroll_controller.stop(new_scroll_y);
+
+    let theme = app.state.app_theme;
+    update_tokens_for_viewport(&mut app.state.text, new_scroll_y, theme);
+
+    if let Some(start_pos) = app.state.text.drag_start {
+        let cursor_pt = app.state.text.drag_last_cursor;
+        let rel_x = cursor_pt.x.max(0.0);
+        let rel_y = (cursor_pt.y + new_scroll_y).max(0.0);
+        let current_pos = crate::ui::components::code_viewer::selection::hit_test_position(
+            &app.state.text.document,
+            Some(&app.state.text.display_map),
+            app.state.text.wrap,
+            app.state.font_size,
+            iced::Point::new(rel_x, rel_y),
+        );
+        app.state.text.selection = Some(SelectionRange::new(start_pos, current_pos));
+    }
+
+    iced::widget::operation::scroll_to(
+        CONTENT_SCROLL_ID,
+        iced::widget::operation::AbsoluteOffset {
+            x: 0.0,
+            y: new_scroll_y,
+        },
+    )
+}
+
 pub fn handle_copy_requested(_app: &mut KglanceApp, _text: String) -> Task<Message> {
     Task::none()
 }
@@ -770,5 +861,36 @@ mod tests {
             !state.cached_tokens.is_empty(),
             "cached_tokens must not be empty"
         );
+    }
+
+    #[test]
+    fn test_text_drag_and_auto_scroll() {
+        let mut app = KglanceApp::default();
+        let content: String = (0..100)
+            .map(|i| format!("line {i} with some content\n"))
+            .collect();
+        app.state.text = create_text_state(content, "txt", 14.0, false, AppTheme::Dark, 800.0);
+        app.state.text.viewport_height = 400.0;
+
+        let start_pos = crate::ui::components::code_viewer::TextPosition::new(10, 2);
+        let _ = handle_selection_drag_started(&mut app, start_pos);
+        assert!(app.state.text.is_dragging_selection);
+        assert_eq!(app.state.text.drag_start, Some(start_pos));
+
+        // Auto scroll downwards
+        let _ = handle_auto_scroll(&mut app, Some(20.0), iced::Point::new(100.0, 450.0));
+        assert_eq!(app.state.text.auto_scroll_delta, Some(20.0));
+
+        let _ = handle_auto_scroll_tick(&mut app);
+        assert!(app.state.text.scroll_y > 0.0);
+        assert!(app.state.text.selection.is_some());
+        let sel = app.state.text.selection.unwrap();
+        assert_eq!(sel.start, start_pos);
+
+        // Drag ended
+        let _ = handle_selection_drag_ended(&mut app);
+        assert!(!app.state.text.is_dragging_selection);
+        assert_eq!(app.state.text.auto_scroll_delta, None);
+        assert_eq!(app.state.text.drag_start, None);
     }
 }
