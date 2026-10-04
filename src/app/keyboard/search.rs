@@ -17,14 +17,8 @@ impl KglanceApp {
         key: &iced::keyboard::Key,
         modifiers: iced::keyboard::Modifiers,
     ) -> Option<Task<Message>> {
-        if self.should_start_type_to_search(key, modifiers) {
-            if self.is_spreadsheet() {
-                return Some(self.open_spreadsheet_search(key));
-            }
-
-            if self.is_grid_view() {
-                return Some(self.open_grid_search(key));
-            }
+        if self.should_start_type_to_search(key, modifiers) && self.is_grid_view() {
+            return Some(self.open_grid_search(key));
         }
 
         None
@@ -50,7 +44,7 @@ impl KglanceApp {
             return Some(self.open_json_search());
         }
 
-        if self.is_spreadsheet() {
+        if self.is_spreadsheet_search_available() {
             return Some(self.open_spreadsheet_search_without_query());
         }
 
@@ -128,8 +122,7 @@ impl KglanceApp {
             if !modifiers.control()
                 && !modifiers.alt()
                 && character != SEARCH_TRIGGER)
-            && ((self.is_spreadsheet() && !self.state.spreadsheet.search_visible)
-                || (self.is_grid_view() && !self.state.grid_search_visible))
+            && (self.is_grid_view() && !self.state.grid_search_visible)
     }
 
     fn is_search_trigger(key: &iced::keyboard::Key) -> bool {
@@ -141,6 +134,10 @@ impl KglanceApp {
 
     fn is_spreadsheet(&self) -> bool {
         matches!(self.current_content, Some(PreviewData::Spreadsheet { .. }))
+    }
+
+    fn is_spreadsheet_search_available(&self) -> bool {
+        self.is_spreadsheet() && !self.state.spreadsheet.search_visible
     }
 
     fn is_grid_view(&self) -> bool {
@@ -164,17 +161,6 @@ impl KglanceApp {
 
     fn is_grid_search_active(&self) -> bool {
         self.is_grid_view() && self.state.grid_search_visible
-    }
-
-    fn open_spreadsheet_search(&mut self, key: &iced::keyboard::Key) -> Task<Message> {
-        let iced::keyboard::Key::Character(character) = key else {
-            return Task::none();
-        };
-
-        self.state.spreadsheet.search_visible = true;
-        self.state.spreadsheet.search_query = character.to_string();
-
-        iced::widget::operation::focus(SPREADSHEET_SEARCH_INPUT_ID)
     }
 
     fn open_grid_search(&mut self, key: &iced::keyboard::Key) -> Task<Message> {

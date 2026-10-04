@@ -288,3 +288,46 @@ fn wrap_toggle_recalculates_toc_line_numbers_and_symbol_positions() {
     let _ = crate::features::text::update::handle_symbol_clicked(&mut app, 2);
     assert_eq!(app.state.text.smooth_scroll.target_y(), unwrapped_line_2_y);
 }
+
+#[test]
+fn test_spreadsheet_search_requires_ctrl_f_not_arbitrary_typing() {
+    let sheet = crate::features::csv::types::SheetInfo {
+        name: "Sheet1".to_string(),
+        headers: vec![],
+        columns: vec![],
+        rows: vec![],
+    };
+    let mut app = test_app(None);
+    app.current_content = Some(crate::core::PreviewData::Spreadsheet {
+        sheets: vec![sheet],
+        active_sheet: 0,
+    });
+
+    // 1. Typing arbitrary characters (e.g. 'a', 'j') should NOT open search
+    let a_key = iced::keyboard::Key::Character("a".into());
+    let j_key = iced::keyboard::Key::Character("j".into());
+    let empty_mod = iced::keyboard::Modifiers::default();
+
+    let task_a = app.handle_type_to_search(&a_key, empty_mod);
+    assert!(task_a.is_none());
+    assert!(!app.state.spreadsheet.search_visible);
+    assert!(app.state.spreadsheet.search_query.is_empty());
+
+    let task_j = app.handle_type_to_search(&j_key, empty_mod);
+    assert!(task_j.is_none());
+    assert!(!app.state.spreadsheet.search_visible);
+
+    // 2. Pressing Ctrl+F toggles search visibility and focuses input
+    let f_key = iced::keyboard::Key::Character("f".into());
+    let ctrl_mod = iced::keyboard::Modifiers::CTRL;
+    let task_ctrl_f = app.handle_ctrl_shortcuts(&f_key, ctrl_mod);
+    assert!(task_ctrl_f.is_some());
+    assert!(app.state.spreadsheet.search_visible);
+
+    // 3. Pressing Ctrl+F again closes search and clears query
+    app.state.spreadsheet.search_query = "find_me".to_string();
+    let task_ctrl_f_close = app.handle_ctrl_shortcuts(&f_key, ctrl_mod);
+    assert!(task_ctrl_f_close.is_some());
+    assert!(!app.state.spreadsheet.search_visible);
+    assert!(app.state.spreadsheet.search_query.is_empty());
+}
