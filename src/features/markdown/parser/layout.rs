@@ -13,7 +13,7 @@ pub fn intrinsic_block_height(
     content_width: f32,
 ) -> f32 {
     let scale = |s: f32| scale_size(s, font_size);
-    let line = font_size * 1.25;
+    let line = font_size * 1.5;
     let effective_width = if content_width > 0.0 {
         content_width
     } else {
@@ -37,7 +37,7 @@ pub fn intrinsic_block_height(
                 .ceil()
                 .max(1.0) as usize;
             let num_lines = explicit_lines.max(wrapped_lines) as f32;
-            let text_h = num_lines * layout.font_size * 1.25;
+            let text_h = num_lines * layout.font_size * 1.35;
             layout.padding_top + text_h + layout.padding_bottom + div
         }
         Block::Paragraph(inlines) => {

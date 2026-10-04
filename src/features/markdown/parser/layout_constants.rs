@@ -22,49 +22,49 @@ pub const CODE_TOP_BAR_PADDING_V: u16 = 2; // [2, 8][0]
 pub const CODE_PADDING: u16 = 10;
 
 // Quote
-pub const QUOTE_CONTENT_PADDING_V: u16 = 8; // [8, 12][0]
+pub const QUOTE_CONTENT_PADDING_V: u16 = 6; // [6, 14][0]
 
 // Image
 pub const IMAGE_MAX_WIDTH: f32 = 600.0;
 pub const IMAGE_PADDING_V: u16 = 4; // [4, 0][0]
 
 // HR
-pub const HR_PADDING_V: u16 = 8; // [8, 0][0]
+pub const HR_PADDING_V: u16 = 4; // [4, 0][0]
 
 // Math
 pub const MATH_FONT_SCALE: f32 = 1.0;
 pub const MATH_PADDING: u16 = 8;
 
 // List
-pub const LIST_ITEM_PADDING: f32 = 3.0;
-pub const LIST_SUB_BLOCK_LEFT_PADDING: f32 = 24.0; // spacing::XL
+pub const LIST_ITEM_PADDING: f32 = 2.0;
+pub const LIST_SUB_BLOCK_LEFT_PADDING: f32 = 20.0;
 
 // HTML
 pub const HTML_FONT_SIZE: f32 = 12.0;
 
 // Block margins
-pub const MARGIN_HEADING_H1: f32 = 24.0; // spacing::XL
-pub const MARGIN_HEADING_H2: f32 = 18.0;
-pub const MARGIN_HEADING_DEFAULT: f32 = 16.0; // spacing::L
-pub const MARGIN_HORIZONTAL_RULE: f32 = 24.0; // spacing::XL
-pub const MARGIN_CODE: f32 = 18.0;
-pub const MARGIN_TABLE: f32 = 18.0;
-pub const MARGIN_QUOTE: f32 = 18.0;
-pub const MARGIN_ALERT: f32 = 18.0;
+pub const MARGIN_HEADING_H1: f32 = 16.0;
+pub const MARGIN_HEADING_H2: f32 = 14.0;
+pub const MARGIN_HEADING_DEFAULT: f32 = 10.0;
+pub const MARGIN_HORIZONTAL_RULE: f32 = 14.0;
+pub const MARGIN_CODE: f32 = 16.0;
+pub const MARGIN_TABLE: f32 = 16.0;
+pub const MARGIN_QUOTE: f32 = 14.0;
+pub const MARGIN_ALERT: f32 = 16.0;
 pub const MARGIN_FOOTNOTE: f32 = 12.0;
-pub const MARGIN_FRONTMATTER: f32 = 24.0;
-pub const MARGIN_IMAGE: f32 = 18.0;
-pub const MARGIN_MERMAID: f32 = 18.0;
-pub const MARGIN_LIST: f32 = 14.0;
-pub const MARGIN_PARAGRAPH: f32 = 12.0;
+pub const MARGIN_FRONTMATTER: f32 = 20.0;
+pub const MARGIN_IMAGE: f32 = 16.0;
+pub const MARGIN_MERMAID: f32 = 16.0;
+pub const MARGIN_LIST: f32 = 10.0;
+pub const MARGIN_PARAGRAPH: f32 = 10.0;
 pub const MARGIN_HTML: f32 = 10.0;
-pub const MARGIN_MATH: f32 = 18.0;
+pub const MARGIN_MATH: f32 = 16.0;
 
 // Heading layout (base_size, padding_top, padding_bottom) per level
-pub const HEADING_H1: (f32, f32, f32) = (28.0, 28.0, 14.0);
-pub const HEADING_H2: (f32, f32, f32) = (22.0, 22.0, 10.0);
-pub const HEADING_H3: (f32, f32, f32) = (18.0, 16.0, 8.0);
-pub const HEADING_DEFAULT: (f32, f32, f32) = (15.0, 12.0, 6.0);
+pub const HEADING_H1: (f32, f32, f32) = (26.0, 16.0, 8.0);
+pub const HEADING_H2: (f32, f32, f32) = (20.0, 12.0, 6.0);
+pub const HEADING_H3: (f32, f32, f32) = (16.0, 8.0, 4.0);
+pub const HEADING_DEFAULT: (f32, f32, f32) = (14.0, 6.0, 4.0);
 
 pub const BASE_FONT_SIZE: f32 = 14.0;
 pub const MIN_SCALED_SIZE: f32 = 8.0;

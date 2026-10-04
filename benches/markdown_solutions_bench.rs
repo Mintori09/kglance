@@ -200,6 +200,9 @@ fn bench_solution_japanese_lesson_retained_spans(c: &mut Criterion) {
         active_match: 0,
         counter: &counter,
         theme: AppTheme::Dark,
+        base_weight: None,
+        base_color: None,
+        font_size: 14.0,
     };
     for inlines in &inlines_list {
         let _ = inlines_to_spans(inlines, &warm_ctx);
@@ -214,6 +217,9 @@ fn bench_solution_japanese_lesson_retained_spans(c: &mut Criterion) {
             active_match: 0,
             counter: &counter,
             theme: AppTheme::Dark,
+            base_weight: None,
+            base_color: None,
+            font_size: 14.0,
         };
         b.iter(|| {
             let mut all_spans = Vec::with_capacity(inlines_list.len());
@@ -233,6 +239,9 @@ fn bench_solution_japanese_lesson_retained_spans(c: &mut Criterion) {
             active_match: 0,
             counter: &counter,
             theme: AppTheme::Dark,
+            base_weight: None,
+            base_color: None,
+            font_size: 14.0,
         };
         b.iter(|| {
             counter.set(0);
@@ -285,6 +294,9 @@ fn bench_solution_chunk_coalescing_japanese_lesson(c: &mut Criterion) {
         active_match: 0,
         counter: &counter,
         theme: AppTheme::Dark,
+        base_weight: None,
+        base_color: None,
+        font_size: 14.0,
     };
 
     let all_spans_list: Vec<Vec<Span<'static, (), Font>>> = inlines_list

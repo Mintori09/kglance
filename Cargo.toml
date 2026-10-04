@@ -183,12 +183,9 @@ path = "src/main.rs"
 
 [profile.dev]
 opt-level = 0
-debug = 2
+debug = 1
 incremental = true
 codegen-units = 256
-
-[profile.dev.package."*"]
-opt-level = 2
 
 [profile.test]
 opt-level = 0

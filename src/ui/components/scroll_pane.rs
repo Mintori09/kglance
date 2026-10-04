@@ -23,9 +23,9 @@ pub fn scroll_pane<'a, Message: 'static>(
         on_wheel: None,
         direction: scrollable::Direction::Vertical(
             scrollable::Scrollbar::new()
-                .width(4)
-                .scroller_width(4)
-                .margin(2),
+                .width(6)
+                .scroller_width(6)
+                .margin(4),
         ),
     }
 }

@@ -22,6 +22,9 @@ pub struct SpanCtx<'a> {
     pub active_match: usize,
     pub counter: &'a Cell<usize>,
     pub theme: AppTheme,
+    pub base_weight: Option<Weight>,
+    pub base_color: Option<Color>,
+    pub font_size: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -29,11 +32,43 @@ pub(crate) struct CachedSpan {
     pub text: String,
     pub font: Font,
     pub color: Option<Color>,
+    pub background: Option<Color>,
+    pub size: Option<f32>,
     pub strikethrough: bool,
     pub underline: bool,
 }
 
-type SpanCacheKey = (u64, AppTheme, Option<String>, Option<String>);
+impl CachedSpan {
+    pub fn to_span<'a>(&self) -> Span<'a, (), Font> {
+        let mut span = Span::new(self.text.clone()).font(self.font);
+        if let Some(c) = self.color {
+            span = span.color(c);
+        }
+        if let Some(bg) = self.background {
+            span = span.background(bg);
+        }
+        if let Some(sz) = self.size {
+            span = span.size(sz);
+        }
+        if self.strikethrough {
+            span = span.strikethrough(true);
+        }
+        if self.underline {
+            span = span.underline(true);
+        }
+        span
+    }
+}
+
+type SpanCacheKey = (
+    u64,
+    AppTheme,
+    Option<String>,
+    Option<String>,
+    Option<u16>,
+    Option<u32>,
+    u32,
+);
 
 fn span_cache() -> &'static Mutex<LruCache<SpanCacheKey, Vec<CachedSpan>>> {
     static CACHE: OnceLock<Mutex<LruCache<SpanCacheKey, Vec<CachedSpan>>>> = OnceLock::new();
@@ -111,56 +146,12 @@ fn search_highlight_color(is_active: bool, theme: AppTheme) -> Color {
     }
 }
 
-fn highlight_search_in_text<'a>(
-    text: &'a str,
-    span_ctx: &SpanCtx,
-    font: Font,
-    normal_color: Option<Color>,
-) -> Vec<Span<'a, (), Font>> {
-    let mut spans = Vec::new();
-    let lower = text.to_lowercase();
-    let query_lower = span_ctx.search_query.to_lowercase();
-    let mut pos = 0;
-
-    while let Some(match_pos) = lower[pos..].find(&query_lower) {
-        let abs_pos = pos + match_pos;
-        let end_pos = abs_pos + query_lower.len();
-
-        if abs_pos > pos {
-            let mut span = Span::new(&text[pos..abs_pos]).font(font);
-            if let Some(color) = normal_color {
-                span = span.color(color);
-            }
-            spans.push(span);
-        }
-
-        let bg = search_highlight_color(
-            span_ctx.counter.get() == span_ctx.active_match,
-            span_ctx.theme,
-        );
-        spans.push(Span::new(&text[abs_pos..end_pos]).font(font).background(bg));
-
-        span_ctx.counter.set(span_ctx.counter.get() + 1);
-        pos = end_pos;
-    }
-
-    if pos < text.len() {
-        let mut span = Span::new(&text[pos..]).font(font);
-        if let Some(color) = normal_color {
-            span = span.color(color);
-        }
-        spans.push(span);
-    }
-
-    spans
-}
-
-fn highlight_search_in_owned<'a>(
+fn highlight_search_in_text(
     text: &str,
     span_ctx: &SpanCtx,
     font: Font,
     normal_color: Option<Color>,
-) -> Vec<Span<'a, (), Font>> {
+) -> Vec<CachedSpan> {
     let mut spans = Vec::new();
     let lower = text.to_lowercase();
     let query_lower = span_ctx.search_query.to_lowercase();
@@ -171,69 +162,89 @@ fn highlight_search_in_owned<'a>(
         let end_pos = abs_pos + query_lower.len();
 
         if abs_pos > pos {
-            let mut span = Span::new(text[pos..abs_pos].to_string()).font(font);
-            if let Some(color) = normal_color {
-                span = span.color(color);
-            }
-            spans.push(span);
+            spans.push(CachedSpan {
+                text: text[pos..abs_pos].to_string(),
+                font,
+                color: normal_color,
+                background: None,
+                size: None,
+                strikethrough: false,
+                underline: false,
+            });
         }
 
         let bg = search_highlight_color(
             span_ctx.counter.get() == span_ctx.active_match,
             span_ctx.theme,
         );
-        spans.push(
-            Span::new(text[abs_pos..end_pos].to_string())
-                .font(font)
-                .background(bg),
-        );
+        spans.push(CachedSpan {
+            text: text[abs_pos..end_pos].to_string(),
+            font,
+            color: normal_color,
+            background: Some(bg),
+            size: None,
+            strikethrough: false,
+            underline: false,
+        });
 
         span_ctx.counter.set(span_ctx.counter.get() + 1);
         pos = end_pos;
     }
 
     if pos < text.len() {
-        let mut span = Span::new(text[pos..].to_string()).font(font);
-        if let Some(color) = normal_color {
-            span = span.color(color);
-        }
-        spans.push(span);
+        spans.push(CachedSpan {
+            text: text[pos..].to_string(),
+            font,
+            color: normal_color,
+            background: None,
+            size: None,
+            strikethrough: false,
+            underline: false,
+        });
     }
 
     spans
 }
 
-fn inlines_to_spans_core<'a>(
-    children: &'a [Inline],
-    span_ctx: &SpanCtx,
-) -> Vec<Span<'a, (), Font>> {
-    let main_font = get_main_font(span_ctx.font_family);
+fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedSpan> {
+    let mut main_font = get_main_font(span_ctx.font_family);
+    if let Some(weight) = span_ctx.base_weight {
+        main_font.weight = weight;
+    }
     let code_font = get_code_font(span_ctx.font_family_mono);
     let mut spans = Vec::new();
     let search_query = span_ctx.search_query;
+    let mp = span_ctx.theme.palette().markdown;
+    let inline_code_fg = mp.inline_code_fg;
+    let inline_code_bg = mp.inline_code_bg;
+    let inline_code_size = (span_ctx.font_size * 0.90).round();
 
     for inline in children {
         match inline {
-            Inline::Text(t) => match crate::parsers::markdown::strip_anchor_tags_cow(t) {
-                std::borrow::Cow::Borrowed(s) => {
-                    if !s.is_empty() {
-                        if search_query.is_empty() {
-                            spans.push(Span::new(s).font(main_font));
-                        } else {
-                            spans.extend(highlight_search_in_text(s, span_ctx, main_font, None));
-                        }
+            Inline::Text(t) => {
+                let stripped = crate::parsers::markdown::strip_anchor_tags_cow(t);
+                let s = stripped.as_ref();
+                if !s.is_empty() {
+                    if search_query.is_empty() {
+                        spans.push(CachedSpan {
+                            text: s.to_string(),
+                            font: main_font,
+                            color: span_ctx.base_color,
+                            background: None,
+                            size: None,
+                            strikethrough: false,
+                            underline: false,
+                        });
+                    } else {
+                        spans.extend(highlight_search_in_text(
+                            s,
+                            span_ctx,
+                            main_font,
+                            span_ctx.base_color,
+                        ));
                     }
                 }
-                std::borrow::Cow::Owned(s) => {
-                    if !s.is_empty() {
-                        if search_query.is_empty() {
-                            spans.push(Span::new(s).font(main_font));
-                        } else {
-                            spans.extend(highlight_search_in_owned(&s, span_ctx, main_font, None));
-                        }
-                    }
-                }
-            },
+            }
             Inline::Bold(children) => {
                 spans.extend(apply_style_to_children(
                     children,
@@ -257,23 +268,33 @@ fn inlines_to_spans_core<'a>(
                 ));
             }
             Inline::Strikethrough(children) => {
-                for s in inlines_to_spans_core(children, span_ctx) {
-                    spans.push(s.font(main_font).strikethrough(true));
+                for mut s in inlines_to_spans_core(children, span_ctx) {
+                    s.font = main_font;
+                    s.strikethrough = true;
+                    spans.push(s);
                 }
             }
             Inline::Code(code) => {
                 if search_query.is_empty() {
-                    spans.push(
-                        Span::new(code.as_str())
-                            .font(code_font)
-                            .color(STYLE.inline.inline_code_color),
-                    );
+                    spans.push(CachedSpan {
+                        text: code.clone(),
+                        font: code_font,
+                        color: Some(inline_code_fg),
+                        background: Some(inline_code_bg),
+                        size: if inline_code_size > 0.0 {
+                            Some(inline_code_size)
+                        } else {
+                            None
+                        },
+                        strikethrough: false,
+                        underline: false,
+                    });
                 } else {
                     spans.extend(highlight_search_in_text(
                         code,
                         span_ctx,
                         code_font,
-                        Some(STYLE.inline.inline_code_color),
+                        Some(inline_code_fg),
                     ));
                 }
             }
@@ -281,32 +302,58 @@ fn inlines_to_spans_core<'a>(
                 text: link_text, ..
             } => {
                 let link_color = span_ctx.theme.palette().roles.link;
-                for s in inlines_to_spans_core(link_text, span_ctx) {
-                    spans.push(s.color(link_color).underline(true));
+                for mut s in inlines_to_spans_core(link_text, span_ctx) {
+                    s.color = Some(link_color);
+                    s.underline = true;
+                    spans.push(s);
                 }
             }
             Inline::SoftBreak => {
-                spans.push(Span::new(" ").font(main_font));
+                spans.push(CachedSpan {
+                    text: " ".to_string(),
+                    font: main_font,
+                    color: None,
+                    background: None,
+                    size: None,
+                    strikethrough: false,
+                    underline: false,
+                });
             }
             Inline::Image { alt, .. } => {
-                spans.push(
-                    Span::new(format!("[{alt}]"))
-                        .font(main_font)
-                        .color(STYLE.inline.image_alt_color),
-                );
+                spans.push(CachedSpan {
+                    text: format!("[{alt}]"),
+                    font: main_font,
+                    color: Some(STYLE.inline.image_alt_color),
+                    background: None,
+                    size: None,
+                    strikethrough: false,
+                    underline: false,
+                });
             }
             Inline::InlineMath(latex) | Inline::DisplayMath(latex) => {
                 let display_text = super::latex::render_latex_to_text(latex);
                 let math_color = span_ctx.theme.palette().markdown.math;
-                spans.push(Span::new(display_text).font(main_font).color(math_color));
+                spans.push(CachedSpan {
+                    text: display_text,
+                    font: main_font,
+                    color: Some(math_color),
+                    background: None,
+                    size: None,
+                    strikethrough: false,
+                    underline: false,
+                });
             }
             Inline::FootnoteReference(label) => {
                 let link_color = span_ctx.theme.palette().roles.link;
-                spans.push(
-                    Span::new(format!("[{label}]"))
-                        .font(main_font)
-                        .color(link_color),
-                );
+                spans.push(CachedSpan {
+                    text: format!("[{label}]"),
+                    font: main_font,
+                    color: Some(link_color),
+                    background: None,
+                    size: None,
+                    strikethrough: false,
+                    underline: false,
+                });
             }
         }
     }
@@ -314,70 +361,71 @@ fn inlines_to_spans_core<'a>(
     spans
 }
 
-fn apply_style_to_children<'a>(
-    children: &'a [Inline],
+fn apply_style_to_children(
+    children: &[Inline],
     span_ctx: &SpanCtx,
     main_font: Font,
     style: fn(Font) -> Font,
-) -> Vec<Span<'a, (), Font>> {
+) -> Vec<CachedSpan> {
     inlines_to_spans_core(children, span_ctx)
         .into_iter()
-        .map(|span| span.font(style(main_font)))
+        .map(|mut span| {
+            span.font = style(main_font);
+            span
+        })
         .collect()
 }
 
 pub fn inlines_to_spans<'a>(children: &'a [Inline], span_ctx: &SpanCtx) -> Vec<Span<'a, (), Font>> {
     if !span_ctx.search_query.is_empty() {
-        return inlines_to_spans_core(children, span_ctx);
+        return inlines_to_spans_core(children, span_ctx)
+            .into_iter()
+            .map(|cs| cs.to_span())
+            .collect();
     }
 
     let inline_hash = hash_inlines(children);
+    let base_weight_val = span_ctx.base_weight.map(|w| match w {
+        Weight::Thin => 100,
+        Weight::ExtraLight => 200,
+        Weight::Light => 300,
+        Weight::Normal => 400,
+        Weight::Medium => 500,
+        Weight::Semibold => 600,
+        Weight::Bold => 700,
+        Weight::ExtraBold => 800,
+        Weight::Black => 900,
+    });
+    let base_color_val = span_ctx.base_color.map(|c| {
+        let [r, g, b, a] = c.into_rgba8();
+        u32::from_be_bytes([r, g, b, a])
+    });
+    let font_size_bits = span_ctx.font_size.to_bits();
+
     let key: SpanCacheKey = (
         inline_hash,
         span_ctx.theme,
         span_ctx.font_family.map(ToString::to_string),
         span_ctx.font_family_mono.map(ToString::to_string),
+        base_weight_val,
+        base_color_val,
+        font_size_bits,
     );
 
     if let Ok(mut cache) = span_cache().lock()
         && let Some(cached) = cache.get(&key)
     {
-        return cached
-            .iter()
-            .map(|cs| {
-                let mut span = Span::new(cs.text.clone()).font(cs.font);
-                if let Some(c) = cs.color {
-                    span = span.color(c);
-                }
-                if cs.strikethrough {
-                    span = span.strikethrough(true);
-                }
-                if cs.underline {
-                    span = span.underline(true);
-                }
-                span
-            })
-            .collect();
+        return cached.iter().map(CachedSpan::to_span).collect();
     }
 
-    let spans = inlines_to_spans_core(children, span_ctx);
-
-    let cached_list: Vec<CachedSpan> = spans
-        .iter()
-        .map(|s| CachedSpan {
-            text: s.text.to_string(),
-            font: s.font.unwrap_or(Font::DEFAULT),
-            color: s.color,
-            strikethrough: s.strikethrough,
-            underline: s.underline,
-        })
-        .collect();
+    let cached_list = inlines_to_spans_core(children, span_ctx);
+    let result = cached_list.iter().map(CachedSpan::to_span).collect();
 
     if let Ok(mut cache) = span_cache().lock() {
         cache.put(key, cached_list);
     }
 
-    spans
+    result
 }
 
 #[cfg(test)]
@@ -399,6 +447,9 @@ mod tests {
             active_match: 0,
             counter: &counter,
             theme: AppTheme::Dark,
+            base_weight: None,
+            base_color: None,
+            font_size: 14.0,
         };
 
         let spans1 = inlines_to_spans(&inlines, &ctx);
@@ -426,6 +477,9 @@ mod tests {
             active_match: 0,
             counter: &counter,
             theme: AppTheme::Dark,
+            base_weight: None,
+            base_color: None,
+            font_size: 14.0,
         };
 
         let spans = inlines_to_spans(&inlines, &ctx);

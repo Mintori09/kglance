@@ -148,6 +148,16 @@ pub fn render_inlines<'a>(
     font_size: f32,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
+    render_inlines_styled(inlines, font_size, None, None, ctx)
+}
+
+pub fn render_inlines_styled<'a>(
+    inlines: &'a [Inline],
+    font_size: f32,
+    base_weight: Option<iced::font::Weight>,
+    base_color: Option<iced::Color>,
+    ctx: &RenderContext<'_>,
+) -> Element<'a, Message> {
     let link_color = ctx.theme.palette().roles.link;
     let span_ctx = SpanCtx {
         font_family: ctx.font_family,
@@ -156,11 +166,14 @@ pub fn render_inlines<'a>(
         active_match: ctx.active_match,
         counter: ctx.counter,
         theme: ctx.theme,
+        base_weight,
+        base_color,
+        font_size,
     };
     let has_special = inlines.iter().any(|i| matches!(i, Inline::Link { .. }));
 
     if !has_special {
-        let default_text_color = ctx.theme.palette().base.text;
+        let default_text_color = base_color.unwrap_or(ctx.theme.palette().base.text);
         return crate::features::markdown::view::build_selectable(
             inlines_to_spans(inlines, &span_ctx),
             font_size,
