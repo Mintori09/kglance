@@ -26,8 +26,8 @@ impl PreviewParser for OfficeParser {
         let path_str = path.to_string_lossy().to_string();
 
         match ext.as_str() {
-            "xlsx" | "ods" => {
-                if let Ok(spreadsheet) = try_xlsx_direct(&path_str) {
+            "xlsx" | "xls" | "ods" | "xlsb" => {
+                if let Ok(spreadsheet) = try_spreadsheet_direct(&path_str) {
                     return Ok(spreadsheet);
                 }
             }
@@ -225,13 +225,11 @@ fn cell_to_string(cell: &calamine::Data) -> String {
     }
 }
 
-fn try_xlsx_direct(path: &str) -> Result<ParsedContent, ParseError> {
-    use calamine::{Reader, Xlsx, open_workbook};
+fn try_spreadsheet_direct(path: &str) -> Result<ParsedContent, ParseError> {
+    use calamine::{Reader, open_workbook_auto};
 
-    let mut workbook: Xlsx<_> = match open_workbook(path) {
-        Ok(w) => w,
-        Err(e) => return Err(ParseError::ParseFailed(e.to_string())),
-    };
+    let mut workbook =
+        open_workbook_auto(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
     let sheet_names = workbook.sheet_names().to_vec();
     let mut sheets = Vec::new();
