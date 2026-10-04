@@ -185,6 +185,40 @@ fn test_infer_column_types() {
 }
 
 #[test]
+fn test_date_column_inference_and_sorting() {
+    let headers = vec!["Ngày tháng".to_string(), "Event".to_string()];
+    let rows = vec![
+        vec!["30/11/2025".to_string(), "End of Nov".to_string()],
+        vec!["2025-01-12".to_string(), "Jan 12".to_string()],
+        vec![
+            "06/12/2025 11:07:33".to_string(),
+            "Dec 6 Morning".to_string(),
+        ],
+        vec!["08/12/2025 21:00:27".to_string(), "Dec 8 Night".to_string()],
+        vec!["2025-09-13".to_string(), "Sep 13".to_string()],
+    ];
+
+    let cols = infer_column_types_and_widths(&headers, &rows);
+    assert_eq!(cols[0].col_type, ColumnType::Date);
+    assert_eq!(cols[1].col_type, ColumnType::Text);
+
+    let sheet = SheetInfo {
+        name: "TestDate".to_string(),
+        headers,
+        rows,
+        columns: cols,
+    };
+
+    // Sort ASC: 2025-01-12 (idx 1), 2025-09-13 (idx 4), 30/11/2025 (idx 0), 06/12/2025 (idx 2), 08/12/2025 (idx 3)
+    let sorted_asc = recompute_display_indices(&sheet, "", Some(0), Some(true));
+    assert_eq!(sorted_asc, vec![1, 4, 0, 2, 3]);
+
+    // Sort DESC: opposite
+    let sorted_desc = recompute_display_indices(&sheet, "", Some(0), Some(false));
+    assert_eq!(sorted_desc, vec![3, 2, 0, 4, 1]);
+}
+
+#[test]
 fn test_numeric_sorting_and_filtering() {
     let headers = vec!["Name".to_string(), "Age".to_string()];
     let rows = vec![
