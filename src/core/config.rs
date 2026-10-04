@@ -177,9 +177,8 @@ impl ConfigManager {
         Self::get_config_dir().join("config.json")
     }
 
-    pub fn load_or_create() -> AppConfig {
-        let path = Self::get_config_path();
-        let raw = fs::read_to_string(&path).ok();
+    pub fn load_from_path(path: &std::path::Path) -> AppConfig {
+        let raw = fs::read_to_string(path).ok();
 
         let loaded = match raw.as_deref() {
             Some(content) => match serde_json::from_str::<AppConfig>(content) {
@@ -194,14 +193,16 @@ impl ConfigManager {
 
         if let Some(config) = loaded {
             let reserialized = serde_json::to_string_pretty(&config).unwrap_or_default();
-            if raw.as_deref() != Some(reserialized.as_str()) && Self::save(&config).is_err() {
+            if raw.as_deref() != Some(reserialized.as_str())
+                && Self::save_to_path(path, &config).is_err()
+            {
                 eprintln!("[kglance] failed to update config");
             }
             return config;
         }
 
         let config = AppConfig::default();
-        let _ = Self::save(&config);
+        let _ = Self::save_to_path(path, &config);
         log_debug!(
             "[TRACE:CONFIG_LOAD] Loaded config.ui.json_tree_view = {}",
             config.ui.json_tree_view
@@ -209,14 +210,23 @@ impl ConfigManager {
         config
     }
 
-    pub fn save(config: &AppConfig) -> Result<(), String> {
-        let dir = Self::get_config_dir();
-        if !dir.exists() {
-            fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    pub fn load_or_create() -> AppConfig {
+        Self::load_from_path(&Self::get_config_path())
+    }
+
+    pub fn save_to_path(path: &std::path::Path, config: &AppConfig) -> Result<(), String> {
+        if let Some(dir) = path.parent()
+            && !dir.exists()
+        {
+            fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         }
         let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
-        fs::write(Self::get_config_path(), json).map_err(|e| e.to_string())?;
+        fs::write(path, json).map_err(|e| e.to_string())?;
         Ok(())
+    }
+
+    pub fn save(config: &AppConfig) -> Result<(), String> {
+        Self::save_to_path(&Self::get_config_path(), config)
     }
 
     pub fn get_theme_setting(config: &AppConfig) -> String {
@@ -244,24 +254,6 @@ impl ConfigManager {
     }
 }
 
-#[test]
-#[ignore]
-fn test_debug_deserialize_config() {
-    let path = ConfigManager::get_config_path();
-    println!("\n[TEST PATH] {:?}", path);
-
-    let raw = fs::read_to_string(&path).expect("Failed to read config file");
-    println!("[TEST RAW CONTENT]\n{}", raw);
-
-    match serde_json::from_str::<AppConfig>(&raw) {
-        Ok(cfg) => {
-            println!(
-                "[TEST SUCCESS] ui.json_tree_view = {}",
-                cfg.ui.json_tree_view
-            );
-        }
-        Err(err) => {
-            panic!("[TEST FAILED] Serde deserialize error: {:?}", err);
-        }
-    }
-}
+#[cfg(test)]
+#[path = "config_tests.rs"]
+mod tests;
