@@ -88,10 +88,15 @@ pub enum PreviewData {
     },
     Font {
         name: String,
+        family: String,
+        post_script_name: Option<String>,
+        weight: u16,
+        is_italic: bool,
         metadata: String,
         sample: Vec<u8>,
         sample_width: u32,
         sample_height: u32,
+        data: Vec<u8>,
     },
     Error(String),
 }
@@ -223,6 +228,7 @@ impl PreviewData {
                 sample,
                 sample_width,
                 sample_height,
+                ..
             } => {
                 crate::features::font::populate_state(
                     state,
@@ -322,10 +328,15 @@ mod tests {
         let sample = vec![128u8; 60 * 30 * 4];
         let preview_data = PreviewData::Font {
             name: "TestFont".to_string(),
+            family: "TestFont".to_string(),
+            post_script_name: Some("TestFont-Regular".to_string()),
+            weight: 400,
+            is_italic: false,
             metadata: "Name: TestFont".to_string(),
             sample: sample.clone(),
             sample_width: 60,
             sample_height: 30,
+            data: vec![0u8; 100],
         };
 
         preview_data.populate_state(&mut state);

@@ -82,9 +82,14 @@ pub enum ParsedContent {
     },
     Font {
         name: String,
+        family: String,
+        post_script_name: Option<String>,
+        weight: u16,
+        is_italic: bool,
         metadata: String,
         sample: Vec<u8>,
         sample_width: u32,
         sample_height: u32,
+        data: Vec<u8>,
     },
 }

@@ -12,19 +12,123 @@ impl PreviewParser for FontParser {
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
         let data = std::fs::read(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-        let font = fontdue::Font::from_bytes(data, fontdue::FontSettings::default())
-            .map_err(|e| ParseError::ParseFailed(format!("font parse: {e}")))?;
+        let fontdue_font =
+            fontdue::Font::from_bytes(&data[..], fontdue::FontSettings::default()).ok();
 
-        let name = font.name().unwrap_or("Unknown").to_string();
-        let glyph_count = font.glyph_count();
-        let units_per_em = font.units_per_em();
-        let line_metrics = font.horizontal_line_metrics(36.0);
-        let asc = line_metrics.map(|lm| lm.ascent as i32).unwrap_or(0);
-        let desc = line_metrics.map(|lm| lm.descent as i32).unwrap_or(0);
+        let ttf_face = ttf_parser::Face::parse(&data, 0).ok();
+
+        let (
+            family,
+            full_name,
+            post_script_name,
+            weight,
+            is_italic,
+            glyph_count,
+            units_per_em,
+            asc,
+            desc,
+        ) = if let Some(ref face) = ttf_face {
+            let mut family = None;
+            let mut subfamily = None;
+            let mut full_name = None;
+            let mut post_script_name = None;
+
+            for name in face.names() {
+                if !name.is_unicode() {
+                    continue;
+                }
+                match name.name_id {
+                    ttf_parser::name_id::TYPOGRAPHIC_FAMILY => {
+                        if let Some(s) = name.to_string() {
+                            family = Some(s);
+                        }
+                    }
+                    ttf_parser::name_id::FAMILY => {
+                        if family.is_none()
+                            && let Some(s) = name.to_string()
+                        {
+                            family = Some(s);
+                        }
+                    }
+                    ttf_parser::name_id::TYPOGRAPHIC_SUBFAMILY => {
+                        if let Some(s) = name.to_string() {
+                            subfamily = Some(s);
+                        }
+                    }
+                    ttf_parser::name_id::SUBFAMILY => {
+                        if subfamily.is_none()
+                            && let Some(s) = name.to_string()
+                        {
+                            subfamily = Some(s);
+                        }
+                    }
+                    ttf_parser::name_id::FULL_NAME => {
+                        if let Some(s) = name.to_string() {
+                            full_name = Some(s);
+                        }
+                    }
+                    ttf_parser::name_id::POST_SCRIPT_NAME => {
+                        if let Some(s) = name.to_string() {
+                            post_script_name = Some(s);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            let fam = family
+                .or_else(|| post_script_name.clone())
+                .unwrap_or_else(|| "Unknown".to_string());
+            let full = full_name.unwrap_or_else(|| {
+                if let Some(sub) = &subfamily {
+                    format!("{fam} {sub}")
+                } else {
+                    fam.clone()
+                }
+            });
+
+            (
+                fam,
+                full,
+                post_script_name,
+                face.weight().to_number(),
+                face.is_italic() || face.is_oblique(),
+                face.number_of_glyphs() as usize,
+                face.units_per_em() as usize,
+                face.ascender() as i32,
+                face.descender() as i32,
+            )
+        } else if let Some(ref font) = fontdue_font {
+            let name = font.name().unwrap_or("Unknown").to_string();
+            let line_metrics = font.horizontal_line_metrics(36.0);
+            (
+                name.clone(),
+                name,
+                None,
+                400u16,
+                false,
+                font.glyph_count() as usize,
+                font.units_per_em() as usize,
+                line_metrics.map(|lm| lm.ascent as i32).unwrap_or(0),
+                line_metrics.map(|lm| lm.descent as i32).unwrap_or(0),
+            )
+        } else {
+            return Err(ParseError::ParseFailed(
+                "Failed to parse font data".to_string(),
+            ));
+        };
+
         let file_size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
 
         let mut meta = Vec::new();
-        meta.push(format!("Name: {name}"));
+        meta.push(format!("Name: {full_name}"));
+        if family != full_name {
+            meta.push(format!("Family: {family}"));
+        }
+        meta.push(format!("Weight: {weight}"));
+        if is_italic {
+            meta.push("Style: Italic".to_string());
+        }
         meta.push(format!("Glyphs: {glyph_count}"));
         meta.push(format!("Units per EM: {units_per_em}"));
         meta.push(format!("Ascender: {asc}"));
@@ -35,14 +139,23 @@ impl PreviewParser for FontParser {
         let sample_text = "The quick brown fox jumps over the lazy dog\nABCabc 123 !@#";
         let px = 36.0;
 
-        let (sample, w, h) = render_text(&font, sample_text, px);
+        let (sample, w, h) = if let Some(ref font) = fontdue_font {
+            render_text(font, sample_text, px)
+        } else {
+            (Vec::new(), 1, 1)
+        };
 
         Ok(ParsedContent::Font {
-            name,
+            name: full_name,
+            family,
+            post_script_name,
+            weight,
+            is_italic,
             metadata,
             sample,
             sample_width: w,
             sample_height: h,
+            data,
         })
     }
 }
@@ -150,4 +263,39 @@ pub fn resolve_font_name(name: &str) -> String {
     let mut guard = cache.lock().unwrap();
     guard.insert(key, resolved.clone());
     resolved
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_font_parser_merriweather() {
+        let path =
+            Path::new("/home/mintori/.local/share/fonts/Merriweather/Merriweather-Regular.ttf");
+        if !path.exists() {
+            return;
+        }
+        let parser = FontParser;
+        let content = parser
+            .parse(path)
+            .expect("failed to parse merriweather font");
+        match content {
+            ParsedContent::Font {
+                name,
+                family,
+                post_script_name,
+                weight,
+                is_italic,
+                ..
+            } => {
+                assert_eq!(name, "Merriweather Regular");
+                assert_eq!(family, "Merriweather");
+                assert_eq!(post_script_name, Some("Merriweather-Regular".to_string()));
+                assert_eq!(weight, 400);
+                assert!(!is_italic);
+            }
+            _ => panic!("expected ParsedContent::Font"),
+        }
+    }
 }

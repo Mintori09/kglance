@@ -105,25 +105,7 @@ impl KglanceApp {
 
         state.read_positions = crate::core::ReadPositions::load();
         state.json.tree_mode = config.ui.json_tree_view;
-        state
-            .markdown
-            .scroll_controller
-            .apply_config(&config.scroll);
-        state.pdf.scroll_controller.apply_config(&config.scroll);
-        state.text.scroll_controller.apply_config(&config.scroll);
-        state
-            .spreadsheet
-            .scroll_controller
-            .apply_config(&config.scroll);
-        state
-            .spreadsheet
-            .scroll_controller_x
-            .apply_config(&config.scroll);
-        state.spreadsheet.smooth_scroll.apply_config(&config.scroll);
-        state
-            .spreadsheet
-            .smooth_scroll_x
-            .apply_config(&config.scroll);
+        state.apply_scroll_config(&config.scroll);
 
         if !initial_paths.is_empty() {
             state.playlist = initial_paths.to_vec();
@@ -413,6 +395,10 @@ impl KglanceApp {
 
         if let Some(task) = self.prepare_sibling_scan_task(path) {
             tasks.push(task);
+        }
+
+        if let PreviewData::Font { data, .. } = content {
+            tasks.push(iced::font::load(data.clone()).map(|_| Message::None));
         }
 
         if let PreviewData::Image {
@@ -913,9 +899,23 @@ impl KglanceApp {
                     &self.state.image,
                     self.state.font_family.as_deref(),
                 ),
-                PreviewData::Font { name, metadata, .. } => {
-                    crate::ui::views::view_font(name, metadata, self.state.app_theme)
-                }
+                PreviewData::Font {
+                    name,
+                    family,
+                    post_script_name,
+                    weight,
+                    is_italic,
+                    metadata,
+                    ..
+                } => crate::ui::views::view_font(
+                    name,
+                    family,
+                    post_script_name.as_deref(),
+                    *weight,
+                    *is_italic,
+                    metadata,
+                    self.state.app_theme,
+                ),
                 PreviewData::Pdf { .. } => crate::ui::views::view_pdf(
                     &self.state.pdf,
                     self.state.font_size,

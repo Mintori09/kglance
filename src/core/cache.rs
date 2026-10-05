@@ -150,7 +150,9 @@ impl PreviewData {
                 let img_bytes: usize = images.values().map(|b| b.len()).sum();
                 img_bytes.saturating_add(4096)
             }
-            PreviewData::Font { sample, .. } => sample.len().saturating_add(256),
+            PreviewData::Font { sample, data, .. } => {
+                sample.len().saturating_add(data.len()).saturating_add(256)
+            }
             PreviewData::Error(msg) => msg.len().saturating_add(64),
         }
     }

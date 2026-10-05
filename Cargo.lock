@@ -3223,6 +3223,7 @@ dependencies = [
  "tar",
  "tempfile",
  "tokio",
+ "ttf-parser",
  "unicode-normalization",
  "url",
  "zbus",
