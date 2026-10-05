@@ -1084,30 +1084,36 @@ fn collect_list_plain_texts(
         let item_blk = current_idx;
         current_idx += 1;
 
-        let raw_prefix = if let Some(checked) = item.is_task {
-            if checked {
-                "[x] ".to_string()
-            } else {
-                "[ ] ".to_string()
-            }
-        } else if ordered {
-            format!("{}. ", start_number + idx as u64)
-        } else {
-            "- ".to_string()
-        };
-        let prefix = format!("{indent}{raw_prefix}");
-        let text = crate::parsers::markdown::flatten_inlines_visual(&item.content);
-        map.insert(
-            item_blk,
-            CopyLine {
-                prefix: Some(prefix),
-                text,
-                suffix: None,
-                blank_before: false,
-                table_separator: None,
-            },
-        );
+        let has_direct_content =
+            !item.content.is_empty() || item.is_task.is_some() || item.sub_blocks.is_empty();
 
+        if has_direct_content {
+            let raw_prefix = if let Some(checked) = item.is_task {
+                if checked {
+                    "[x] ".to_string()
+                } else {
+                    "[ ] ".to_string()
+                }
+            } else if ordered {
+                format!("{}. ", start_number + idx as u64)
+            } else {
+                "- ".to_string()
+            };
+            let prefix = format!("{indent}{raw_prefix}");
+            let text = crate::parsers::markdown::flatten_inlines_visual(&item.content);
+            map.insert(
+                item_blk,
+                CopyLine {
+                    prefix: Some(prefix),
+                    text,
+                    suffix: None,
+                    blank_before: false,
+                    table_separator: None,
+                },
+            );
+        }
+
+        let next_depth = if has_direct_content { depth + 1 } else { depth };
         for sub_block in item.sub_blocks.iter() {
             match sub_block {
                 crate::parsers::markdown::Block::List {
@@ -1121,7 +1127,7 @@ fn collect_list_plain_texts(
                         *sub_start,
                         sub_items,
                         map,
-                        depth + 1,
+                        next_depth,
                     );
                 }
                 _ => {

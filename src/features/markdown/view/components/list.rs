@@ -30,23 +30,27 @@ fn render_list_level<'a>(
     let mut current_idx = ctx.block_index + 1;
 
     for (index, item) in items.iter().enumerate() {
-        let prefix = create_list_prefix(ordered, start_number, index, item, ctx, level);
-
         let item_block_index = current_idx;
         current_idx += 1;
 
-        let item_ctx = RenderContext {
-            block_index: item_block_index,
-            ..*ctx
-        };
+        let has_direct_content =
+            !item.content.is_empty() || item.is_task.is_some() || item.sub_blocks.is_empty();
 
-        let content = render_inlines(&item.content, ctx.font_size, &item_ctx);
+        let mut children: Vec<Element<'a, Message>> = Vec::with_capacity(item.sub_blocks.len() + 1);
 
-        let mut children: Vec<Element<'a, Message>> = vec![
-            row![prefix, content]
-                .spacing(STYLE.list.item_spacing)
-                .into(),
-        ];
+        if has_direct_content {
+            let prefix = create_list_prefix(ordered, start_number, index, item, ctx, level);
+            let item_ctx = RenderContext {
+                block_index: item_block_index,
+                ..*ctx
+            };
+            let content = render_inlines(&item.content, ctx.font_size, &item_ctx);
+            children.push(
+                row![prefix, content]
+                    .spacing(STYLE.list.item_spacing)
+                    .into(),
+            );
+        }
 
         for sub_block in item.sub_blocks.iter() {
             let sub_ctx = RenderContext {
@@ -62,13 +66,18 @@ fn render_list_level<'a>(
                 _ => render_block(current_idx, sub_block, state, &sub_ctx),
             };
             current_idx += 10;
+            let left_padding = if has_direct_content {
+                STYLE.list.sub_block_left_padding
+            } else {
+                0.0
+            };
             children.push(
                 container(sub_element)
                     .padding(Padding {
                         top: STYLE.list.item_padding,
                         right: 0.0,
                         bottom: STYLE.list.item_padding,
-                        left: STYLE.list.sub_block_left_padding,
+                        left: left_padding,
                     })
                     .width(Length::Fill)
                     .into(),
