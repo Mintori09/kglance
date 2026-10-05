@@ -137,6 +137,10 @@ pub fn populate_state(
     if old_sidebar_width > 0.0 {
         text_state.sidebar_width = old_sidebar_width;
     }
+    text_state
+        .scroll_controller
+        .apply_config(&state.scroll_config);
+    text_state.smooth_scroll.apply_config(&state.scroll_config);
     state.text = text_state;
     state.file_type_text = language.to_string();
 }

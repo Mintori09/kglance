@@ -151,6 +151,7 @@ pub struct ScrollController {
     pub is_animating: bool,
     pub velocity: f32,
     pub last_applied_y: f32,
+    pub smooth_enabled: bool,
 
     mode: SmoothScrollMode,
     start_y: f32,
@@ -172,6 +173,7 @@ impl Default for ScrollController {
             is_animating: false,
             velocity: 0.0,
             last_applied_y: 0.0,
+            smooth_enabled: true,
             mode: SmoothScrollMode::Interactive,
             start_y: 0.0,
             start_time: None,
@@ -235,6 +237,7 @@ impl ScrollController {
     }
 
     pub fn apply_config(&mut self, config: &crate::core::config::ScrollConfigOptions) {
+        self.smooth_enabled = config.smooth_scroll_enabled;
         self.physics.friction_coefficient = config.friction;
         if let BoundaryBehavior::Spring {
             ref mut stiffness, ..
@@ -251,6 +254,11 @@ impl ScrollController {
         };
 
         let target = clamp_target(base + delta, max_y);
+        if !self.smooth_enabled {
+            self.stop(target);
+            return;
+        }
+
         self.mode = SmoothScrollMode::Interactive;
         self.position_y = current_y;
         self.target_y = target;
@@ -274,7 +282,7 @@ impl ScrollController {
     pub fn start_navigation(&mut self, current_y: f32, target_y: f32, max_y: f32) {
         let clamped_target = clamp_target(target_y, max_y);
         let distance = (clamped_target - current_y).abs();
-        if distance <= STOP_THRESHOLD {
+        if !self.smooth_enabled || distance <= STOP_THRESHOLD {
             self.stop(clamped_target);
             return;
         }
@@ -302,7 +310,7 @@ impl ScrollController {
 
     pub fn start_kinetic(&mut self, current_y: f32, initial_velocity: f32, max_y: f32) {
         let clamped_v = initial_velocity.clamp(-KINETIC_MAX_VELOCITY, KINETIC_MAX_VELOCITY);
-        if clamped_v.abs() < KINETIC_VELOCITY_CUTOFF {
+        if !self.smooth_enabled || clamped_v.abs() < KINETIC_VELOCITY_CUTOFF {
             self.stop(current_y);
             return;
         }

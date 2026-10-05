@@ -90,6 +90,27 @@ pub fn handle_wheel_scrolled(
                 pdf_state
                     .smooth_scroll
                     .start_interactive(pdf_state.scroll_y, step, max_y);
+                if !pdf_state.smooth_scroll.is_animating() {
+                    let new_y = pdf_state.smooth_scroll.position_y();
+                    pdf_state.scroll_y = new_y;
+                    let count = pdf_state.page_count;
+                    if count > 0 && !pdf_state.page_y_offsets.is_empty() {
+                        let page_index = crate::features::pdf::viewport::find_visible_page(
+                            &pdf_state.page_y_offsets,
+                            new_y,
+                            vh,
+                            0.3,
+                        );
+                        pdf_state
+                            .visible_page
+                            .store(page_index, std::sync::atomic::Ordering::Relaxed);
+                        promote_window_pages(pdf_state, page_index);
+                    }
+                    return iced::widget::operation::scroll_to(
+                        "pdf_content_scroll",
+                        iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
+                    );
+                }
             }
             Task::none()
         }

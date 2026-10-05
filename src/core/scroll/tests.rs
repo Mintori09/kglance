@@ -290,3 +290,32 @@ fn update_timeout_triggers_flinging_from_fast_flick() {
     );
     assert!(next_y.is_some());
 }
+
+#[test]
+fn test_disabled_smooth_scroll_interactive_and_navigation() {
+    let mut controller = ScrollController::new();
+    let config = crate::core::config::ScrollConfigOptions {
+        smooth_scroll_enabled: false,
+        friction: 4.2,
+        spring_stiffness: 180.0,
+    };
+    controller.apply_config(&config);
+    assert!(!controller.smooth_enabled);
+
+    // Interactive step should jump directly without animating
+    controller.start_interactive(100.0, 50.0, 1000.0);
+    assert_eq!(controller.position_y(), 150.0);
+    assert_eq!(controller.target_y(), 150.0);
+    assert!(!controller.is_animating());
+
+    // Navigation step should jump directly without animating
+    controller.start_navigation(150.0, 500.0, 1000.0);
+    assert_eq!(controller.position_y(), 500.0);
+    assert_eq!(controller.target_y(), 500.0);
+    assert!(!controller.is_animating());
+
+    // Kinetic fling should stop immediately without animating
+    controller.start_kinetic(500.0, 1200.0, 1000.0);
+    assert_eq!(controller.position_y(), 500.0);
+    assert!(!controller.is_animating());
+}

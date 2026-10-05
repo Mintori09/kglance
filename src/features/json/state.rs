@@ -64,6 +64,21 @@ pub fn populate_state(
         active_node: None,
         parsed_cache: parsed_cache_hit,
     };
+    state
+        .json
+        .scroll_controller
+        .apply_config(&state.scroll_config);
+    state.json.smooth_scroll.apply_config(&state.scroll_config);
+    state
+        .json
+        .raw_text
+        .scroll_controller
+        .apply_config(&state.scroll_config);
+    state
+        .json
+        .raw_text
+        .smooth_scroll
+        .apply_config(&state.scroll_config);
 
     state.file_type_text = "JSON Document".to_string();
 }

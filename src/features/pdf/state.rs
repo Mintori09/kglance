@@ -54,5 +54,10 @@ pub fn populate_state(
     state.pdf.total_content_height = total_h;
 
     recalculate_pdf_thumbnail_offsets(&mut state.pdf);
+    state
+        .pdf
+        .scroll_controller
+        .apply_config(&state.scroll_config);
+    state.pdf.smooth_scroll.apply_config(&state.scroll_config);
     state.file_type_text = "PDF Document".to_string();
 }
