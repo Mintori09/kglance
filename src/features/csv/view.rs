@@ -3,9 +3,11 @@ use crate::core::SpreadsheetState;
 use crate::features::csv::types::{ColumnMeta, ColumnType, SheetInfo};
 use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::theme::tokens::spacing;
-use crate::ui::theme::{AppTheme, default_button, default_button_primary, default_card};
+use crate::ui::theme::{
+    AppTheme, default_button, default_button_primary, default_card, default_tooltip,
+};
 use iced::alignment;
-use iced::widget::{button, column, container, row, text};
+use iced::widget::{button, column, container, row, text, tooltip};
 use iced::{Element, Length, Theme};
 
 const SORT_ASCENDING_INDICATOR: &str = " ▲";
@@ -117,7 +119,7 @@ fn render_spreadsheet_body<'a>(
         ));
     }
 
-    let header = render_table_header(&sheet.columns, state);
+    let header = render_table_header(&sheet.columns, state, theme);
 
     if state.display_indices.is_empty() {
         layout = layout.push(header);
@@ -163,6 +165,7 @@ fn render_spreadsheet_body<'a>(
 fn render_table_header<'a>(
     columns: &'a [ColumnMeta],
     state: &'a SpreadsheetState,
+    theme: AppTheme,
 ) -> Element<'a, Message> {
     let col_window =
         compute_csv_column_window(&state.prefix_widths, state.scroll_x, state.viewport_width);
@@ -178,6 +181,7 @@ fn render_table_header<'a>(
             .wrapping(text::Wrapping::None)
             .width(Length::Fill),
     )
+    .clip(true)
     .width(Length::Fixed(ROW_NUMBER_COL_WIDTH))
     .height(Length::Fixed(HEADER_HEIGHT))
     .align_y(alignment::Vertical::Center);
@@ -210,10 +214,26 @@ fn render_table_header<'a>(
         } else {
             default_button
         })
+        .clip(true)
         .width(Length::Fixed(col_meta.width))
         .height(Length::Fixed(HEADER_HEIGHT));
 
-        header_row = header_row.push(header_button);
+        let tooltip_content =
+            container(
+                text(&col_meta.name)
+                    .size(12.0)
+                    .style(move |_: &Theme| text::Style {
+                        color: Some(theme.palette().base.text),
+                    }),
+            )
+            .padding([4, 8])
+            .style(default_tooltip);
+
+        let header_widget = tooltip(header_button, tooltip_content, tooltip::Position::Bottom)
+            .gap(4.0)
+            .snap_within_viewport(true);
+
+        header_row = header_row.push(header_widget);
     }
 
     if col_window.visible_end < columns.len() && col_window.right_spacer_width > 0.0 {

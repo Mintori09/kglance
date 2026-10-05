@@ -373,7 +373,7 @@ pub fn default_tooltip(theme: &Theme) -> container::Style {
     let p = BaseColors::palette(theme);
     let app_theme = AppTheme::from(theme);
     let (bg, border_color) = match app_theme {
-        AppTheme::Light => (primitive::LIGHT_TOOLTIP, primitive::WHITE_012),
+        AppTheme::Light => (primitive::LIGHT_TOOLTIP, p.border),
         AppTheme::Dark | AppTheme::Nord => (primitive::DARK_TOOLTIP, p.border),
     };
     container::Style {

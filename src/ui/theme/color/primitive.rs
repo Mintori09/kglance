@@ -44,7 +44,7 @@ pub(crate) const DARK_SHADOW: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.40);
 pub(crate) const LIGHT_BG: Color = Color::from_rgba(0.93, 0.94, 0.96, 1.0);
 pub(crate) const LIGHT_SURFACE: Color = Color::from_rgba(0.98, 0.98, 1.0, 0.82);
 pub(crate) const LIGHT_SURFACE_RAISED: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.88);
-pub(crate) const LIGHT_TOOLTIP: Color = Color::from_rgba(0.22, 0.24, 0.28, 0.95);
+pub(crate) const LIGHT_TOOLTIP: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.98);
 
 // ── Light theme lines & text ───────────────────────────────────────────────
 
