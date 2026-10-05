@@ -107,9 +107,7 @@ fn build_link_button<'a>(
     .style(link_button_style)
     .padding(0);
 
-    let tooltip_label = iced::widget::text(url)
-        .size(STYLE.inline.tooltip_font_size)
-        .color(Color::WHITE);
+    let tooltip_label = iced::widget::text(url).size(STYLE.inline.tooltip_font_size);
     let tooltip_wrapped = iced::widget::container(tooltip_label)
         .padding(STYLE.inline.tooltip_padding)
         .style(default_tooltip);

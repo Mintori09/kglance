@@ -130,28 +130,35 @@ pub fn intrinsic_block_height(
             let available_w = (effective_width - lc::LIST_SUB_BLOCK_LEFT_PADDING).max(100.0);
             let chars_per_line = (available_w / (font_size * 0.60)).max(15.0) as usize;
             for item in items {
-                let text = flatten_inlines_toc(&item.content);
-                let explicit_lines = text.lines().count().max(1);
-                let visual_units = text
-                    .chars()
-                    .map(|c| {
-                        if ('\u{2E80}'..='\u{9FFF}').contains(&c)
-                            || ('\u{3040}'..='\u{30FF}').contains(&c)
-                            || ('\u{AC00}'..='\u{D7AF}').contains(&c)
-                            || ('\u{FF01}'..='\u{FF60}').contains(&c)
-                        {
-                            2
-                        } else {
-                            1
-                        }
-                    })
-                    .sum::<usize>();
-                let wrapped_lines = ((visual_units as f32 * 1.15) / chars_per_line as f32)
-                    .ceil()
-                    .max(1.0) as usize;
-                let n = explicit_lines.max(wrapped_lines) as f32;
-                let item_pad = lc::LIST_ITEM_PADDING * 2.0;
-                let mut item_h = n * line + item_pad;
+                let has_direct_content = !item.content.is_empty()
+                    || item.is_task.is_some()
+                    || item.sub_blocks.is_empty();
+                let mut item_h = if has_direct_content {
+                    let text = flatten_inlines_toc(&item.content);
+                    let explicit_lines = text.lines().count().max(1);
+                    let visual_units = text
+                        .chars()
+                        .map(|c| {
+                            if ('\u{2E80}'..='\u{9FFF}').contains(&c)
+                                || ('\u{3040}'..='\u{30FF}').contains(&c)
+                                || ('\u{AC00}'..='\u{D7AF}').contains(&c)
+                                || ('\u{FF01}'..='\u{FF60}').contains(&c)
+                            {
+                                2
+                            } else {
+                                1
+                            }
+                        })
+                        .sum::<usize>();
+                    let wrapped_lines = ((visual_units as f32 * 1.15) / chars_per_line as f32)
+                        .ceil()
+                        .max(1.0) as usize;
+                    let n = explicit_lines.max(wrapped_lines) as f32;
+                    let item_pad = lc::LIST_ITEM_PADDING * 2.0;
+                    n * line + item_pad
+                } else {
+                    0.0
+                };
                 for sb in &item.sub_blocks {
                     item_h += intrinsic_block_height(
                         sb,

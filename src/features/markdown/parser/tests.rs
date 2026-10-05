@@ -1319,3 +1319,32 @@ fn test_standalone_anchor_blocks() {
     ]);
     assert!(!is_standalone_anchor_block(&block4));
 }
+
+#[test]
+fn test_nested_list_empty_direct_content() {
+    let md = "1. Item 1\n   - 1. Subitem 1\n   - 2. Subitem 2";
+    let blocks = parse_to_blocks(md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::List { ordered, items, .. } => {
+            assert!(ordered);
+            assert_eq!(items.len(), 1);
+            let item = &items[0];
+            assert_eq!(item.sub_blocks.len(), 1);
+            match &item.sub_blocks[0] {
+                Block::List {
+                    ordered: sub_ord,
+                    items: sub_items,
+                    ..
+                } => {
+                    assert!(!sub_ord);
+                    assert_eq!(sub_items.len(), 2);
+                    assert!(sub_items[0].content.is_empty());
+                    assert_eq!(sub_items[0].sub_blocks.len(), 1);
+                }
+                _ => panic!("expected sub Block::List"),
+            }
+        }
+        _ => panic!("expected Block::List"),
+    }
+}
