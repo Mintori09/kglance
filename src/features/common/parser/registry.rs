@@ -196,16 +196,26 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
             }
             ParsedContent::Font {
                 name,
+                family,
+                post_script_name,
+                weight,
+                is_italic,
                 metadata,
                 sample,
                 sample_width,
                 sample_height,
+                data,
             } => crate::core::preview::PreviewData::Font {
                 name,
+                family,
+                post_script_name,
+                weight,
+                is_italic,
                 metadata,
                 sample,
                 sample_width,
                 sample_height,
+                data,
             },
             ParsedContent::Image {
                 data,
@@ -501,25 +511,40 @@ mod tests {
     fn test_font_conversion_to_preview_data() {
         let content = ParsedContent::Font {
             name: "TestFont".to_string(),
+            family: "TestFont".to_string(),
+            post_script_name: Some("TestFont-Regular".to_string()),
+            weight: 400,
+            is_italic: false,
             metadata: "Name: TestFont\nGlyphs: 2".to_string(),
             sample: vec![0u8; 100 * 50 * 4],
             sample_width: 100,
             sample_height: 50,
+            data: vec![1, 2, 3, 4],
         };
 
         let preview = match content {
             ParsedContent::Font {
                 name,
+                family,
+                post_script_name,
+                weight,
+                is_italic,
                 metadata,
                 sample,
                 sample_width,
                 sample_height,
+                data,
             } => crate::core::preview::PreviewData::Font {
                 name,
+                family,
+                post_script_name,
+                weight,
+                is_italic,
                 metadata,
                 sample,
                 sample_width,
                 sample_height,
+                data,
             },
             _ => unreachable!(),
         };
@@ -527,17 +552,27 @@ mod tests {
         match preview {
             crate::core::preview::PreviewData::Font {
                 name,
+                family,
+                post_script_name,
+                weight,
+                is_italic,
                 metadata,
                 sample,
                 sample_width,
                 sample_height,
+                data,
             } => {
                 assert_eq!(name, "TestFont");
+                assert_eq!(family, "TestFont");
+                assert_eq!(post_script_name, Some("TestFont-Regular".to_string()));
+                assert_eq!(weight, 400);
+                assert!(!is_italic);
                 assert!(metadata.contains("TestFont"));
                 assert!(!sample.is_empty());
                 assert_eq!(sample_width, 100);
                 assert_eq!(sample_height, 50);
                 assert_eq!(sample.len(), (100 * 50 * 4) as usize);
+                assert_eq!(data, vec![1, 2, 3, 4]);
             }
             other => panic!("expected PreviewData::Font, got {other:?}"),
         }
