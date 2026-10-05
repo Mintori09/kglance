@@ -62,6 +62,23 @@ pub fn populate_state(state: &mut KglanceState, sheets: &[SheetInfo], active_she
         state.spreadsheet.total_content_width = 0.0;
     }
 
+    state
+        .spreadsheet
+        .scroll_controller
+        .apply_config(&state.scroll_config);
+    state
+        .spreadsheet
+        .scroll_controller_x
+        .apply_config(&state.scroll_config);
+    state
+        .spreadsheet
+        .smooth_scroll
+        .apply_config(&state.scroll_config);
+    state
+        .spreadsheet
+        .smooth_scroll_x
+        .apply_config(&state.scroll_config);
+
     state.file_type_text = "Spreadsheet".to_string();
 }
 
@@ -417,6 +434,17 @@ pub fn handle_wheel_scrolled(
                         .smooth_scroll_x
                         .start_interactive(state.scroll_x, step, max_x);
                 }
+            }
+            if !state.smooth_scroll.is_animating() && !state.smooth_scroll_x.is_animating() {
+                state.scroll_y = state.smooth_scroll.position_y();
+                state.scroll_x = state.smooth_scroll_x.position_y();
+                return iced::widget::operation::scroll_to(
+                    CONTENT_SCROLL_ID,
+                    iced::widget::operation::AbsoluteOffset {
+                        x: state.scroll_x,
+                        y: state.scroll_y,
+                    },
+                );
             }
             Task::none()
         }

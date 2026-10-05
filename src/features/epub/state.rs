@@ -111,6 +111,16 @@ pub fn populate_state(
         collapsed_chapters: old_collapsed,
         markdown_state,
     };
+    state
+        .epub
+        .markdown_state
+        .scroll_controller
+        .apply_config(&state.scroll_config);
+    state
+        .epub
+        .markdown_state
+        .smooth_scroll
+        .apply_config(&state.scroll_config);
     state.file_type_text = format!("EPUB E-Book ({} chapters)", chapters.len());
 }
 

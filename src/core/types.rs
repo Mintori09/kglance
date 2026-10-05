@@ -126,6 +126,7 @@ pub struct KglanceState {
     pub read_positions_dirty: bool,
     pub last_navigated_at: Option<Instant>,
     pub is_rapid_navigating: bool,
+    pub scroll_config: crate::core::config::ScrollConfigOptions,
 }
 
 impl Default for KglanceState {
@@ -188,6 +189,7 @@ impl Default for KglanceState {
 
             read_positions: crate::core::ReadPositions::default(),
             read_positions_dirty: false,
+            scroll_config: crate::core::config::ScrollConfigOptions::default(),
         }
     }
 }
@@ -222,6 +224,7 @@ impl KglanceState {
         self.markdown = MarkdownState::default();
         self.epub = EpubState::default();
         self.json = JsonState::default();
+        self.apply_scroll_controllers();
     }
 
     pub fn markdown_content_width(&self) -> f32 {
@@ -240,6 +243,39 @@ impl KglanceState {
             self.epub.sidebar_visible,
             self.epub.sidebar_width,
         )
+    }
+
+    pub fn apply_scroll_config(&mut self, config: &crate::core::config::ScrollConfigOptions) {
+        self.scroll_config = config.clone();
+        self.apply_scroll_controllers();
+    }
+
+    pub fn apply_scroll_controllers(&mut self) {
+        let config = &self.scroll_config;
+        self.markdown.scroll_controller.apply_config(config);
+        self.markdown.smooth_scroll.apply_config(config);
+        self.pdf.scroll_controller.apply_config(config);
+        self.pdf.smooth_scroll.apply_config(config);
+        self.text.scroll_controller.apply_config(config);
+        self.text.smooth_scroll.apply_config(config);
+        self.json.scroll_controller.apply_config(config);
+        self.json.smooth_scroll.apply_config(config);
+        self.json.raw_text.scroll_controller.apply_config(config);
+        self.json.raw_text.smooth_scroll.apply_config(config);
+        self.typst
+            .source_text
+            .scroll_controller
+            .apply_config(config);
+        self.typst.source_text.smooth_scroll.apply_config(config);
+        self.epub
+            .markdown_state
+            .scroll_controller
+            .apply_config(config);
+        self.epub.markdown_state.smooth_scroll.apply_config(config);
+        self.spreadsheet.scroll_controller.apply_config(config);
+        self.spreadsheet.scroll_controller_x.apply_config(config);
+        self.spreadsheet.smooth_scroll.apply_config(config);
+        self.spreadsheet.smooth_scroll_x.apply_config(config);
     }
 }
 

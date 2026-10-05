@@ -64,6 +64,9 @@ pub fn handle_daemon_open_with_playlist(
     content: PreviewData,
     playlist: Vec<String>,
 ) -> Task<Message> {
+    let config = crate::core::config::ConfigManager::load_or_create();
+    app.state.apply_scroll_config(&config.scroll);
+
     if !playlist.is_empty() {
         app.state.playlist = playlist;
         if let Some(pos) = app.state.playlist.iter().position(|p| p == &path) {

@@ -416,6 +416,15 @@ pub fn handle_text_state_wheel_scrolled(
                 text_state
                     .smooth_scroll
                     .start_interactive(text_state.scroll_y, step, max_y);
+                if !text_state.smooth_scroll.is_animating() {
+                    let new_y = text_state.smooth_scroll.position_y();
+                    text_state.scroll_y = new_y;
+                    update_tokens_for_viewport(text_state, new_y, theme);
+                    return iced::widget::operation::scroll_to(
+                        scroll_id,
+                        iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
+                    );
+                }
             }
             Task::none()
         }

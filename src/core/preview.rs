@@ -250,9 +250,11 @@ impl PreviewData {
                 .to_string();
             }
             PreviewData::Error(err) => {
-                state.file_type_text = format!("Error: {}", err);
+                state.file_type_text = format!("Error: {err}");
             }
         }
+
+        state.apply_scroll_controllers();
     }
 
     pub fn initial_window_size(&self, state: &KglanceState) -> iced::Size {
@@ -346,5 +348,50 @@ mod tests {
         assert_eq!(state.image.exif_content, "Name: TestFont");
         assert!(state.image.handle.is_some());
         assert_eq!(state.image.image_bytes, sample);
+    }
+
+    #[test]
+    fn test_populate_state_preserves_disabled_smooth_scroll() {
+        let mut state = KglanceState::default();
+        let scroll_cfg = crate::core::config::ScrollConfigOptions {
+            smooth_scroll_enabled: false,
+            friction: 4.2,
+            spring_stiffness: 180.0,
+        };
+        state.apply_scroll_config(&scroll_cfg);
+
+        // Populate Text
+        let text_preview = PreviewData::Text {
+            content: "hello world".to_string(),
+            line_numbers: "1".to_string(),
+            language: "rs".to_string(),
+        };
+        text_preview.populate_state(&mut state);
+        assert!(!state.text.scroll_controller.smooth_enabled);
+        assert!(!state.text.smooth_scroll.smooth_enabled);
+
+        // Populate Markdown
+        let md_preview = PreviewData::Markdown {
+            blocks: vec![crate::parsers::markdown::Block::Paragraph(vec![
+                crate::parsers::markdown::Inline::Text("test".to_string()),
+            ])],
+            raw_text: "test".to_string(),
+        };
+        md_preview.populate_state(&mut state);
+        assert!(!state.markdown.scroll_controller.smooth_enabled);
+        assert!(!state.markdown.smooth_scroll.smooth_enabled);
+
+        // Populate JSON
+        let json_preview = PreviewData::Json {
+            nodes: Vec::new(),
+            content: "{}".to_string(),
+            pretty: "{}".to_string(),
+            has_parse_error: false,
+        };
+        json_preview.populate_state(&mut state);
+        assert!(!state.json.scroll_controller.smooth_enabled);
+        assert!(!state.json.smooth_scroll.smooth_enabled);
+        assert!(!state.json.raw_text.scroll_controller.smooth_enabled);
+        assert!(!state.json.raw_text.smooth_scroll.smooth_enabled);
     }
 }

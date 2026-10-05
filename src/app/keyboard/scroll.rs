@@ -191,6 +191,14 @@ impl KglanceApp {
             target
                 .smooth_scroll
                 .start_navigation(current_y, target_y, max_y);
+            if !target.smooth_scroll.is_animating {
+                let new_y = target.smooth_scroll.position_y();
+                *target.scroll_y = new_y;
+                return operation::scroll_to(
+                    CONTENT_SCROLL_ID,
+                    AbsoluteOffset { x: 0.0, y: new_y },
+                );
+            }
             return Task::none();
         }
 
@@ -225,6 +233,14 @@ impl KglanceApp {
             target
                 .smooth_scroll
                 .start_interactive(current_y, vertical_offset, max_y);
+            if !target.smooth_scroll.is_animating {
+                let new_y = target.smooth_scroll.position_y();
+                *target.scroll_y = new_y;
+                return operation::scroll_to(
+                    CONTENT_SCROLL_ID,
+                    AbsoluteOffset { x: 0.0, y: new_y },
+                );
+            }
             return Task::none();
         }
 
@@ -252,6 +268,17 @@ impl KglanceApp {
             state
                 .smooth_scroll_x
                 .start_interactive(current_x, horizontal_offset, max_x);
+            if !state.smooth_scroll_x.is_animating {
+                let new_x = state.smooth_scroll_x.position_y();
+                state.scroll_x = new_x;
+                return operation::scroll_to(
+                    CONTENT_SCROLL_ID,
+                    AbsoluteOffset {
+                        x: new_x,
+                        y: state.scroll_y,
+                    },
+                );
+            }
             return Task::none();
         }
 
@@ -297,6 +324,12 @@ impl KglanceApp {
                 target.viewport_height,
             );
             target.smooth_scroll.start_navigation(current_y, 0.0, max_y);
+            if !target.smooth_scroll.is_animating {
+                let new_y = target.smooth_scroll.position_y();
+                *target.scroll_y = new_y;
+                self.record_read_position();
+                return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 0.0 });
+            }
             return Task::none();
         }
 
@@ -321,6 +354,12 @@ impl KglanceApp {
             target
                 .smooth_scroll
                 .start_navigation(current_y, max_y, max_y);
+            if !target.smooth_scroll.is_animating {
+                let new_y = target.smooth_scroll.position_y();
+                *target.scroll_y = new_y;
+                self.record_read_position();
+                return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 1.0 });
+            }
             return Task::none();
         }
 
