@@ -7,6 +7,7 @@ use std::time::Instant;
 use iced::Size;
 
 pub use crate::core::scroll::SmoothScroller as SmoothScrollState;
+pub use crate::features::audio::AudioState;
 pub use crate::features::csv::{SheetInfo, SpreadsheetState};
 pub use crate::features::epub::{EpubChapterInfo, EpubState};
 pub use crate::features::folder::{
@@ -89,6 +90,7 @@ pub struct KglanceState {
     pub folder: FolderState,
     pub spreadsheet: SpreadsheetState,
     pub media: MediaState,
+    pub audio: AudioState,
     pub history: HistoryState,
     pub dir: DirState,
     pub markdown: MarkdownState,
@@ -159,6 +161,7 @@ impl Default for KglanceState {
             folder: FolderState::default(),
             spreadsheet: SpreadsheetState::default(),
             media: MediaState::default(),
+            audio: AudioState::default(),
             history: HistoryState::default(),
             dir: DirState::default(),
             markdown: MarkdownState::default(),
@@ -220,6 +223,7 @@ impl KglanceState {
         self.folder = FolderState::default();
         self.spreadsheet = SpreadsheetState::default();
         self.media = MediaState::default();
+        self.audio = AudioState::default();
         self.dir = DirState::default();
         self.markdown = MarkdownState::default();
         self.epub = EpubState::default();

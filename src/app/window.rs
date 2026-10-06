@@ -59,6 +59,7 @@ impl KglanceApp {
         }
 
         self.video = None;
+        self.audio = None;
         self.current_content = None;
         self.state.reset_content_state();
         self.invalidate_render_generations();
@@ -170,6 +171,11 @@ impl KglanceApp {
                 }
                 Task::none()
             }
+            WindowEvent::Unfocused => {
+                self.ctrl_held = false;
+                self.shift_held = false;
+                Task::none()
+            }
             _ => Task::none(),
         }
     }
@@ -214,6 +220,7 @@ impl KglanceApp {
 
     fn handle_window_close_requested(&mut self, window_id: window::Id) -> Task<Message> {
         self.video = None;
+        self.audio = None;
         if self.is_daemon {
             if let Some(ref watcher) = self.file_watcher {
                 let _ = watcher
@@ -239,7 +246,10 @@ impl PreviewData {
     fn supports_custom_initial_size(&self) -> bool {
         matches!(
             self,
-            PreviewData::Image { .. } | PreviewData::Font { .. } | PreviewData::Media { .. }
+            PreviewData::Image { .. }
+                | PreviewData::Font { .. }
+                | PreviewData::Audio { .. }
+                | PreviewData::Media { .. }
         )
     }
 }

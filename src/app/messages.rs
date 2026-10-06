@@ -73,6 +73,15 @@ pub enum TextMsg {
 }
 
 #[derive(Debug, Clone)]
+pub enum AudioMsg {
+    PlayPauseClicked,
+    SeekClicked(f32),
+    SeekRelativeClicked(f32),
+    Tick,
+    EndOfStream,
+}
+
+#[derive(Debug, Clone)]
 pub enum MediaMsg {
     PlayPauseClicked,
     SeekClicked(f32),
@@ -280,6 +289,7 @@ pub enum Message {
     Navigation(NavigationMsg),
     Image(ImageMsg),
     Text(TextMsg),
+    Audio(AudioMsg),
     Media(MediaMsg),
     Pdf(PdfMsg),
     Typst(TypstMsg),
@@ -329,6 +339,11 @@ impl From<ImageMsg> for Message {
 impl From<TextMsg> for Message {
     fn from(m: TextMsg) -> Self {
         Message::Text(m)
+    }
+}
+impl From<AudioMsg> for Message {
+    fn from(m: AudioMsg) -> Self {
+        Message::Audio(m)
     }
 }
 impl From<MediaMsg> for Message {

@@ -58,6 +58,15 @@ pub enum PreviewData {
         outline: Vec<PdfTocEntry>,
         page_dimensions: Vec<PageDimensions>,
     },
+    Audio {
+        path: String,
+        title: String,
+        artist: String,
+        album: String,
+        duration_secs: u64,
+        metadata: String,
+        cover_art: Option<Vec<u8>>,
+    },
     Media {
         url: String,
         metadata: String,
@@ -239,15 +248,47 @@ impl PreviewData {
                     *sample_height,
                 );
             }
+            PreviewData::Audio {
+                title,
+                artist,
+                album,
+                duration_secs,
+                metadata,
+                cover_art,
+                ..
+            } => {
+                let total_secs = *duration_secs;
+                let hours = total_secs / 3600;
+                let mins = (total_secs % 3600) / 60;
+                let rem_secs = total_secs % 60;
+                let time_str = if total_secs > 0 {
+                    if hours > 0 {
+                        format!("0:00:00 / {hours}:{mins:02}:{rem_secs:02}")
+                    } else {
+                        format!("0:00 / {mins}:{rem_secs:02}")
+                    }
+                } else {
+                    String::new()
+                };
+                let cover_handle = cover_art
+                    .as_ref()
+                    .map(|bytes| iced::widget::image::Handle::from_bytes(bytes.clone()));
+                state.audio = crate::features::audio::AudioState {
+                    title: title.clone(),
+                    artist: artist.clone(),
+                    album: album.clone(),
+                    duration_secs: *duration_secs as f64,
+                    metadata: metadata.clone(),
+                    cover_art: cover_handle,
+                    time: time_str,
+                    ..Default::default()
+                };
+                state.file_type_text = "Audio File".to_string();
+            }
             PreviewData::Media { metadata, .. } => {
                 state.media = crate::core::MediaState::default();
                 state.media.metadata = metadata.clone();
-                state.file_type_text = if metadata.contains("Video") {
-                    "Video File"
-                } else {
-                    "Audio File"
-                }
-                .to_string();
+                state.file_type_text = "Video File".to_string();
             }
             PreviewData::Error(err) => {
                 state.file_type_text = format!("Error: {err}");
@@ -272,6 +313,10 @@ impl PreviewData {
                 };
                 crate::features::image::view::calculate_window_size(max_w, max_h, *width, *height)
             }
+            PreviewData::Audio { .. } => iced::Size::new(
+                660.0f32.min(state.window_default_size.width),
+                300.0f32.min(state.window_default_size.height),
+            ),
             PreviewData::Media { .. } => iced::Size::new(
                 850.0f32.min(state.window_default_size.width),
                 550.0f32.min(state.window_default_size.height),
@@ -393,5 +438,27 @@ mod tests {
         assert!(!state.json.smooth_scroll.smooth_enabled);
         assert!(!state.json.raw_text.scroll_controller.smooth_enabled);
         assert!(!state.json.raw_text.smooth_scroll.smooth_enabled);
+    }
+
+    #[test]
+    fn test_audio_preview_populate_state() {
+        let mut state = KglanceState::default();
+        let preview = PreviewData::Audio {
+            path: "/path/to/song.flac".to_string(),
+            title: "Midnight City".to_string(),
+            artist: "M83".to_string(),
+            album: "Hurry Up, We're Dreaming".to_string(),
+            duration_secs: 243,
+            metadata: "FLAC • 44.1 kHz • 24-bit".to_string(),
+            cover_art: None,
+        };
+        preview.populate_state(&mut state);
+        assert_eq!(state.file_type_text, "Audio File");
+        assert_eq!(state.audio.title, "Midnight City");
+        assert_eq!(state.audio.artist, "M83");
+        assert_eq!(state.audio.album, "Hurry Up, We're Dreaming");
+        assert_eq!(state.audio.duration_secs, 243.0);
+        assert_eq!(state.audio.time, "0:00 / 4:03");
+        assert_eq!(state.audio.metadata, "FLAC • 44.1 kHz • 24-bit");
     }
 }
