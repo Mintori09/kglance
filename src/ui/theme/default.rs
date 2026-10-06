@@ -421,3 +421,82 @@ pub fn default_pick_list(theme: &Theme, status: pick_list::Status) -> pick_list:
         },
     }
 }
+
+/// Floating pill container for the video controls overlay.
+/// Uses a dark translucent HUD glass background (rgba) with radius 16px and soft shadow.
+pub fn video_controls_pill(_theme: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Color::from_rgba(0.08, 0.08, 0.10, 0.72).into()),
+        text_color: Some(Color::from_rgba(0.94, 0.94, 0.96, 1.0)),
+        border: Border {
+            color: Color::from_rgba(1.0, 1.0, 1.0, 0.12),
+            width: 1.0,
+            radius: 16.0.into(),
+        },
+        shadow: Shadow {
+            color: Color::from_rgba(0.0, 0.0, 0.0, 0.25),
+            offset: iced::Vector::new(0.0, 4.0),
+            blur_radius: 12.0,
+        },
+        snap: false,
+    }
+}
+
+/// Circular icon button used inside the floating video controls pill.
+pub fn video_pill_button(_theme: &Theme, status: button::Status) -> button::Style {
+    let (bg, text_color) = match status {
+        button::Status::Hovered => (
+            Some(Color::from_rgba(1.0, 1.0, 1.0, 0.15).into()),
+            Color::WHITE,
+        ),
+        button::Status::Pressed => (
+            Some(Color::from_rgba(1.0, 1.0, 1.0, 0.25).into()),
+            Color::WHITE,
+        ),
+        _ => (None, Color::from_rgba(0.92, 0.92, 0.94, 1.0)),
+    };
+
+    button::Style {
+        background: bg,
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: 50.0.into(),
+        },
+        text_color,
+        shadow: Shadow::default(),
+        snap: false,
+    }
+}
+
+/// Sleek slider for media players on dark translucent HUD overlays.
+pub fn video_slider(theme: &Theme, status: slider::Status) -> slider::Style {
+    let role = roles::palette(theme);
+
+    let (handle_color, handle_radius) = match status {
+        slider::Status::Hovered | slider::Status::Dragged => (Color::WHITE, 5.5),
+        _ => (role.accent, 4.5),
+    };
+
+    slider::Style {
+        rail: slider::Rail {
+            backgrounds: (
+                role.accent.into(),
+                Color::from_rgba(1.0, 1.0, 1.0, 0.20).into(),
+            ),
+            width: 3.5,
+            border: Border {
+                radius: 2.0.into(),
+                ..Border::default()
+            },
+        },
+        handle: slider::Handle {
+            shape: slider::HandleShape::Circle {
+                radius: handle_radius,
+            },
+            background: handle_color.into(),
+            border_width: 0.0,
+            border_color: Color::TRANSPARENT,
+        },
+    }
+}
