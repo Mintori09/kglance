@@ -112,6 +112,9 @@ impl KglanceApp {
         if !initial_paths.is_empty() {
             state.playlist = initial_paths.to_vec();
             state.current_index = 0;
+            state.file_name = initial_paths[0].clone();
+            state.is_loading = true;
+            state.content_ready = false;
         }
 
         let app = Self {
@@ -508,6 +511,7 @@ impl KglanceApp {
             self.state.active_dir = Some(parent.to_path_buf());
         }
         self.state.content_ready = true;
+        self.state.is_loading = false;
 
         if let Some(ref watcher) = self.file_watcher {
             let _ = watcher
@@ -903,7 +907,13 @@ impl KglanceApp {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let preview_body = if let Some(content) = &self.current_content {
+        let preview_body = if self.state.is_loading {
+            crate::ui::views::view_loading(
+                &self.state.file_name,
+                self.state.spinner_angle,
+                self.state.app_theme,
+            )
+        } else if let Some(content) = &self.current_content {
             match content {
                 PreviewData::Text { .. } => crate::ui::views::view_text(
                     &self.state.text,
@@ -995,6 +1005,12 @@ impl KglanceApp {
                 ),
                 PreviewData::Error(err) => iced::widget::text(err).size(18).into(),
             }
+        } else if !self.state.file_name.is_empty() {
+            crate::ui::views::view_loading(
+                &self.state.file_name,
+                self.state.spinner_angle,
+                self.state.app_theme,
+            )
         } else {
             iced::widget::text("No file loaded.").size(18).into()
         };
@@ -1115,6 +1131,13 @@ impl KglanceApp {
             Subscription::none()
         };
 
+        let spinner_sub = if self.state.is_loading {
+            iced::time::every(std::time::Duration::from_millis(16))
+                .map(|_| crate::app::messages::SystemMsg::SpinnerTick.into())
+        } else {
+            Subscription::none()
+        };
+
         Subscription::batch(vec![
             dbus_sub,
             event_sub,
@@ -1126,6 +1149,7 @@ impl KglanceApp {
             smooth_scroll_sub,
             read_positions_sub,
             audio_tick_sub,
+            spinner_sub,
         ])
     }
 

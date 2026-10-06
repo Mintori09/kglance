@@ -62,6 +62,12 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 content,
                 playlist,
             } => file::handle_daemon_update_with_playlist(app, path, content, playlist),
+            crate::app::messages::SystemMsg::DaemonOpenLoading { path, playlist } => {
+                file::handle_daemon_open_loading(app, path, playlist)
+            }
+            crate::app::messages::SystemMsg::DaemonUpdateLoading { path, playlist } => {
+                file::handle_daemon_update_loading(app, path, playlist)
+            }
             crate::app::messages::SystemMsg::FileLoaded {
                 path,
                 content,
@@ -93,6 +99,12 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 if app.state.read_positions_dirty {
                     let _ = app.state.read_positions.save();
                     app.state.read_positions_dirty = false;
+                }
+                iced::Task::none()
+            }
+            crate::app::messages::SystemMsg::SpinnerTick => {
+                if app.state.is_loading {
+                    app.state.spinner_angle = (app.state.spinner_angle + 6.0) % 360.0;
                 }
                 iced::Task::none()
             }

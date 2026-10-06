@@ -108,6 +108,9 @@ pub fn handle_next_file(app: &mut KglanceApp) -> Task<Message> {
 
     crate::log_debug!("Navigation NEXT: Cache MISS for {}", next_path);
 
+    app.current_content = None;
+    app.state.reset_content_state_for_loading(next_path.clone());
+
     load_file_task(app, next_path, |path| {
         crate::app::messages::SystemMsg::FilePreviewError(path).into()
     })
@@ -148,6 +151,9 @@ pub fn handle_prev_file(app: &mut KglanceApp) -> Task<Message> {
 
         crate::log_debug!("Navigation PREV: Cache MISS for {}", prev_path);
 
+        app.current_content = None;
+        app.state.reset_content_state_for_loading(prev_path.clone());
+
         return load_file_task(app, prev_path, |path| {
             crate::app::messages::SystemMsg::FilePreviewError(path).into()
         });
@@ -181,6 +187,10 @@ pub fn handle_file_clicked_in_grid(app: &mut KglanceApp, idx: usize) -> Task<Mes
                 .into(),
             );
         }
+
+        app.current_content = None;
+        app.state
+            .reset_content_state_for_loading(target_path.clone());
 
         return load_file_task(app, target_path, |path| {
             crate::app::messages::SystemMsg::FilePreviewError(path).into()
@@ -323,6 +333,8 @@ mod tests {
         let _task = handle_next_file(&mut app);
 
         assert_eq!(app.state.current_index, 1);
+        assert_eq!(app.state.file_name, file2);
+        assert!(app.state.is_loading);
         assert_eq!(app.state.generation_id.load(Ordering::Relaxed), 1);
         assert!(!app.state.cache.contains(&file2));
     }

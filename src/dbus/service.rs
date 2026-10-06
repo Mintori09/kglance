@@ -48,6 +48,16 @@ pub enum DaemonCommand {
         path: String,
         content: crate::core::preview::PreviewData,
     },
+    /// Instructs the UI to open window immediately with loading spinner while parsing occurs asynchronously.
+    OpenWindowLoading {
+        path: String,
+        playlist: Vec<String>,
+    },
+    /// Instructs the UI to update window with loading spinner while parsing occurs asynchronously.
+    UpdateWindowLoading {
+        path: String,
+        playlist: Vec<String>,
+    },
     HidePreview,
 }
 
@@ -87,9 +97,26 @@ impl DaemonService {
         let path = file_path.to_string();
         let p = std::path::Path::new(file_path);
 
-        // Parse first (826µs for markdown — negligible).
-        // Then send a single merged event so Iced only needs ONE subscription poll cycle
-        // instead of two (OpenWindow + ShowPreview).
+        if crate::core::is_slow_to_parse(p) {
+            log_info!(
+                "DaemonService: Path is heavy/slow to parse, opening window with spinner immediately: {}",
+                file_path
+            );
+            self.tx
+                .send(DaemonCommand::OpenWindowLoading {
+                    path: path.clone(),
+                    playlist: vec![path],
+                })
+                .await
+                .map_err(|err| {
+                    log_error!("DaemonService: Failed to send OpenWindowLoading: {:?}", err);
+                    zbus::fdo::Error::Failed("Internal error".into())
+                })?;
+            return Ok(());
+        }
+
+        // Parse first for fast files (e.g. text/markdown/image).
+        // Then send a single merged event so Iced only needs ONE subscription poll cycle.
         let content = FilePreviewer::parse(&*self.parser_registry, p).map_err(|e| {
             log_error!("DaemonService: Failed to parse path {}: {:?}", path, e);
             to_fdo_error(e)
@@ -132,6 +159,24 @@ impl DaemonService {
         );
 
         let p = std::path::Path::new(primary);
+
+        if crate::core::is_slow_to_parse(p) {
+            log_info!(
+                "DaemonService: Primary path is heavy/slow to parse, opening window with spinner immediately: {}",
+                primary
+            );
+            let path = primary.clone();
+            let playlist = file_paths;
+            self.tx
+                .send(DaemonCommand::OpenWindowLoading { path, playlist })
+                .await
+                .map_err(|err| {
+                    log_error!("DaemonService: Failed to send OpenWindowLoading: {:?}", err);
+                    zbus::fdo::Error::Failed("Internal error".into())
+                })?;
+            return Ok(());
+        }
+
         let content = FilePreviewer::parse(&*self.parser_registry, p).map_err(|e| {
             log_error!("DaemonService: Failed to parse path {}: {:?}", primary, e);
             to_fdo_error(e)
@@ -180,6 +225,27 @@ impl DaemonService {
         let path = file_path.to_string();
         let p = std::path::Path::new(file_path);
 
+        if crate::core::is_slow_to_parse(p) {
+            log_info!(
+                "DaemonService: Fast path - updating window with spinner immediately for slow file: {}",
+                file_path
+            );
+            self.tx
+                .send(DaemonCommand::UpdateWindowLoading {
+                    path: path.clone(),
+                    playlist: vec![path],
+                })
+                .await
+                .map_err(|err| {
+                    log_error!(
+                        "DaemonService: Failed to send UpdateWindowLoading: {:?}",
+                        err
+                    );
+                    zbus::fdo::Error::Failed("Internal error".into())
+                })?;
+            return Ok(());
+        }
+
         let content = FilePreviewer::parse(&*self.parser_registry, p).map_err(|e| {
             log_error!("DaemonService: Failed to parse path {}: {:?}", path, e);
             to_fdo_error(e)
@@ -225,6 +291,27 @@ impl DaemonService {
         );
 
         let p = std::path::Path::new(primary);
+
+        if crate::core::is_slow_to_parse(p) {
+            log_info!(
+                "DaemonService: Fast path - updating window with spinner immediately for primary slow file: {}",
+                primary
+            );
+            let path = primary.clone();
+            let playlist = file_paths;
+            self.tx
+                .send(DaemonCommand::UpdateWindowLoading { path, playlist })
+                .await
+                .map_err(|err| {
+                    log_error!(
+                        "DaemonService: Failed to send UpdateWindowLoading: {:?}",
+                        err
+                    );
+                    zbus::fdo::Error::Failed("Internal error".into())
+                })?;
+            return Ok(());
+        }
+
         let content = FilePreviewer::parse(&*self.parser_registry, p).map_err(|e| {
             log_error!("DaemonService: Failed to parse path {}: {:?}", primary, e);
             to_fdo_error(e)
@@ -298,5 +385,53 @@ mod tests {
         let result = service.update_preview("/nonexistent/file.txt").await;
         assert!(result.is_ok());
         assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn test_show_preview_slow_file_sends_open_window_loading() {
+        let registry = Arc::new(ParserRegistry::new());
+        let (tx, mut rx) = mpsc::channel(10);
+        let is_gui_open = Arc::new(AtomicBool::new(false));
+        let mut service = DaemonService::new(registry, tx, is_gui_open);
+
+        let result = service.show_preview("/path/to/document.pdf").await;
+        assert!(result.is_ok());
+        match rx.try_recv() {
+            Ok(DaemonCommand::OpenWindowLoading { path, playlist }) => {
+                assert_eq!(path, "/path/to/document.pdf");
+                assert_eq!(playlist, vec!["/path/to/document.pdf".to_string()]);
+            }
+            other => panic!(
+                "expected OpenWindowLoading, got {:?}",
+                match other {
+                    Ok(_) => "other command",
+                    Err(_) => "empty rx",
+                }
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_update_preview_slow_file_sends_update_window_loading() {
+        let registry = Arc::new(ParserRegistry::new());
+        let (tx, mut rx) = mpsc::channel(10);
+        let is_gui_open = Arc::new(AtomicBool::new(true));
+        let mut service = DaemonService::new(registry, tx, is_gui_open);
+
+        let result = service.update_preview("/path/to/sheet.xlsx").await;
+        assert!(result.is_ok());
+        match rx.try_recv() {
+            Ok(DaemonCommand::UpdateWindowLoading { path, playlist }) => {
+                assert_eq!(path, "/path/to/sheet.xlsx");
+                assert_eq!(playlist, vec!["/path/to/sheet.xlsx".to_string()]);
+            }
+            other => panic!(
+                "expected UpdateWindowLoading, got {:?}",
+                match other {
+                    Ok(_) => "other command",
+                    Err(_) => "empty rx",
+                }
+            ),
+        }
     }
 }

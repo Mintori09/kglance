@@ -13,7 +13,7 @@ pub mod types;
 pub mod utils;
 
 pub use cache::{CachedContent, MemoryCache};
-pub use preview::{FilePreviewer, PreviewData};
+pub use preview::{FilePreviewer, PreviewData, is_slow_to_parse};
 pub use read_positions::{ReadPosition, ReadPositions};
 pub use scroll::{SmoothScrollMode, SmoothScroller, max_scroll_y};
 pub use types::{

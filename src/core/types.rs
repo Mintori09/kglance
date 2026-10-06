@@ -71,6 +71,8 @@ pub struct KglanceState {
     pub file_type_text: String,
     pub show_file_info: bool,
     pub content_ready: bool,
+    pub is_loading: bool,
+    pub spinner_angle: f32,
     pub show_back_button: bool,
     pub back_target: Option<String>,
     pub active_dir: Option<PathBuf>,
@@ -142,6 +144,8 @@ impl Default for KglanceState {
             file_type_text: String::new(),
             show_file_info: false,
             content_ready: true,
+            is_loading: false,
+            spinner_angle: 0.0,
             show_back_button: false,
             back_target: None,
             active_dir: None,
@@ -207,6 +211,8 @@ impl KglanceState {
         self.file_type_text.clear();
         self.show_file_info = false;
         self.content_ready = false;
+        self.is_loading = false;
+        self.spinner_angle = 0.0;
         self.show_back_button = false;
         self.back_target = None;
         self.active_dir = None;
@@ -215,6 +221,46 @@ impl KglanceState {
         self.view_mode = ViewMode::Detail;
         self.cache.clear();
         self.pending_preloads.clear();
+
+        self.image = ImageState::default();
+        self.text = TextState::default();
+        self.pdf = PdfState::default();
+        self.typst = TypstState::default();
+        self.folder = FolderState::default();
+        self.spreadsheet = SpreadsheetState::default();
+        self.media = MediaState::default();
+        self.audio = AudioState::default();
+        self.dir = DirState::default();
+        self.markdown = MarkdownState::default();
+        self.epub = EpubState::default();
+        self.json = JsonState::default();
+        self.apply_scroll_controllers();
+    }
+
+    pub fn reset_content_state_for_loading(&mut self, file_name: String) {
+        self.file_name = file_name;
+        self.title_text.clear();
+        self.status_text.clear();
+        self.file_size_text.clear();
+        self.file_modified_text.clear();
+        self.file_type_text.clear();
+        self.show_file_info = false;
+        self.content_ready = false;
+        self.is_loading = true;
+        self.spinner_angle = 0.0;
+
+        let path = std::path::Path::new(&self.file_name);
+        if let Ok(meta) = std::fs::metadata(path) {
+            self.file_size_text = crate::core::utils::human_size(meta.len());
+            if let Ok(modified) = meta.modified() {
+                self.file_modified_text = crate::core::utils::human_time(modified);
+            }
+        }
+        if path.is_dir() {
+            self.active_dir = Some(path.to_path_buf());
+        } else if let Some(parent) = path.parent() {
+            self.active_dir = Some(parent.to_path_buf());
+        }
 
         self.image = ImageState::default();
         self.text = TextState::default();

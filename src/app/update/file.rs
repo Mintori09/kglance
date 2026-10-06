@@ -110,7 +110,46 @@ pub fn handle_daemon_update_with_playlist(
     handle_daemon_open_with_playlist(app, path, content, playlist)
 }
 
+pub fn handle_daemon_open_loading(
+    app: &mut KglanceApp,
+    path: String,
+    playlist: Vec<String>,
+) -> Task<Message> {
+    let config = crate::core::config::ConfigManager::load_or_create();
+    app.state.apply_scroll_config(&config.scroll);
+
+    app.current_content = None;
+    app.state.reset_content_state_for_loading(path.clone());
+
+    if !playlist.is_empty() {
+        app.state.playlist = playlist;
+        if let Some(pos) = app.state.playlist.iter().position(|p| p == &path) {
+            app.state.current_index = pos;
+        } else {
+            app.state.current_index = 0;
+        }
+    }
+
+    let load_task = crate::app::update::navigation::load_file_task(app, path, |err_path| {
+        crate::app::messages::SystemMsg::FilePreviewError(err_path).into()
+    });
+    let window_tasks = Task::batch(app.prepare_window_tasks());
+    Task::batch(vec![window_tasks, load_task])
+}
+
+pub fn handle_daemon_update_loading(
+    app: &mut KglanceApp,
+    path: String,
+    playlist: Vec<String>,
+) -> Task<Message> {
+    if app.is_daemon && app.window_id.is_none() {
+        return Task::none();
+    }
+    handle_daemon_open_loading(app, path, playlist)
+}
+
 pub fn handle_file_preview_error(app: &mut KglanceApp, path: String) -> Task<Message> {
+    app.state.is_loading = false;
     let name = Path::new(&path)
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
@@ -503,5 +542,37 @@ mod tests {
         let _task = handle_daemon_update_window(&mut app, "/tmp/test.txt".to_string(), content);
         assert!(app.window_id.is_none());
         assert!(app.current_content.is_none());
+    }
+
+    #[test]
+    fn test_daemon_open_loading_sets_loading_state() {
+        let mut app = test_app(None);
+        app.is_daemon = true;
+
+        let _task = handle_daemon_open_loading(
+            &mut app,
+            "/tmp/test.pdf".to_string(),
+            vec!["/tmp/test.pdf".to_string()],
+        );
+
+        assert!(app.state.is_loading);
+        assert_eq!(app.state.file_name, "/tmp/test.pdf");
+        assert_eq!(app.state.playlist, vec!["/tmp/test.pdf".to_string()]);
+        assert!(app.current_content.is_none());
+    }
+
+    #[test]
+    fn test_daemon_update_loading_ignored_when_window_closed() {
+        let mut app = test_app(None);
+        app.is_daemon = true;
+        app.window_id = None;
+
+        let _task = handle_daemon_update_loading(
+            &mut app,
+            "/tmp/test.pdf".to_string(),
+            vec!["/tmp/test.pdf".to_string()],
+        );
+
+        assert!(!app.state.is_loading);
     }
 }

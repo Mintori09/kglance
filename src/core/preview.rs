@@ -114,6 +114,35 @@ pub trait FilePreviewer {
     fn parse(&self, path: &Path) -> Result<PreviewData, ParseError>;
 }
 
+pub fn is_slow_to_parse(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    match ext.as_str() {
+        // Office documents that build PDF or parse complex spreadsheets
+        "docx" | "doc" | "xlsx" | "xls" | "pptx" | "ppt" | "odt" | "ods" | "odp" | "xlsb" => true,
+        // Typst that compiles to PDF
+        "typ" => true,
+        // PDF documents
+        "pdf" => true,
+        // Archives
+        "7z" | "tar" | "zip" | "gz" | "bz2" | "xz" | "tgz" | "tbz2" | "txz" | "kra" => true,
+        // Audio & Video
+        "mp4" | "mkv" | "avi" | "mov" | "wmv" | "webm" | "mp3" | "wav" | "flac" | "ogg" | "aac"
+        | "m4a" | "opus" => true,
+        _ => {
+            if let Ok(meta) = path.metadata() {
+                meta.len() > 512 * 1024
+            } else {
+                false
+            }
+        }
+    }
+}
+
 fn update_file_metadata(state: &mut KglanceState) {
     if !state.file_name.is_empty() {
         let path = Path::new(&state.file_name);
@@ -474,5 +503,17 @@ mod tests {
         assert_eq!(state.audio.duration_secs, 243.0);
         assert_eq!(state.audio.time, "0:00 / 4:03");
         assert_eq!(state.audio.metadata, "FLAC • 44.1 kHz • 24-bit");
+    }
+
+    #[test]
+    fn test_is_slow_to_parse() {
+        assert!(is_slow_to_parse(Path::new("doc.pdf")));
+        assert!(is_slow_to_parse(Path::new("doc.typ")));
+        assert!(is_slow_to_parse(Path::new("doc.docx")));
+        assert!(is_slow_to_parse(Path::new("doc.xlsx")));
+        assert!(is_slow_to_parse(Path::new("archive.7z")));
+        assert!(is_slow_to_parse(Path::new("archive.zip")));
+        assert!(!is_slow_to_parse(Path::new("small.txt")));
+        assert!(!is_slow_to_parse(Path::new("readme.md")));
     }
 }
