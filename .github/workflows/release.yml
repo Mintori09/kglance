@@ -6,16 +6,11 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
-      tag_name:
-        description: "Release tag (e.g. v0.2.9, leave empty to derive from ref/Cargo.toml)"
+      prerelease:
+        description: "Mark as pre-release"
         required: false
-        default: ""
-        type: string
-      commit:
-        description: "Commit SHA, branch, or tag to build from (leave empty for default ref)"
-        required: false
-        default: ""
-        type: string
+        default: false
+        type: boolean
 
 env:
   BINARY: kglance
@@ -26,7 +21,6 @@ env:
 
 permissions:
   contents: write
-
 
 jobs:
   build:
@@ -54,8 +48,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.inputs.commit || github.ref }}
+
 
       - name: Cache APT packages
         uses: actions/cache@v4
@@ -141,14 +134,11 @@ jobs:
       - name: Resolve Release Version
         id: version
         run: |
-          RAW_TAG="${{ github.event.inputs.tag_name }}"
-          if [ -z "$RAW_TAG" ]; then
-            if [ "${{ github.ref_type }}" = "tag" ]; then
-              RAW_TAG="${{ github.ref_name }}"
-            else
-              CARGO_VER=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
-              RAW_TAG="v${CARGO_VER}"
-            fi
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            RAW_TAG="${{ github.ref_name }}"
+          else
+            CARGO_VER=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
+            RAW_TAG="v${CARGO_VER}"
           fi
           CLEAN_VER="${RAW_TAG#v}"
           echo "tag_name=${RAW_TAG}" >> "$GITHUB_OUTPUT"
@@ -220,20 +210,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.inputs.commit || github.ref }}
 
       - name: Resolve Release Tag
         id: version
         run: |
-          RAW_TAG="${{ github.event.inputs.tag_name }}"
-          if [ -z "$RAW_TAG" ]; then
-            if [ "${{ github.ref_type }}" = "tag" ]; then
-              RAW_TAG="${{ github.ref_name }}"
-            else
-              CARGO_VER=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
-              RAW_TAG="v${CARGO_VER}"
-            fi
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            RAW_TAG="${{ github.ref_name }}"
+          else
+            CARGO_VER=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
+            RAW_TAG="v${CARGO_VER}"
           fi
           echo "tag_name=${RAW_TAG}" >> "$GITHUB_OUTPUT"
 
@@ -250,10 +235,10 @@ jobs:
           sha256sum *.deb *.rpm *.AppImage | tee SHA256SUMS
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag_name }}
-          target_commitish: ${{ github.event.inputs.commit || github.sha }}
+          prerelease: ${{ github.event.inputs.prerelease || false }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
