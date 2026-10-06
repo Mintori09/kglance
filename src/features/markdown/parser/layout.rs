@@ -353,7 +353,7 @@ pub fn rescale_markdown_scroll_y(
         return 0.0;
     }
 
-    let mut current_y = lc::CONTENT_PADDING;
+    let mut current_y = 0.0;
     let mut target_block_idx = 0;
     let mut progress = 0.0;
 
@@ -372,7 +372,7 @@ pub fn rescale_markdown_scroll_y(
         current_y += h;
     }
 
-    let mut new_y = lc::CONTENT_PADDING;
+    let mut new_y = 0.0;
     for (i, block) in blocks.iter().enumerate() {
         let new_h = estimated_block_height(block, new_font_size, i, image_sizes, content_width);
         if i == target_block_idx {

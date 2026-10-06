@@ -164,7 +164,6 @@ pub fn rescale_and_update_markdown_layout(
     new_size: f32,
     content_width: f32,
 ) -> f32 {
-    recompute_markdown_layout(state, blocks, new_size, content_width);
     let new_scroll_y = crate::parsers::markdown::rescale_markdown_scroll_y(
         blocks,
         state.scroll_y,
@@ -173,6 +172,7 @@ pub fn rescale_and_update_markdown_layout(
         &state.cached_image_sizes,
         content_width,
     );
+    recompute_markdown_layout(state, blocks, new_size, content_width);
     state.scroll_y = new_scroll_y;
     new_scroll_y
 }

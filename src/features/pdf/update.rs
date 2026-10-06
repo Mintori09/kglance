@@ -345,6 +345,9 @@ pub fn handle_sidebar_scrolled(
     app: &mut KglanceApp,
     viewport: iced::widget::scrollable::Viewport,
 ) -> Task<Message> {
+    if app.ctrl_held {
+        return Task::none();
+    }
     let y = viewport.absolute_offset().y;
     let view_h = viewport.bounds().height;
 

@@ -540,8 +540,8 @@ pub fn rescale_json_font(app: &mut KglanceApp, new_size: f32) -> Option<Task<Mes
     app.state.font_size = new_size;
 
     if app.state.json.tree_mode {
-        let old_row_h = (old_size * 1.2).max(18.0) + 4.0;
-        let new_row_h = (new_size * 1.2).max(18.0) + 4.0;
+        let old_row_h = crate::features::json::view::tree::json_row_height(old_size);
+        let new_row_h = crate::features::json::view::tree::json_row_height(new_size);
         let node_index = if old_row_h > 0.0 {
             (app.state.json.scroll_y / old_row_h).max(0.0)
         } else {

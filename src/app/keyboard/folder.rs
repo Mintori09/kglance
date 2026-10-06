@@ -14,7 +14,7 @@ impl KglanceApp {
         &mut self,
         key: &iced::keyboard::Key,
     ) -> Option<Task<Message>> {
-        if !self.is_folder_navigation_available() {
+        if self.ctrl_held || !self.is_folder_navigation_available() {
             return None;
         }
 

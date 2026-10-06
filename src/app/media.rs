@@ -25,10 +25,9 @@ impl super::KglanceApp {
             self.state.image.camera.zoom = (self.state.image.camera.zoom * factor).clamp(0.1, 10.0);
             Task::none()
         } else if is_mod
-            && matches!(
-                self.current_content,
-                Some(PreviewData::Pdf { .. } | PreviewData::Typst { .. })
-            )
+            && (matches!(self.current_content, Some(PreviewData::Pdf { .. }))
+                || (matches!(self.current_content, Some(PreviewData::Typst { .. }))
+                    && !self.state.typst.show_source))
         {
             let delta = if scroll_val > 0.0 { 50.0 } else { -50.0 };
             let old_desired = self.state.pdf.desired_width;
@@ -55,13 +54,7 @@ impl super::KglanceApp {
                     },
                 )
             } else {
-                operation::scroll_to(
-                    "content_scroll",
-                    AbsoluteOffset {
-                        x: 0.0,
-                        y: self.state.pdf.scroll_y,
-                    },
-                )
+                Task::none()
             }
         } else if is_mod {
             if matches!(
@@ -70,6 +63,7 @@ impl super::KglanceApp {
                     | Some(PreviewData::Text { .. })
                     | Some(PreviewData::Epub { .. })
                     | Some(PreviewData::Json { .. })
+                    | Some(PreviewData::Typst { .. })
             ) {
                 let delta = if scroll_val > 0.0 { 1.0 } else { -1.0 };
                 let old_font_size = self.state.font_size;
@@ -141,8 +135,12 @@ impl super::KglanceApp {
                         }
                         Some(PreviewData::Json { .. }) => {
                             if self.state.json.tree_mode {
-                                let old_row_h = (old_font_size * 1.2).max(18.0) + 4.0;
-                                let new_row_h = (next_font_size * 1.2).max(18.0) + 4.0;
+                                let old_row_h = crate::features::json::view::tree::json_row_height(
+                                    old_font_size,
+                                );
+                                let new_row_h = crate::features::json::view::tree::json_row_height(
+                                    next_font_size,
+                                );
                                 let node_index = if old_row_h > 0.0 {
                                     (self.state.json.scroll_y / old_row_h).max(0.0)
                                 } else {
@@ -206,46 +204,10 @@ impl super::KglanceApp {
                         _ => Task::none(),
                     }
                 } else {
-                    match self.current_content {
-                        Some(PreviewData::Markdown { .. }) => operation::scroll_to(
-                            "content_scroll",
-                            AbsoluteOffset {
-                                x: 0.0,
-                                y: self.state.markdown.scroll_y,
-                            },
-                        ),
-                        Some(PreviewData::Epub { .. }) => operation::scroll_to(
-                            "content_scroll",
-                            AbsoluteOffset {
-                                x: 0.0,
-                                y: self.state.epub.markdown_state.scroll_y,
-                            },
-                        ),
-                        Some(PreviewData::Text { .. }) => operation::scroll_to(
-                            "content_scroll",
-                            AbsoluteOffset {
-                                x: 0.0,
-                                y: self.state.text.scroll_y,
-                            },
-                        ),
-                        Some(PreviewData::Json { .. }) => operation::scroll_to(
-                            "content_scroll",
-                            AbsoluteOffset {
-                                x: 0.0,
-                                y: self.state.json.scroll_y,
-                            },
-                        ),
-                        _ => Task::none(),
-                    }
+                    Task::none()
                 }
             } else {
-                operation::scroll_by(
-                    "content_scroll",
-                    AbsoluteOffset {
-                        x: -scroll_val,
-                        y: 0.0,
-                    },
-                )
+                Task::none()
             }
         } else {
             Task::none()

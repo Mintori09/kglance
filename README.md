@@ -103,14 +103,16 @@ Kglance offers rich keyboard navigation for navigating files, zooming images, sc
 | `Ctrl` + `C`                   | Copy file path / Copy selected text                      | Global / Text & Documents        |
 | `Ctrl` + `A`                   | Select all text                                          | Text, Code, Markdown, EPUB       |
 | **Navigation & Playlist**      |                                                          |                                  |
-| `←` / `Left Arrow`             | Previous file in directory / Previous chapter / Seek -5s | Playlist / EPUB / Video          |
-| `→` / `Right Arrow`            | Next file in directory / Next chapter / Seek +5s         | Playlist / EPUB / Video          |
+| `Ctrl` + `Shift` + `←` / `Ctrl` + `PageUp`   | Previous file in directory                               | Playlist / Global                |
+| `Ctrl` + `Shift` + `→` / `Ctrl` + `PageDown` | Next file in directory                                   | Playlist / Global                |
+| `←` / `→`                      | Seek -5s / +5s (Video, Audio) or Previous / Next chapter (EPUB) | Video, Audio, EPUB               |
 | `←` / `→`                      | Go to parent directory / Open folder or preview file     | Folder view                      |
 | **Scrolling & Vim Navigation** |                                                          |                                  |
 | `↑` / `k`                      | Scroll up (80px)                                         | Scrollable content               |
 | `↓` / `j`                      | Scroll down (80px)                                       | Scrollable content               |
-| `PageUp` / `u`                 | Scroll half page up                                      | Scrollable content               |
-| `PageDown` / `d`               | Scroll half page down                                    | Scrollable content               |
+| `←` / `→` / `h` / `l`          | Scroll horizontally / Expand or collapse JSON tree       | Spreadsheet, JSON Tree, Code     |
+| `PageUp` / `u`                 | Scroll page / half page up                               | Scrollable content               |
+| `PageDown` / `d`               | Scroll page / half page down                             | Scrollable content               |
 | `gg` / `Home` (double-tap)     | Scroll to top                                            | Scrollable content               |
 | `G` / `Shift` + `G` / `End`    | Scroll to bottom                                         | Scrollable content               |
 | `gt`                           | Toggle Table of Contents / Sidebar                       | Markdown, EPUB, PDF              |

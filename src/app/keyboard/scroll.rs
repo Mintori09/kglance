@@ -22,6 +22,10 @@ impl KglanceApp {
         key: &iced::keyboard::Key,
         modifiers: iced::keyboard::Modifiers,
     ) -> Option<Task<Message>> {
+        if modifiers.control() || self.ctrl_held {
+            return None;
+        }
+
         use iced::keyboard::Key;
         use iced::keyboard::key::Named;
 
@@ -38,6 +42,12 @@ impl KglanceApp {
             Key::Character(character) if character == "d" => Some(self.scroll_page(0.5)),
             Key::Named(Named::PageUp) => Some(self.scroll_page(-0.85)),
             Key::Character(character) if character == "u" => Some(self.scroll_page(-0.5)),
+            Key::Named(Named::ArrowLeft) => {
+                Some(self.scroll_horizontal_by(-SCROLL_LINE_AMOUNT * 1.5))
+            }
+            Key::Named(Named::ArrowRight) => {
+                Some(self.scroll_horizontal_by(SCROLL_LINE_AMOUNT * 1.5))
+            }
             Key::Character(character)
                 if character == "h"
                     && matches!(self.current_content, Some(PreviewData::Spreadsheet { .. })) =>
