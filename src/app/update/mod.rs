@@ -11,6 +11,26 @@ pub mod misc;
 pub mod navigation;
 
 pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
+    let task = update_message(app, message);
+    sync_virtual_windows(app);
+    task
+}
+
+/// Refreshes the stored virtual windows after any state change so the views
+/// render a stable block range.
+fn sync_virtual_windows(app: &mut KglanceApp) {
+    for state in [&mut app.state.markdown, &mut app.state.epub.markdown_state] {
+        crate::features::markdown::view::window::sync_window(
+            &mut state.virtual_window,
+            &state.block_y_offsets,
+            state.scroll_y,
+            state.viewport_height,
+            crate::features::markdown::view::VIRTUAL_THRESHOLD,
+        );
+    }
+}
+
+fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
     match message {
         Message::None => Task::none(),
         Message::Action(msg) => match msg {
@@ -402,6 +422,12 @@ pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::MarkdownMsg::SmoothWheelScrolled(delta) => {
                 crate::features::markdown::update::handle_smooth_wheel_scrolled(app, delta)
+            }
+            crate::app::messages::MarkdownMsg::BlockMeasured {
+                block_index,
+                height,
+            } => {
+                crate::features::markdown::measure::handle_block_measured(app, block_index, height)
             }
             crate::app::messages::MarkdownMsg::TouchpadGestureEnded(event_time) => {
                 crate::features::markdown::update::handle_touchpad_gesture_ended(app, event_time)

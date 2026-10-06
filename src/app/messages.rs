@@ -167,6 +167,10 @@ pub enum MarkdownMsg {
     SelectionClear,
     AutoScrollTick,
     SmoothWheelScrolled(iced::mouse::ScrollDelta),
+    BlockMeasured {
+        block_index: usize,
+        height: f32,
+    },
     TouchpadGestureEnded(std::time::Instant),
 }
 
