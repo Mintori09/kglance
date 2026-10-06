@@ -372,9 +372,15 @@ fn test_audio_player_position_advancement() {
 
     let player = AudioPlayer::new(path, 3.0).expect("Failed to create AudioPlayer");
 
-    // Sleep briefly to let GStreamer advance playback
-    std::thread::sleep(Duration::from_millis(300));
-    let pos = player.position_secs();
+    let start = Instant::now();
+    let mut pos = 0.0;
+    while start.elapsed() < Duration::from_secs(2) {
+        pos = player.position_secs();
+        if pos > 0.05 {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
     assert!(
         pos > 0.05,
         "Playback position should advance, got: {pos:.3}s"
