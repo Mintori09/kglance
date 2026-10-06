@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct AudioState {
     pub playing: bool,
     pub time: String,
@@ -11,4 +11,28 @@ pub struct AudioState {
     pub metadata: String,
     pub cover_art: Option<iced::widget::image::Handle>,
     pub error: Option<String>,
+    pub volume: f32,
+    pub muted: bool,
+    pub volume_before_mute: f32,
+}
+
+impl Default for AudioState {
+    fn default() -> Self {
+        Self {
+            playing: false,
+            time: String::new(),
+            progress: 0.0,
+            position_secs: 0.0,
+            duration_secs: 0.0,
+            title: String::new(),
+            artist: String::new(),
+            album: String::new(),
+            metadata: String::new(),
+            cover_art: None,
+            error: None,
+            volume: 1.0,
+            muted: false,
+            volume_before_mute: 1.0,
+        }
+    }
 }

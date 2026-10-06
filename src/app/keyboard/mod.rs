@@ -120,11 +120,32 @@ impl super::KglanceApp {
 
         if matches!(self.current_content, Some(PreviewData::Audio { .. })) {
             match &key {
-                iced::keyboard::Key::Named(Named::Space) => {
+                iced::keyboard::Key::Character(c)
+                    if c.eq_ignore_ascii_case("p") || c.eq_ignore_ascii_case("k") =>
+                {
                     return self.update(crate::app::messages::AudioMsg::PlayPauseClicked.into());
                 }
-                iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("p") => {
-                    return self.update(crate::app::messages::AudioMsg::PlayPauseClicked.into());
+                iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("m") => {
+                    return self.update(crate::app::messages::AudioMsg::ToggleMuteClicked.into());
+                }
+                iced::keyboard::Key::Named(Named::ArrowUp) => {
+                    let next_vol = (self.state.audio.volume + 0.05).min(1.0);
+                    return self
+                        .update(crate::app::messages::AudioMsg::VolumeChanged(next_vol).into());
+                }
+                iced::keyboard::Key::Named(Named::ArrowDown) => {
+                    let next_vol = (self.state.audio.volume - 0.05).max(0.0);
+                    return self
+                        .update(crate::app::messages::AudioMsg::VolumeChanged(next_vol).into());
+                }
+                iced::keyboard::Key::Character(c)
+                    if c.len() == 1 && c.chars().all(|ch| ch.is_ascii_digit()) =>
+                {
+                    if let Some(digit) = c.chars().next().and_then(|ch| ch.to_digit(10)) {
+                        let ratio = digit as f32 / 10.0;
+                        return self
+                            .update(crate::app::messages::AudioMsg::SeekClicked(ratio).into());
+                    }
                 }
                 _ => {}
             }

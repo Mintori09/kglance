@@ -496,3 +496,38 @@ fn test_audio_player_rapid_switch_drop_cleanup() {
         p.pause().expect("Pause final player");
     }
 }
+
+#[test]
+fn test_audio_player_rapid_seek_no_stall() {
+    let fixtures = get_fixtures();
+    let path = fixtures.mp3_path.to_str().unwrap();
+
+    let mut player = AudioPlayer::new(path, 3.0).expect("Failed to create AudioPlayer");
+    assert!(player.is_playing());
+
+    // Rapidly seek to various positions mimicking rapid key presses (e.g. key '3')
+    for _ in 0..10 {
+        player.seek_to_ratio(0.3);
+        let _ = player.poll_eos();
+        std::thread::sleep(Duration::from_millis(15));
+    }
+
+    assert!(player.is_playing(), "Player should remain in playing state");
+
+    // Allow a small window for audio pipeline to advance from 0.9s (0.3 of 3.0s)
+    let start = Instant::now();
+    let mut advanced = false;
+    while start.elapsed() < Duration::from_secs(2) {
+        let _ = player.poll_eos();
+        let pos = player.position_secs();
+        if pos >= 0.85 {
+            advanced = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(
+        advanced,
+        "Audio playback should continue advancing without stalling after rapid seeks"
+    );
+}
