@@ -1,6 +1,6 @@
 [package]
 name = "kglance"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2024"
 license = "AGPL-3.0-only"
 description = "A high-performance file preview system for KDE Plasma 6"
@@ -68,6 +68,7 @@ symphonia = { version = "0.6", default-features = false, features = [
   "isomp4",
   "ogg",
   "mkv",
+  "all-meta",
 ] }
 url = "2"
 docxide-pdf = { version = "0.18.2", default-features = false }
