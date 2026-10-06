@@ -45,6 +45,11 @@ impl AudioPlayer {
     }
 
     pub fn play(&mut self) -> Result<(), String> {
+        let pos = self.position_secs();
+        let dur = self.duration_secs();
+        if dur > 0.0 && pos >= dur - 0.2 {
+            self.seek_to_secs(0.0);
+        }
         self.is_paused = false;
         self.pipeline
             .set_state(gst::State::Playing)
@@ -64,11 +69,14 @@ impl AudioPlayer {
         !self.is_paused
     }
 
-    pub fn position_secs(&self) -> f64 {
+    pub fn query_position_secs(&self) -> Option<f64> {
         self.pipeline
             .query_position::<gst::ClockTime>()
             .map(|t| t.nseconds() as f64 / 1_000_000_000.0)
-            .unwrap_or(0.0)
+    }
+
+    pub fn position_secs(&self) -> f64 {
+        self.query_position_secs().unwrap_or(0.0)
     }
 
     pub fn duration_secs(&self) -> f64 {
@@ -95,24 +103,67 @@ impl AudioPlayer {
     pub fn seek_relative(&self, delta_secs: f64) {
         let cur = self.position_secs();
         let dur = self.duration_secs();
-        let target = (cur + delta_secs).clamp(0.0, dur);
+        let target = if dur > 0.0 {
+            (cur + delta_secs).clamp(0.0, dur)
+        } else {
+            (cur + delta_secs).max(0.0)
+        };
         self.seek_to_secs(target);
     }
 
     pub fn seek_to_secs(&self, secs: f64) {
-        let ns = (secs * 1_000_000_000.0).max(0.0) as u64;
+        let dur = self.duration_secs();
+        let clamped = if dur > 0.0 {
+            secs.clamp(0.0, dur)
+        } else {
+            secs.max(0.0)
+        };
+        let ns = (clamped * 1_000_000_000.0) as u64;
         let clock_time = gst::ClockTime::from_nseconds(ns);
-        let _ = self
+        let res = self
             .pipeline
             .seek_simple(gst::SeekFlags::FLUSH | gst::SeekFlags::KEY_UNIT, clock_time);
+        if res.is_err() {
+            let _ = self
+                .pipeline
+                .seek_simple(gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE, clock_time);
+        }
+        if !self.is_paused {
+            let _ = self.pipeline.set_state(gst::State::Playing);
+        }
+    }
+
+    pub fn set_volume(&self, vol: f64) {
+        self.pipeline.set_property("volume", vol.clamp(0.0, 1.5));
+    }
+
+    pub fn volume(&self) -> f64 {
+        self.pipeline.property::<f64>("volume")
     }
 
     pub fn poll_eos(&mut self) -> bool {
         if let Some(bus) = self.pipeline.bus() {
             while let Some(msg) = bus.pop() {
-                if let gst::MessageView::Eos(..) = msg.view() {
-                    self.is_paused = true;
-                    return true;
+                match msg.view() {
+                    gst::MessageView::Eos(..) => {
+                        let _ = self.pipeline.set_state(gst::State::Paused);
+                        self.is_paused = true;
+                        return true;
+                    }
+                    gst::MessageView::Error(err) => {
+                        crate::log_error!(
+                            "GStreamer audio error: {} ({:?})",
+                            err.error(),
+                            err.debug()
+                        );
+                        if !self.is_paused {
+                            let _ = self.pipeline.set_state(gst::State::Playing);
+                        }
+                    }
+                    gst::MessageView::Buffering(b) if b.percent() >= 100 && !self.is_paused => {
+                        let _ = self.pipeline.set_state(gst::State::Playing);
+                    }
+                    _ => {}
                 }
             }
         }

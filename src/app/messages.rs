@@ -77,6 +77,8 @@ pub enum AudioMsg {
     PlayPauseClicked,
     SeekClicked(f32),
     SeekRelativeClicked(f32),
+    VolumeChanged(f32),
+    ToggleMuteClicked,
     Tick,
     EndOfStream,
 }

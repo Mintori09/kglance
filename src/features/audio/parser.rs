@@ -17,6 +17,7 @@ impl PreviewParser for AudioParser {
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
         let file = std::fs::File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        let file_len = file.metadata().map(|m| m.len()).unwrap_or(0);
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
         let mut hint = Hint::new();
@@ -35,6 +36,7 @@ impl PreviewParser for AudioParser {
         let mut title = String::new();
         let mut artist = String::new();
         let mut album = String::new();
+        let mut date = String::new();
         let mut cover_art: Option<Vec<u8>> = None;
 
         let mut read_meta = |meta: &symphonia::core::meta::MetadataRevision| {
@@ -72,6 +74,12 @@ impl PreviewParser for AudioParser {
                                 album = clean;
                             }
                         }
+                        StandardTag::RecordingDate(d) | StandardTag::ReleaseDate(d) => {
+                            let clean = fix_mojikake(d);
+                            if !clean.is_empty() && date.is_empty() {
+                                date = clean;
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -91,6 +99,9 @@ impl PreviewParser for AudioParser {
                         "album" | "talb" if album.is_empty() || key == "talb" => {
                             album = clean;
                         }
+                        "date" | "year" | "tyer" | "tdrc" if date.is_empty() => {
+                            date = clean;
+                        }
                         _ => {}
                     }
                 }
@@ -105,6 +116,10 @@ impl PreviewParser for AudioParser {
             if meta_queue.pop().is_none() {
                 break;
             }
+        }
+
+        if album.is_empty() && !date.is_empty() {
+            album = date;
         }
 
         let total_ns = reader
@@ -163,6 +178,13 @@ impl PreviewParser for AudioParser {
             .unwrap_or_else(|| "AUDIO".to_string());
         tech_specs.push(format_ext);
 
+        if duration_secs > 0 && file_len > 0 {
+            let kbps = (file_len * 8) / (duration_secs * 1000);
+            if kbps > 0 && kbps < 10000 {
+                tech_specs.push(format!("{kbps} kbps"));
+            }
+        }
+
         if let Some(symphonia::core::codecs::CodecParameters::Audio(a)) = reader
             .tracks()
             .first()
@@ -182,6 +204,14 @@ impl PreviewParser for AudioParser {
             }
             if let Some(bps) = a.bits_per_sample {
                 tech_specs.push(format!("{bps}-bit"));
+            }
+            if let Some(ref channels) = a.channels {
+                match channels.count() {
+                    1 => tech_specs.push("Mono".to_string()),
+                    2 => tech_specs.push("Stereo".to_string()),
+                    n if n > 0 => tech_specs.push(format!("{n} ch")),
+                    _ => {}
+                }
             }
         }
         let metadata_str = tech_specs.join(" • ");

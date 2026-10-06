@@ -253,6 +253,12 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::AudioMsg::SeekRelativeClicked(secs) => {
                 crate::features::audio::update::handle_seek_relative(app, secs)
             }
+            crate::app::messages::AudioMsg::VolumeChanged(vol) => {
+                crate::features::audio::update::handle_volume_change(app, vol)
+            }
+            crate::app::messages::AudioMsg::ToggleMuteClicked => {
+                crate::features::audio::update::handle_toggle_mute(app)
+            }
             crate::app::messages::AudioMsg::Tick => {
                 crate::features::audio::update::handle_tick(app)
             }

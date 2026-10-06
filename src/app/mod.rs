@@ -818,6 +818,12 @@ impl KglanceApp {
         if is_audio {
             match crate::features::audio::AudioPlayer::new(path, self.state.audio.duration_secs) {
                 Ok(player) => {
+                    let vol = if self.state.audio.muted {
+                        0.0
+                    } else {
+                        self.state.audio.volume as f64
+                    };
+                    player.set_volume(vol);
                     self.state.audio.playing = true;
                     self.audio = Some(player);
                 }

@@ -273,6 +273,9 @@ impl PreviewData {
                 let cover_handle = cover_art
                     .as_ref()
                     .map(|bytes| iced::widget::image::Handle::from_bytes(bytes.clone()));
+                let prev_volume = state.audio.volume;
+                let prev_muted = state.audio.muted;
+                let prev_vol_before = state.audio.volume_before_mute;
                 state.audio = crate::features::audio::AudioState {
                     title: title.clone(),
                     artist: artist.clone(),
@@ -281,6 +284,17 @@ impl PreviewData {
                     metadata: metadata.clone(),
                     cover_art: cover_handle,
                     time: time_str,
+                    volume: if prev_volume > 0.0 || prev_muted {
+                        prev_volume
+                    } else {
+                        1.0
+                    },
+                    muted: prev_muted,
+                    volume_before_mute: if prev_vol_before > 0.0 {
+                        prev_vol_before
+                    } else {
+                        1.0
+                    },
                     ..Default::default()
                 };
                 state.file_type_text = "Audio File".to_string();
@@ -314,8 +328,8 @@ impl PreviewData {
                 crate::features::image::view::calculate_window_size(max_w, max_h, *width, *height)
             }
             PreviewData::Audio { .. } => iced::Size::new(
-                660.0f32.min(state.window_default_size.width),
-                300.0f32.min(state.window_default_size.height),
+                680.0f32.min(state.window_default_size.width),
+                280.0f32.min(state.window_default_size.height),
             ),
             PreviewData::Media { .. } => iced::Size::new(
                 850.0f32.min(state.window_default_size.width),
