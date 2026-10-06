@@ -58,6 +58,9 @@ pub struct MarkdownState {
     pub block_layouts: Vec<BlockLayout>,
     /// `block_y_offsets[i]` is the pixel Y where block `i` starts.
     pub block_y_offsets: Vec<f32>,
+    /// Range of blocks currently rendered when the document is virtualized.
+    /// Empty means "not yet computed" or "not virtualized".
+    pub virtual_window: std::ops::Range<usize>,
     /// Total estimated height of all content (sum of all block heights).
     pub total_content_height: f32,
     /// Height of the visible scroll viewport; updated on scroll events.
@@ -104,6 +107,7 @@ impl Default for MarkdownState {
             drag_last_y: 0.0,
             block_layouts: Vec::new(),
             block_y_offsets: Vec::new(),
+            virtual_window: 0..0,
             total_content_height: 0.0,
             viewport_height: 800.0,
             layout_content_width: 0.0,

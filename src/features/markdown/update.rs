@@ -109,11 +109,9 @@ pub fn handle_markdown_scrolled(
     let delta_vh = (state.viewport_height - viewport_height).abs();
     state.viewport_height = viewport_height;
     if content_height > 0.0 {
-        let is_small_or_flat =
-            state.block_y_offsets.is_empty() || state.block_y_offsets.len() <= 20;
-        let is_near_bottom =
-            state.scroll_y + state.viewport_height >= state.total_content_height - 300.0;
-        if is_small_or_flat || is_near_bottom {
+        let is_not_virtualized = state.block_y_offsets.is_empty()
+            || state.block_y_offsets.len() <= crate::features::markdown::view::VIRTUAL_THRESHOLD;
+        if is_not_virtualized {
             state.total_content_height = content_height;
         }
     }
@@ -1511,5 +1509,27 @@ mod tests {
         }
         assert_eq!(app.state.markdown.scroll_y, 1200.0);
         assert!(!app.state.markdown.smooth_scroll.is_animating);
+    }
+
+    #[test]
+    fn test_markdown_scrolled_does_not_corrupt_virtualized_height() {
+        use crate::app::test_util::{markdown_content, test_app};
+
+        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
+        // Simulate a virtualized document with 100 blocks
+        app.state.markdown.block_y_offsets = vec![0.0; 100];
+        app.state.markdown.viewport_height = 800.0;
+        app.state.markdown.total_content_height = 10_000.0;
+        app.state.markdown.scroll_y = 9_500.0; // Near bottom
+        app.state.markdown.smooth_scroll.is_animating = false;
+
+        // Even though scroll_y is near bottom, virtualized document must NOT clobber total_content_height
+        let _ = handle_markdown_scrolled(&mut app, 9_500.0, 800.0, 10_250.0);
+        assert_eq!(app.state.markdown.total_content_height, 10_000.0);
+
+        // For non-virtualized document (e.g. 10 blocks), total_content_height IS updated from exact bounds
+        app.state.markdown.block_y_offsets = vec![0.0; 10];
+        let _ = handle_markdown_scrolled(&mut app, 100.0, 800.0, 1_500.0);
+        assert_eq!(app.state.markdown.total_content_height, 1_500.0);
     }
 }

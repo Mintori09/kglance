@@ -1,3 +1,5 @@
+use crate::parsers::markdown::BlockLayout;
+use crate::ui::components::measured::Measured;
 use iced::widget::container;
 use iced::{Element, Length, Padding};
 
@@ -6,6 +8,8 @@ use crate::core::types::EpubState;
 use crate::features::epub::view::constants::CONTENT_SPACING;
 use crate::ui::components::content_layout::scrollable_content;
 use crate::ui::types::RenderContext;
+
+pub const VIRTUAL_THRESHOLD: usize = 60;
 
 pub(crate) fn build_epub_content<'a>(
     state: &'a EpubState,
@@ -26,8 +30,6 @@ pub(crate) fn build_epub_content<'a>(
         .map(|ch| ch.blocks.len())
         .sum();
 
-    const VIRTUAL_THRESHOLD: usize = 20;
-
     let offsets = &state.markdown_state.block_y_offsets;
     let use_virtual =
         chapter_blocks.len() > VIRTUAL_THRESHOLD && offsets.len() == chapter_blocks.len();
@@ -36,44 +38,13 @@ pub(crate) fn build_epub_content<'a>(
 
     let elements: Vec<Element<'a, Message>> = if use_virtual {
         let md_state = &state.markdown_state;
-        let vh = md_state.viewport_height.max(600.0);
-        let velocity = if md_state.scroll_controller.is_animating() {
-            md_state.scroll_controller.velocity()
-        } else {
-            md_state.smooth_scroll.velocity
-        };
-        let overscan_px =
-            (vh * 1.2 + velocity.abs() * 0.12).clamp(vh * 1.0, (vh * 4.0).max(2400.0));
-        const CHUNK_SIZE: usize = 8;
-        const OVERSCAN_CHUNKS: usize = 2;
-
-        let view_top = (md_state.scroll_y - overscan_px).max(0.0);
-        let view_bottom = md_state.scroll_y + md_state.viewport_height + overscan_px;
-
-        let raw_first = offsets.partition_point(|&y| y < view_top).saturating_sub(1);
-        let raw_last = offsets
-            .partition_point(|&y| y <= view_bottom)
-            .min(chapter_blocks.len());
-
-        let remaining_blocks = chapter_blocks.len().saturating_sub(raw_last);
-        let dist_to_bottom =
-            md_state.total_content_height - (md_state.scroll_y + md_state.viewport_height);
-        let is_near_bottom = raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE >= chapter_blocks.len()
-            || remaining_blocks <= CHUNK_SIZE * 2
-            || dist_to_bottom <= overscan_px * 1.5;
-
-        let first_visible =
-            raw_first.saturating_sub(OVERSCAN_CHUNKS * CHUNK_SIZE) / CHUNK_SIZE * CHUNK_SIZE;
-
-        let last_visible = if is_near_bottom {
-            chapter_blocks.len()
-        } else {
-            (raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE)
-                .min(chapter_blocks.len())
-                .div_ceil(CHUNK_SIZE)
-                * CHUNK_SIZE
-        };
-        let last_visible = last_visible.min(chapter_blocks.len());
+        let window = crate::features::markdown::view::window::render_range(
+            &md_state.virtual_window,
+            offsets,
+            md_state.scroll_y,
+            md_state.viewport_height,
+        );
+        let (first_visible, last_visible) = (window.start, window.end);
 
         let padding_v = content_padding * 2.0;
         let blocks_total_height = (md_state.total_content_height - padding_v).max(0.0);
@@ -121,16 +92,32 @@ pub(crate) fn build_epub_content<'a>(
                 &block_ctx,
             );
             let margin_bottom = crate::features::markdown::view::block_margin(block, ctx.font_size);
+            let block = container(inner)
+                .padding(Padding {
+                    top: 0.0,
+                    right: 0.0,
+                    bottom: margin_bottom,
+                    left: 0.0,
+                })
+                .width(Length::Fill);
             els.push(
-                container(inner)
-                    .padding(Padding {
-                        top: 0.0,
-                        right: 0.0,
-                        bottom: margin_bottom,
-                        left: 0.0,
-                    })
-                    .width(Length::Fill)
-                    .into(),
+                Measured::new(
+                    block,
+                    i,
+                    state
+                        .markdown_state
+                        .block_layouts
+                        .get(i)
+                        .map_or(0.0, BlockLayout::effective_height),
+                    |block_index, height| {
+                        crate::app::messages::MarkdownMsg::BlockMeasured {
+                            block_index,
+                            height,
+                        }
+                        .into()
+                    },
+                )
+                .into(),
             );
         }
 

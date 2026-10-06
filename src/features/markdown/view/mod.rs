@@ -9,7 +9,9 @@ use crate::app::Message;
 use crate::core::MarkdownState;
 use crate::features::markdown::view::toc::render_toc_sidebar;
 use crate::parsers::markdown::Block;
+use crate::parsers::markdown::BlockLayout;
 use crate::ui::components::content_layout::scrollable_content;
+use crate::ui::components::measured::Measured;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::components::selectable_text::SelectableText;
 use crate::ui::components::sidebar::drag_handle;
@@ -45,6 +47,8 @@ pub(crate) fn build_selectable<'a>(
 
 pub(crate) use blocks::{block_margin, render_block};
 pub(crate) use components::STYLE;
+pub(crate) mod window;
+pub const VIRTUAL_THRESHOLD: usize = 60;
 const SCROLL_PANE_ID: &str = "content_scroll";
 
 pub fn view_markdown<'a>(
@@ -94,45 +98,18 @@ fn build_scrollable_content<'a>(
     ctx: &RenderContext<'_>,
     max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
-    const VIRTUAL_THRESHOLD: usize = 20;
-
     let offsets = &state.block_y_offsets;
     let use_virtual = blocks.len() > VIRTUAL_THRESHOLD && offsets.len() == blocks.len();
 
     let content_padding = STYLE.general.content_padding;
     let elements: Vec<Element<'a, Message>> = if use_virtual {
-        // Dynamic overscan in pixels based on scrolling velocity
-        let vh = state.viewport_height.max(600.0);
-        let velocity = if state.scroll_controller.is_animating() {
-            state.scroll_controller.velocity()
-        } else {
-            state.smooth_scroll.velocity
-        };
-        let velocity_boost = (velocity.abs() * 0.12 / 200.0).floor() * 200.0;
-        let overscan_px = (vh * 1.5 + velocity_boost).clamp(vh * 1.2, 3200.0);
-        const CHUNK_SIZE: usize = 12;
-        const OVERSCAN_CHUNKS: usize = 3;
-
-        let view_top = (state.scroll_y - overscan_px).max(0.0);
-        let view_bottom = state.scroll_y + state.viewport_height + overscan_px;
-
-        let raw_first = offsets.partition_point(|&y| y < view_top).saturating_sub(1);
-        let raw_last = offsets
-            .partition_point(|&y| y <= view_bottom)
-            .min(blocks.len());
-
-        let first_visible =
-            if state.scroll_y <= overscan_px || raw_first <= OVERSCAN_CHUNKS * CHUNK_SIZE {
-                0
-            } else {
-                raw_first.saturating_sub(OVERSCAN_CHUNKS * CHUNK_SIZE) / CHUNK_SIZE * CHUNK_SIZE
-            };
-
-        let last_visible = (raw_last + OVERSCAN_CHUNKS * CHUNK_SIZE)
-            .min(blocks.len())
-            .div_ceil(CHUNK_SIZE)
-            * CHUNK_SIZE;
-        let last_visible = last_visible.min(blocks.len());
+        let window = window::render_range(
+            &state.virtual_window,
+            offsets,
+            state.scroll_y,
+            state.viewport_height,
+        );
+        let (first_visible, last_visible) = (window.start, window.end);
 
         let padding_v = content_padding * 2.0;
         let blocks_total_height = (state.total_content_height - padding_v).max(0.0);
@@ -171,16 +148,31 @@ fn build_scrollable_content<'a>(
             };
             let element = render_block(i, block, state, &block_ctx);
             let margin = block_margin(block, ctx.font_size);
+            let block = container(element)
+                .padding(Padding {
+                    top: 0.0,
+                    right: 0.0,
+                    bottom: margin,
+                    left: 0.0,
+                })
+                .width(Length::Fill);
             els.push(
-                container(element)
-                    .padding(Padding {
-                        top: 0.0,
-                        right: 0.0,
-                        bottom: margin,
-                        left: 0.0,
-                    })
-                    .width(Length::Fill)
-                    .into(),
+                Measured::new(
+                    block,
+                    i,
+                    state
+                        .block_layouts
+                        .get(i)
+                        .map_or(0.0, BlockLayout::effective_height),
+                    |block_index, height| {
+                        crate::app::messages::MarkdownMsg::BlockMeasured {
+                            block_index,
+                            height,
+                        }
+                        .into()
+                    },
+                )
+                .into(),
             );
         }
 

@@ -247,6 +247,7 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
         reading_time_mins: mins,
         block_layouts,
         block_y_offsets,
+        virtual_window: 0..0,
         total_content_height,
         viewport_height: if state.window_height > 0.0 {
             state.window_height
