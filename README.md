@@ -56,39 +56,34 @@ Files without a matching extension fall back to plain text rendering.
 
 To build Kglance from source on Linux (Debian/Ubuntu/Arch/Fedora), the following system development libraries are required:
 
-| Component          | Library Dependency                                        | Description / Usage                           |
-| ------------------ | --------------------------------------------------------- | --------------------------------------------- |
-| **Fonts & Layout** | `libfontconfig1-dev` / `fontconfig`                       | Font matching and fallback configuration      |
-| **FreeType**       | `libfreetype6-dev` / `freetype2`                          | Font rendering engine for text/font previews  |
-| **XKB Common**     | `libxkbcommon-dev` / `libxkbcommon`                       | Keyboard keycode handling for Wayland & X11   |
-| **GStreamer**      | `libgstreamer1.0-dev`, `libgstreamer-plugins-base1.0-dev` | Audio and video decoding/playback pipeline    |
-| **MuPDF**          | `libmupdf-dev` _(optional system bind)_                   | PDF rendering engine                          |
-| **Typst**          | `typst` _(optional CLI binary)_                           | Typst (`.typ`) document compilation & preview |
+| Component          | Library Dependency                                        | Description / Usage                                                             |
+| ------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **Fonts & Layout** | `libfontconfig1-dev` / `fontconfig`                       | Font matching and fallback configuration                                        |
+| **FreeType**       | `libfreetype6-dev` / `freetype2`                          | Font rendering engine for text/font previews                                    |
+| **XKB Common**     | `libxkbcommon-dev` / `libxkbcommon`                       | Keyboard keycode handling for Wayland & X11                                     |
+| **GStreamer**      | `libgstreamer1.0-dev`, `libgstreamer-plugins-base1.0-dev` | Audio and video decoding/playback pipeline                                      |
+| **MuPDF**          | `libmupdf-dev` _(optional system bind)_                   | PDF rendering engine                                                            |
+| **Typst**          | `typst` _(optional CLI binary)_                           | Typst (`.typ`) document compilation & preview                                   |
+| **LibreOffice**    | `libreoffice` _(optional CLI binary)_                     | Office document (`.docx`, `.pptx`, `.odt`, `.ods`, `.odp`) conversion & preview |
 
 #### Installing Dependencies
 
 - **Arch Linux:**
 
   ```bash
-
-  sudo pacman -Syu fontconfig freetype2 libxkbcommon gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-libav gst-plugin-va gst-plugins-ugly
-
+  sudo pacman -Syu fontconfig freetype2 libxkbcommon gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-libav gst-plugin-va gst-plugins-ugly libreoffice-fresh
   ```
 
 - **Ubuntu / Debian:**
 
   ```bash
-
-  sudo apt install libfontconfig1-dev libfreetype-dev libxkbcommon-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
-
+  sudo apt install libfontconfig1-dev libfreetype-dev libxkbcommon-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad libreoffice
   ```
 
 - **Fedora:**
 
   ```bash
-
-  sudo dnf install fontconfig-devel freetype-devel libxkbcommon-devel gstreamer1-devel gstreamer1-plugins-base-devel gstreamer1-plugins-good gstreamer1-plugins-bad-free gstreamer1-plugins-bad-free-devel
-
+  sudo dnf install fontconfig-devel freetype-devel libxkbcommon-devel gstreamer1-devel gstreamer1-plugins-base-devel gstreamer1-plugins-good gstreamer1-plugins-bad-free gstreamer1-plugins-bad-free-devel libreoffice
   ```
 
 ---
@@ -123,7 +118,7 @@ Kglance offers rich keyboard navigation for navigating files, zooming images, sc
 | **Search**                     |                                                          |                                  |
 | `Ctrl` + `F` / `/`             | Open search bar                                          | Text, Markdown, JSON, CSV, Grid  |
 | `Escape`                       | Close search bar and clear query                         | Search active                    |
-| Type characters                | Immediate type-to-search                                 | Spreadsheets, Grid view          |
+| Type characters                | Immediate type-to-search                                 | Grid view                        |
 | **Zoom & Font Scaling**        |                                                          |                                  |
 | `Ctrl` + `+` / `Ctrl` + `=`    | Zoom in / Increase font size                             | Image, PDF, Text, Code, Markdown |
 | `Ctrl` + `-`                   | Zoom out / Decrease font size                            | Image, PDF, Text, Code, Markdown |
