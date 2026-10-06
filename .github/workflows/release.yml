@@ -76,6 +76,7 @@ jobs:
             gstreamer1.0-plugins-ugly \
             gstreamer1.0-libav \
             gstreamer1.0-alsa \
+            gstreamer1.0-tools \
             file \
             patchelf \
             ffmpeg
@@ -110,7 +111,8 @@ jobs:
           path: |
             .tools/linuxdeploy.AppImage
             .tools/appimagetool.AppImage
-          key: appimage-tools-${{ matrix.arch }}-v1
+            .tools/linuxdeploy-plugin-gstreamer.sh
+          key: appimage-tools-${{ matrix.arch }}-v2
 
       - name: Download AppImage tools
         if: steps.cache-appimage-tools.outputs.cache-hit != 'true'
@@ -118,9 +120,10 @@ jobs:
           mkdir -p .tools
           curl -fsSL -o .tools/linuxdeploy.AppImage "${{ matrix.linuxdeploy_url }}"
           curl -fsSL -o .tools/appimagetool.AppImage "${{ matrix.appimagetool_url }}"
+          curl -fsSL -o .tools/linuxdeploy-plugin-gstreamer.sh https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gstreamer/master/linuxdeploy-plugin-gstreamer.sh
 
       - name: Make AppImage tools executable
-        run: chmod +x .tools/linuxdeploy.AppImage .tools/appimagetool.AppImage
+        run: chmod +x .tools/linuxdeploy.AppImage .tools/appimagetool.AppImage .tools/linuxdeploy-plugin-gstreamer.sh
 
       - name: Run tests
         run: cargo test --release
@@ -170,14 +173,16 @@ jobs:
 
           export VERSION="${VERSION}"
           export APPIMAGE_EXTRACT_AND_RUN=1
+          export PATH="$(pwd)/.tools:$PATH"
+          export LINUXDEPLOY="$(pwd)/.tools/linuxdeploy.AppImage"
 
           ./.tools/linuxdeploy.AppImage \
             --appdir "$APPDIR" \
             --executable "$APPDIR/usr/bin/${BINARY}" \
             --desktop-file "data/${APP_ID}.desktop" \
             --icon-file "data/${APP_ID}.svg" \
+            --plugin gstreamer \
             --output appimage
-
 
           mv "${APP_ID}-${VERSION}-${{ matrix.appimg_arch }}.AppImage" \
              "${BINARY}-${VERSION}-${{ matrix.appimg_arch }}.AppImage" 2>/dev/null \
