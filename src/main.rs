@@ -155,8 +155,16 @@ fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         config.ui.default_height as f32,
     );
 
-    if let Ok(kglance::parsers::ParsedContent::Image { width, height, .. }) =
-        registry.parse(resolved)
+    let ext = resolved
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    if matches!(
+        ext.as_str(),
+        "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp"
+    ) && let Ok((width, height)) = image::image_dimensions(resolved)
     {
         initial_size = kglance::features::image::view::calculate_window_size(
             config.ui.default_width as f32,

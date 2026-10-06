@@ -248,6 +248,14 @@ pub enum SystemMsg {
         content: PreviewData,
         playlist: Vec<String>,
     },
+    DaemonOpenLoading {
+        path: String,
+        playlist: Vec<String>,
+    },
+    DaemonUpdateLoading {
+        path: String,
+        playlist: Vec<String>,
+    },
     FileLoaded {
         path: String,
         content: PreviewData,
@@ -263,6 +271,7 @@ pub enum SystemMsg {
     DirectoryChanged(std::path::PathBuf),
     WindowResized(f32, f32),
     ReadPositionsTick,
+    SpinnerTick,
 }
 
 #[derive(Debug, Clone)]

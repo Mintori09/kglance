@@ -113,6 +113,28 @@ impl Recipe for DaemonRecipe {
                                     )
                                     .await;
                             }
+                            DaemonCommand::OpenWindowLoading { path, playlist } => {
+                                let _ = output
+                                    .send(
+                                        crate::app::messages::SystemMsg::DaemonOpenLoading {
+                                            path,
+                                            playlist,
+                                        }
+                                        .into(),
+                                    )
+                                    .await;
+                            }
+                            DaemonCommand::UpdateWindowLoading { path, playlist } => {
+                                let _ = output
+                                    .send(
+                                        crate::app::messages::SystemMsg::DaemonUpdateLoading {
+                                            path,
+                                            playlist,
+                                        }
+                                        .into(),
+                                    )
+                                    .await;
+                            }
                             DaemonCommand::HidePreview => {
                                 let _ = output
                                     .send(crate::app::messages::ActionMsg::CloseRequested.into())
