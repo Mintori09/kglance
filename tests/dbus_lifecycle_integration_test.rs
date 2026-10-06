@@ -38,7 +38,11 @@ async fn test_dbus_full_lifecycle_ipc() {
     let res = send_via_dbus(file1.to_str().unwrap());
     assert!(res.is_ok(), "send_via_dbus failed: {:?}", res.err());
 
-    match rx.recv().await {
+    let received = tokio::time::timeout(Duration::from_secs(5), rx.recv())
+        .await
+        .expect("Timeout waiting for OpenWindowWithContent via DBus");
+
+    match received {
         Some(DaemonCommand::OpenWindowWithContent { path, content }) => {
             assert_eq!(path, file1.to_str().unwrap());
             assert!(matches!(
@@ -61,7 +65,11 @@ async fn test_dbus_full_lifecycle_ipc() {
         res_mult.err()
     );
 
-    match rx.recv().await {
+    let received_mult = tokio::time::timeout(Duration::from_secs(5), rx.recv())
+        .await
+        .expect("Timeout waiting for OpenWindowWithPlaylist via DBus");
+
+    match received_mult {
         Some(DaemonCommand::OpenWindowWithPlaylist {
             path,
             content,

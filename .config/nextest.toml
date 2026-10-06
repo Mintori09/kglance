@@ -2,5 +2,17 @@
 test-threads = 3
 slow-timeout = { period = "60s", terminate-after = 2 }
 
+[[profile.default.overrides]]
+filter = 'test(dbus) | test(test_send_via_dbus) | binary(dbus_lifecycle_integration_test) | binary(test)'
+test-group = 'dbus'
+
 [profile.ci]
 test-threads = 2
+
+[[profile.ci.overrides]]
+filter = 'test(dbus) | test(test_send_via_dbus) | binary(dbus_lifecycle_integration_test) | binary(test)'
+test-group = 'dbus'
+
+[test-groups]
+dbus = { max-threads = 1 }
+
