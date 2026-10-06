@@ -801,6 +801,10 @@ impl KglanceApp {
 
         self.state.media.has_video = is_video;
         self.state.media.error = None;
+        self.state.media.current_subtitle_text = None;
+        self.state.media.subtitle_tracks.clear();
+        self.state.media.active_subtitle_track = None;
+        self.state.media.subtitles_enabled = false;
         self.state.audio.error = None;
 
         if is_video {
@@ -855,6 +859,21 @@ impl KglanceApp {
                     .flatten()
                     .unwrap_or_default();
                     crate::app::messages::MediaMsg::VideoThumbnailLoaded { data }.into()
+                },
+                |msg| msg,
+            ));
+
+            let sub_path = path.to_string();
+            tasks.push(Task::perform(
+                async move {
+                    let tracks = tokio::task::spawn_blocking(move || {
+                        crate::features::video::subtitles::discover_and_load_subtitles(
+                            std::path::Path::new(&sub_path),
+                        )
+                    })
+                    .await
+                    .unwrap_or_default();
+                    crate::app::messages::MediaMsg::SubtitlesLoaded { tracks }.into()
                 },
                 |msg| msg,
             ));

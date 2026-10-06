@@ -24,4 +24,5 @@ pub use default::{
     default_button, default_button_primary, default_card, default_checkbox, default_grid_card,
     default_inset, default_pick_list, default_raised, default_root, default_row_button,
     default_rule, default_scrollable, default_slider, default_text_input, default_tooltip,
+    video_controls_pill, video_pill_button, video_slider,
 };

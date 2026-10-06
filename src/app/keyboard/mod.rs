@@ -151,6 +151,31 @@ impl super::KglanceApp {
             }
         }
 
+        if self.state.media.has_video {
+            match &key {
+                iced::keyboard::Key::Character(c)
+                    if c.eq_ignore_ascii_case("p") || c.eq_ignore_ascii_case("k") =>
+                {
+                    return self.update(crate::app::messages::MediaMsg::PlayPauseClicked.into());
+                }
+                iced::keyboard::Key::Character(c)
+                    if c.eq_ignore_ascii_case("c") || c.eq_ignore_ascii_case("v") =>
+                {
+                    return self.update(crate::app::messages::MediaMsg::CycleSubtitleTrack.into());
+                }
+                iced::keyboard::Key::Character(c)
+                    if c.len() == 1 && c.chars().all(|ch| ch.is_ascii_digit()) =>
+                {
+                    if let Some(digit) = c.chars().next().and_then(|ch| ch.to_digit(10)) {
+                        let ratio = digit as f32 / 10.0;
+                        return self
+                            .update(crate::app::messages::MediaMsg::SeekClicked(ratio).into());
+                    }
+                }
+                _ => {}
+            }
+        }
+
         Task::none()
     }
 

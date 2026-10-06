@@ -303,6 +303,15 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::MediaMsg::VideoThumbnailLoaded { data } => {
                 crate::features::image::update::handle_video_thumbnail_loaded(app, data)
             }
+            crate::app::messages::MediaMsg::ToggleSubtitles => {
+                crate::features::video::update::handle_toggle_subtitles(app)
+            }
+            crate::app::messages::MediaMsg::CycleSubtitleTrack => {
+                crate::features::video::update::handle_cycle_subtitle_track(app)
+            }
+            crate::app::messages::MediaMsg::SubtitlesLoaded { tracks } => {
+                crate::features::video::update::handle_subtitles_loaded(app, tracks)
+            }
         },
         Message::Pdf(msg) => match msg {
             crate::app::messages::PdfMsg::Scrolled(vp) => {

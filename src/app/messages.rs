@@ -93,7 +93,14 @@ pub enum MediaMsg {
 
     MouseEnter,
     MouseLeave,
-    VideoThumbnailLoaded { data: Vec<u8> },
+    VideoThumbnailLoaded {
+        data: Vec<u8>,
+    },
+    ToggleSubtitles,
+    CycleSubtitleTrack,
+    SubtitlesLoaded {
+        tracks: Vec<crate::features::video::SubtitleTrack>,
+    },
 }
 
 #[derive(Debug, Clone)]
