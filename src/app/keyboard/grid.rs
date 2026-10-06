@@ -12,7 +12,7 @@ impl KglanceApp {
     pub(super) fn handle_grid_navigation(&mut self, key: &Key) -> Option<Task<Message>> {
         let total_items = self.state.playlist.len();
 
-        if total_items == 0 {
+        if self.ctrl_held || total_items == 0 {
             return None;
         }
 

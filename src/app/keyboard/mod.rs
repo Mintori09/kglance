@@ -27,11 +27,17 @@ impl super::KglanceApp {
         self.shift_held =
             modifiers.shift() || matches!(key, iced::keyboard::Key::Named(Named::Shift));
 
-        if let Some(task) = self.handle_folder_navigation(&key) {
-            return task;
+        if self.ctrl_held || modifiers.control() {
+            if let Some(task) = self.handle_file_navigation(&key) {
+                return task;
+            }
+            if let Some(task) = self.handle_ctrl_shortcuts(&key, modifiers) {
+                return task;
+            }
+            return Task::none();
         }
 
-        if let Some(task) = self.handle_ctrl_shortcuts(&key, modifiers) {
+        if let Some(task) = self.handle_folder_navigation(&key) {
             return task;
         }
 
@@ -112,11 +118,23 @@ impl super::KglanceApp {
             }
         }
 
+        if matches!(self.current_content, Some(PreviewData::Audio { .. })) {
+            match &key {
+                iced::keyboard::Key::Named(Named::Space) => {
+                    return self.update(crate::app::messages::AudioMsg::PlayPauseClicked.into());
+                }
+                iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("p") => {
+                    return self.update(crate::app::messages::AudioMsg::PlayPauseClicked.into());
+                }
+                _ => {}
+            }
+        }
+
         Task::none()
     }
 
     fn handle_typst_shortcut(&mut self, key: &iced::keyboard::Key) -> Option<Task<Message>> {
-        if !matches!(self.current_content, Some(PreviewData::Typst { .. })) {
+        if self.ctrl_held || !matches!(self.current_content, Some(PreviewData::Typst { .. })) {
             return None;
         }
         match key {
@@ -127,52 +145,99 @@ impl super::KglanceApp {
         }
     }
 
-    fn handle_view_mode_navigation(&mut self, key: &iced::keyboard::Key) -> Option<Task<Message>> {
-        match &self.state.view_mode {
-            crate::core::ViewMode::Detail => {
-                match key {
-                    iced::keyboard::Key::Named(Named::ArrowRight) => {
-                        self.stop_active_scroll_animations();
-                        if self.state.media.has_video {
-                            Some(self.handle_seek_relative(5.0))
-                        } else if self.is_epub_content() {
-                            if !self.state.epub.chapters.is_empty() {
-                                let next_ch = (self.state.epub.active_chapter + 1)
-                                    .min(self.state.epub.chapters.len() - 1);
-                                Some(self.update(
-                                    crate::app::messages::EpubMsg::ChapterClicked(next_ch).into(),
-                                ))
-                            } else {
-                                Some(Task::none())
-                            }
-                        } else {
-                            Some(self.update(
-                                crate::app::messages::NavigationMsg::NextFileClicked.into(),
-                            ))
-                        }
-                    }
-                    iced::keyboard::Key::Named(Named::ArrowLeft) => {
-                        self.stop_active_scroll_animations();
-                        if self.state.media.has_video {
-                            Some(self.handle_seek_relative(-5.0))
-                        } else if self.is_epub_content() {
-                            if !self.state.epub.chapters.is_empty() {
-                                let prev_ch = self.state.epub.active_chapter.saturating_sub(1);
-                                Some(self.update(
-                                    crate::app::messages::EpubMsg::ChapterClicked(prev_ch).into(),
-                                ))
-                            } else {
-                                Some(Task::none())
-                            }
-                        } else {
-                            Some(self.update(
-                                crate::app::messages::NavigationMsg::PrevFileClicked.into(),
-                            ))
-                        }
-                    }
-                    _ => None,
-                }
+    pub(super) fn handle_file_navigation(
+        &mut self,
+        key: &iced::keyboard::Key,
+    ) -> Option<Task<Message>> {
+        if !self.ctrl_held {
+            return None;
+        }
+
+        use iced::keyboard::key::Named;
+        let ctrl_shift = self.shift_held;
+
+        let msg = match key {
+            iced::keyboard::Key::Named(Named::ArrowRight) if ctrl_shift => {
+                crate::app::messages::NavigationMsg::NextFileClicked
             }
+            iced::keyboard::Key::Named(Named::PageDown) if !ctrl_shift => {
+                crate::app::messages::NavigationMsg::NextFileClicked
+            }
+            iced::keyboard::Key::Named(Named::ArrowLeft) if ctrl_shift => {
+                crate::app::messages::NavigationMsg::PrevFileClicked
+            }
+            iced::keyboard::Key::Named(Named::PageUp) if !ctrl_shift => {
+                crate::app::messages::NavigationMsg::PrevFileClicked
+            }
+            _ => return None,
+        };
+
+        self.stop_active_scroll_animations();
+        Some(self.update(msg.into()))
+    }
+
+    pub(super) fn handle_view_mode_navigation(
+        &mut self,
+        key: &iced::keyboard::Key,
+    ) -> Option<Task<Message>> {
+        if self.ctrl_held {
+            return None;
+        }
+        match &self.state.view_mode {
+            crate::core::ViewMode::Detail => match key {
+                iced::keyboard::Key::Named(Named::ArrowRight) => {
+                    if self.state.media.has_video {
+                        self.stop_active_scroll_animations();
+                        Some(crate::features::video::update::handle_seek_relative(
+                            self, 5.0,
+                        ))
+                    } else if matches!(self.current_content, Some(PreviewData::Audio { .. })) {
+                        self.stop_active_scroll_animations();
+                        Some(crate::features::audio::update::handle_seek_relative(
+                            self, 5.0,
+                        ))
+                    } else if self.is_epub_content() {
+                        self.stop_active_scroll_animations();
+                        if !self.state.epub.chapters.is_empty() {
+                            let next_ch = (self.state.epub.active_chapter + 1)
+                                .min(self.state.epub.chapters.len() - 1);
+                            Some(self.update(
+                                crate::app::messages::EpubMsg::ChapterClicked(next_ch).into(),
+                            ))
+                        } else {
+                            Some(Task::none())
+                        }
+                    } else {
+                        None
+                    }
+                }
+                iced::keyboard::Key::Named(Named::ArrowLeft) => {
+                    if self.state.media.has_video {
+                        self.stop_active_scroll_animations();
+                        Some(crate::features::video::update::handle_seek_relative(
+                            self, -5.0,
+                        ))
+                    } else if matches!(self.current_content, Some(PreviewData::Audio { .. })) {
+                        self.stop_active_scroll_animations();
+                        Some(crate::features::audio::update::handle_seek_relative(
+                            self, -5.0,
+                        ))
+                    } else if self.is_epub_content() {
+                        self.stop_active_scroll_animations();
+                        if !self.state.epub.chapters.is_empty() {
+                            let prev_ch = self.state.epub.active_chapter.saturating_sub(1);
+                            Some(self.update(
+                                crate::app::messages::EpubMsg::ChapterClicked(prev_ch).into(),
+                            ))
+                        } else {
+                            Some(Task::none())
+                        }
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            },
             crate::core::ViewMode::Grid(_) => self.handle_grid_navigation(key),
             crate::core::ViewMode::Settings => None,
         }

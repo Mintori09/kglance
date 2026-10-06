@@ -272,6 +272,11 @@ pub fn render_tree_node<'a>(
 pub const JSON_ROW_HEIGHT: f32 = 24.0;
 const OVERSCAN_NODES: usize = 20;
 
+#[inline]
+pub fn json_row_height(font_size: f32) -> f32 {
+    (font_size * 1.5).max(JSON_ROW_HEIGHT)
+}
+
 pub fn render_tree<'a>(
     state: &'a JsonState,
     theme: AppTheme,
@@ -286,7 +291,7 @@ pub fn render_tree<'a>(
         ""
     };
 
-    let row_height = (font_size * 1.5).max(JSON_ROW_HEIGHT);
+    let row_height = json_row_height(font_size);
 
     // Calculate visible window based on current scroll_y
     let scroll_y = state.scroll_y.max(0.0);

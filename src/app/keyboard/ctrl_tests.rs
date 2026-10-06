@@ -193,8 +193,8 @@ fn ctrl_plus_preserves_scroll_position_for_text_and_json() {
     let task = json_tree_app.handle_ctrl_shortcuts(&plus_key, modifiers);
     assert!(task.is_some());
     assert_eq!(json_tree_app.state.font_size, 15.0);
-    let old_row_h = (14.0f32 * 1.2).max(18.0) + 4.0;
-    let new_row_h = (15.0f32 * 1.2).max(18.0) + 4.0;
+    let old_row_h = crate::features::json::view::tree::json_row_height(14.0);
+    let new_row_h = crate::features::json::view::tree::json_row_height(15.0);
     assert_eq!(
         json_tree_app.state.json.scroll_y,
         (220.0 / old_row_h) * new_row_h
@@ -330,4 +330,135 @@ fn test_spreadsheet_search_requires_ctrl_f_not_arbitrary_typing() {
     assert!(task_ctrl_f_close.is_some());
     assert!(!app.state.spreadsheet.search_visible);
     assert!(app.state.spreadsheet.search_query.is_empty());
+}
+
+#[test]
+fn test_ctrl_held_blocks_keyboard_scroll_shortcuts() {
+    use crate::app::test_util::markdown_content;
+    let mut app = test_app(Some(markdown_content("# Test\n\nSome text")));
+    app.state.markdown.viewport_height = 800.0;
+    app.state.markdown.total_content_height = 3000.0;
+    app.state.markdown.scroll_y = 100.0;
+
+    let ctrl_mod = iced::keyboard::Modifiers::CTRL;
+    let j_key = iced::keyboard::Key::Character("j".into());
+    let down_key = iced::keyboard::Key::Named(iced::keyboard::key::Named::ArrowDown);
+    let d_key = iced::keyboard::Key::Character("d".into());
+
+    // 1. handle_scroll_shortcuts with CTRL modifier returns None
+    assert!(app.handle_scroll_shortcuts(&j_key, ctrl_mod).is_none());
+    assert!(app.handle_scroll_shortcuts(&down_key, ctrl_mod).is_none());
+    assert!(app.handle_scroll_shortcuts(&d_key, ctrl_mod).is_none());
+
+    // 2. handle_key_pressed with CTRL modifier does not trigger scrolling
+    let _ = app.handle_key_pressed(j_key, ctrl_mod);
+    assert!(!app.state.markdown.smooth_scroll.is_animating);
+    assert_eq!(app.state.markdown.scroll_y, 100.0);
+
+    // 3. handle_scroll_shortcuts with ctrl_held = true returns None
+    app.ctrl_held = true;
+    let empty_mod = iced::keyboard::Modifiers::default();
+    let k_key = iced::keyboard::Key::Character("k".into());
+    assert!(app.handle_scroll_shortcuts(&k_key, empty_mod).is_none());
+}
+
+#[test]
+fn test_ctrl_held_blocks_folder_and_grid_navigation() {
+    let mut app = test_app(None);
+    app.ctrl_held = true;
+
+    // Folder navigation is blocked
+    let down_key = iced::keyboard::Key::Named(iced::keyboard::key::Named::ArrowDown);
+    assert!(app.handle_folder_navigation(&down_key).is_none());
+
+    // Grid navigation is blocked
+    assert!(app.handle_grid_navigation(&down_key).is_none());
+}
+
+#[test]
+fn test_ctrl_held_scroll_delta_does_not_scroll_non_zoomable() {
+    let sheet = crate::features::csv::types::SheetInfo {
+        name: "Sheet1".to_string(),
+        headers: vec![],
+        columns: vec![],
+        rows: vec![],
+    };
+    let mut app = test_app(None);
+    app.current_content = Some(crate::core::PreviewData::Spreadsheet {
+        sheets: vec![sheet],
+        active_sheet: 0,
+    });
+    app.ctrl_held = true;
+
+    // Scrolling mouse wheel while Ctrl is held on spreadsheet does nothing (returns Task::none)
+    let _ = app.handle_scroll_delta(0.0, 80.0);
+    assert_eq!(app.state.spreadsheet.scroll_x, 0.0);
+    assert_eq!(app.state.spreadsheet.scroll_y, 0.0);
+}
+
+#[test]
+fn test_file_navigation_next_file_shortcuts() {
+    use iced::keyboard::key::Named;
+
+    let mut app = test_app(None);
+
+    // 1. Ctrl + Shift + ArrowRight -> NextFile
+    app.ctrl_held = true;
+    app.shift_held = true;
+    let arrow_right = iced::keyboard::Key::Named(Named::ArrowRight);
+    let task = app.handle_file_navigation(&arrow_right);
+    assert!(task.is_some());
+
+    // 2. Ctrl + PageDown (without Shift) -> NextFile
+    app.ctrl_held = true;
+    app.shift_held = false;
+    let page_down = iced::keyboard::Key::Named(Named::PageDown);
+    let task = app.handle_file_navigation(&page_down);
+    assert!(task.is_some());
+
+    // 3. Without Ctrl -> None
+    app.ctrl_held = false;
+    app.shift_held = true;
+    assert!(app.handle_file_navigation(&arrow_right).is_none());
+}
+
+#[test]
+fn test_file_navigation_prev_file_shortcuts() {
+    use iced::keyboard::key::Named;
+
+    let mut app = test_app(None);
+
+    // 1. Ctrl + Shift + ArrowLeft -> PrevFile
+    app.ctrl_held = true;
+    app.shift_held = true;
+    let arrow_left = iced::keyboard::Key::Named(Named::ArrowLeft);
+    let task = app.handle_file_navigation(&arrow_left);
+    assert!(task.is_some());
+
+    // 2. Ctrl + PageUp (without Shift) -> PrevFile
+    app.ctrl_held = true;
+    app.shift_held = false;
+    let page_up = iced::keyboard::Key::Named(Named::PageUp);
+    let task = app.handle_file_navigation(&page_up);
+    assert!(task.is_some());
+
+    // 3. Without Ctrl -> None
+    app.ctrl_held = false;
+    app.shift_held = false;
+    assert!(app.handle_file_navigation(&page_up).is_none());
+}
+
+#[test]
+fn test_bare_arrow_keys_do_not_switch_file_in_detail_view() {
+    use iced::keyboard::key::Named;
+
+    let mut app = test_app(Some(crate::app::test_util::markdown_content("Hello")));
+    app.state.view_mode = crate::core::ViewMode::Detail;
+
+    let arrow_right = iced::keyboard::Key::Named(Named::ArrowRight);
+    let arrow_left = iced::keyboard::Key::Named(Named::ArrowLeft);
+
+    // handle_view_mode_navigation returns None for bare arrows on markdown/text
+    assert!(app.handle_view_mode_navigation(&arrow_right).is_none());
+    assert!(app.handle_view_mode_navigation(&arrow_left).is_none());
 }

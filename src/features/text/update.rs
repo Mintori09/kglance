@@ -733,20 +733,42 @@ pub fn rescale_text_geometry(
     } else {
         fallback_window_width.max(800.0)
     };
+
+    let old_lh = (old_font_size * 1.35).max(1.0);
+    let new_lh = (new_font_size * 1.35).max(1.0);
+
+    let old_scroll_y = text_state.scroll_y.max(0.0);
+    let old_vrow = (old_scroll_y / old_lh).floor() as usize;
+
+    let new_scroll_y = if text_state.display_map.total_visual_rows == 0
+        || old_vrow >= text_state.display_map.total_visual_rows
+    {
+        old_scroll_y * (new_font_size / old_font_size)
+    } else {
+        let (anchor_line, sub_row) = text_state.display_map.visual_row_to_line(old_vrow);
+        let visual_offset = (old_scroll_y - (old_vrow as f32 * old_lh)).max(0.0);
+        let frac = (visual_offset / old_lh).clamp(0.0, 1.0);
+
+        text_state.display_map.update_geometry(
+            &text_state.document,
+            vp_w,
+            new_font_size,
+            wrap_mode,
+        );
+
+        let new_start_vrow = text_state.display_map.line_to_visual_row(anchor_line);
+        let new_vrow = new_start_vrow + sub_row;
+        (new_vrow as f32 * new_lh + frac * new_lh).max(0.0)
+    };
+
     text_state
         .display_map
         .update_geometry(&text_state.document, vp_w, new_font_size, wrap_mode);
     text_state.total_content_height = text_state.display_map.total_content_height();
 
-    let old_lh = old_font_size * 1.35;
-    let new_lh = new_font_size * 1.35;
-    let line_index = if old_lh > 0.0 {
-        (text_state.scroll_y / old_lh).max(0.0)
-    } else {
-        0.0
-    };
-    let new_scroll_y = (line_index * new_lh).max(0.0);
     text_state.scroll_y = new_scroll_y;
+    text_state.anchor =
+        ViewportAnchor::from_scroll_y(new_scroll_y, new_lh, text_state.document.total_lines());
 
     update_tokens_for_viewport(text_state, new_scroll_y, theme);
     new_scroll_y
