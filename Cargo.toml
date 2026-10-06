@@ -93,7 +93,7 @@ profile-telemetry = []
 [package.metadata.deb]
 maintainer = "mintori <mintori@users.noreply.github.com>"
 copyright = "2026, mintori"
-depends = "$auto"
+depends = "$auto, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-libav, ffmpeg"
 extended-description = "A high-performance file preview application built in Rust Iced."
 section = "utils"
 priority = "optional"
