@@ -25,7 +25,8 @@ env:
   GST_AUDIOSINK: fakesink
 
 permissions:
-  contents: read
+  contents: write
+
 
 jobs:
   build:
