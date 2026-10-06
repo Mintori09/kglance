@@ -60,7 +60,12 @@ pub enum ParsedContent {
     },
     Audio {
         path: String,
+        title: String,
+        artist: String,
+        album: String,
+        duration_secs: u64,
         metadata: String,
+        cover_art: Option<Vec<u8>>,
         waveform: Vec<u8>,
         waveform_width: u32,
         waveform_height: u32,

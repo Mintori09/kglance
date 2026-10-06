@@ -135,6 +135,9 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 navigation::handle_file_clicked(app, idx)
             }
             crate::app::messages::NavigationMsg::FolderScrolled(vp) => {
+                if app.ctrl_held {
+                    return Task::none();
+                }
                 app.state.folder.scroll_y = vp.absolute_offset().y;
                 let vh = vp.bounds().height;
                 if vh > 0.0 {
@@ -238,6 +241,23 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::TextMsg::GotoLineClosed => {
                 crate::features::text::update::handle_goto_line_closed(app)
+            }
+        },
+        Message::Audio(msg) => match msg {
+            crate::app::messages::AudioMsg::PlayPauseClicked => {
+                crate::features::audio::update::handle_play_pause(app)
+            }
+            crate::app::messages::AudioMsg::SeekClicked(pct) => {
+                crate::features::audio::update::handle_seek(app, pct)
+            }
+            crate::app::messages::AudioMsg::SeekRelativeClicked(secs) => {
+                crate::features::audio::update::handle_seek_relative(app, secs)
+            }
+            crate::app::messages::AudioMsg::Tick => {
+                crate::features::audio::update::handle_tick(app)
+            }
+            crate::app::messages::AudioMsg::EndOfStream => {
+                crate::features::audio::update::handle_end_of_stream(app)
             }
         },
         Message::Media(msg) => match msg {

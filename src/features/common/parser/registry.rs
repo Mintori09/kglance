@@ -416,16 +416,21 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
             },
             ParsedContent::Audio {
                 path,
+                title,
+                artist,
+                album,
+                duration_secs,
                 metadata,
-                waveform,
-                waveform_width,
-                waveform_height,
-            } => crate::core::preview::PreviewData::Media {
-                url: path,
+                cover_art,
+                ..
+            } => crate::core::preview::PreviewData::Audio {
+                path,
+                title,
+                artist,
+                album,
+                duration_secs,
                 metadata,
-                thumbnail_or_waveform: waveform,
-                width: waveform_width,
-                height: waveform_height,
+                cover_art,
             },
         };
         Ok(preview)

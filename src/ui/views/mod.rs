@@ -1,5 +1,6 @@
 pub mod setting_page;
 
+pub use crate::features::audio::view_audio;
 pub use crate::features::csv::view_spreadsheet;
 pub use crate::features::epub::view_epub;
 pub use crate::features::folder::view_folder;

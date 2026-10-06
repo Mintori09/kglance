@@ -1,7 +1,7 @@
 mod keyboard;
-mod media;
 pub mod messages;
 pub use messages::*;
+mod media;
 
 pub mod update;
 
@@ -33,6 +33,7 @@ pub struct KglanceApp {
     pub is_window_opening: bool,
     pub current_content: Option<PreviewData>,
     pub video: Option<iced_video_player::Video>,
+    pub audio: Option<crate::features::audio::AudioPlayer>,
     pub ctrl_held: bool,
     pub shift_held: bool,
     pub pending_g: bool,
@@ -52,6 +53,7 @@ impl Default for KglanceApp {
             is_window_opening: false,
             current_content: None,
             video: None,
+            audio: None,
             ctrl_held: false,
             shift_held: false,
             pending_g: false,
@@ -122,6 +124,7 @@ impl KglanceApp {
             is_window_opening: false,
             current_content: None,
             video: None,
+            audio: None,
             ctrl_held: false,
             shift_held: false,
             pending_g: false,
@@ -794,8 +797,9 @@ impl KglanceApp {
 
         self.state.media.has_video = is_video;
         self.state.media.error = None;
+        self.state.audio.error = None;
 
-        if is_video || is_audio {
+        if is_video {
             match crate::features::video::handler::load_video(path) {
                 Ok(video) => {
                     self.state.media.playing = true;
@@ -809,6 +813,22 @@ impl KglanceApp {
             }
         } else {
             self.video = None;
+        }
+
+        if is_audio {
+            match crate::features::audio::AudioPlayer::new(path, self.state.audio.duration_secs) {
+                Ok(player) => {
+                    self.state.audio.playing = true;
+                    self.audio = Some(player);
+                }
+                Err(e) => {
+                    crate::log_error!("Failed to load audio: {e}");
+                    self.state.audio.error = Some(e);
+                    self.audio = None;
+                }
+            }
+        } else {
+            self.audio = None;
         }
 
         if is_video {
@@ -954,6 +974,7 @@ impl KglanceApp {
                     self.state.font_family_mono.as_deref(),
                     self.state.max_text_width,
                 ),
+                PreviewData::Audio { .. } => crate::ui::views::view_audio(&self.state.audio),
                 PreviewData::Media {
                     thumbnail_or_waveform,
                     width,
@@ -972,11 +993,9 @@ impl KglanceApp {
             iced::widget::text("No file loaded.").size(18).into()
         };
 
+        let window = crate::ui::window::view_window(&self.state, preview_body);
         let is_mod = self.ctrl_held;
-        let preview_body =
-            crate::ui::components::scroll_pane::ScrollFilter::new(preview_body, is_mod).into();
-
-        crate::ui::window::view_window(&self.state, preview_body)
+        crate::ui::components::scroll_pane::ScrollFilter::new(window, is_mod).into()
     }
 
     /// Variant for [`iced::daemon`] which requires a `window::Id` parameter.
@@ -1083,6 +1102,13 @@ impl KglanceApp {
             Subscription::none()
         };
 
+        let audio_tick_sub = if self.state.audio.playing {
+            iced::time::every(std::time::Duration::from_millis(100))
+                .map(|_| crate::app::messages::AudioMsg::Tick.into())
+        } else {
+            Subscription::none()
+        };
+
         Subscription::batch(vec![
             dbus_sub,
             event_sub,
@@ -1093,6 +1119,7 @@ impl KglanceApp {
             text_auto_scroll_sub,
             smooth_scroll_sub,
             read_positions_sub,
+            audio_tick_sub,
         ])
     }
 
@@ -1193,6 +1220,7 @@ pub(crate) mod test_util {
             is_window_opening: false,
             current_content: content,
             video: None,
+            audio: None,
             ctrl_held: false,
             shift_held: false,
             pending_g: false,

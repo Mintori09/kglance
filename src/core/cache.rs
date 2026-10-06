@@ -120,6 +120,20 @@ impl PreviewData {
             PreviewData::Typst { data, source, .. } => {
                 data.len().saturating_add(source.len()).saturating_add(512)
             }
+            PreviewData::Audio {
+                title,
+                artist,
+                album,
+                metadata,
+                cover_art,
+                ..
+            } => title
+                .len()
+                .saturating_add(artist.len())
+                .saturating_add(album.len())
+                .saturating_add(metadata.len())
+                .saturating_add(cover_art.as_ref().map_or(0, |c| c.len()))
+                .saturating_add(256),
             PreviewData::Media {
                 thumbnail_or_waveform,
                 metadata,
