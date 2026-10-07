@@ -92,53 +92,54 @@ To build Kglance from source on Linux (Debian/Ubuntu/Arch/Fedora), the following
 
 Kglance offers rich keyboard navigation for navigating files, zooming images, scrolling PDFs, and searching text.
 
-| Shortcut                       | Action                                                   | Scope / Context                  |
-| :----------------------------- | :------------------------------------------------------- | :------------------------------- |
-| **General & Window**           |                                                          |                                  |
-| `Space` / `Escape`             | Close preview window (or close search if open)           | Global                           |
-| `Tab`                          | Toggle View Mode (Detail ↔ Grid)                         | Global                           |
-| `Enter`                        | Open file in default desktop app / Open folder entry     | Global / Folder view             |
-| `Ctrl` + `,`                   | Open Settings view                                       | Global                           |
-| `Ctrl` + `T`                   | Cycle color theme (Dark → Light → Nord)                  | Global                           |
-| `Ctrl` + `C`                   | Copy file path / Copy selected text                      | Global / Text & Documents        |
-| `Ctrl` + `A`                   | Select all text                                          | Text, Code, Markdown, EPUB       |
-| **Navigation & Playlist**      |                                                          |                                  |
-| `Ctrl` + `Shift` + `←` / `Ctrl` + `PageUp`   | Previous file in directory                               | Playlist / Global                |
-| `Ctrl` + `Shift` + `→` / `Ctrl` + `PageDown` | Next file in directory                                   | Playlist / Global                |
-| `←` / `→`                      | Seek -5s / +5s (Video, Audio) or Previous / Next chapter (EPUB) | Video, Audio, EPUB               |
-| `←` / `→`                      | Go to parent directory / Open folder or preview file     | Folder view                      |
-| **Scrolling & Vim Navigation** |                                                          |                                  |
-| `↑` / `k`                      | Scroll up (80px)                                         | Scrollable content               |
-| `↓` / `j`                      | Scroll down (80px)                                       | Scrollable content               |
-| `←` / `→` / `h` / `l`          | Scroll horizontally / Expand or collapse JSON tree       | Spreadsheet, JSON Tree, Code     |
-| `PageUp` / `u`                 | Scroll page / half page up                               | Scrollable content               |
-| `PageDown` / `d`               | Scroll page / half page down                             | Scrollable content               |
-| `gg` / `Home` (double-tap)     | Scroll to top                                            | Scrollable content               |
-| `G` / `Shift` + `G` / `End`    | Scroll to bottom                                         | Scrollable content               |
-| `gt`                           | Toggle Table of Contents / Sidebar                       | Markdown, EPUB, PDF              |
-| `Mouse Wheel`                  | Scroll / Zoom (while holding `Ctrl`)                     | All previews                     |
-| **Search**                     |                                                          |                                  |
-| `Ctrl` + `F` / `/`             | Open search bar                                          | Text, Markdown, JSON, CSV, Grid  |
-| `Escape`                       | Close search bar and clear query                         | Search active                    |
-| Type characters                | Immediate type-to-search                                 | Grid view                        |
-| **Zoom & Font Scaling**        |                                                          |                                  |
-| `Ctrl` + `+` / `Ctrl` + `=`    | Zoom in / Increase font size                             | Image, PDF, Text, Code, Markdown |
-| `Ctrl` + `-`                   | Zoom out / Decrease font size                            | Image, PDF, Text, Code, Markdown |
-| `Ctrl` + Scroll                | Zoom in/out / Resize                                     | Image, PDF, Text, Code, Markdown |
-| `=`                            | Fit image to window                                      | Image preview                    |
-| `Shift` + `+` / `Shift` + `=`  | Reset font size to default (14px)                        | Text & Code preview              |
-| **Specific Formats**           |                                                          |                                  |
-| `Ctrl` + `W`                   | Toggle word wrap                                         | Text, Code, JSON, Typst          |
-| `Ctrl` + `e`                   | Expand all JSON tree nodes                               | JSON preview                     |
-| `Ctrl` + `E` (`Shift` + `e`)   | Collapse all JSON tree nodes                             | JSON preview                     |
-| `Ctrl` + `P` (`Shift` + `p`)   | Toggle JSON display (Tree vs Raw formatted)              | JSON preview                     |
-| `s` / `S`                      | Toggle between Compiled Preview and Source               | Typst (`.typ`) preview           |
+| Shortcut                                     | Action                                                          | Scope / Context                  |
+| :------------------------------------------- | :-------------------------------------------------------------- | :------------------------------- |
+| **General & Window**                         |                                                                 |                                  |
+| `Space` / `Escape`                           | Close preview window (or close search if open)                  | Global                           |
+| `Tab`                                        | Toggle View Mode (Detail ↔ Grid)                                | Global                           |
+| `Enter`                                      | Open file in default desktop app / Open folder entry            | Global / Folder view             |
+| `Ctrl` + `,`                                 | Open Settings view                                              | Global                           |
+| `Ctrl` + `T`                                 | Cycle color theme (Dark → Light → Nord)                         | Global                           |
+| `Ctrl` + `C`                                 | Copy file path / Copy selected text                             | Global / Text & Documents        |
+| `Ctrl` + `A`                                 | Select all text                                                 | Text, Code, Markdown, EPUB       |
+| **Navigation & Playlist**                    |                                                                 |                                  |
+| `Ctrl` + `Shift` + `←` / `Ctrl` + `PageUp`   | Previous file in directory                                      | Playlist / Global                |
+| `Ctrl` + `Shift` + `→` / `Ctrl` + `PageDown` | Next file in directory                                          | Playlist / Global                |
+| `←` / `→`                                    | Seek -5s / +5s (Video, Audio) or Previous / Next chapter (EPUB) | Video, Audio, EPUB               |
+| `←` / `→`                                    | Go to parent directory / Open folder or preview file            | Folder view                      |
+| **Scrolling & Vim Navigation**               |                                                                 |                                  |
+| `↑` / `k`                                    | Scroll up (80px)                                                | Scrollable content               |
+| `↓` / `j`                                    | Scroll down (80px)                                              | Scrollable content               |
+| `←` / `→` / `h` / `l`                        | Scroll horizontally / Expand or collapse JSON tree              | Spreadsheet, JSON Tree, Code     |
+| `PageUp` / `u`                               | Scroll page / half page up                                      | Scrollable content               |
+| `PageDown` / `d`                             | Scroll page / half page down                                    | Scrollable content               |
+| `gg` / `Home` (double-tap)                   | Scroll to top                                                   | Scrollable content               |
+| `G` / `Shift` + `G` / `End`                  | Scroll to bottom                                                | Scrollable content               |
+| `gt`                                         | Toggle Table of Contents / Sidebar                              | Markdown, EPUB, PDF              |
+| `Mouse Wheel`                                | Scroll / Zoom (while holding `Ctrl`)                            | All previews                     |
+| **Search**                                   |                                                                 |                                  |
+| `Ctrl` + `F` / `/`                           | Open search bar                                                 | Text, Markdown, JSON, CSV, Grid  |
+| `Escape`                                     | Close search bar and clear query                                | Search active                    |
+| Type characters                              | Immediate type-to-search                                        | Grid view                        |
+| **Zoom & Font Scaling**                      |                                                                 |                                  |
+| `Ctrl` + `+` / `Ctrl` + `=`                  | Zoom in / Increase font size                                    | Image, PDF, Text, Code, Markdown |
+| `Ctrl` + `-`                                 | Zoom out / Decrease font size                                   | Image, PDF, Text, Code, Markdown |
+| `Ctrl` + Scroll                              | Zoom in/out / Resize                                            | Image, PDF, Text, Code, Markdown |
+| `=`                                          | Fit image to window                                             | Image preview                    |
+| `Shift` + `+` / `Shift` + `=`                | Reset font size to default (14px)                               | Text & Code preview              |
+| **Specific Formats**                         |                                                                 |                                  |
+| `Ctrl` + `W`                                 | Toggle word wrap                                                | Text, Code, JSON, Typst          |
+| `Ctrl` + `e`                                 | Expand all JSON tree nodes                                      | JSON preview                     |
+| `Ctrl` + `E` (`Shift` + `e`)                 | Collapse all JSON tree nodes                                    | JSON preview                     |
+| `Ctrl` + `P` (`Shift` + `p`)                 | Toggle JSON display (Tree vs Raw formatted)                     | JSON preview                     |
+| `s` / `S`                                    | Toggle between Compiled Preview and Source                      | Typst (`.typ`) preview           |
 
 ---
 
 ## Installation & Setup
 
 ### 1. Build from Source
+
 
 Ensure Rust 1.85+ (Edition 2024) is installed.
 
