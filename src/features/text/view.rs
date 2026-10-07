@@ -61,7 +61,7 @@ pub fn view_text<'a>(
         .on_auto_scroll(|delta, cursor| {
             crate::app::messages::TextMsg::AutoScroll(delta, cursor).into()
         })
-        .on_copy(|text| crate::app::messages::TextMsg::CopyRequested(text).into());
+        .on_copy(|text| crate::app::messages::ActionMsg::CopyText(text).into());
 
     let code_element: Element<'a, Message> = code_viewer.into();
 

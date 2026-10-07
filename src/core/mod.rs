@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod clipboard;
 pub mod config;
 pub mod config_watcher;
 pub mod file_watcher;
@@ -13,6 +14,7 @@ pub mod types;
 pub mod utils;
 
 pub use cache::{CachedContent, MemoryCache};
+pub use clipboard::copy_to_clipboard;
 pub use preview::{FilePreviewer, PreviewData, is_slow_to_parse};
 pub use read_positions::{ReadPosition, ReadPositions};
 pub use scroll::{SmoothScrollMode, SmoothScroller, max_scroll_y};

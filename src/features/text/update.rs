@@ -107,10 +107,6 @@ pub fn handle_auto_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
     )
 }
 
-pub fn handle_copy_requested(_app: &mut KglanceApp, _text: String) -> Task<Message> {
-    Task::none()
-}
-
 pub fn handle_tokens_ready(app: &mut KglanceApp, result: IndexResult) -> Task<Message> {
     if result.version == app.state.text.cached_tokens_version {
         app.state.text.cached_tokens = result.spans;

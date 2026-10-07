@@ -113,7 +113,7 @@ fn copy_button_inline<'a>(
                 .font(code_font)
                 .size(scale_size(STYLE.code.label_button_font_size, font_size)),
         )
-        .on_press(crate::app::messages::ActionMsg::CopyCode(copy_content).into())
+        .on_press(crate::app::messages::ActionMsg::CopyText(copy_content).into())
         .style(move |_: &iced::Theme, status| copy_button_style(theme, status))
         .padding(STYLE.code.button_padding),
     )

@@ -1,6 +1,5 @@
 use std::path::Path;
 
-#[cfg(feature = "7z")]
 use crate::features::archive::types::ArchiveEntry;
 use crate::features::common::parser::traits::ParseError;
 

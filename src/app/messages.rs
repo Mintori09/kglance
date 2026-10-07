@@ -55,7 +55,6 @@ pub enum TextMsg {
     SelectionDragEnded,
     AutoScroll(Option<f32>, iced::Point),
     AutoScrollTick,
-    CopyRequested(String),
     TokensReady(crate::features::text::IndexResult),
     SearchQueryChanged(String),
     SearchNext,
@@ -231,8 +230,7 @@ pub enum ActionMsg {
     CopyPathClicked,
     BackClicked,
     CloseRequested,
-    CopyContentClicked,
-    CopyCode(String),
+    CopyText(String),
 }
 
 #[derive(Debug, Clone)]
