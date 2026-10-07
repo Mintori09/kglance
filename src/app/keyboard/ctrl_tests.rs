@@ -291,7 +291,7 @@ fn wrap_toggle_recalculates_toc_line_numbers_and_symbol_positions() {
 
 #[test]
 fn test_spreadsheet_search_requires_ctrl_f_not_arbitrary_typing() {
-    let sheet = crate::features::csv::types::SheetInfo {
+    let sheet = crate::features::sheet::types::SheetInfo {
         name: "Sheet1".to_string(),
         headers: vec![],
         columns: vec![],
@@ -377,7 +377,7 @@ fn test_ctrl_held_blocks_folder_and_grid_navigation() {
 
 #[test]
 fn test_ctrl_held_scroll_delta_does_not_scroll_non_zoomable() {
-    let sheet = crate::features::csv::types::SheetInfo {
+    let sheet = crate::features::sheet::types::SheetInfo {
         name: "Sheet1".to_string(),
         headers: vec![],
         columns: vec![],

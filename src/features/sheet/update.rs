@@ -1,28 +1,31 @@
 use crate::app::KglanceApp;
 use crate::app::messages::Message;
 use crate::core::types::KglanceState;
-use crate::features::csv::types::{ColumnType, SheetInfo};
-use crate::features::csv::view::{ROWS_LIST_SPACING, estimate_row_height};
+use crate::features::sheet::parser::try_parse_date_or_datetime;
+use crate::features::sheet::types::{ColumnMeta, ColumnType, SheetInfo};
+use crate::features::sheet::view::{
+    COL_SPACING, HEADER_HEIGHT, ROW_HEIGHT, ROW_NUMBER_COL_WIDTH, ROWS_LIST_SPACING,
+    estimate_row_height,
+};
 use iced::Task;
 
 const CONTENT_SCROLL_ID: &str = "content_scroll";
 
-pub fn compute_prefix_widths(columns: &[crate::features::csv::types::ColumnMeta]) -> Vec<f32> {
+pub fn compute_prefix_widths(columns: &[ColumnMeta]) -> Vec<f32> {
     let mut prefix = Vec::with_capacity(columns.len() + 1);
     prefix.push(0.0);
     let mut acc = 0.0;
     for col in columns {
-        acc += col.width + crate::features::csv::view::COL_SPACING;
+        acc += col.width + COL_SPACING;
         prefix.push(acc);
     }
     prefix
 }
 
 pub fn compute_total_content_width(sheet: &SheetInfo) -> f32 {
-    let mut total =
-        crate::features::csv::view::ROW_NUMBER_COL_WIDTH + crate::features::csv::view::COL_SPACING;
+    let mut total = ROW_NUMBER_COL_WIDTH + COL_SPACING;
     for col in &sheet.columns {
-        total += col.width + crate::features::csv::view::COL_SPACING;
+        total += col.width + COL_SPACING;
     }
     total
 }
@@ -49,9 +52,7 @@ pub fn populate_state(state: &mut KglanceState, sheets: &[SheetInfo], active_she
         state.spreadsheet.row_heights = row_heights;
         state.spreadsheet.prefix_heights = prefix_heights;
         state.spreadsheet.prefix_widths = prefix_widths;
-        state.spreadsheet.total_content_height = total_h
-            + crate::features::csv::view::HEADER_HEIGHT
-            + crate::features::csv::view::ROWS_LIST_SPACING;
+        state.spreadsheet.total_content_height = total_h + HEADER_HEIGHT + ROWS_LIST_SPACING;
         state.spreadsheet.total_content_width = compute_total_content_width(sheet);
     } else {
         state.spreadsheet.display_indices.clear();
@@ -95,7 +96,7 @@ pub fn compute_height_structures(
         let h = if let Some(row_data) = sheet.rows.get(orig_idx) {
             estimate_row_height(row_data, &sheet.columns)
         } else {
-            crate::features::csv::view::ROW_HEIGHT
+            ROW_HEIGHT
         };
         row_heights.push(h);
         acc += h + ROWS_LIST_SPACING;
@@ -180,8 +181,8 @@ pub fn recompute_display_indices(
                     }
                 }
                 ColumnType::Date => {
-                    let date_a = crate::features::csv::parser::try_parse_date_or_datetime(val_a);
-                    let date_b = crate::features::csv::parser::try_parse_date_or_datetime(val_b);
+                    let date_a = try_parse_date_or_datetime(val_a);
+                    let date_b = try_parse_date_or_datetime(val_b);
                     match (date_a, date_b) {
                         (Some(a), Some(b)) => a.cmp(&b),
                         (Some(_), None) => std::cmp::Ordering::Less,
@@ -227,9 +228,8 @@ pub fn handle_sheet_tab_clicked(app: &mut KglanceApp, index: usize) -> Task<Mess
             app.state.spreadsheet.row_heights = row_heights;
             app.state.spreadsheet.prefix_heights = prefix_heights;
             app.state.spreadsheet.prefix_widths = prefix_widths;
-            app.state.spreadsheet.total_content_height = total_h
-                + crate::features::csv::view::HEADER_HEIGHT
-                + crate::features::csv::view::ROWS_LIST_SPACING;
+            app.state.spreadsheet.total_content_height =
+                total_h + HEADER_HEIGHT + ROWS_LIST_SPACING;
             app.state.spreadsheet.total_content_width = compute_total_content_width(sheet);
         }
     }
@@ -263,9 +263,7 @@ pub fn handle_column_clicked(app: &mut KglanceApp, col: usize) -> Task<Message> 
         sort.display_indices = indices;
         sort.row_heights = row_heights;
         sort.prefix_heights = prefix_heights;
-        sort.total_content_height = total_h
-            + crate::features::csv::view::HEADER_HEIGHT
-            + crate::features::csv::view::ROWS_LIST_SPACING;
+        sort.total_content_height = total_h + HEADER_HEIGHT + ROWS_LIST_SPACING;
         sort.total_content_width = compute_total_content_width(sheet);
     }
 
@@ -289,9 +287,7 @@ pub fn handle_search_query_changed(app: &mut KglanceApp, query: String) -> Task<
         sort.display_indices = indices;
         sort.row_heights = row_heights;
         sort.prefix_heights = prefix_heights;
-        sort.total_content_height = total_h
-            + crate::features::csv::view::HEADER_HEIGHT
-            + crate::features::csv::view::ROWS_LIST_SPACING;
+        sort.total_content_height = total_h + HEADER_HEIGHT + ROWS_LIST_SPACING;
         sort.total_content_width = compute_total_content_width(sheet);
     }
 
@@ -316,9 +312,7 @@ pub fn handle_search_closed(app: &mut KglanceApp) -> Task<Message> {
         sort.display_indices = indices;
         sort.row_heights = row_heights;
         sort.prefix_heights = prefix_heights;
-        sort.total_content_height = total_h
-            + crate::features::csv::view::HEADER_HEIGHT
-            + crate::features::csv::view::ROWS_LIST_SPACING;
+        sort.total_content_height = total_h + HEADER_HEIGHT + ROWS_LIST_SPACING;
         sort.total_content_width = compute_total_content_width(sheet);
     }
 

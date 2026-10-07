@@ -337,7 +337,7 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                     sheets: sheets
                         .into_iter()
                         .map(|s| {
-                            let columns = crate::features::csv::infer_column_types_and_widths(
+                            let columns = crate::features::sheet::infer_column_types_and_widths(
                                 &s.headers, &s.rows,
                             );
                             crate::core::types::SheetInfo {

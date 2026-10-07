@@ -1,9 +1,9 @@
 use crate::features::common::parser::traits::PreviewParser;
 use crate::features::common::parser::types::ParsedContent;
-use crate::features::csv::parser::{CsvParser, infer_column_types_and_widths, sniff_delimiter};
-use crate::features::csv::types::{ColumnMeta, ColumnType, SheetInfo};
-use crate::features::csv::update::{compute_prefix_widths, recompute_display_indices};
-use crate::features::csv::view::{
+use crate::features::sheet::parser::{CsvParser, infer_column_types_and_widths, sniff_delimiter};
+use crate::features::sheet::types::{ColumnMeta, ColumnType, SheetInfo};
+use crate::features::sheet::update::{compute_prefix_widths, recompute_display_indices};
+use crate::features::sheet::view::{
     COL_SPACING, ROW_STEP, ROWS_LIST_SPACING, compute_csv_column_window,
     compute_csv_virtual_window, estimate_row_height,
 };
@@ -298,7 +298,7 @@ fn test_csv_parser_rfc4180_quotes_and_multiline() {
 fn test_spreadsheet_smooth_scroll_and_touchpad_inertia() {
     use crate::app::KglanceApp;
     use crate::core::PreviewData;
-    use crate::features::csv::update::{
+    use crate::features::sheet::update::{
         handle_smooth_scroll_tick, handle_wheel_scrolled, populate_state,
     };
     use std::time::Instant;
