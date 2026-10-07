@@ -169,13 +169,25 @@ async fn render_and_send_batch<F>(
         let mut results = Vec::with_capacity(batch_vec.len());
         let mut to_render = Vec::new();
 
+        let mut cached_pages = Vec::new();
+
         for &page_index in &batch_vec {
             if let Some(ref cache) = disk_cache
                 && let Ok(cached) = cache.load_page_with_meta(page_index)
             {
-                let text = crate::features::pdf::parser::extract_pdf_page_text(path, page_index);
+                cached_pages.push((page_index, cached));
+                continue;
+            }
+            to_render.push(page_index);
+        }
+
+        if !cached_pages.is_empty() {
+            let cached_indices: Vec<usize> = cached_pages.iter().map(|(idx, _)| *idx).collect();
+            let texts =
+                crate::features::pdf::parser::extract_pdf_pages_text_batch(path, &cached_indices);
+            for ((idx, cached), (_, text)) in cached_pages.into_iter().zip(texts) {
                 results.push((
-                    page_index,
+                    idx,
                     Ok(PageData {
                         width: cached.width,
                         height: cached.height,
@@ -183,9 +195,7 @@ async fn render_and_send_batch<F>(
                     }),
                     text,
                 ));
-                continue;
             }
-            to_render.push(page_index);
         }
 
         if !to_render.is_empty() {

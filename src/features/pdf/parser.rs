@@ -270,15 +270,37 @@ pub fn sort_lines_reading_order(lines: &mut Vec<crate::features::pdf::selection:
     }
 }
 
+pub fn extract_pdf_pages_text_batch(
+    path: &Path,
+    pages: &[usize],
+) -> Vec<(usize, Option<crate::features::pdf::selection::PdfPageText>)> {
+    if pages.is_empty() {
+        return Vec::new();
+    }
+    let resolved = resolve_document_path(path);
+    let doc = match Document::open(resolved.as_ref()) {
+        Ok(d) => d,
+        Err(_) => return pages.iter().map(|&p| (p, None)).collect(),
+    };
+    let res = pages
+        .iter()
+        .map(|&page_index| {
+            let text = extract_page_text_from_doc(&doc, page_index as i32);
+            (page_index, text)
+        })
+        .collect();
+    empty_mupdf_store();
+    res
+}
+
 pub fn extract_pdf_page_text(
     path: &Path,
     page_index: usize,
 ) -> Option<crate::features::pdf::selection::PdfPageText> {
-    let resolved = resolve_document_path(path);
-    let doc = Document::open(resolved.as_ref()).ok()?;
-    let text = extract_page_text_from_doc(&doc, page_index as i32);
-    empty_mupdf_store();
-    text
+    extract_pdf_pages_text_batch(path, &[page_index])
+        .into_iter()
+        .next()
+        .and_then(|(_, text)| text)
 }
 
 pub fn render_pdf_pages_batch_with_text(
@@ -556,6 +578,25 @@ mod tests {
         let parser = PdfParser;
         let result = parser.parse(tmp.path());
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn extract_pdf_pages_text_batch_works() {
+        let pdf_bytes = create_simple_pdf();
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test_batch.pdf");
+        std::fs::write(&file_path, &pdf_bytes).unwrap();
+
+        let batch_results = extract_pdf_pages_text_batch(&file_path, &[0]);
+        assert_eq!(batch_results.len(), 1);
+        assert_eq!(batch_results[0].0, 0);
+        assert!(batch_results[0].1.is_some());
+        let text = batch_results[0].1.as_ref().unwrap();
+        assert!(!text.lines.is_empty());
+        assert!(text.lines[0].text.contains("Hello PDF!"));
+
+        let empty_results = extract_pdf_pages_text_batch(&file_path, &[]);
+        assert!(empty_results.is_empty());
     }
 
     fn create_simple_pdf() -> Vec<u8> {
