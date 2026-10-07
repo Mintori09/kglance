@@ -18,6 +18,7 @@ pub fn populate_state(
     state.pdf.page_count = page_count;
     state.pdf.pages = PageCache::new(page_count);
     state.pdf.thumbnails = ThumbnailCache::new(page_count);
+    state.pdf.page_texts = vec![None; page_count];
     state.pdf.sidebar_visible = old_sidebar_visible;
     state.pdf.sidebar_mode = old_sidebar_mode;
     state.pdf.sidebar_width = if old_sidebar_width > 0.0 {

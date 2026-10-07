@@ -105,7 +105,13 @@ pub enum MediaMsg {
 #[derive(Debug, Clone)]
 pub enum PdfMsg {
     PagesLoaded(Vec<Option<(Vec<u8>, u32, u32)>>),
-    PageReady(usize, Vec<u8>, u32, u32),
+    PageReady(
+        usize,
+        Vec<u8>,
+        u32,
+        u32,
+        Option<crate::features::pdf::PdfPageText>,
+    ),
     ThumbReady(usize, Vec<u8>, u32, u32),
     Scrolled(iced::widget::scrollable::Viewport),
     SidebarScrolled(iced::widget::scrollable::Viewport),
@@ -115,12 +121,22 @@ pub enum PdfMsg {
     TocItemClicked(usize),
     SidebarResized(f32),
     WheelScrolled(iced::mouse::ScrollDelta),
+    SelectionDragStart(crate::features::pdf::PdfPosition),
+    SelectionDragUpdate(crate::features::pdf::PdfPosition),
+    SelectionDragEnd,
+    SelectionClear,
 }
 
 #[derive(Debug, Clone)]
 pub enum TypstMsg {
     PagesLoaded,
-    PageReady(usize, Vec<u8>, u32, u32),
+    PageReady(
+        usize,
+        Vec<u8>,
+        u32,
+        u32,
+        Option<crate::features::pdf::PdfPageText>,
+    ),
     Scrolled(iced::widget::scrollable::Viewport),
     CompileError,
     ToggleSource,

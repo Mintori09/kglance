@@ -1,6 +1,7 @@
 use crate::core::scroll::ScrollController;
 use crate::core::types::SmoothScrollState;
 use crate::features::pdf::PdfDiskCache;
+use crate::features::pdf::selection::{PdfPageText, PdfPosition, PdfSelection};
 use crate::parsers::pdf::PdfTocEntry;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
@@ -344,12 +345,36 @@ pub struct PdfState {
     pub disk_cache: Option<Arc<PdfDiskCache>>,
     pub scroll_controller: ScrollController,
     pub smooth_scroll: SmoothScrollState,
+    pub page_texts: Vec<Option<PdfPageText>>,
+    pub selection: Option<PdfSelection>,
+    pub selected_text: Option<String>,
+    pub selected_html: Option<String>,
+    pub is_selecting: bool,
+    pub selection_drag_start: Option<PdfPosition>,
 }
 
 impl PdfState {
     #[inline]
     pub fn is_loading(&self) -> bool {
         self.active_page_tasks > 0
+    }
+
+    #[inline]
+    pub fn selected_text(&self) -> Option<String> {
+        self.selected_text.clone()
+    }
+
+    #[inline]
+    pub fn selected_html(&self) -> Option<String> {
+        self.selected_html.clone()
+    }
+
+    pub fn clear_selection(&mut self) {
+        self.selection = None;
+        self.selected_text = None;
+        self.selected_html = None;
+        self.is_selecting = false;
+        self.selection_drag_start = None;
     }
 }
 
@@ -391,6 +416,12 @@ impl Default for PdfState {
             disk_cache: None,
             scroll_controller: ScrollController::default(),
             smooth_scroll: SmoothScrollState::default(),
+            page_texts: Vec::new(),
+            selection: None,
+            selected_text: None,
+            selected_html: None,
+            is_selecting: false,
+            selection_drag_start: None,
         }
     }
 }

@@ -137,7 +137,7 @@ fn has_extension(path: &str, extensions: &[&str]) -> bool {
 }
 
 fn load_typst_thumbnail(path: &str) -> Option<iced::widget::image::Handle> {
-    let (_, _, first_page, _, _) =
+    let (_, _, first_page, _, _, _) =
         crate::parsers::typst::compile_typst_to_pdf(Path::new(path)).ok()?;
 
     if first_page.data.is_empty() {

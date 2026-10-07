@@ -382,8 +382,16 @@ pub fn handle_page_ready(
     data: Vec<u8>,
     width: u32,
     height: u32,
+    page_text: Option<crate::features::pdf::PdfPageText>,
 ) -> Task<Message> {
-    page_ready(active_pdf_state_mut(app), index, data, width, height);
+    page_ready(
+        active_pdf_state_mut(app),
+        index,
+        data,
+        width,
+        height,
+        page_text,
+    );
     Task::none()
 }
 
@@ -397,6 +405,7 @@ pub fn page_ready(
     data: Vec<u8>,
     width: u32,
     height: u32,
+    page_text: Option<crate::features::pdf::PdfPageText>,
 ) {
     if index < pdf_state.pages.len() {
         let handle = iced::widget::image::Handle::from_bytes(data);
@@ -413,6 +422,41 @@ pub fn page_ready(
             current_page,
         );
     }
+    if let Some(text) = page_text
+        && index < pdf_state.page_texts.len()
+    {
+        pdf_state.page_texts[index] = Some(text);
+    }
+}
+
+pub fn handle_selection_drag_start(
+    app: &mut KglanceApp,
+    pos: crate::features::pdf::PdfPosition,
+) -> Task<Message> {
+    crate::features::pdf::selection::handle_selection_drag_start(active_pdf_state_mut(app), pos);
+    Task::none()
+}
+
+pub fn handle_selection_drag_update(
+    app: &mut KglanceApp,
+    pos: crate::features::pdf::PdfPosition,
+) -> Task<Message> {
+    crate::features::pdf::selection::handle_selection_drag_update(active_pdf_state_mut(app), pos);
+    Task::none()
+}
+
+pub fn handle_selection_drag_end(app: &mut KglanceApp) -> Task<Message> {
+    crate::features::pdf::selection::handle_selection_drag_end(active_pdf_state_mut(app));
+    Task::none()
+}
+
+pub fn handle_selection_clear(app: &mut KglanceApp) -> Task<Message> {
+    crate::features::pdf::selection::handle_selection_clear(active_pdf_state_mut(app));
+    Task::none()
+}
+
+pub fn handle_select_all(pdf_state: &mut crate::core::PdfState) {
+    crate::features::pdf::selection::handle_select_all(pdf_state);
 }
 
 pub fn handle_thumb_ready(

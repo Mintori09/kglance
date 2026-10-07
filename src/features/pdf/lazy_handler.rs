@@ -48,7 +48,10 @@ pub fn lazy_load_pages<F>(
     done: Message,
 ) -> Task<Message>
 where
-    F: Fn(usize, PageData) -> Message + Send + Sync + 'static,
+    F: Fn(usize, PageData, Option<crate::features::pdf::PdfPageText>) -> Message
+        + Send
+        + Sync
+        + 'static,
 {
     let stream = iced::stream::channel(CHANNEL_BUFFER_SIZE, move |output| {
         process_page_loading(
@@ -77,7 +80,7 @@ pub async fn process_page_loading<F>(
     make_message: F,
     done: Message,
 ) where
-    F: Fn(usize, PageData) -> Message + Send + Sync,
+    F: Fn(usize, PageData, Option<crate::features::pdf::PdfPageText>) -> Message + Send + Sync,
 {
     let mut output = output;
     let pdf_path = PathBuf::from(file_path);
@@ -156,7 +159,7 @@ async fn render_and_send_batch<F>(
     make_message: &F,
     disk_cache: Option<Arc<crate::features::pdf::PdfDiskCache>>,
 ) where
-    F: Fn(usize, PageData) -> Message + Send + Sync,
+    F: Fn(usize, PageData, Option<crate::features::pdf::PdfPageText>) -> Message + Send + Sync,
 {
     let path_buffer = pdf_path.to_owned();
     let batch_vec = batch.to_vec();
@@ -170,6 +173,7 @@ async fn render_and_send_batch<F>(
             if let Some(ref cache) = disk_cache
                 && let Ok(cached) = cache.load_page_with_meta(page_index)
             {
+                let text = crate::features::pdf::parser::extract_pdf_page_text(path, page_index);
                 results.push((
                     page_index,
                     Ok(PageData {
@@ -177,6 +181,7 @@ async fn render_and_send_batch<F>(
                         height: cached.height,
                         data: cached.png_bytes,
                     }),
+                    text,
                 ));
                 continue;
             }
@@ -184,8 +189,9 @@ async fn render_and_send_batch<F>(
         }
 
         if !to_render.is_empty() {
-            let rendered = crate::features::pdf::parser::render_pdf_pages_batch(path, &to_render);
-            for (idx, res) in rendered {
+            let rendered =
+                crate::features::pdf::parser::render_pdf_pages_batch_with_text(path, &to_render);
+            for (idx, res, text) in rendered {
                 let compressed = res.map(|p| {
                     let compressed_data = crate::features::pdf::compress::compress_rgba_to_png(
                         &p.data, p.width, p.height,
@@ -200,7 +206,7 @@ async fn render_and_send_batch<F>(
                         data,
                     }
                 });
-                results.push((idx, compressed));
+                results.push((idx, compressed, text));
             }
         }
         results
@@ -208,9 +214,9 @@ async fn render_and_send_batch<F>(
     .await
     .unwrap_or_default();
 
-    for (page_index, task_result) in render_results {
+    for (page_index, task_result, page_text) in render_results {
         if let Ok(page_data) = task_result {
-            let message = make_message(page_index, page_data);
+            let message = make_message(page_index, page_data, page_text);
             let _ = output.send(message).await;
         }
     }

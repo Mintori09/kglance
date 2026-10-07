@@ -46,6 +46,7 @@ pub enum PreviewData {
         height: u32,
         outline: Vec<PdfTocEntry>,
         page_dimensions: Vec<PageDimensions>,
+        first_page_text: Option<crate::features::pdf::PdfPageText>,
     },
     Typst {
         page_count: usize,
@@ -57,6 +58,7 @@ pub enum PreviewData {
         error: Option<String>,
         outline: Vec<PdfTocEntry>,
         page_dimensions: Vec<PageDimensions>,
+        first_page_text: Option<crate::features::pdf::PdfPageText>,
     },
     Audio {
         path: String,
@@ -193,6 +195,7 @@ impl PreviewData {
                 page_count,
                 outline,
                 page_dimensions,
+                first_page_text,
                 ..
             } => {
                 crate::features::pdf::populate_state(
@@ -201,6 +204,11 @@ impl PreviewData {
                     outline.clone(),
                     page_dimensions.clone(),
                 );
+                if let Some(text) = first_page_text
+                    && !state.pdf.page_texts.is_empty()
+                {
+                    state.pdf.page_texts[0] = Some(text.clone());
+                }
             }
             PreviewData::Typst {
                 page_count,
@@ -208,6 +216,7 @@ impl PreviewData {
                 error,
                 outline,
                 page_dimensions,
+                first_page_text,
                 ..
             } => {
                 crate::features::typst::populate_state(
@@ -218,6 +227,11 @@ impl PreviewData {
                     outline,
                     page_dimensions,
                 );
+                if let Some(text) = first_page_text
+                    && !state.pdf.page_texts.is_empty()
+                {
+                    state.pdf.page_texts[0] = Some(text.clone());
+                }
             }
             PreviewData::Folder { rows, total_size } => {
                 state.folder.rows = rows.clone();

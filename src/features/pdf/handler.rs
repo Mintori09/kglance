@@ -18,12 +18,13 @@ pub fn lazy_load_pages(
         visible_page,
         generation_id,
         disk_cache,
-        |page_index, page_data| {
+        |page_index, page_data, page_text| {
             crate::app::messages::PdfMsg::PageReady(
                 page_index,
                 page_data.data,
                 page_data.width,
                 page_data.height,
+                page_text,
             )
             .into()
         },

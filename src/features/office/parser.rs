@@ -166,6 +166,11 @@ pub fn compile_office_to_pdf(path: &Path) -> Result<ParsedContent, ParseError> {
             data: Vec::new(),
         }
     };
+    let first_page_text = if page_count > 0 {
+        crate::features::pdf::parser::extract_page_text_from_doc(&doc, 0)
+    } else {
+        None
+    };
 
     crate::features::pdf::parser::empty_mupdf_store();
 
@@ -174,6 +179,7 @@ pub fn compile_office_to_pdf(path: &Path) -> Result<ParsedContent, ParseError> {
         first_page,
         outline,
         page_dimensions,
+        first_page_text,
     })
 }
 

@@ -11,7 +11,6 @@ use iced::{Alignment, Border, Element, Length, Padding};
 const PAGE_SPACING: f32 = spacing::S;
 
 const EMPTY_STATE_TEXT_SIZE: f32 = 14.0;
-const PLACEHOLDER_TEXT_SIZE: f32 = 12.0;
 
 const SCROLL_PANE_ID: &str = "content_scroll";
 const EMPTY_STATE_MESSAGE: &str = "No pages";
@@ -117,7 +116,7 @@ pub fn view_pdf<'a>(
     font_size: f32,
     theme: crate::ui::theme::AppTheme,
 ) -> Element<'a, Message> {
-    let pages_view = view_pdf_pages(state, SCROLL_PANE_ID, font_size, |vp| {
+    let pages_view = view_pdf_pages(state, SCROLL_PANE_ID, font_size, theme, |vp| {
         crate::app::messages::PdfMsg::Scrolled(vp).into()
     });
 
@@ -137,6 +136,7 @@ pub fn view_pdf_pages<'a>(
     state: &'a PdfState,
     scroll_id: &'static str,
     _font_size: f32,
+    theme: crate::ui::theme::AppTheme,
     on_scroll: impl Fn(iced::widget::scrollable::Viewport) -> Message + 'static,
 ) -> Element<'a, Message> {
     if state.page_count == 0 {
@@ -197,21 +197,47 @@ pub fn view_pdf_pages<'a>(
         );
     }
 
+    let selection_color = theme.palette().roles.accent.scale_alpha(0.35);
+    let default_dims = crate::features::pdf::types::PageDimensions {
+        width_pts: 595.0,
+        height_pts: 842.0,
+    };
+
     for page_index in layout.first_render..=layout.last_render {
         if page_index >= state.page_count {
             break;
         }
-        let aspect_ratio = state
+        let dims = state
             .page_dimensions
             .get(page_index)
-            .map(|d| d.aspect_ratio())
-            .unwrap_or(1.0 / 1.414);
+            .copied()
+            .unwrap_or(default_dims);
+        let aspect_ratio = dims.aspect_ratio();
         let page_height = page_width / aspect_ratio;
 
-        let page_card = match state.pages.get(page_index) {
-            Some(entry) => render_page_image(&entry.handle, page_width, page_height),
-            None => render_page_placeholder(page_index + 1, page_width, page_height),
-        };
+        let handle_opt = state.pages.get(page_index).map(|e| &e.handle);
+        let page_text = state.page_texts.get(page_index).and_then(|t| t.as_ref());
+
+        let page_widget = crate::features::pdf::page_view::PdfPageWidget::new(
+            page_index,
+            handle_opt,
+            page_text,
+            dims,
+            page_width,
+            page_height,
+        )
+        .selection(state.selection)
+        .is_selecting(state.is_selecting)
+        .selection_color(selection_color)
+        .on_drag_start(|pos| crate::app::messages::PdfMsg::SelectionDragStart(pos).into())
+        .on_drag_update(|pos| crate::app::messages::PdfMsg::SelectionDragUpdate(pos).into())
+        .on_drag_end(|| crate::app::messages::PdfMsg::SelectionDragEnd.into())
+        .on_clear_selection(|| crate::app::messages::PdfMsg::SelectionClear.into());
+
+        let page_card = container(page_widget)
+            .width(Length::Fill)
+            .center_x(Length::Fill);
+
         pages_column = pages_column.push(page_card);
     }
 
@@ -536,47 +562,4 @@ fn render_empty_state<'a>(scroll_id: &'static str) -> Element<'a, Message> {
         text(EMPTY_STATE_MESSAGE).size(EMPTY_STATE_TEXT_SIZE),
     )
     .build()
-}
-
-fn render_page_image<'a>(
-    image_handle: &image::Handle,
-    target_width: f32,
-    page_height: f32,
-) -> Element<'a, Message> {
-    let page_image = image(image_handle.clone())
-        .width(Length::Fixed(target_width))
-        .height(Length::Fixed(page_height))
-        .content_fit(iced::ContentFit::Fill);
-
-    let card = container(page_image)
-        .width(Length::Fixed(target_width))
-        .height(Length::Fixed(page_height))
-        .center_x(Length::Fixed(target_width))
-        .center_y(Length::Fixed(page_height));
-
-    container(card)
-        .width(Length::Fill)
-        .center_x(Length::Fill)
-        .into()
-}
-
-fn render_page_placeholder<'a>(
-    page_number: usize,
-    target_width: f32,
-    page_height: f32,
-) -> Element<'a, Message> {
-    let placeholder_text = text(format!("Page {}…", page_number))
-        .size(PLACEHOLDER_TEXT_SIZE)
-        .center();
-
-    let card = container(placeholder_text)
-        .width(Length::Fixed(target_width))
-        .height(Length::Fixed(page_height))
-        .center_x(Length::Fixed(target_width))
-        .center_y(Length::Fixed(page_height));
-
-    container(card)
-        .width(Length::Fill)
-        .center_x(Length::Fill)
-        .into()
 }
