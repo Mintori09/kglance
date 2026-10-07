@@ -663,3 +663,82 @@ fn test_sort_lines_reading_order_scattered_presentation_blocks() {
     assert_eq!(lines[4].text, "Bullet 3");
     assert_eq!(lines[5].text, "Bullet 4 (Bottom)");
 }
+
+#[test]
+fn test_sort_lines_reading_order_two_columns() {
+    let mut lines = vec![
+        PdfLine {
+            text: "Left Title".to_string(),
+            rect: [50.0, 50.0, 200.0, 70.0],
+            chars: vec![],
+        },
+        PdfLine {
+            text: "Right Title".to_string(),
+            rect: [300.0, 50.0, 450.0, 70.0],
+            chars: vec![],
+        },
+        PdfLine {
+            text: "Left Line 1".to_string(),
+            rect: [50.0, 80.0, 250.0, 95.0],
+            chars: vec![],
+        },
+        PdfLine {
+            text: "Right Line 1".to_string(),
+            rect: [300.0, 80.0, 500.0, 95.0],
+            chars: vec![],
+        },
+        PdfLine {
+            text: "Left Line 2".to_string(),
+            rect: [50.0, 100.0, 250.0, 115.0],
+            chars: vec![],
+        },
+        PdfLine {
+            text: "Right Line 2".to_string(),
+            rect: [300.0, 100.0, 500.0, 115.0],
+            chars: vec![],
+        },
+    ];
+
+    crate::features::pdf::parser::sort_lines_reading_order(&mut lines);
+
+    assert_eq!(lines[0].text, "Left Title");
+    assert_eq!(lines[1].text, "Left Line 1");
+    assert_eq!(lines[2].text, "Left Line 2");
+    assert_eq!(lines[3].text, "Right Title");
+    assert_eq!(lines[4].text, "Right Line 1");
+    assert_eq!(lines[5].text, "Right Line 2");
+}
+
+#[test]
+fn test_inspect_test_2col_file() {
+    let p = std::path::Path::new("test_2col.local.pdf");
+    if !p.exists() {
+        return;
+    }
+    let text = crate::features::pdf::parser::extract_pdf_page_text(p, 0).expect("extract text");
+    // Verify that the lines are sorted into columns rather than interleaved
+    let first_left = text
+        .lines
+        .iter()
+        .position(|l| l.text.contains("Cột Bên Trái"))
+        .unwrap();
+    let first_right = text
+        .lines
+        .iter()
+        .position(|l| l.text.contains("Cột Bên Phải"))
+        .unwrap();
+    assert!(
+        first_left < first_right,
+        "Left column must come before right column"
+    );
+    // Verify all left column lines come before first right column line
+    let last_left = text
+        .lines
+        .iter()
+        .rposition(|l| l.text.contains("cột 1"))
+        .unwrap();
+    assert!(
+        last_left < first_right,
+        "All left column lines must precede right column"
+    );
+}

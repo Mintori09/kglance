@@ -3,6 +3,7 @@ pub mod compress;
 pub mod dimensions;
 pub mod geometry;
 pub mod handler;
+pub mod layout;
 pub mod lazy_handler;
 pub mod page_view;
 pub mod parser;
