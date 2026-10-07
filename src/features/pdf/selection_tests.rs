@@ -255,6 +255,11 @@ fn test_drag_selection_workflow() {
     assert!(!state.is_selecting);
     assert_eq!(state.selected_text, Some("Hello".to_string()));
 
+    // Repeated drag end should be idempotent (no-op)
+    handle_selection_drag_end(&mut state);
+    assert!(!state.is_selecting);
+    assert_eq!(state.selected_text, Some("Hello".to_string()));
+
     // 4. Selection clear
     handle_selection_clear(&mut state);
     assert!(state.selection.is_none());

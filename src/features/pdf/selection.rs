@@ -367,6 +367,9 @@ pub fn handle_selection_drag_update(pdf_state: &mut crate::core::PdfState, pos: 
 }
 
 pub fn handle_selection_drag_end(pdf_state: &mut crate::core::PdfState) {
+    if !pdf_state.is_selecting {
+        return;
+    }
     pdf_state.is_selecting = false;
     if let Some(selection) = pdf_state.selection {
         if selection.is_collapsed() {

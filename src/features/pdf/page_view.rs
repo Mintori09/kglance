@@ -269,10 +269,10 @@ where
                 }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                let was_active = state.is_mouse_held || self.is_selecting;
+                let was_held = state.is_mouse_held;
                 state.is_mouse_held = false;
 
-                if was_active && let Some(ref on_end) = self.on_drag_end {
+                if was_held && let Some(ref on_end) = self.on_drag_end {
                     shell.publish(on_end());
                 }
             }
