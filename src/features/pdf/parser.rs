@@ -201,73 +201,7 @@ pub fn extract_page_text_from_doc(
 }
 
 pub fn sort_lines_reading_order(lines: &mut Vec<crate::features::pdf::selection::PdfLine>) {
-    if lines.len() <= 1 {
-        return;
-    }
-
-    lines.sort_by(|a, b| {
-        let y_a = a.rect[1].min(a.rect[3]);
-        let y_b = b.rect[1].min(b.rect[3]);
-        let x_a = a.rect[0].min(a.rect[2]);
-        let x_b = b.rect[0].min(b.rect[2]);
-        let diff_y = y_a - y_b;
-        if diff_y.abs() > 4.0 {
-            y_a.partial_cmp(&y_b).unwrap_or(std::cmp::Ordering::Equal)
-        } else {
-            x_a.partial_cmp(&x_b).unwrap_or(std::cmp::Ordering::Equal)
-        }
-    });
-
-    struct LineBand {
-        y0: f32,
-        y1: f32,
-        lines: Vec<crate::features::pdf::selection::PdfLine>,
-    }
-
-    let mut bands: Vec<LineBand> = Vec::new();
-
-    for line in lines.drain(..) {
-        let ly0 = line.rect[1].min(line.rect[3]);
-        let ly1 = line.rect[1].max(line.rect[3]);
-        let lh = (ly1 - ly0).max(4.0);
-
-        let mut matched_band = None;
-        for (idx, band) in bands.iter().enumerate() {
-            let bh = (band.y1 - band.y0).max(4.0);
-            let min_h = lh.min(bh);
-            let overlap_y = (band.y1.min(ly1) - band.y0.max(ly0)).max(0.0);
-            let y_diff = (ly0 - band.y0).abs();
-
-            if overlap_y >= 0.4 * min_h || y_diff <= 4.0 {
-                matched_band = Some(idx);
-                break;
-            }
-        }
-
-        if let Some(idx) = matched_band {
-            let band = &mut bands[idx];
-            band.y0 = band.y0.min(ly0);
-            band.y1 = band.y1.max(ly1);
-            band.lines.push(line);
-        } else {
-            bands.push(LineBand {
-                y0: ly0,
-                y1: ly1,
-                lines: vec![line],
-            });
-        }
-    }
-
-    bands.sort_by(|a, b| a.y0.partial_cmp(&b.y0).unwrap_or(std::cmp::Ordering::Equal));
-
-    for mut band in bands {
-        band.lines.sort_by(|a, b| {
-            let x_a = a.rect[0].min(a.rect[2]);
-            let x_b = b.rect[0].min(b.rect[2]);
-            x_a.partial_cmp(&x_b).unwrap_or(std::cmp::Ordering::Equal)
-        });
-        lines.extend(band.lines);
-    }
+    crate::features::pdf::layout::sort_lines_reading_order(lines);
 }
 
 pub fn extract_pdf_pages_text_batch(
