@@ -1,6 +1,6 @@
 use crate::app::Message;
 use crate::core::SpreadsheetState;
-use crate::features::csv::types::{ColumnMeta, ColumnType, SheetInfo};
+use crate::features::sheet::types::{ColumnMeta, ColumnType, SheetInfo};
 use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::theme::tokens::spacing;
 use crate::ui::theme::{

@@ -8,7 +8,6 @@ use iced::Size;
 
 pub use crate::core::scroll::SmoothScroller as SmoothScrollState;
 pub use crate::features::audio::AudioState;
-pub use crate::features::csv::{SheetInfo, SpreadsheetState};
 pub use crate::features::epub::{EpubChapterInfo, EpubState};
 pub use crate::features::folder::{
     FolderRowState, FolderState, SortField, SortState, sort_folder_rows,
@@ -19,6 +18,7 @@ pub use crate::features::markdown::{MarkdownState, SelectionPoint, SelectionRang
 pub use crate::features::pdf::{
     InsertResult, PageCache, PageCacheEntry, PdfSidebarMode, PdfState, ThumbnailCache,
 };
+pub use crate::features::sheet::{SheetInfo, SpreadsheetState};
 pub use crate::features::text::TextState;
 pub use crate::features::typst::TypstState;
 pub use crate::features::video::MediaState;

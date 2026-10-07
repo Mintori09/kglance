@@ -248,7 +248,7 @@ impl PreviewData {
                 sheets,
                 active_sheet,
             } => {
-                crate::features::csv::populate_state(state, sheets, *active_sheet);
+                crate::features::sheet::populate_state(state, sheets, *active_sheet);
             }
             PreviewData::Epub {
                 title,

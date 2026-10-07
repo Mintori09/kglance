@@ -4,8 +4,7 @@ use std::path::Path;
 
 use crate::features::common::parser::traits::{ParseError, PreviewParser};
 use crate::features::common::parser::types::ParsedContent;
-use crate::features::csv::types::{ColumnMeta, ColumnType};
-use crate::features::office::types::SheetData;
+use crate::features::sheet::types::{ColumnMeta, ColumnType, SheetData};
 
 const SAMPLE_SIZE_BYTES: usize = 8192;
 const MAX_PREVIEW_ROWS: usize = 100_000;

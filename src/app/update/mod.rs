@@ -385,22 +385,22 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
         },
         Message::Spreadsheet(msg) => match msg {
             crate::app::messages::SpreadsheetMsg::SheetTabClicked(idx) => {
-                crate::features::csv::update::handle_sheet_tab_clicked(app, idx)
+                crate::features::sheet::update::handle_sheet_tab_clicked(app, idx)
             }
             crate::app::messages::SpreadsheetMsg::ColumnClicked(col) => {
-                crate::features::csv::update::handle_column_clicked(app, col)
+                crate::features::sheet::update::handle_column_clicked(app, col)
             }
             crate::app::messages::SpreadsheetMsg::SearchQueryChanged(q) => {
-                crate::features::csv::update::handle_search_query_changed(app, q)
+                crate::features::sheet::update::handle_search_query_changed(app, q)
             }
             crate::app::messages::SpreadsheetMsg::SearchClosed => {
-                crate::features::csv::update::handle_search_closed(app)
+                crate::features::sheet::update::handle_search_closed(app)
             }
             crate::app::messages::SpreadsheetMsg::Scrolled(vp) => {
-                crate::features::csv::update::handle_spreadsheet_scrolled(app, vp)
+                crate::features::sheet::update::handle_spreadsheet_scrolled(app, vp)
             }
             crate::app::messages::SpreadsheetMsg::WheelScrolled(delta) => {
-                crate::features::csv::update::handle_wheel_scrolled(app, delta)
+                crate::features::sheet::update::handle_wheel_scrolled(app, delta)
             }
         },
         Message::Grid(msg) => match msg {
@@ -807,7 +807,7 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 }
             }
             Some(crate::core::PreviewData::Spreadsheet { .. }) => {
-                crate::features::csv::update::handle_smooth_scroll_tick(app, now)
+                crate::features::sheet::update::handle_smooth_scroll_tick(app, now)
             }
             _ => Task::none(),
         },

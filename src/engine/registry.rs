@@ -15,7 +15,7 @@ pub fn build_registry() -> ParserRegistry {
     r.register(Box::new(features::audio::parser::AudioParser));
     r.register(Box::new(features::video::parser::VideoParser));
     r.register(Box::new(features::epub::parser::EpubParser));
-    r.register(Box::new(features::csv::parser::CsvParser));
+    r.register(Box::new(features::sheet::parser::CsvParser));
     r.register(Box::new(features::office::parser::OfficeParser));
     r.register(Box::new(features::typst::parser::TypstParser));
     r
