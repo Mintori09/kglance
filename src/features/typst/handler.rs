@@ -70,7 +70,7 @@ async fn process_typst_thumbnail_loading(
     .ok()
     .flatten();
 
-    let Some((temp_pdf, _, _, _, _)) = compiled else {
+    let Some((temp_pdf, _, _, _, _, _)) = compiled else {
         return;
     };
 
@@ -112,7 +112,7 @@ async fn process_typst_page_loading(
     .ok()
     .flatten();
 
-    let Some((temp_pdf, _, _, _, _)) = compiled else {
+    let Some((temp_pdf, _, _, _, _, _)) = compiled else {
         let _ = output
             .send(crate::app::messages::TypstMsg::CompileError.into())
             .await;
@@ -128,12 +128,13 @@ async fn process_typst_page_loading(
         visible_page,
         generation_id,
         disk_cache,
-        |page_index, page_data| {
+        |page_index, page_data, page_text| {
             crate::app::messages::TypstMsg::PageReady(
                 page_index,
                 page_data.data,
                 page_data.width,
                 page_data.height,
+                page_text,
             )
             .into()
         },

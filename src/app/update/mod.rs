@@ -319,8 +319,8 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::PdfMsg::PagesLoaded(_) => {
                 crate::features::pdf::update::handle_pages_loaded(app)
             }
-            crate::app::messages::PdfMsg::PageReady(idx, d, w, h) => {
-                crate::features::pdf::update::handle_page_ready(app, idx, d, w, h)
+            crate::app::messages::PdfMsg::PageReady(idx, d, w, h, pt) => {
+                crate::features::pdf::update::handle_page_ready(app, idx, d, w, h, pt)
             }
             crate::app::messages::PdfMsg::ThumbReady(idx, d, w, h) => {
                 crate::features::pdf::update::handle_thumb_ready(app, idx, d, w, h)
@@ -343,6 +343,18 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::PdfMsg::WheelScrolled(delta) => {
                 crate::features::pdf::update::handle_wheel_scrolled(app, delta)
             }
+            crate::app::messages::PdfMsg::SelectionDragStart(pos) => {
+                crate::features::pdf::update::handle_selection_drag_start(app, pos)
+            }
+            crate::app::messages::PdfMsg::SelectionDragUpdate(pos) => {
+                crate::features::pdf::update::handle_selection_drag_update(app, pos)
+            }
+            crate::app::messages::PdfMsg::SelectionDragEnd => {
+                crate::features::pdf::update::handle_selection_drag_end(app)
+            }
+            crate::app::messages::PdfMsg::SelectionClear => {
+                crate::features::pdf::update::handle_selection_clear(app)
+            }
         },
         Message::Typst(msg) => match msg {
             crate::app::messages::TypstMsg::Scrolled(vp) => {
@@ -351,8 +363,8 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::TypstMsg::PagesLoaded => {
                 crate::features::typst::update::handle_pages_loaded(app)
             }
-            crate::app::messages::TypstMsg::PageReady(idx, d, w, h) => {
-                crate::features::typst::update::handle_page_ready(app, idx, d, w, h)
+            crate::app::messages::TypstMsg::PageReady(idx, d, w, h, pt) => {
+                crate::features::typst::update::handle_page_ready(app, idx, d, w, h, pt)
             }
             crate::app::messages::TypstMsg::CompileError => {
                 crate::features::typst::update::handle_compile_error(app)

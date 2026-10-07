@@ -94,30 +94,48 @@ impl KglanceApp {
     fn handle_ctrl_a(&mut self) -> Option<Task<Message>> {
         if let Some(viewer) = self.active_code_viewer_mut() {
             viewer.select_all();
-            Some(Task::none())
-        } else if matches!(
-            self.current_content,
-            Some(PreviewData::Markdown { .. }) | Some(PreviewData::Epub { .. })
-        ) {
-            Some(crate::features::markdown::update::handle_select_all(self))
-        } else {
-            None
+            return Some(Task::none());
+        }
+        match &self.current_content {
+            Some(PreviewData::Markdown { .. } | PreviewData::Epub { .. }) => {
+                Some(crate::features::markdown::update::handle_select_all(self))
+            }
+            Some(PreviewData::Pdf { .. }) => {
+                crate::features::pdf::update::handle_select_all(&mut self.state.pdf);
+                Some(Task::none())
+            }
+            Some(PreviewData::Typst { .. }) if !self.state.typst.show_source => {
+                crate::features::pdf::update::handle_select_all(&mut self.state.pdf);
+                Some(Task::none())
+            }
+            _ => None,
         }
     }
 
     fn handle_ctrl_copy(&mut self) -> Option<Task<Message>> {
-        let text = if let Some(viewer) = self.active_code_viewer() {
-            viewer.selected_text()
+        let (text, html) = if let Some(viewer) = self.active_code_viewer() {
+            (viewer.selected_text(), None)
         } else {
             match self.current_content {
                 Some(PreviewData::Json { .. }) if self.state.json.tree_mode => {
-                    self.state.json.active_node.and_then(|idx| {
+                    let txt = self.state.json.active_node.and_then(|idx| {
                         crate::features::json::parser::JsonParser::extract_subtree_json(
                             &self.state.json.nodes,
                             idx,
                         )
-                    })
+                    });
+                    (txt, None)
                 }
+
+                Some(PreviewData::Pdf { .. }) => (
+                    self.state.pdf.selected_text.clone(),
+                    self.state.pdf.selected_html.clone(),
+                ),
+
+                Some(PreviewData::Typst { .. }) if !self.state.typst.show_source => (
+                    self.state.pdf.selected_text.clone(),
+                    self.state.pdf.selected_html.clone(),
+                ),
 
                 Some(PreviewData::Markdown { .. } | PreviewData::Epub { .. }) => {
                     let previous = crate::features::markdown::update::active_markdown_state(self)
@@ -126,23 +144,28 @@ impl KglanceApp {
 
                     crate::features::markdown::update::update_selected_text_from_range(self);
 
-                    crate::features::markdown::update::active_markdown_state(self)
+                    let txt = crate::features::markdown::update::active_markdown_state(self)
                         .selected_text
                         .clone()
-                        .or(previous)
+                        .or(previous);
+                    (txt, None)
                 }
 
-                _ => None,
+                _ => (None, None),
             }
-        }?;
+        };
 
+        let text = text?;
         if text.is_empty() {
             return None;
         }
 
         let toast = self.show_toast("Copied selected!");
 
-        Some(Task::batch(vec![iced::clipboard::write(text), toast]))
+        Some(Task::batch(vec![
+            crate::core::clipboard::copy_to_clipboard(text, html),
+            toast,
+        ]))
     }
 
     fn handle_zoom_or_font(&mut self, direction: f32) -> Option<Task<Message>> {

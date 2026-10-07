@@ -21,8 +21,9 @@ pub fn handle_page_ready(
     data: Vec<u8>,
     width: u32,
     height: u32,
+    page_text: Option<crate::features::pdf::PdfPageText>,
 ) -> Task<Message> {
-    pdf::page_ready(&mut app.state.pdf, index, data, width, height);
+    pdf::page_ready(&mut app.state.pdf, index, data, width, height, page_text);
     Task::none()
 }
 

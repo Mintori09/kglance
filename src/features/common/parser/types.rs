@@ -32,6 +32,7 @@ pub enum ParsedContent {
         first_page: PageData,
         outline: Vec<PdfTocEntry>,
         page_dimensions: Vec<PageDimensions>,
+        first_page_text: Option<crate::features::pdf::PdfPageText>,
     },
     Typst {
         source: String,
@@ -40,6 +41,7 @@ pub enum ParsedContent {
         error: Option<String>,
         outline: Vec<PdfTocEntry>,
         page_dimensions: Vec<PageDimensions>,
+        first_page_text: Option<crate::features::pdf::PdfPageText>,
     },
     Archive {
         entries: Vec<ArchiveEntry>,

@@ -116,17 +116,186 @@ pub fn empty_mupdf_store() {
     }
 }
 
-pub fn render_pdf_pages_batch(
+pub fn extract_page_text_from_doc(
+    doc: &Document,
+    page_index: i32,
+) -> Option<crate::features::pdf::selection::PdfPageText> {
+    let page = doc.load_page(page_index).ok()?;
+    let text_page = page.to_text_page(mupdf::TextPageFlags::empty()).ok()?;
+    let structured = text_page.structured();
+    let mut lines = Vec::new();
+
+    for block in structured.blocks {
+        if let mupdf::TextBlockContent::Text { lines: block_lines } = block.content {
+            for line in block_lines {
+                let mut chars = Vec::with_capacity(line.chars.len());
+                let mut min_x = f32::MAX;
+                let mut max_x = f32::MIN;
+                let mut min_y = f32::MAX;
+                let mut max_y = f32::MIN;
+
+                for ch in line.chars {
+                    let r = mupdf::Rect::from(ch.quad);
+                    let cx0 = r.x0.min(r.x1);
+                    let cx1 = r.x0.max(r.x1);
+                    let cy0 = r.y0.min(r.y1);
+                    let cy1 = r.y0.max(r.y1);
+
+                    min_x = min_x.min(cx0);
+                    max_x = max_x.max(cx1);
+                    min_y = min_y.min(cy0);
+                    max_y = max_y.max(cy1);
+
+                    chars.push(crate::features::pdf::selection::PdfChar {
+                        ch: ch.ch,
+                        rect: [cx0, cy0, cx1, cy1],
+                    });
+                }
+
+                let (line_x0, line_x1) = (
+                    line.bounds.x0.min(line.bounds.x1),
+                    line.bounds.x0.max(line.bounds.x1),
+                );
+                let (line_y0, line_y1) = (
+                    line.bounds.y0.min(line.bounds.y1),
+                    line.bounds.y0.max(line.bounds.y1),
+                );
+
+                if min_x > max_x {
+                    min_x = line_x0;
+                    max_x = line_x1;
+                } else {
+                    min_x = min_x.min(line_x0);
+                    max_x = max_x.max(line_x1);
+                }
+
+                if min_y > max_y {
+                    min_y = line_y0;
+                    max_y = line_y1;
+                } else {
+                    min_y = min_y.min(line_y0);
+                    max_y = max_y.max(line_y1);
+                }
+
+                chars.sort_by(|a, b| {
+                    let a_x = a.rect[0].min(a.rect[2]);
+                    let b_x = b.rect[0].min(b.rect[2]);
+                    a_x.partial_cmp(&b_x).unwrap_or(std::cmp::Ordering::Equal)
+                });
+
+                lines.push(crate::features::pdf::selection::PdfLine {
+                    text: line.text,
+                    rect: [min_x, min_y, max_x, max_y],
+                    chars,
+                });
+            }
+        }
+    }
+
+    sort_lines_reading_order(&mut lines);
+
+    Some(crate::features::pdf::selection::PdfPageText {
+        page_index: page_index as usize,
+        lines,
+    })
+}
+
+pub fn sort_lines_reading_order(lines: &mut Vec<crate::features::pdf::selection::PdfLine>) {
+    if lines.len() <= 1 {
+        return;
+    }
+
+    lines.sort_by(|a, b| {
+        let y_a = a.rect[1].min(a.rect[3]);
+        let y_b = b.rect[1].min(b.rect[3]);
+        let x_a = a.rect[0].min(a.rect[2]);
+        let x_b = b.rect[0].min(b.rect[2]);
+        let diff_y = y_a - y_b;
+        if diff_y.abs() > 4.0 {
+            y_a.partial_cmp(&y_b).unwrap_or(std::cmp::Ordering::Equal)
+        } else {
+            x_a.partial_cmp(&x_b).unwrap_or(std::cmp::Ordering::Equal)
+        }
+    });
+
+    struct LineBand {
+        y0: f32,
+        y1: f32,
+        lines: Vec<crate::features::pdf::selection::PdfLine>,
+    }
+
+    let mut bands: Vec<LineBand> = Vec::new();
+
+    for line in lines.drain(..) {
+        let ly0 = line.rect[1].min(line.rect[3]);
+        let ly1 = line.rect[1].max(line.rect[3]);
+        let lh = (ly1 - ly0).max(4.0);
+
+        let mut matched_band = None;
+        for (idx, band) in bands.iter().enumerate() {
+            let bh = (band.y1 - band.y0).max(4.0);
+            let min_h = lh.min(bh);
+            let overlap_y = (band.y1.min(ly1) - band.y0.max(ly0)).max(0.0);
+            let y_diff = (ly0 - band.y0).abs();
+
+            if overlap_y >= 0.4 * min_h || y_diff <= 4.0 {
+                matched_band = Some(idx);
+                break;
+            }
+        }
+
+        if let Some(idx) = matched_band {
+            let band = &mut bands[idx];
+            band.y0 = band.y0.min(ly0);
+            band.y1 = band.y1.max(ly1);
+            band.lines.push(line);
+        } else {
+            bands.push(LineBand {
+                y0: ly0,
+                y1: ly1,
+                lines: vec![line],
+            });
+        }
+    }
+
+    bands.sort_by(|a, b| a.y0.partial_cmp(&b.y0).unwrap_or(std::cmp::Ordering::Equal));
+
+    for mut band in bands {
+        band.lines.sort_by(|a, b| {
+            let x_a = a.rect[0].min(a.rect[2]);
+            let x_b = b.rect[0].min(b.rect[2]);
+            x_a.partial_cmp(&x_b).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        lines.extend(band.lines);
+    }
+}
+
+pub fn extract_pdf_page_text(
+    path: &Path,
+    page_index: usize,
+) -> Option<crate::features::pdf::selection::PdfPageText> {
+    let resolved = resolve_document_path(path);
+    let doc = Document::open(resolved.as_ref()).ok()?;
+    let text = extract_page_text_from_doc(&doc, page_index as i32);
+    empty_mupdf_store();
+    text
+}
+
+pub fn render_pdf_pages_batch_with_text(
     path: &Path,
     pages: &[usize],
-) -> Vec<(usize, Result<PageData, ParseError>)> {
+) -> Vec<(
+    usize,
+    Result<PageData, ParseError>,
+    Option<crate::features::pdf::selection::PdfPageText>,
+)> {
     let resolved = resolve_document_path(path);
     let doc = match Document::open(resolved.as_ref()) {
         Ok(d) => d,
         Err(e) => {
             return pages
                 .iter()
-                .map(|&p| (p, Err(ParseError::ParseFailed(e.to_string()))))
+                .map(|&p| (p, Err(ParseError::ParseFailed(e.to_string())), None))
                 .collect();
         }
     };
@@ -135,11 +304,22 @@ pub fn render_pdf_pages_batch(
         .map(|&page_index| {
             let res = render_page(&doc, page_index as i32)
                 .map_err(|e| ParseError::ParseFailed(e.to_string()));
-            (page_index, res)
+            let text = extract_page_text_from_doc(&doc, page_index as i32);
+            (page_index, res, text)
         })
         .collect();
     empty_mupdf_store();
     res
+}
+
+pub fn render_pdf_pages_batch(
+    path: &Path,
+    pages: &[usize],
+) -> Vec<(usize, Result<PageData, ParseError>)> {
+    render_pdf_pages_batch_with_text(path, pages)
+        .into_iter()
+        .map(|(idx, res, _)| (idx, res))
+        .collect()
 }
 
 pub fn render_pdf_pages_batch_at_dpi(
@@ -247,26 +427,33 @@ impl PreviewParser for PdfParser {
         let outline = extract_pdf_toc(&doc);
         let page_dimensions = crate::features::pdf::dimensions::extract_page_dimensions(&doc)
             .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-        let first_page = if page_count > 0 {
+        let (first_page, first_page_text) = if page_count > 0 {
             let raw_page =
                 render_page(&doc, 0).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+            let text = extract_page_text_from_doc(&doc, 0);
             let compressed = crate::features::pdf::compress::compress_rgba_to_png(
                 &raw_page.data,
                 raw_page.width,
                 raw_page.height,
             )
             .unwrap_or(raw_page.data);
-            PageData {
-                width: raw_page.width,
-                height: raw_page.height,
-                data: compressed,
-            }
+            (
+                PageData {
+                    width: raw_page.width,
+                    height: raw_page.height,
+                    data: compressed,
+                },
+                text,
+            )
         } else {
-            PageData {
-                width: 0,
-                height: 0,
-                data: Vec::new(),
-            }
+            (
+                PageData {
+                    width: 0,
+                    height: 0,
+                    data: Vec::new(),
+                },
+                None,
+            )
         };
         empty_mupdf_store();
         Ok(ParsedContent::Pdf {
@@ -274,6 +461,7 @@ impl PreviewParser for PdfParser {
             first_page,
             outline,
             page_dimensions,
+            first_page_text,
         })
     }
 }
@@ -296,10 +484,40 @@ mod tests {
             Ok(ParsedContent::Pdf {
                 page_count,
                 first_page,
+                first_page_text,
                 ..
             }) => {
                 assert_eq!(page_count, 1);
                 assert!(first_page.width > 0);
+                assert!(first_page_text.is_some());
+                let text = first_page_text.unwrap();
+                assert!(!text.lines.is_empty());
+                assert!(text.lines[0].text.contains("Hello PDF!"));
+                assert!(!text.lines[0].chars.is_empty());
+                let first_char = &text.lines[0].chars[0];
+                assert_eq!(first_char.ch, 'H');
+                assert!(first_char.rect[2] > first_char.rect[0]); // x1 > x0
+                assert!(first_char.rect[3] > first_char.rect[1]); // y1 > y0
+
+                // Test selection computation
+                let sel = crate::features::pdf::selection::PdfSelection::new(
+                    crate::features::pdf::selection::PdfPosition {
+                        page: 0,
+                        line: 0,
+                        char_idx: 0,
+                    },
+                    crate::features::pdf::selection::PdfPosition {
+                        page: 0,
+                        line: 0,
+                        char_idx: 5,
+                    },
+                );
+                let rects = crate::features::pdf::selection::compute_selection_rects(
+                    &text, 0, &sel, 1.0, 100.0, 50.0,
+                );
+                assert_eq!(rects.len(), 1);
+                assert!(rects[0].width > 10.0);
+                assert!(rects[0].height > 10.0);
             }
             _ => panic!("Expected Pdf variant"),
         }
