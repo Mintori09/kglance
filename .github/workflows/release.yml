@@ -184,13 +184,22 @@ jobs:
             --plugin gstreamer \
             --output appimage
 
-          mv "${APP_ID}-${VERSION}-${{ matrix.appimg_arch }}.AppImage" \
-             "${BINARY}-${VERSION}-${{ matrix.appimg_arch }}.AppImage" 2>/dev/null \
-          || mv ./*.AppImage "${BINARY}-${VERSION}-${{ matrix.appimg_arch }}.AppImage"
+      - name: Build tarball archive
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ARCHIVE_DIR="kglance-${VERSION}-${{ matrix.arch }}-unknown-linux-gnu"
+          mkdir -p "${ARCHIVE_DIR}"
+          cp "target/release/${BINARY}" "${ARCHIVE_DIR}/"
+          cp "data/${APP_ID}.desktop" "${ARCHIVE_DIR}/"
+          cp "data/${APP_ID}-rust.desktop" "${ARCHIVE_DIR}/"
+          cp "data/${APP_ID}.svg" "${ARCHIVE_DIR}/"
+          cp "data/${APP_ID}.service" "${ARCHIVE_DIR}/"
+          cp "README.md" "LICENSE" "${ARCHIVE_DIR}/" 2>/dev/null || true
+          tar -czvf "${ARCHIVE_DIR}.tar.gz" "${ARCHIVE_DIR}"
 
       - name: Generate per-artifact checksums
         run: |
-          for f in *.deb *.rpm *.AppImage; do
+          for f in *.deb *.rpm *.AppImage *.tar.gz; do
             sha256sum "$f" > "${f}.sha256"
           done
 
@@ -202,6 +211,7 @@ jobs:
             *.deb
             *.rpm
             *.AppImage
+            *.tar.gz
             *.sha256
           if-no-files-found: error
           retention-days: 1
@@ -237,7 +247,7 @@ jobs:
       - name: Generate unified SHA256SUMS
         working-directory: dist
         run: |
-          sha256sum *.deb *.rpm *.AppImage | tee SHA256SUMS
+          sha256sum *.deb *.rpm *.AppImage *.tar.gz | tee SHA256SUMS
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
@@ -250,6 +260,7 @@ jobs:
             dist/*.deb
             dist/*.rpm
             dist/*.AppImage
+            dist/*.tar.gz
             dist/*.sha256
             dist/SHA256SUMS
         env:
