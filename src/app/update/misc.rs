@@ -4,9 +4,9 @@ use crate::features::markdown::update as markdown;
 use iced::Task;
 use url::Url;
 
-pub fn handle_copy_code(app: &mut KglanceApp, code: String) -> Task<Message> {
+pub fn handle_copy_text(app: &mut KglanceApp, text: String) -> Task<Message> {
     let toast = app.show_toast("Copied!");
-    Task::batch(vec![iced::clipboard::write(code), toast])
+    Task::batch(vec![iced::clipboard::write(text), toast])
 }
 
 pub fn handle_open_link(url: String) -> Task<Message> {

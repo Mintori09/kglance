@@ -25,7 +25,7 @@ pub fn view_typst<'a>(
                 )
                 .selection(state.source_text.selection)
                 .on_select(|sel| crate::app::messages::TypstMsg::SelectionChanged(sel).into())
-                .on_copy(|text| crate::app::messages::ActionMsg::CopyCode(text).into());
+                .on_copy(|text| crate::app::messages::ActionMsg::CopyText(text).into());
 
         let editor_pane = scroll_pane("typst_source_scroll", viewer)
             .filter_wheel(true)

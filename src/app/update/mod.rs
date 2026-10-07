@@ -38,8 +38,7 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::ActionMsg::CopyPathClicked => app.handle_copy_path(),
             crate::app::messages::ActionMsg::BackClicked => Task::none(),
             crate::app::messages::ActionMsg::CloseRequested => app.handle_close(),
-            crate::app::messages::ActionMsg::CopyContentClicked => Task::none(),
-            crate::app::messages::ActionMsg::CopyCode(code) => misc::handle_copy_code(app, code),
+            crate::app::messages::ActionMsg::CopyText(text) => misc::handle_copy_text(app, text),
         },
         Message::System(msg) => match msg {
             crate::app::messages::SystemMsg::WindowResized(width, height) => {
@@ -208,9 +207,6 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::TextMsg::AutoScrollTick => {
                 crate::features::text::update::handle_auto_scroll_tick(app)
-            }
-            crate::app::messages::TextMsg::CopyRequested(text) => {
-                crate::features::text::update::handle_copy_requested(app, text)
             }
             crate::app::messages::TextMsg::TokensReady(result) => {
                 crate::features::text::update::handle_tokens_ready(app, result)

@@ -209,7 +209,7 @@ pub fn render_raw<'a>(
                 state.raw_text.search_match_index,
             )
             .on_select(|sel| crate::app::messages::JsonMsg::RawSelectionChanged(sel).into())
-            .on_copy(|text| crate::app::messages::ActionMsg::CopyCode(text).into());
+            .on_copy(|text| crate::app::messages::ActionMsg::CopyText(text).into());
 
     scroll_pane("json_raw_scroll", viewer)
         .filter_wheel(true)
