@@ -17,18 +17,23 @@ pub(crate) fn build_epub_content<'a>(
     ctx: &RenderContext<'_>,
     max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
-    let chapter_blocks: &[crate::parsers::markdown::Block] = state
-        .chapters
-        .get(active_chapter)
-        .map(|ch| ch.blocks.as_slice())
-        .unwrap_or(&[]);
-
-    let chapter_offset: usize = state
-        .chapters
-        .iter()
-        .take(active_chapter)
-        .map(|ch| ch.blocks.len())
-        .sum();
+    let (chapter_blocks, chapter_offset): (&[crate::parsers::markdown::Block], usize) =
+        if state.reading_mode == crate::core::config::EpubReadingMode::Continuous {
+            (state.continuous_blocks.as_slice(), 0)
+        } else {
+            let blocks = state
+                .chapters
+                .get(active_chapter)
+                .map(|ch| ch.blocks.as_slice())
+                .unwrap_or(&[]);
+            let offset = state
+                .chapters
+                .iter()
+                .take(active_chapter)
+                .map(|ch| ch.blocks.len())
+                .sum();
+            (blocks, offset)
+        };
 
     let offsets = &state.markdown_state.block_y_offsets;
     let use_virtual =
@@ -132,6 +137,7 @@ pub(crate) fn build_epub_content<'a>(
     } else {
         chapter_blocks
             .iter()
+            .take(VIRTUAL_THRESHOLD)
             .enumerate()
             .map(|(i, block)| {
                 let global_index = chapter_offset + i;

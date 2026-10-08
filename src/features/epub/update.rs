@@ -6,10 +6,25 @@ use iced::widget::operation;
 pub fn handle_sidebar_toggled(app: &mut KglanceApp) -> Task<Message> {
     app.state.epub.sidebar_visible = !app.state.epub.sidebar_visible;
 
+    let content_width = app.state.epub_content_width();
+    let old_y = app.state.epub.markdown_state.scroll_y;
+
+    if app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
+        crate::features::markdown::recompute_markdown_layout(
+            &mut app.state.epub.markdown_state,
+            &app.state.epub.continuous_blocks,
+            app.state.font_size,
+            content_width,
+        );
+        app.state.epub.markdown_state.scroll_y = old_y;
+        return operation::scroll_to(
+            "content_scroll",
+            operation::AbsoluteOffset { x: 0.0, y: old_y },
+        );
+    }
+
     let idx = app.state.epub.active_chapter;
     if let Some(active_ch) = app.state.epub.chapters.get(idx) {
-        let content_width = app.state.epub_content_width();
-        let old_y = app.state.epub.markdown_state.scroll_y;
         crate::features::markdown::recompute_markdown_layout(
             &mut app.state.epub.markdown_state,
             &active_ch.blocks,
@@ -28,6 +43,9 @@ pub fn handle_sidebar_toggled(app: &mut KglanceApp) -> Task<Message> {
 }
 
 pub fn ensure_chapter_loaded(app: &mut KglanceApp, idx: usize) {
+    if app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
+        return;
+    }
     if idx < app.state.epub.chapters.len() {
         if app.state.epub.chapters[idx].blocks.is_empty() {
             let path_str = app.state.file_name.clone();
@@ -104,6 +122,61 @@ pub fn ensure_chapter_loaded(app: &mut KglanceApp, idx: usize) {
 
 pub fn handle_chapter_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message> {
     if idx < app.state.epub.chapters.len() {
+        if app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
+            app.state.epub.active_chapter = idx;
+            app.record_read_position();
+
+            let chapter = &app.state.epub.chapters[idx];
+            let start_block_idx = app
+                .state
+                .epub
+                .chapter_block_offsets
+                .get(idx)
+                .copied()
+                .unwrap_or(0);
+            let local_block_offset = crate::features::epub::parser::find_block_index(
+                &chapter.blocks,
+                chapter.anchor.as_deref(),
+                Some(&chapter.title),
+            )
+            .unwrap_or(0);
+            let target_block_idx = start_block_idx + local_block_offset;
+            let target_y = app
+                .state
+                .epub
+                .markdown_state
+                .block_y_offsets
+                .get(target_block_idx)
+                .copied()
+                .unwrap_or(0.0);
+
+            let max_y = crate::core::scroll::max_scroll_y(
+                app.state.epub.markdown_state.total_content_height,
+                app.state.epub.markdown_state.viewport_height,
+            );
+            let clamped_y = if max_y > 0.0 {
+                target_y.clamp(0.0, max_y)
+            } else {
+                target_y
+            };
+
+            app.state.epub.markdown_state.scroll_y = clamped_y;
+            app.state
+                .epub
+                .markdown_state
+                .scroll_controller
+                .stop(clamped_y);
+            app.state.epub.markdown_state.smooth_scroll.stop(clamped_y);
+
+            return operation::scroll_to(
+                "content_scroll",
+                operation::AbsoluteOffset {
+                    x: 0.0,
+                    y: clamped_y,
+                },
+            );
+        }
+
         ensure_chapter_loaded(app, idx);
         app.record_read_position();
 
@@ -500,5 +573,131 @@ mod tests {
         assert_eq!(app.state.epub.markdown_state.scroll_y, 0.0);
 
         let _ = std::fs::remove_file(test_epub_path);
+    }
+
+    #[test]
+    fn test_continuous_mode_navigation_and_scroll() {
+        let chapters = vec![
+            crate::core::types::EpubChapterInfo {
+                title: "Chapter 1".to_string(),
+                level: 1,
+                anchor: None,
+                file_href: "ch1.xhtml".to_string(),
+                blocks: vec![crate::parsers::markdown::Block::Paragraph(vec![
+                    crate::parsers::markdown::Inline::Text("Chapter 1 text content".to_string()),
+                ])],
+            },
+            crate::core::types::EpubChapterInfo {
+                title: "Chapter 2".to_string(),
+                level: 1,
+                anchor: None,
+                file_href: "ch2.xhtml".to_string(),
+                blocks: vec![crate::parsers::markdown::Block::Paragraph(vec![
+                    crate::parsers::markdown::Inline::Text("Chapter 2 text content".to_string()),
+                ])],
+            },
+        ];
+
+        let mut app = test_app(Some(crate::core::PreviewData::Epub {
+            title: "Test Continuous".to_string(),
+            author: "Author".to_string(),
+            chapters: chapters.clone(),
+            active_chapter: 0,
+            images: std::collections::HashMap::new(),
+        }));
+        app.state.epub_reading_mode = crate::core::config::EpubReadingMode::Continuous;
+        app.state.epub.reading_mode = crate::core::config::EpubReadingMode::Continuous;
+        crate::features::epub::state::populate_state(
+            &mut app.state,
+            "Test Continuous",
+            "Author",
+            &chapters,
+            0,
+            &std::collections::HashMap::new(),
+        );
+
+        assert_eq!(
+            app.state.epub.reading_mode,
+            crate::core::config::EpubReadingMode::Continuous
+        );
+        assert_eq!(app.state.epub.chapter_block_offsets.len(), 2);
+        assert!(!app.state.epub.continuous_blocks.is_empty());
+
+        // Click chapter 2 (index 1)
+        let _ = handle_chapter_clicked(&mut app, 1);
+        assert_eq!(app.state.epub.active_chapter, 1);
+        let ch2_offset = app.state.epub.chapter_block_offsets[1];
+        let expected_y = app.state.epub.markdown_state.block_y_offsets[ch2_offset];
+        assert_eq!(app.state.epub.markdown_state.scroll_y, expected_y);
+
+        // Click back to chapter 1 (index 0)
+        let _ = handle_chapter_clicked(&mut app, 0);
+        assert_eq!(app.state.epub.active_chapter, 0);
+        assert_eq!(app.state.epub.markdown_state.scroll_y, 0.0);
+    }
+
+    #[test]
+    fn test_restore_read_position_in_continuous_mode() {
+        let chapters = vec![
+            crate::core::types::EpubChapterInfo {
+                title: "Chapter 1".to_string(),
+                level: 1,
+                anchor: None,
+                file_href: "ch1.xhtml".to_string(),
+                blocks: vec![crate::parsers::markdown::Block::Paragraph(vec![
+                    crate::parsers::markdown::Inline::Text("Chapter 1 text content".to_string()),
+                ])],
+            },
+            crate::core::types::EpubChapterInfo {
+                title: "Chapter 2".to_string(),
+                level: 1,
+                anchor: None,
+                file_href: "ch2.xhtml".to_string(),
+                blocks: vec![crate::parsers::markdown::Block::Paragraph(vec![
+                    crate::parsers::markdown::Inline::Text("Chapter 2 text content".to_string()),
+                ])],
+            },
+        ];
+
+        let path_str = "/fake/book.epub";
+        let mut app = test_app(Some(crate::core::PreviewData::Epub {
+            title: "Test Continuous".to_string(),
+            author: "Author".to_string(),
+            chapters: chapters.clone(),
+            active_chapter: 0,
+            images: std::collections::HashMap::new(),
+        }));
+        app.state.file_name = path_str.to_string();
+        app.state.epub_reading_mode = crate::core::config::EpubReadingMode::Continuous;
+        crate::features::epub::state::populate_state(
+            &mut app.state,
+            "Test Continuous",
+            "Author",
+            &chapters,
+            0,
+            &std::collections::HashMap::new(),
+        );
+
+        let ch2_offset = app.state.epub.chapter_block_offsets[1];
+        let target_y = app.state.epub.markdown_state.block_y_offsets[ch2_offset];
+
+        // Save position at chapter 2's target_y
+        app.state.read_positions.insert(
+            path_str.to_string(),
+            crate::core::ReadPosition {
+                scroll_y: target_y,
+                chapter: 1,
+            },
+        );
+
+        // Reset scroll_y to 0
+        app.state.epub.markdown_state.scroll_y = 0.0;
+        app.state.epub.active_chapter = 0;
+
+        // Restore read position
+        let _ = app.restore_read_position_for(path_str);
+
+        assert_eq!(app.state.epub.markdown_state.scroll_y, target_y);
+        assert_eq!(app.state.epub.active_chapter, 1);
     }
 }
