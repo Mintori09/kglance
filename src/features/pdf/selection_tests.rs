@@ -742,3 +742,36 @@ fn test_inspect_test_2col_file() {
         "All left column lines must precede right column"
     );
 }
+
+#[test]
+fn test_sort_lines_reading_order_total_order_stability() {
+    let mut lines = Vec::new();
+    for i in 0..100 {
+        let y = (i as f32) * 1.5;
+        let x = if i % 2 == 0 { 200.0 } else { 50.0 };
+        lines.push(PdfLine {
+            text: format!("Line {i}"),
+            rect: [x, y, x + 100.0, y + 10.0],
+            chars: vec![],
+        });
+    }
+
+    crate::features::pdf::parser::sort_lines_reading_order(&mut lines);
+    assert_eq!(lines.len(), 100);
+}
+
+#[test]
+fn test_rich_text_clustering_total_order_stability() {
+    let mut fragments = Vec::new();
+    for i in 0..100 {
+        let y = (i as f32) * 1.5;
+        let x = if i % 2 == 0 { 200.0 } else { 50.0 };
+        fragments.push(crate::features::pdf::rich_text::SelectedFragment {
+            text: format!("Frag {i}"),
+            rect: [x, y, x + 50.0, y + 10.0],
+        });
+    }
+
+    let rows = crate::features::pdf::rich_text::cluster_fragments_into_rows(fragments);
+    assert!(!rows.is_empty());
+}
