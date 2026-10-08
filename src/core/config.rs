@@ -4,6 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 
 pub const DEFAULT_CACHE_MAX_MEMORY_MB: usize = 512;
+pub const DEFAULT_CACHE_MAX_DISK_MB: usize = 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct UiConfig {
@@ -98,16 +99,23 @@ fn default_cache_max_memory_mb() -> usize {
     DEFAULT_CACHE_MAX_MEMORY_MB
 }
 
+fn default_cache_max_disk_mb() -> usize {
+    DEFAULT_CACHE_MAX_DISK_MB
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CacheConfig {
     #[serde(default = "default_cache_max_memory_mb")]
     pub max_memory_mb: usize,
+    #[serde(default = "default_cache_max_disk_mb")]
+    pub max_disk_cache_mb: usize,
 }
 
 impl Default for CacheConfig {
     fn default() -> Self {
         Self {
             max_memory_mb: DEFAULT_CACHE_MAX_MEMORY_MB,
+            max_disk_cache_mb: DEFAULT_CACHE_MAX_DISK_MB,
         }
     }
 }

@@ -146,6 +146,11 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let config = kglance::core::config::ConfigManager::load_or_create();
+    let max_disk_bytes = (config.cache.max_disk_cache_mb as u64) * 1024 * 1024;
+    std::thread::spawn(move || {
+        let _ = kglance::core::disk_cache::prune_to_budget(max_disk_bytes);
+    });
+
     let default_font = config
         .ui
         .font_family

@@ -273,7 +273,8 @@ The config file is auto-created with defaults on first run. See `data/examples/c
     "json_tree_view": true
   },
   "cache": {
-    "max_memory_mb": 512
+    "max_memory_mb": 512,
+    "max_disk_cache_mb": 1024
   },
   "scroll": {
     "smooth_scroll_enabled": true,
