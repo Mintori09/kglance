@@ -355,6 +355,9 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::PdfMsg::SelectionClear => {
                 crate::features::pdf::update::handle_selection_clear(app)
             }
+            crate::app::messages::PdfMsg::AutoScrollTick => {
+                crate::features::pdf::update::handle_auto_scroll_tick(app)
+            }
         },
         Message::Typst(msg) => match msg {
             crate::app::messages::TypstMsg::Scrolled(vp) => {
