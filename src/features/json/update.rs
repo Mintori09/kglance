@@ -425,7 +425,10 @@ pub fn handle_copy_path(app: &mut KglanceApp, index: usize) -> Task<Message> {
     let path =
         crate::features::json::view::components::build_json_path(&app.state.json.nodes, index);
     let toast = app.show_toast("Copied JSON Path!");
-    Task::batch(vec![iced::clipboard::write(path), toast])
+    Task::batch(vec![
+        crate::core::clipboard::copy_to_clipboard(path, None),
+        toast,
+    ])
 }
 
 pub fn handle_copy_value(app: &mut KglanceApp, index: usize) -> Task<Message> {
@@ -437,7 +440,10 @@ pub fn handle_copy_value(app: &mut KglanceApp, index: usize) -> Task<Message> {
         .map(|n| n.value_preview.clone())
         .unwrap_or_default();
     let toast = app.show_toast("Copied value!");
-    Task::batch(vec![iced::clipboard::write(val), toast])
+    Task::batch(vec![
+        crate::core::clipboard::copy_to_clipboard(val, None),
+        toast,
+    ])
 }
 
 pub fn handle_copy_key(app: &mut KglanceApp, index: usize) -> Task<Message> {
@@ -452,7 +458,10 @@ pub fn handle_copy_key(app: &mut KglanceApp, index: usize) -> Task<Message> {
         return Task::none();
     }
     let toast = app.show_toast("Copied Key!");
-    Task::batch(vec![iced::clipboard::write(key), toast])
+    Task::batch(vec![
+        crate::core::clipboard::copy_to_clipboard(key, None),
+        toast,
+    ])
 }
 
 pub fn handle_copy_subtree(app: &mut KglanceApp, index: usize) -> Task<Message> {
@@ -465,7 +474,10 @@ pub fn handle_copy_subtree(app: &mut KglanceApp, index: usize) -> Task<Message> 
         return Task::none();
     }
     let toast = app.show_toast("Copied JSON subtree!");
-    Task::batch(vec![iced::clipboard::write(json_text), toast])
+    Task::batch(vec![
+        crate::core::clipboard::copy_to_clipboard(json_text, None),
+        toast,
+    ])
 }
 
 pub fn handle_node_clicked(app: &mut KglanceApp, index: usize) -> Task<Message> {

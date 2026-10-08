@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use iced::window::{self, Event as WindowEvent, Mode, Settings as WindowSettings};
-use iced::{Size, Task, clipboard};
+use iced::{Size, Task};
 
 use super::KglanceApp;
 use super::Message;
@@ -94,7 +94,8 @@ impl KglanceApp {
     }
 
     pub fn handle_copy_path(&mut self) -> Task<Message> {
-        let copy_task = clipboard::write(self.state.file_name.clone());
+        let copy_task =
+            crate::core::clipboard::copy_to_clipboard(self.state.file_name.clone(), None);
         let toast_task = self.show_toast("Copied!");
 
         Task::batch(vec![copy_task, toast_task])

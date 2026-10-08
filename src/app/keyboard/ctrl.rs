@@ -10,7 +10,7 @@ impl KglanceApp {
         key: &iced::keyboard::Key,
         modifiers: iced::keyboard::Modifiers,
     ) -> Option<Task<Message>> {
-        if !modifiers.control() {
+        if !(modifiers.control() || modifiers.command() || self.ctrl_held) {
             return None;
         }
         let c = match key {
@@ -19,17 +19,19 @@ impl KglanceApp {
         };
 
         match c {
-            "c" | "C" => self.handle_ctrl_copy(),
+            "c" | "C" | "\u{3}" => self.handle_ctrl_copy(),
             "," => self.handle_toggle_settings(),
-            "a" | "A" => self.handle_ctrl_a(),
-            "t" => self.handle_toggle_theme(),
+            "a" | "A" | "\u{1}" => self.handle_ctrl_a(),
+            "t" | "T" | "\u{14}" => self.handle_toggle_theme(),
             "+" | "=" => self.handle_zoom_or_font(1.0),
             "-" => self.handle_zoom_or_font(-1.0),
             "0" => crate::features::image::update::handle_image_reset(self),
-            "f" | "F" => self.handle_ctrl_f(),
-            "g" | "G" => self.handle_ctrl_g(),
-            "e" | "E" | "i" | "I" | "P" => self.handle_json_shortcut(c),
-            "w" | "W" => crate::features::text::update::handle_toggle_word_wrap(self),
+            "f" | "F" | "\u{6}" => self.handle_ctrl_f(),
+            "g" | "G" | "\u{7}" => self.handle_ctrl_g(),
+            "e" | "E" | "\u{5}" | "i" | "I" | "\t" | "P" | "p" | "\u{10}" => {
+                self.handle_json_shortcut(c)
+            }
+            "w" | "W" | "\u{17}" => crate::features::text::update::handle_toggle_word_wrap(self),
             _ => None,
         }
     }
@@ -40,9 +42,9 @@ impl KglanceApp {
         }
 
         let message = match key {
-            "e" => crate::app::messages::JsonMsg::ExpandAll,
+            "e" | "\u{5}" => crate::app::messages::JsonMsg::ExpandAll,
             "E" => crate::app::messages::JsonMsg::CollapseAll,
-            "P" => crate::app::messages::JsonMsg::ToggleFormat,
+            "P" | "p" | "\u{10}" => crate::app::messages::JsonMsg::ToggleFormat,
             _ => return None,
         };
 
@@ -131,7 +133,7 @@ impl KglanceApp {
         }
     }
 
-    fn handle_ctrl_copy(&mut self) -> Option<Task<Message>> {
+    pub(super) fn handle_ctrl_copy(&mut self) -> Option<Task<Message>> {
         let (text, html) = if let Some(viewer) = self.active_code_viewer() {
             (viewer.selected_text(), None)
         } else {
