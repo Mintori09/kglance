@@ -115,8 +115,7 @@ pub fn get_or_compile_office_to_pdf(path: &Path) -> Result<PathBuf, ParseError> 
     }
 
     crate::core::disk_cache::create_cached_file("office", path, "pdf", |temp_target| {
-        convert_via_libreoffice(path, temp_target)
-            .map_err(|e| std::io::Error::other(e.to_string()))
+        convert_via_libreoffice(path, temp_target).map_err(|e| std::io::Error::other(e.to_string()))
     })
     .map_err(|e| ParseError::ParseFailed(e.to_string()))
 }
