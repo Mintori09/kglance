@@ -129,19 +129,12 @@ pub fn extract_selected_content(
     (plain_opt, html_opt)
 }
 
-fn cluster_fragments_into_rows(mut fragments: Vec<SelectedFragment>) -> Vec<VisualRow> {
+pub(crate) fn cluster_fragments_into_rows(mut fragments: Vec<SelectedFragment>) -> Vec<VisualRow> {
     // Sort primarily by top Y, tie-breaking by left X
     fragments.sort_by(|a, b| {
-        let diff_y = a.rect[1] - b.rect[1];
-        if diff_y.abs() > 4.0 {
-            a.rect[1]
-                .partial_cmp(&b.rect[1])
-                .unwrap_or(std::cmp::Ordering::Equal)
-        } else {
-            a.rect[0]
-                .partial_cmp(&b.rect[0])
-                .unwrap_or(std::cmp::Ordering::Equal)
-        }
+        a.rect[1]
+            .total_cmp(&b.rect[1])
+            .then_with(|| a.rect[0].total_cmp(&b.rect[0]))
     });
 
     let mut rows: Vec<VisualRow> = Vec::new();
@@ -175,11 +168,7 @@ fn cluster_fragments_into_rows(mut fragments: Vec<SelectedFragment>) -> Vec<Visu
         if let Some(idx) = target_row_idx {
             let row = &mut rows[idx];
             row.cells.push(frag);
-            row.cells.sort_by(|a, b| {
-                a.rect[0]
-                    .partial_cmp(&b.rect[0])
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
+            row.cells.sort_by(|a, b| a.rect[0].total_cmp(&b.rect[0]));
         } else {
             rows.push(VisualRow { cells: vec![frag] });
         }
@@ -189,7 +178,7 @@ fn cluster_fragments_into_rows(mut fragments: Vec<SelectedFragment>) -> Vec<Visu
     rows.sort_by(|a, b| {
         let a_y = a.cells.iter().map(|c| c.rect[1]).fold(f32::MAX, f32::min);
         let b_y = b.cells.iter().map(|c| c.rect[1]).fold(f32::MAX, f32::min);
-        a_y.partial_cmp(&b_y).unwrap_or(std::cmp::Ordering::Equal)
+        a_y.total_cmp(&b_y)
     });
 
     rows

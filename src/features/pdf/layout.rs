@@ -24,14 +24,11 @@ pub fn sort_lines_single_column(lines: &mut Vec<PdfLine>) {
     lines.sort_by(|a, b| {
         let y_a = a.rect[1].min(a.rect[3]);
         let y_b = b.rect[1].min(b.rect[3]);
-        let x_a = a.rect[0].min(a.rect[2]);
-        let x_b = b.rect[0].min(b.rect[2]);
-        let diff_y = y_a - y_b;
-        if diff_y.abs() > 4.0 {
-            y_a.partial_cmp(&y_b).unwrap_or(std::cmp::Ordering::Equal)
-        } else {
-            x_a.partial_cmp(&x_b).unwrap_or(std::cmp::Ordering::Equal)
-        }
+        y_a.total_cmp(&y_b).then_with(|| {
+            let x_a = a.rect[0].min(a.rect[2]);
+            let x_b = b.rect[0].min(b.rect[2]);
+            x_a.total_cmp(&x_b)
+        })
     });
 
     struct LineBand {
@@ -74,13 +71,13 @@ pub fn sort_lines_single_column(lines: &mut Vec<PdfLine>) {
         }
     }
 
-    bands.sort_by(|a, b| a.y0.partial_cmp(&b.y0).unwrap_or(std::cmp::Ordering::Equal));
+    bands.sort_by(|a, b| a.y0.total_cmp(&b.y0));
 
     for mut band in bands {
         band.lines.sort_by(|a, b| {
             let x_a = a.rect[0].min(a.rect[2]);
             let x_b = b.rect[0].min(b.rect[2]);
-            x_a.partial_cmp(&x_b).unwrap_or(std::cmp::Ordering::Equal)
+            x_a.total_cmp(&x_b)
         });
         lines.extend(band.lines);
     }
@@ -114,7 +111,7 @@ fn try_sort_multi_column(lines: &[PdfLine]) -> Option<Vec<PdfLine>> {
         .flat_map(|l| [l.rect[0].min(l.rect[2]), l.rect[0].max(l.rect[2])])
         .filter(|&x| x >= search_start && x <= search_end)
         .collect();
-    x_boundaries.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    x_boundaries.sort_by(f32::total_cmp);
     x_boundaries.dedup();
 
     #[derive(Clone, Copy)]
@@ -190,11 +187,7 @@ fn try_sort_multi_column(lines: &[PdfLine]) -> Option<Vec<PdfLine>> {
         return None;
     }
 
-    candidate_gutters.sort_by(|a, b| {
-        a.g_left
-            .partial_cmp(&b.g_left)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    candidate_gutters.sort_by(|a, b| a.g_left.total_cmp(&b.g_left));
     let mut selected_gutters: Vec<CandidateGutter> = Vec::new();
     for &cand in &candidate_gutters {
         if let Some(prev) = selected_gutters.last()
@@ -223,7 +216,7 @@ fn try_sort_multi_column(lines: &[PdfLine]) -> Option<Vec<PdfLine>> {
         }
     }
 
-    crossing_y_ranges.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    crossing_y_ranges.sort_by(|a, b| a.0.total_cmp(&b.0));
 
     let mut merged_crossing: Vec<(f32, f32)> = Vec::new();
     for r in crossing_y_ranges {

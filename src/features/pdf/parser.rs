@@ -180,7 +180,7 @@ pub fn extract_page_text_from_doc(
                 chars.sort_by(|a, b| {
                     let a_x = a.rect[0].min(a.rect[2]);
                     let b_x = b.rect[0].min(b.rect[2]);
-                    a_x.partial_cmp(&b_x).unwrap_or(std::cmp::Ordering::Equal)
+                    a_x.total_cmp(&b_x)
                 });
 
                 lines.push(crate::features::pdf::selection::PdfLine {
