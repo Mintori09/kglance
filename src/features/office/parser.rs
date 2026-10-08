@@ -93,26 +93,8 @@ fn convert_via_libreoffice(input_path: &Path, output_pdf_path: &Path) -> Result<
 }
 
 pub fn get_or_compile_office_to_pdf(path: &Path) -> Result<PathBuf, ParseError> {
-    let metadata = std::fs::metadata(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-    let mtime = metadata
-        .modified()
-        .ok()
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let size = metadata.len();
-    let hash_input = format!("{}:{mtime}:{size}", path.to_string_lossy());
-    let hash = format!("{:x}", md5::compute(hash_input.as_bytes()));
-    let cache_dir = std::env::temp_dir().join("kglance_office");
-    let _ = std::fs::create_dir_all(&cache_dir);
-    let cache_pdf = cache_dir.join(format!("{hash}.pdf"));
-
-    if cache_pdf.exists()
-        && std::fs::metadata(&cache_pdf)
-            .map(|m| m.len() > 0)
-            .unwrap_or(false)
-    {
-        return Ok(cache_pdf);
+    if let Some(cached_pdf) = crate::core::disk_cache::get_cached_path("office", path, "pdf") {
+        return Ok(cached_pdf);
     }
 
     let ext = path
@@ -121,12 +103,22 @@ pub fn get_or_compile_office_to_pdf(path: &Path) -> Result<PathBuf, ParseError> 
         .unwrap_or("")
         .to_lowercase();
 
-    if ext == "docx" && docxide_pdf::convert_docx_to_pdf(path, &cache_pdf).is_ok() {
-        return Ok(cache_pdf);
+    if ext == "docx" {
+        let result =
+            crate::core::disk_cache::create_cached_file("office", path, "pdf", |temp_target| {
+                docxide_pdf::convert_docx_to_pdf(path, temp_target)
+                    .map_err(|e| std::io::Error::other(e.to_string()))
+            });
+        if let Ok(cached_pdf) = result {
+            return Ok(cached_pdf);
+        }
     }
 
-    convert_via_libreoffice(path, &cache_pdf)?;
-    Ok(cache_pdf)
+    crate::core::disk_cache::create_cached_file("office", path, "pdf", |temp_target| {
+        convert_via_libreoffice(path, temp_target)
+            .map_err(|e| std::io::Error::other(e.to_string()))
+    })
+    .map_err(|e| ParseError::ParseFailed(e.to_string()))
 }
 
 pub fn get_or_compile_docx_to_pdf(docx_path: &Path) -> Result<PathBuf, ParseError> {
@@ -286,5 +278,28 @@ mod tests {
         let parser = OfficeParser;
         let result = parser.parse(Path::new("/nonexistent/invalid_file.docx"));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_office_parser_returns_cached_pdf_if_present() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let cache_dir = tempfile::tempdir().unwrap();
+        unsafe {
+            std::env::set_var("KGLANCE_CACHE_DIR", cache_dir.path().to_str().unwrap());
+        }
+
+        let doc_path = temp_dir.path().join("test_presentation.pptx");
+        std::fs::write(&doc_path, b"fake pptx content").unwrap();
+
+        let fake_pdf = crate::core::disk_cache::put_bytes(
+            "office",
+            &doc_path,
+            "pdf",
+            b"%PDF-1.4 fake converted pdf content",
+        )
+        .unwrap();
+
+        let res = get_or_compile_office_to_pdf(&doc_path).expect("should hit cache");
+        assert_eq!(res, fake_pdf);
     }
 }
