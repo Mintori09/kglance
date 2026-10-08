@@ -12,11 +12,11 @@ impl PreviewParser for SvgParser {
     }
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
-        let svg_data =
-            std::fs::read_to_string(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        let mmap = crate::core::MmapFile::open(path)
+            .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
         let opt = resvg::usvg::Options::default();
-        let rtree = resvg::usvg::Tree::from_str(&svg_data, &opt)
+        let rtree = resvg::usvg::Tree::from_data(mmap.as_bytes(), &opt)
             .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
         let pixmap_size = rtree.size().to_int_size();

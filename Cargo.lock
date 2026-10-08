@@ -3214,6 +3214,7 @@ dependencies = [
  "lru 0.18.4",
  "md5",
  "memchr",
+ "memmap2",
  "mermaid-rs-renderer",
  "mupdf",
  "notify",

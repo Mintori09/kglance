@@ -52,8 +52,13 @@ impl PreviewParser for MarkdownParser {
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
         let parent = path.parent().unwrap_or(Path::new("."));
-        let raw =
-            std::fs::read_to_string(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        let mmap = crate::core::MmapFile::open(path)
+            .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+
+        let raw = mmap
+            .as_str()
+            .map_err(|e| ParseError::ParseFailed(format!("Invalid UTF-8: {e}")))?
+            .to_string();
 
         let (blocks, images) = handle::parse_markdown(&raw, parent);
 
