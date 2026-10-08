@@ -390,11 +390,23 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::SpreadsheetMsg::ColumnClicked(col) => {
                 crate::features::sheet::update::handle_column_clicked(app, col)
             }
-            crate::app::messages::SpreadsheetMsg::CellClicked { row, col } => {
-                crate::features::sheet::update::handle_cell_clicked(app, row, col)
+            crate::app::messages::SpreadsheetMsg::CellPressed { row, col } => {
+                crate::features::sheet::update::handle_cell_pressed(app, row, col)
             }
-            crate::app::messages::SpreadsheetMsg::RowHeaderClicked(row) => {
-                crate::features::sheet::update::handle_row_header_clicked(app, row)
+            crate::app::messages::SpreadsheetMsg::CellEntered { row, col } => {
+                crate::features::sheet::update::handle_cell_entered(app, row, col)
+            }
+            crate::app::messages::SpreadsheetMsg::CellReleased => {
+                crate::features::sheet::update::handle_cell_released(app)
+            }
+            crate::app::messages::SpreadsheetMsg::RowHeaderPressed(row) => {
+                crate::features::sheet::update::handle_row_header_pressed(app, row)
+            }
+            crate::app::messages::SpreadsheetMsg::RowHeaderEntered(row) => {
+                crate::features::sheet::update::handle_row_header_entered(app, row)
+            }
+            crate::app::messages::SpreadsheetMsg::AutoScrollTick => {
+                crate::features::sheet::update::handle_auto_scroll_tick(app)
             }
             crate::app::messages::SpreadsheetMsg::CopySelection => {
                 crate::features::sheet::update::handle_copy_selection(app)

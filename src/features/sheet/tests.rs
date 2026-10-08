@@ -5,10 +5,12 @@ use crate::features::common::parser::types::ParsedContent;
 use crate::features::sheet::parser::{
     CsvParser, column_index_to_letter, infer_column_types_and_widths, sniff_delimiter,
 };
-use crate::features::sheet::types::{ColumnMeta, ColumnType, SheetInfo};
+use crate::features::sheet::types::{CellCoord, CellRange, ColumnMeta, ColumnType, SheetInfo};
 use crate::features::sheet::update::{
-    compute_prefix_widths, handle_sheet_tab_clicked, handle_smooth_scroll_tick,
-    handle_wheel_scrolled, populate_state, recompute_display_indices,
+    compute_prefix_widths, handle_auto_scroll_tick, handle_cell_entered, handle_cell_pressed,
+    handle_cell_released, handle_row_header_entered, handle_row_header_pressed,
+    handle_sheet_tab_clicked, handle_smooth_scroll_tick, handle_wheel_scrolled, populate_state,
+    recompute_display_indices,
 };
 use crate::features::sheet::view::{
     COL_SPACING, ROW_HEIGHT, ROW_STEP, ROWS_LIST_SPACING, compute_csv_column_window,
@@ -562,4 +564,161 @@ fn test_compute_csv_column_window_invariance() {
             "Width mismatch at scroll_x {scroll_x}: sum {sum_width} vs expected {total_width}"
         );
     }
+}
+
+#[test]
+fn test_cell_drag_selection_and_clipboard_text() {
+    let mut app = KglanceApp::default();
+    let headers = vec!["A".to_string(), "B".to_string(), "C".to_string()];
+    let rows = vec![
+        vec![
+            "Alice".to_string(),
+            "30".to_string(),
+            "Developer".to_string(),
+        ],
+        vec!["Bob".to_string(), "25".to_string(), "Designer".to_string()],
+        vec![
+            "Charlie".to_string(),
+            "35".to_string(),
+            "Manager".to_string(),
+        ],
+    ];
+    let columns = infer_column_types_and_widths(&headers, &rows);
+    let sheet = SheetInfo {
+        name: "TestDrag".to_string(),
+        headers,
+        rows,
+        columns,
+    };
+    populate_state(&mut app.state, &[sheet], 0);
+
+    // 1. Mouse down on row 0, col 1 (Age: 30)
+    let _ = handle_cell_pressed(&mut app, 0, 1);
+    assert!(app.state.spreadsheet.is_dragging);
+    assert_eq!(
+        app.state.spreadsheet.selection,
+        Some(CellRange {
+            start: CellCoord { row: 0, col: 1 },
+            end: CellCoord { row: 0, col: 1 },
+        })
+    );
+
+    // 2. Drag to row 1, col 2 (Role: Designer)
+    let _ = handle_cell_entered(&mut app, 1, 2);
+    assert_eq!(
+        app.state.spreadsheet.selection,
+        Some(CellRange {
+            start: CellCoord { row: 0, col: 1 },
+            end: CellCoord { row: 1, col: 2 },
+        })
+    );
+
+    // 3. Mouse release
+    let _ = handle_cell_released(&mut app);
+    assert!(!app.state.spreadsheet.is_dragging);
+    assert_eq!(
+        app.state.spreadsheet.selection,
+        Some(CellRange {
+            start: CellCoord { row: 0, col: 1 },
+            end: CellCoord { row: 1, col: 2 },
+        })
+    );
+
+    // 4. Verify TSV clipboard text extraction: 2x2 rectangular block
+    let copied = app.state.spreadsheet.selected_text().unwrap();
+    assert_eq!(copied, "30\tDeveloper\n25\tDesigner");
+}
+
+#[test]
+fn test_row_header_drag_selection() {
+    let mut app = KglanceApp::default();
+    let headers = vec!["A".to_string(), "B".to_string()];
+    let rows = vec![
+        vec!["A1".to_string(), "B1".to_string()],
+        vec!["A2".to_string(), "B2".to_string()],
+        vec!["A3".to_string(), "B3".to_string()],
+    ];
+    let columns = infer_column_types_and_widths(&headers, &rows);
+    let sheet = SheetInfo {
+        name: "TestRowDrag".to_string(),
+        headers,
+        rows,
+        columns,
+    };
+    populate_state(&mut app.state, &[sheet], 0);
+
+    // 1. Mouse down on row header 1 (2nd data row)
+    let _ = handle_row_header_pressed(&mut app, 1);
+    assert!(app.state.spreadsheet.is_dragging_row_headers);
+    assert_eq!(
+        app.state.spreadsheet.selection,
+        Some(CellRange {
+            start: CellCoord { row: 1, col: 0 },
+            end: CellCoord { row: 1, col: 1 },
+        })
+    );
+
+    // 2. Drag row header down to row 2
+    let _ = handle_row_header_entered(&mut app, 2);
+    assert_eq!(
+        app.state.spreadsheet.selection,
+        Some(CellRange {
+            start: CellCoord { row: 1, col: 0 },
+            end: CellCoord { row: 2, col: 1 },
+        })
+    );
+
+    // 3. Release
+    let _ = handle_cell_released(&mut app);
+    assert!(!app.state.spreadsheet.is_dragging_row_headers);
+
+    let copied = app.state.spreadsheet.selected_text().unwrap();
+    assert_eq!(copied, "A2\tB2\nA3\tB3");
+}
+
+#[test]
+fn test_spreadsheet_drag_auto_scroll() {
+    let mut app = KglanceApp::default();
+    let headers = vec!["A".to_string(), "B".to_string()];
+    let rows: Vec<Vec<String>> = (0..100)
+        .map(|i| vec![format!("A{i}"), format!("B{i}")])
+        .collect();
+    let columns = infer_column_types_and_widths(&headers, &rows);
+    let sheet = SheetInfo {
+        name: "TestScroll".to_string(),
+        headers,
+        rows,
+        columns,
+    };
+    populate_state(&mut app.state, &[sheet], 0);
+
+    // Initial state
+    app.state.spreadsheet.viewport_height = 200.0;
+    app.state.current_window_size.height = 300.0;
+    app.state.current_window_size.width = 400.0;
+
+    // 1. Press on cell (row 2, col 0)
+    let _ = handle_cell_pressed(&mut app, 2, 0);
+    assert!(app.state.spreadsheet.is_dragging);
+    assert_eq!(app.state.spreadsheet.scroll_y, 0.0);
+
+    // 2. Simulate mouse moving beyond bottom bound (e.g. y = 350.0 > bottom_bound = 260.0)
+    let _ = crate::app::update::misc::handle_mouse_moved(&mut app, 200.0, 350.0);
+    assert!(app.state.spreadsheet.auto_scroll_delta_y.is_some());
+    let dy = app.state.spreadsheet.auto_scroll_delta_y.unwrap();
+    assert!(dy > 0.0); // downwards
+
+    // 3. Tick auto-scroll
+    let _ = handle_auto_scroll_tick(&mut app);
+    assert!(app.state.spreadsheet.scroll_y > 0.0);
+
+    // 4. Verify selection endpoint expanded downwards due to scrolling
+    let sel = app.state.spreadsheet.selection.unwrap();
+    assert_eq!(sel.start, CellCoord { row: 2, col: 0 });
+    assert!(sel.end.row > 2);
+
+    // 5. Release mouse
+    let _ = crate::app::update::misc::handle_mouse_released(&mut app);
+    assert!(!app.state.spreadsheet.is_dragging);
+    assert!(app.state.spreadsheet.auto_scroll_delta_y.is_none());
 }
