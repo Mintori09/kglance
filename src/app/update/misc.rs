@@ -142,6 +142,7 @@ pub fn handle_sidebar_drag_ended(app: &mut KglanceApp) -> Task<Message> {
 }
 
 pub fn handle_mouse_pressed(app: &mut KglanceApp, _x: f32, _y: f32) -> Task<Message> {
+    app.state.pdf.auto_scroll_delta = None;
     let s = markdown::active_markdown_state_mut(app);
     s.is_mouse_held = true;
     s.is_dragging_selection = false;
@@ -162,6 +163,9 @@ pub fn handle_mouse_released(app: &mut KglanceApp) -> Task<Message> {
     app.state.spreadsheet.is_dragging_row_headers = false;
     app.state.spreadsheet.auto_scroll_delta_y = None;
     app.state.spreadsheet.auto_scroll_delta_x = None;
+    app.state.pdf.is_selecting = false;
+    app.state.pdf.auto_scroll_delta = None;
+    crate::features::pdf::selection::handle_selection_drag_end(&mut app.state.pdf);
     let s = markdown::active_markdown_state_mut(app);
     s.is_mouse_held = false;
     s.is_dragging_selection = false;
@@ -176,6 +180,46 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
     };
 
     markdown::active_markdown_state_mut(app).drag_last_y = y;
+    app.state.pdf.drag_last_x = x;
+    app.state.pdf.drag_last_y = y;
+
+    if app.state.pdf.is_selecting {
+        const HEADER_HEIGHT: f32 = 40.0;
+        const FOOTER_HEIGHT: f32 = 30.0;
+        const MIN_CONTENT_HEIGHT: f32 = 100.0;
+
+        let win_height = app.state.current_window_size.height;
+        let top_bound = HEADER_HEIGHT;
+        let bottom_bound = (win_height - FOOTER_HEIGHT).max(top_bound + MIN_CONTENT_HEIGHT);
+
+        let overflow = if y < top_bound {
+            y - top_bound
+        } else if y > bottom_bound {
+            y - bottom_bound
+        } else {
+            0.0
+        };
+
+        if overflow != 0.0 {
+            let direction = overflow.signum();
+            let speed = (overflow.abs() * 0.8).clamp(5.0, 40.0) * direction;
+            app.state.pdf.auto_scroll_delta = Some(speed);
+        } else {
+            app.state.pdf.auto_scroll_delta = None;
+        }
+
+        let rel_y = (y - top_bound).max(0.0);
+        let content_y = app.state.pdf.scroll_y + rel_y;
+        let win_w = app.state.current_window_size.width;
+        if let Some(pos) = crate::features::pdf::selection::hit_test_pdf_position(
+            &app.state.pdf,
+            win_w,
+            x,
+            content_y,
+        ) {
+            crate::features::pdf::selection::handle_selection_drag_update(&mut app.state.pdf, pos);
+        }
+    }
 
     if app.state.text.is_dragging_selection {
         const HEADER_HEIGHT: f32 = 40.0;
@@ -565,5 +609,20 @@ mod tests {
         assert_eq!(app.state.pdf.sidebar_width, 120.0);
         assert!(app.state.pdf.sidebar_resizing);
         assert!(app.state.pdf.sidebar_drag_start_x.is_some());
+    }
+
+    #[test]
+    fn pdf_mouse_moved_sets_auto_scroll_and_updates_selection() {
+        let mut app = test_app(None);
+        app.state.pdf.is_selecting = true;
+        app.state.current_window_size.height = 200.0;
+        let _ = handle_mouse_moved(&mut app, 100.0, 500.0);
+        assert!(app.state.pdf.auto_scroll_delta.is_some());
+        let delta = app.state.pdf.auto_scroll_delta.unwrap();
+        assert!(delta > 0.0);
+
+        let _ = handle_mouse_released(&mut app);
+        assert!(!app.state.pdf.is_selecting);
+        assert!(app.state.pdf.auto_scroll_delta.is_none());
     }
 }

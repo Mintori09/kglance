@@ -125,6 +125,7 @@ pub enum PdfMsg {
     SelectionDragUpdate(crate::features::pdf::PdfPosition),
     SelectionDragEnd,
     SelectionClear,
+    AutoScrollTick,
 }
 
 #[derive(Debug, Clone)]

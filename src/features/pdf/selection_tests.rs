@@ -775,3 +775,78 @@ fn test_rich_text_clustering_total_order_stability() {
     let rows = crate::features::pdf::rich_text::cluster_fragments_into_rows(fragments);
     assert!(!rows.is_empty());
 }
+
+#[test]
+fn test_hit_test_pdf_position() {
+    let page0 = mock_page_text();
+    let page1 = PdfPageText {
+        page_index: 1,
+        lines: vec![PdfLine {
+            text: "Page Two Line One".to_string(),
+            rect: [10.0, 10.0, 150.0, 30.0],
+            chars: vec![
+                PdfChar {
+                    ch: 'P',
+                    rect: [10.0, 10.0, 20.0, 30.0],
+                },
+                PdfChar {
+                    ch: 'a',
+                    rect: [20.0, 10.0, 30.0, 30.0],
+                },
+            ],
+        }],
+    };
+
+    let state = crate::core::PdfState {
+        page_count: 2,
+        page_texts: vec![Some(page0), Some(page1)],
+        page_dimensions: vec![
+            crate::features::pdf::types::PageDimensions {
+                width_pts: 595.0,
+                height_pts: 842.0,
+            },
+            crate::features::pdf::types::PageDimensions {
+                width_pts: 595.0,
+                height_pts: 842.0,
+            },
+        ],
+        page_y_offsets: vec![0.0, 850.0],
+        page_ends: vec![842.0, 1692.0],
+        total_content_height: 1692.0,
+        display_width: 595.0,
+        ..Default::default()
+    };
+
+    // 1. Point on page 0
+    let pos0 = hit_test_pdf_position(&state, 800.0, 115.0, 20.0);
+    assert_eq!(
+        pos0,
+        Some(PdfPosition {
+            page: 0,
+            line: 0,
+            char_idx: 0
+        })
+    );
+
+    // 2. Point above top (content_y < 0)
+    let pos_top = hit_test_pdf_position(&state, 800.0, 100.0, -50.0);
+    assert_eq!(
+        pos_top,
+        Some(PdfPosition {
+            page: 0,
+            line: 0,
+            char_idx: 0
+        })
+    );
+
+    // 3. Point past bottom of entire document
+    let pos_bottom = hit_test_pdf_position(&state, 800.0, 100.0, 2000.0);
+    assert_eq!(
+        pos_bottom,
+        Some(PdfPosition {
+            page: 1,
+            line: 0,
+            char_idx: 2
+        })
+    );
+}
