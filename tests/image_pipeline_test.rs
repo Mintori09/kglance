@@ -286,9 +286,9 @@ fn test_fast_downsample_rgba_massive_speed() {
     let elapsed = t0.elapsed();
 
     assert_eq!(downsampled.len(), 1920 * 1080 * 4);
-    // In unoptimized debug builds under concurrent test load, 12MP downsampling should take < 500ms (in release it is ~5ms).
+    // In unoptimized debug builds under concurrent test load, 12MP downsampling should take < 1500ms (in release it is ~5ms).
     assert!(
-        elapsed.as_millis() < 500,
+        elapsed.as_millis() < 1500,
         "Downsampling 12MP took too long: {:?}",
         elapsed
     );

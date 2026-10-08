@@ -19,7 +19,13 @@ async fn test_dbus_full_lifecycle_ipc() {
     });
 
     // Wait for DBus daemon to register on session bus
-    tokio::time::sleep(Duration::from_millis(250)).await;
+    let start_wait = std::time::Instant::now();
+    while start_wait.elapsed() < Duration::from_secs(3) {
+        if kglance::dbus::is_gui_open().is_ok() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
 
     let dir = tempdir().expect("Failed to create tempdir");
     let file1 = dir.path().join("doc1.txt");
