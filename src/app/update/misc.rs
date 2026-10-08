@@ -155,6 +155,10 @@ pub fn handle_mouse_released(app: &mut KglanceApp) -> Task<Message> {
     app.state.text.is_dragging_selection = false;
     app.state.text.auto_scroll_delta = None;
     app.state.text.drag_start = None;
+    app.state.spreadsheet.is_dragging = false;
+    app.state.spreadsheet.is_dragging_row_headers = false;
+    app.state.spreadsheet.auto_scroll_delta_y = None;
+    app.state.spreadsheet.auto_scroll_delta_x = None;
     let s = markdown::active_markdown_state_mut(app);
     s.is_mouse_held = false;
     s.is_dragging_selection = false;
@@ -226,6 +230,59 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
             s.auto_scroll_delta = Some(speed);
         } else {
             s.auto_scroll_delta = None;
+        }
+    }
+
+    if app.state.spreadsheet.is_dragging || app.state.spreadsheet.is_dragging_row_headers {
+        const HEADER_HEIGHT: f32 = 40.0;
+        const FOOTER_HEIGHT: f32 = 40.0;
+        const LEFT_MARGIN: f32 = 10.0;
+        const RIGHT_MARGIN: f32 = 10.0;
+        const MIN_CONTENT_HEIGHT: f32 = 100.0;
+
+        let win_width = app.state.current_window_size.width;
+        let win_height = app.state.current_window_size.height;
+        let top_bound = HEADER_HEIGHT;
+        let bottom_bound = (win_height - FOOTER_HEIGHT).max(top_bound + MIN_CONTENT_HEIGHT);
+        let left_bound = LEFT_MARGIN;
+        let right_bound = (win_width - RIGHT_MARGIN).max(left_bound + 100.0);
+
+        let overflow_y = if y < top_bound {
+            y - top_bound
+        } else if y > bottom_bound {
+            y - bottom_bound
+        } else {
+            0.0
+        };
+
+        let overflow_x = if x < left_bound {
+            x - left_bound
+        } else if x > right_bound {
+            x - right_bound
+        } else {
+            0.0
+        };
+
+        let s = &mut app.state.spreadsheet;
+        s.drag_last_cursor = iced::Point::new(
+            (x - left_bound).clamp(0.0, s.viewport_width),
+            (y - top_bound).clamp(0.0, s.viewport_height),
+        );
+
+        if overflow_y != 0.0 {
+            let direction = overflow_y.signum();
+            let speed = (overflow_y.abs() * 0.8).clamp(5.0, 40.0) * direction;
+            s.auto_scroll_delta_y = Some(speed);
+        } else {
+            s.auto_scroll_delta_y = None;
+        }
+
+        if overflow_x != 0.0 {
+            let direction = overflow_x.signum();
+            let speed = (overflow_x.abs() * 0.8).clamp(5.0, 40.0) * direction;
+            s.auto_scroll_delta_x = Some(speed);
+        } else {
+            s.auto_scroll_delta_x = None;
         }
     }
 

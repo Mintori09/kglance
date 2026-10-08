@@ -6,7 +6,7 @@ use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::theme::AppTheme;
 use crate::ui::theme::tokens::spacing;
 use iced::alignment;
-use iced::widget::{button, column, container, row, text};
+use iced::widget::{button, column, container, mouse_area, row, text};
 use iced::{Border, Color, Element, Length, Shadow, Theme};
 
 const SORT_ASCENDING_INDICATOR: &str = " ▲";
@@ -473,15 +473,19 @@ fn render_table_rows<'a>(
         })
         .height(Length::Fill);
 
-        let row_num_button = button(row_num_content)
-            .on_press(crate::app::messages::SpreadsheetMsg::RowHeaderClicked(row_idx).into())
-            .style(grid_row_num_style(theme, is_row_selected))
+        let row_num_container = container(row_num_content)
+            .style(move |_: &Theme| grid_row_num_style(theme, is_row_selected))
             .clip(true)
             .width(Length::Fixed(ROW_NUMBER_COL_WIDTH))
             .height(Length::Fixed(row_h))
             .padding([CELL_PADDING_Y / 2.0, 2.0]);
 
-        row_widget = row_widget.push(row_num_button);
+        let row_num_widget = mouse_area(row_num_container)
+            .on_press(crate::app::messages::SpreadsheetMsg::RowHeaderPressed(row_idx).into())
+            .on_enter(crate::app::messages::SpreadsheetMsg::RowHeaderEntered(row_idx).into())
+            .on_release(crate::app::messages::SpreadsheetMsg::CellReleased.into());
+
+        row_widget = row_widget.push(row_num_widget);
 
         if col_win.visible_start > 0 && col_win.left_spacer_width > 0.0 {
             row_widget =
@@ -521,21 +525,31 @@ fn render_table_rows<'a>(
             })
             .height(Length::Fill);
 
-            let cell_button = button(cell_content)
-                .on_press(
-                    crate::app::messages::SpreadsheetMsg::CellClicked {
-                        row: row_idx,
-                        col: col_idx,
-                    }
-                    .into(),
-                )
-                .style(grid_data_cell_style(theme, is_selected, is_primary))
+            let cell_container = container(cell_content)
+                .style(move |_: &Theme| grid_data_cell_style(theme, is_selected, is_primary))
                 .clip(true)
                 .width(Length::Fixed(col_meta.width))
                 .height(Length::Fixed(row_h))
                 .padding([CELL_PADDING_Y / 2.0, CELL_PADDING_X]);
 
-            row_widget = row_widget.push(cell_button);
+            let cell_widget = mouse_area(cell_container)
+                .on_press(
+                    crate::app::messages::SpreadsheetMsg::CellPressed {
+                        row: row_idx,
+                        col: col_idx,
+                    }
+                    .into(),
+                )
+                .on_enter(
+                    crate::app::messages::SpreadsheetMsg::CellEntered {
+                        row: row_idx,
+                        col: col_idx,
+                    }
+                    .into(),
+                )
+                .on_release(crate::app::messages::SpreadsheetMsg::CellReleased.into());
+
+            row_widget = row_widget.push(cell_widget);
         }
 
         if col_win.visible_end < sheet.columns.len() && col_win.right_spacer_width > 0.0 {
@@ -612,82 +626,53 @@ fn grid_header_button_style(
     }
 }
 
-fn grid_row_num_style(
-    theme: AppTheme,
-    is_selected: bool,
-) -> impl Fn(&Theme, button::Status) -> button::Style {
-    move |_: &Theme, status: button::Status| {
-        let p = theme.palette().base;
-        let role = theme.palette().roles;
+fn grid_row_num_style(theme: AppTheme, is_selected: bool) -> container::Style {
+    let p = theme.palette().base;
+    let role = theme.palette().roles;
 
-        let (bg, border_color) = if is_selected {
-            let mut active_bg = role.accent;
-            active_bg.a = 0.25;
-            (Some(active_bg.into()), role.accent)
-        } else {
-            match status {
-                button::Status::Hovered => (
-                    Some(Color::from_rgba(1.0, 1.0, 1.0, 0.08).into()),
-                    p.border_focus,
-                ),
-                _ => (Some(p.surface_raised.into()), p.border),
-            }
-        };
+    let (bg, border_color) = if is_selected {
+        let mut active_bg = role.accent;
+        active_bg.a = 0.25;
+        (Some(active_bg.into()), role.accent)
+    } else {
+        (Some(p.surface_raised.into()), p.border)
+    };
 
-        button::Style {
-            background: bg,
-            text_color: if is_selected { p.text } else { p.text_dim },
-            border: Border {
-                color: border_color,
-                width: 1.0,
-                radius: 0.0.into(),
-            },
-            shadow: Shadow::default(),
-            snap: false,
-        }
+    container::Style {
+        background: bg,
+        text_color: Some(if is_selected { p.text } else { p.text_dim }),
+        border: Border {
+            color: border_color,
+            width: 1.0,
+            radius: 0.0.into(),
+        },
+        shadow: Shadow::default(),
+        snap: false,
     }
 }
 
-fn grid_data_cell_style(
-    theme: AppTheme,
-    is_selected: bool,
-    is_primary: bool,
-) -> impl Fn(&Theme, button::Status) -> button::Style {
-    move |_: &Theme, status: button::Status| {
-        let p = theme.palette().base;
-        let role = theme.palette().roles;
+fn grid_data_cell_style(theme: AppTheme, is_selected: bool, is_primary: bool) -> container::Style {
+    let p = theme.palette().base;
+    let role = theme.palette().roles;
 
-        let (bg, border_color, border_width) = if is_selected {
-            let mut active_bg = role.accent;
-            active_bg.a = if is_primary { 0.28 } else { 0.18 };
-            (Some(active_bg.into()), role.accent, 1.5)
-        } else {
-            match status {
-                button::Status::Hovered => (
-                    Some(Color::from_rgba(1.0, 1.0, 1.0, 0.05).into()),
-                    p.border_focus,
-                    1.0,
-                ),
-                button::Status::Pressed => (
-                    Some(Color::from_rgba(1.0, 1.0, 1.0, 0.10).into()),
-                    role.accent,
-                    1.0,
-                ),
-                _ => (Some(p.bg.into()), p.border, 1.0),
-            }
-        };
+    let (bg, border_color, border_width) = if is_selected {
+        let mut active_bg = role.accent;
+        active_bg.a = if is_primary { 0.28 } else { 0.18 };
+        (Some(active_bg.into()), role.accent, 1.5)
+    } else {
+        (Some(p.bg.into()), p.border, 1.0)
+    };
 
-        button::Style {
-            background: bg,
-            text_color: p.text,
-            border: Border {
-                color: border_color,
-                width: border_width,
-                radius: 0.0.into(),
-            },
-            shadow: Shadow::default(),
-            snap: false,
-        }
+    container::Style {
+        background: bg,
+        text_color: Some(p.text),
+        border: Border {
+            color: border_color,
+            width: border_width,
+            radius: 0.0.into(),
+        },
+        shadow: Shadow::default(),
+        snap: false,
     }
 }
 

@@ -36,6 +36,11 @@ pub fn populate_state(state: &mut KglanceState, sheets: &[SheetInfo], active_she
     state.spreadsheet.sort_col = None;
     state.spreadsheet.sort_ascending = None;
     state.spreadsheet.selection = None;
+    state.spreadsheet.is_dragging = false;
+    state.spreadsheet.is_dragging_row_headers = false;
+    state.spreadsheet.auto_scroll_delta_y = None;
+    state.spreadsheet.auto_scroll_delta_x = None;
+    state.spreadsheet.drag_last_cursor = iced::Point::ORIGIN;
     state.spreadsheet.search_query.clear();
     state.spreadsheet.search_visible = false;
     state.spreadsheet.scroll_x = 0.0;
@@ -238,11 +243,14 @@ pub fn handle_sheet_tab_clicked(app: &mut KglanceApp, index: usize) -> Task<Mess
     Task::none()
 }
 
-pub fn handle_cell_clicked(app: &mut KglanceApp, row: usize, col: usize) -> Task<Message> {
+pub fn handle_cell_pressed(app: &mut KglanceApp, row: usize, col: usize) -> Task<Message> {
     let target = crate::features::sheet::CellCoord { row, col };
+    let is_shift = app.shift_held;
     let sheet_state = &mut app.state.spreadsheet;
+    sheet_state.is_dragging = true;
+    sheet_state.is_dragging_row_headers = false;
 
-    if app.shift_held {
+    if is_shift {
         if let Some(existing) = sheet_state.selection {
             sheet_state.selection = Some(crate::features::sheet::CellRange {
                 start: existing.start,
@@ -257,7 +265,27 @@ pub fn handle_cell_clicked(app: &mut KglanceApp, row: usize, col: usize) -> Task
     Task::none()
 }
 
-pub fn handle_row_header_clicked(app: &mut KglanceApp, row: usize) -> Task<Message> {
+pub fn handle_cell_entered(app: &mut KglanceApp, row: usize, col: usize) -> Task<Message> {
+    let sheet_state = &mut app.state.spreadsheet;
+    if sheet_state.is_dragging
+        && let Some(ref mut selection) = sheet_state.selection
+    {
+        selection.end = crate::features::sheet::CellCoord { row, col };
+    }
+    Task::none()
+}
+
+pub fn handle_cell_released(app: &mut KglanceApp) -> Task<Message> {
+    let sheet_state = &mut app.state.spreadsheet;
+    sheet_state.is_dragging = false;
+    sheet_state.is_dragging_row_headers = false;
+    sheet_state.auto_scroll_delta_y = None;
+    sheet_state.auto_scroll_delta_x = None;
+    Task::none()
+}
+
+pub fn handle_row_header_pressed(app: &mut KglanceApp, row: usize) -> Task<Message> {
+    let is_shift = app.shift_held;
     let sheet_state = &mut app.state.spreadsheet;
     let col_count = sheet_state
         .sheets
@@ -266,7 +294,9 @@ pub fn handle_row_header_clicked(app: &mut KglanceApp, row: usize) -> Task<Messa
 
     if col_count > 0 {
         let max_col = col_count.saturating_sub(1);
-        if app.shift_held {
+        sheet_state.is_dragging = false;
+        sheet_state.is_dragging_row_headers = true;
+        if is_shift {
             if let Some(existing) = sheet_state.selection {
                 sheet_state.selection = Some(crate::features::sheet::CellRange {
                     start: crate::features::sheet::CellCoord {
@@ -286,6 +316,23 @@ pub fn handle_row_header_clicked(app: &mut KglanceApp, row: usize) -> Task<Messa
                 start: crate::features::sheet::CellCoord { row, col: 0 },
                 end: crate::features::sheet::CellCoord { row, col: max_col },
             });
+        }
+    }
+    Task::none()
+}
+
+pub fn handle_row_header_entered(app: &mut KglanceApp, row: usize) -> Task<Message> {
+    let sheet_state = &mut app.state.spreadsheet;
+    if sheet_state.is_dragging_row_headers {
+        let col_count = sheet_state
+            .sheets
+            .get(sheet_state.active_sheet)
+            .map_or(0, |s| s.columns.len());
+        if col_count > 0 {
+            let max_col = col_count.saturating_sub(1);
+            if let Some(ref mut selection) = sheet_state.selection {
+                selection.end = crate::features::sheet::CellCoord { row, col: max_col };
+            }
         }
     }
     Task::none()
@@ -609,6 +656,99 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
         state.scroll_x = next_x;
         state.scroll_controller_x.set_position_y(next_x);
         changed = true;
+    }
+
+    if changed {
+        iced::widget::operation::scroll_to(
+            CONTENT_SCROLL_ID,
+            iced::widget::operation::AbsoluteOffset {
+                x: state.scroll_x,
+                y: state.scroll_y,
+            },
+        )
+    } else {
+        Task::none()
+    }
+}
+
+pub fn handle_auto_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
+    let state = &mut app.state.spreadsheet;
+    if !state.is_dragging && !state.is_dragging_row_headers {
+        state.auto_scroll_delta_y = None;
+        state.auto_scroll_delta_x = None;
+        return Task::none();
+    }
+
+    let mut changed = false;
+
+    // 1. Vertical auto-scroll
+    if let Some(dy) = state.auto_scroll_delta_y {
+        let extent_y = crate::core::scroll::ViewportExtent {
+            content_height: state.total_content_height,
+            viewport_height: state.viewport_height,
+        };
+        let max_y = extent_y.max_scroll_y();
+        let next_y = (state.scroll_y + dy).clamp(0.0, max_y);
+        if (next_y - state.scroll_y).abs() > f32::EPSILON {
+            state.scroll_y = next_y;
+            state.smooth_scroll.stop(next_y);
+            state.scroll_controller.stop(next_y);
+            changed = true;
+        }
+    }
+
+    // 2. Horizontal auto-scroll
+    if let Some(dx) = state.auto_scroll_delta_x {
+        let extent_x = crate::core::scroll::ViewportExtent {
+            content_height: state.total_content_width,
+            viewport_height: state.viewport_width,
+        };
+        let max_x = extent_x.max_scroll_y();
+        let next_x = (state.scroll_x + dx).clamp(0.0, max_x);
+        if (next_x - state.scroll_x).abs() > f32::EPSILON {
+            state.scroll_x = next_x;
+            state.smooth_scroll_x.stop(next_x);
+            state.scroll_controller_x.stop(next_x);
+            changed = true;
+        }
+    }
+
+    // 3. Update selection endpoint based on current scroll position and cursor
+    if let Some(ref mut selection) = state.selection {
+        let target_y = (state.scroll_y + state.drag_last_cursor.y).max(0.0);
+        let row_idx = state
+            .prefix_heights
+            .partition_point(|&h| h <= target_y)
+            .saturating_sub(1)
+            .min(state.display_indices.len().saturating_sub(1));
+
+        if state.is_dragging_row_headers {
+            let max_col = state
+                .sheets
+                .get(state.active_sheet)
+                .map_or(0, |s| s.columns.len().saturating_sub(1));
+            selection.end = crate::features::sheet::CellCoord {
+                row: row_idx,
+                col: max_col,
+            };
+        } else if state.is_dragging {
+            let target_x = (state.scroll_x + state.drag_last_cursor.x).max(0.0);
+            let col_count = state
+                .sheets
+                .get(state.active_sheet)
+                .map_or(0, |s| s.columns.len());
+            let max_col = col_count.saturating_sub(1);
+            let col_idx = state
+                .prefix_widths
+                .partition_point(|&w| w <= target_x)
+                .saturating_sub(1)
+                .min(max_col);
+
+            selection.end = crate::features::sheet::CellCoord {
+                row: row_idx,
+                col: col_idx,
+            };
+        }
     }
 
     if changed {
