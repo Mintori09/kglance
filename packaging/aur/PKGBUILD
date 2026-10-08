@@ -1,0 +1,54 @@
+# Maintainer: Mintori <tvmthtr@gmail.com>
+# Contributor: Nebez Kassem <nabaxo@gmail.com>
+pkgname=kglance
+pkgver=0.4.0
+pkgrel=1
+pkgdesc="A high-performance file preview system for KDE Plasma 6"
+arch=('x86_64')
+url="https://github.com/Mintori09/kglance"
+license=('AGPL-3.0-only')
+depends=(
+    'bzip2'
+    'fontconfig'
+    'freetype2'
+    'gcc-libs'
+    'glib2'
+    'glibc'
+    'gst-plugins-base-libs'
+    'gstreamer'
+    'zlib'
+)
+makedepends=(
+    'cargo'
+    'pkgconf'
+)
+optdepends=(
+    'gst-libav: Libav/FFmpeg codecs in GStreamer'
+    'gst-plugins-bad: Additional video/audio decoders'
+    'gst-plugins-good: Popular video/audio decoders'
+)
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('2f5369778a48b204c8e0ab93028ae16e3a8e7ebe131cf46e0a654326fa82ca48')
+
+prepare() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    CFLAGS+=" -ffat-lto-objects"
+    cargo build --frozen --release
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    install -Dm755 "target/release/kglance" "$pkgdir/usr/bin/kglance"
+    install -Dm644 "data/kglance.desktop" "$pkgdir/usr/share/applications/kglance.desktop"
+    install -Dm644 "data/kglance.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/kglance.svg"
+    install -Dm644 "data/kglance-rust.desktop" "$pkgdir/usr/share/kio/servicemenus/kglance-rust.desktop"
+    install -Dm644 "LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
