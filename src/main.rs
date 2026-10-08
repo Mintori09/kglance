@@ -16,10 +16,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|p| p.to_string_lossy().to_string())
         .collect();
 
+    let is_standalone = args.iter().any(|s| s == "--standalone" || s == "-s");
+
     match args.get(1).map(|s| s.as_str()) {
         Some("version" | "-v" | "--version") => {
             const VERSION: &str = env!("CARGO_PKG_VERSION");
-            println!("Kglance: v{}", VERSION);
+            println!("Kglance: v{VERSION}");
+            Ok(())
+        }
+        Some("help" | "-h" | "--help") => {
+            println!("Usage:");
+            println!("  kglance daemon                  Start preview daemon (autostart)");
+            println!(
+                "  kglance update <file-path> [...] Update currently open preview (daemon mode only)"
+            );
+            println!("  kglance <file-path> [...]       Preview file(s)");
+            println!("  kglance --standalone <file-path> [...] Preview file(s) in standalone mode");
+            println!("  kglance version                 Display version");
             Ok(())
         }
         Some("daemon") => {
@@ -35,12 +48,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             match dbus::is_gui_open() {
                 Ok(true) => {
-                    log_info!("Attempting to update preview via DBus: {:?}", file_paths);
+                    log_info!("Attempting to update preview via DBus: {file_paths:?}");
                     if let Err(e) = dbus::send_multiple_update_via_dbus(&file_paths) {
-                        log_error!("Daemon update via DBus failed: {:?}", e);
+                        log_error!("Daemon update via DBus failed: {e:?}");
                         eprintln!(
-                            "Failed to update preview via DBus (daemon not running or not responding): {}",
-                            e
+                            "Failed to update preview via DBus (daemon not running or not responding): {e}"
                         );
                         std::process::exit(1);
                     }
@@ -57,19 +69,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Ok(())
         }
+        Some("--standalone" | "-s") => {
+            if file_paths.is_empty() {
+                log_error!("No valid file paths provided for standalone preview");
+                eprintln!("Usage: kglance --standalone <file-path> [...]");
+                std::process::exit(1);
+            }
+
+            run_standalone(&file_paths)
+        }
         Some(path) if !path.starts_with('-') => {
             if file_paths.is_empty() {
-                log_error!("No valid file paths provided: {:?}", path);
+                log_error!("No valid file paths provided: {path:?}");
                 eprintln!("Usage:");
                 eprintln!("  kglance daemon                  Start preview daemon (autostart)");
                 eprintln!(
                     "  kglance update <file-path> [...] Update currently open preview (daemon mode only)"
                 );
                 eprintln!("  kglance <file-path> [...]       Preview file(s)");
+                eprintln!(
+                    "  kglance --standalone <file-path> [...] Preview file(s) in standalone mode"
+                );
                 std::process::exit(1);
             }
 
-            log_info!("Attempting to preview files via DBus: {:?}", file_paths);
+            if is_standalone {
+                return run_standalone(&file_paths);
+            }
+
+            log_info!("Attempting to preview files via DBus: {file_paths:?}");
             if dbus::send_multiple_via_dbus(&file_paths).is_ok() {
                 log_info!("Successfully requested preview via DBus");
                 return Ok(());
@@ -86,6 +114,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "  kglance update <file-path> [...] Update currently open preview (daemon mode only)"
             );
             eprintln!("  kglance <file-path> [...]       Preview file(s)");
+            eprintln!(
+                "  kglance --standalone <file-path> [...] Preview file(s) in standalone mode"
+            );
             std::process::exit(1);
         }
     }
