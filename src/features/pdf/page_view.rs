@@ -240,6 +240,9 @@ where
                 }
             }
             Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                if !self.is_selecting {
+                    state.is_mouse_held = false;
+                }
                 if (state.is_mouse_held || self.is_selecting)
                     && let Some(cursor_pos) = cursor.position()
                 {

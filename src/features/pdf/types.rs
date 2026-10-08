@@ -351,6 +351,9 @@ pub struct PdfState {
     pub selected_html: Option<String>,
     pub is_selecting: bool,
     pub selection_drag_start: Option<PdfPosition>,
+    pub auto_scroll_delta: Option<f32>,
+    pub drag_last_x: f32,
+    pub drag_last_y: f32,
 }
 
 impl PdfState {
@@ -375,6 +378,7 @@ impl PdfState {
         self.selected_html = None;
         self.is_selecting = false;
         self.selection_drag_start = None;
+        self.auto_scroll_delta = None;
     }
 }
 
@@ -422,6 +426,9 @@ impl Default for PdfState {
             selected_html: None,
             is_selecting: false,
             selection_drag_start: None,
+            auto_scroll_delta: None,
+            drag_last_x: 0.0,
+            drag_last_y: 0.0,
         }
     }
 }
