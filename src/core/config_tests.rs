@@ -92,6 +92,7 @@ fn test_load_existing_custom_config() {
             font_family: Some("Fira Code".into()),
             font_family_mono: Some("JetBrains Mono".into()),
             epub_font_family: Some("Serif".into()),
+            epub_reading_mode: EpubReadingMode::SingleChapter,
             max_text_width: Some(900.0),
             default_width: 1280,
             default_height: 900,
@@ -169,4 +170,30 @@ fn test_theme_resolution() {
     assert_eq!(ConfigManager::resolve_theme("Dark"), AppTheme::Dark);
     assert_eq!(ConfigManager::resolve_theme("dark"), AppTheme::Dark);
     assert_eq!(ConfigManager::resolve_theme("unknown"), AppTheme::Dark);
+}
+
+#[test]
+fn test_epub_reading_mode_config_serde() {
+    let default_cfg = AppConfig::default();
+    assert_eq!(
+        default_cfg.ui.epub_reading_mode,
+        EpubReadingMode::SingleChapter
+    );
+
+    let parsed_continuous: EpubReadingMode =
+        serde_json::from_str("\"continuous\"").expect("parse continuous mode");
+    assert_eq!(parsed_continuous, EpubReadingMode::Continuous);
+
+    let parsed_single: EpubReadingMode =
+        serde_json::from_str("\"single_chapter\"").expect("parse single_chapter mode");
+    assert_eq!(parsed_single, EpubReadingMode::SingleChapter);
+
+    let serialized = serde_json::to_string(&EpubReadingMode::Continuous).unwrap();
+    assert_eq!(serialized, "\"continuous\"");
+
+    let mut cfg = AppConfig::default();
+    cfg.ui.epub_reading_mode = EpubReadingMode::Continuous;
+    let json = serde_json::to_string(&cfg).unwrap();
+    let roundtrip: AppConfig = serde_json::from_str(&json).unwrap();
+    assert_eq!(roundtrip.ui.epub_reading_mode, EpubReadingMode::Continuous);
 }
