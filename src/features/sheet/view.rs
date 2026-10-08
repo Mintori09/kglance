@@ -77,9 +77,12 @@ pub fn view_spreadsheet<'a>(state: &'a SpreadsheetState, theme: AppTheme) -> Ele
         None => render_empty_state("No spreadsheet data loaded", theme),
     };
 
-    let bottom_bar = render_bottom_sheet_bar(&state.sheets, state.active_sheet, theme);
-
-    column![content_body, bottom_bar].into()
+    if state.sheets.len() > 1 {
+        let bottom_bar = render_bottom_sheet_bar(&state.sheets, state.active_sheet, theme);
+        column![content_body, bottom_bar].into()
+    } else {
+        content_body
+    }
 }
 
 fn render_bottom_sheet_bar<'a>(
@@ -87,7 +90,7 @@ fn render_bottom_sheet_bar<'a>(
     active_sheet_index: usize,
     theme: AppTheme,
 ) -> Element<'a, Message> {
-    if sheets.is_empty() {
+    if sheets.len() <= 1 {
         return container(row![]).height(Length::Shrink).into();
     }
 
