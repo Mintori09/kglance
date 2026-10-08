@@ -6,7 +6,10 @@ use url::Url;
 
 pub fn handle_copy_text(app: &mut KglanceApp, text: String) -> Task<Message> {
     let toast = app.show_toast("Copied!");
-    Task::batch(vec![iced::clipboard::write(text), toast])
+    Task::batch(vec![
+        crate::core::clipboard::copy_to_clipboard(text, None),
+        toast,
+    ])
 }
 
 pub fn handle_open_link(url: String) -> Task<Message> {

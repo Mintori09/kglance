@@ -22,12 +22,19 @@ impl super::KglanceApp {
         key: iced::keyboard::Key,
         modifiers: iced::keyboard::Modifiers,
     ) -> Task<Message> {
-        self.ctrl_held =
-            modifiers.control() || matches!(key, iced::keyboard::Key::Named(Named::Control));
+        self.ctrl_held = modifiers.control()
+            || modifiers.command()
+            || matches!(key, iced::keyboard::Key::Named(Named::Control));
         self.shift_held =
             modifiers.shift() || matches!(key, iced::keyboard::Key::Named(Named::Shift));
 
-        if self.ctrl_held || modifiers.control() {
+        if matches!(key, iced::keyboard::Key::Named(Named::Copy))
+            && let Some(task) = self.handle_ctrl_copy()
+        {
+            return task;
+        }
+
+        if self.ctrl_held || modifiers.control() || modifiers.command() {
             if let Some(task) = self.handle_file_navigation(&key) {
                 return task;
             }
