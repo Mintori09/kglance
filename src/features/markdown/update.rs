@@ -105,45 +105,80 @@ pub fn handle_markdown_scrolled(
     if app.ctrl_held {
         return Task::none();
     }
-    let state = active_markdown_state_mut(app);
-    let delta_vh = (state.viewport_height - viewport_height).abs();
-    state.viewport_height = viewport_height;
-    if content_height > 0.0 {
-        let is_not_virtualized = state.block_y_offsets.is_empty()
-            || state.block_y_offsets.len() <= crate::features::markdown::view::VIRTUAL_THRESHOLD;
-        if is_not_virtualized {
-            state.total_content_height = content_height;
+    let is_epub = matches!(app.current_content, Some(PreviewData::Epub { .. }));
+    let (is_epub_continuous, toc_target_y) = {
+        let state = active_markdown_state_mut(app);
+        let delta_vh = (state.viewport_height - viewport_height).abs();
+        state.viewport_height = viewport_height;
+        if content_height > 0.0 {
+            let is_not_virtualized = state.block_y_offsets.is_empty()
+                || state.block_y_offsets.len()
+                    <= crate::features::markdown::view::VIRTUAL_THRESHOLD;
+            if is_not_virtualized {
+                state.total_content_height = content_height;
+            }
         }
-    }
 
-    if state.smooth_scroll.is_animating
-        || state.scroll_controller.is_animating()
-        || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
-    {
-        return Task::none();
-    }
+        if state.smooth_scroll.is_animating
+            || state.scroll_controller.is_animating()
+            || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+        {
+            return Task::none();
+        }
 
-    let delta_y = (state.scroll_y - y).abs();
-    if delta_y < 4.0 && delta_vh < 1.0 {
-        return Task::none();
-    }
+        let delta_y = (state.scroll_y - y).abs();
+        if delta_y < 4.0 && delta_vh < 1.0 {
+            return Task::none();
+        }
 
-    state.smooth_scroll.stop(y);
-    state.scroll_controller.stop(y);
-    state.scroll_y = y;
-    let toc_task = if state.toc_visible && !state.toc.is_empty() {
-        if let Some(active_pos) = state.toc.iter().rposition(|e| e.y_offset <= y + 50.0) {
-            let target_y = (active_pos as f32 * 28.0 - 100.0).max(0.0);
-            operation::scroll_to(
-                "toc_scroll",
-                operation::AbsoluteOffset {
-                    x: 0.0,
-                    y: target_y,
-                },
-            )
+        state.smooth_scroll.stop(y);
+        state.scroll_controller.stop(y);
+        state.scroll_y = y;
+
+        let toc_y = if state.toc_visible && !state.toc.is_empty() {
+            state
+                .toc
+                .iter()
+                .rposition(|e| e.y_offset <= y + 50.0)
+                .map(|active_pos| (active_pos as f32 * 28.0 - 100.0).max(0.0))
         } else {
-            Task::none()
+            None
+        };
+        (is_epub, toc_y)
+    };
+
+    if is_epub_continuous
+        && app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous
+        && !app.state.epub.chapter_block_offsets.is_empty()
+    {
+        let offsets = &app.state.epub.markdown_state.block_y_offsets;
+        let target_y = y + 50.0;
+        let visible_block_idx = match offsets.binary_search_by(|probe| {
+            probe
+                .partial_cmp(&target_y)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }) {
+            Ok(idx) => idx,
+            Err(idx) => idx.saturating_sub(1),
+        };
+        let chapter_offsets = &app.state.epub.chapter_block_offsets;
+        let ch_idx = chapter_offsets
+            .iter()
+            .rposition(|&offset| offset <= visible_block_idx)
+            .unwrap_or(0);
+        if ch_idx < app.state.epub.chapters.len() {
+            app.state.epub.active_chapter = ch_idx;
         }
+    }
+
+    let toc_task = if let Some(target_y) = toc_target_y {
+        operation::scroll_to(
+            "toc_scroll",
+            operation::AbsoluteOffset {
+                x: 0.0,
+                y: target_y,
+            },
+        )
     } else {
         Task::none()
     };

@@ -85,6 +85,7 @@ impl KglanceApp {
             font_family: config.ui.font_family,
             font_family_mono: config.ui.font_family_mono,
             epub_font_family: config.ui.epub_font_family,
+            epub_reading_mode: config.ui.epub_reading_mode,
             max_text_width: config.ui.max_text_width,
             window_default_size: iced::Size::new(
                 config.ui.default_width as f32,
@@ -186,10 +187,37 @@ impl KglanceApp {
                 true
             }
             Some(crate::core::PreviewData::Epub { .. }) => {
-                let max = self.state.epub.chapters.len().max(1);
-                let target_ch = chapter.min(max - 1);
-                crate::features::epub::update::ensure_chapter_loaded(self, target_ch);
-                self.state.epub.markdown_state.scroll_y = scroll_y;
+                if self.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous
+                {
+                    self.state.epub.markdown_state.scroll_y = scroll_y;
+                    let chapter_offsets = &self.state.epub.chapter_block_offsets;
+                    let target_y = scroll_y + 50.0;
+                    let visible_block_idx = match self
+                        .state
+                        .epub
+                        .markdown_state
+                        .block_y_offsets
+                        .binary_search_by(|probe| {
+                            probe
+                                .partial_cmp(&target_y)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        }) {
+                        Ok(idx) => idx,
+                        Err(idx) => idx.saturating_sub(1),
+                    };
+                    let ch_idx = chapter_offsets
+                        .iter()
+                        .rposition(|&offset| offset <= visible_block_idx)
+                        .unwrap_or(0);
+                    if ch_idx < self.state.epub.chapters.len() {
+                        self.state.epub.active_chapter = ch_idx;
+                    }
+                } else {
+                    let max = self.state.epub.chapters.len().max(1);
+                    let target_ch = chapter.min(max - 1);
+                    crate::features::epub::update::ensure_chapter_loaded(self, target_ch);
+                    self.state.epub.markdown_state.scroll_y = scroll_y;
+                }
                 true
             }
             _ => false,

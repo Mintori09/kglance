@@ -168,3 +168,41 @@ fn test_epub_parser_registry_integration() {
         panic!("Expected PreviewData::Epub, got different variant");
     }
 }
+
+#[test]
+fn test_real_epub_performance() {
+    let path = std::path::Path::new(
+        "/home/mintori/Documents/Learning Spring Boot 4 - 4 Edition - Simplify the -- Wanderson Xesquevixos, Ranga Rao Karanam, Magnus Larsson, -- 2026 -- Packt -- 657ad18699818b1c33c0a6c6d7880e67 -- Anna’s Archive(1).epub",
+    );
+    if !path.exists() {
+        return;
+    }
+
+    let t0 = std::time::Instant::now();
+    let registry = build_registry();
+    let parsed_data = FilePreviewer::parse(&registry, path).unwrap();
+    eprintln!("[PERF] FilePreviewer::parse took: {:?}", t0.elapsed());
+
+    let t1 = std::time::Instant::now();
+    let mut state = KglanceState {
+        file_name: path.to_string_lossy().to_string(),
+        epub_reading_mode: kglance::core::config::EpubReadingMode::Continuous,
+        ..Default::default()
+    };
+    parsed_data.populate_state(&mut state);
+    eprintln!(
+        "[PERF] populate_state (continuous) took: {:?}",
+        t1.elapsed()
+    );
+    eprintln!(
+        "[PERF] Continuous total blocks: {}",
+        state.epub.continuous_blocks.len()
+    );
+    eprintln!("[PERF] Total chapters: {}", state.epub.chapters.len());
+
+    assert_eq!(
+        state.epub.markdown_state.block_y_offsets.len(),
+        state.epub.continuous_blocks.len(),
+        "block_y_offsets must match continuous_blocks length"
+    );
+}
