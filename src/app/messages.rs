@@ -149,6 +149,9 @@ pub enum TypstMsg {
 pub enum SpreadsheetMsg {
     SheetTabClicked(usize),
     ColumnClicked(usize),
+    CellClicked { row: usize, col: usize },
+    RowHeaderClicked(usize),
+    CopySelection,
     SearchQueryChanged(String),
     SearchClosed,
     Scrolled(iced::widget::scrollable::Viewport),

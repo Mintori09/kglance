@@ -35,6 +35,7 @@ pub fn populate_state(state: &mut KglanceState, sheets: &[SheetInfo], active_she
     state.spreadsheet.active_sheet = active_sheet;
     state.spreadsheet.sort_col = None;
     state.spreadsheet.sort_ascending = None;
+    state.spreadsheet.selection = None;
     state.spreadsheet.search_query.clear();
     state.spreadsheet.search_visible = false;
     state.spreadsheet.scroll_x = 0.0;
@@ -212,6 +213,7 @@ pub fn handle_sheet_tab_clicked(app: &mut KglanceApp, index: usize) -> Task<Mess
         app.state.spreadsheet.active_sheet = index;
         app.state.spreadsheet.sort_col = None;
         app.state.spreadsheet.sort_ascending = None;
+        app.state.spreadsheet.selection = None;
         app.state.spreadsheet.scroll_x = 0.0;
         app.state.spreadsheet.scroll_y = 0.0;
         app.state.spreadsheet.smooth_scroll.stop(0.0);
@@ -232,6 +234,75 @@ pub fn handle_sheet_tab_clicked(app: &mut KglanceApp, index: usize) -> Task<Mess
                 total_h + HEADER_HEIGHT + ROWS_LIST_SPACING;
             app.state.spreadsheet.total_content_width = compute_total_content_width(sheet);
         }
+    }
+    Task::none()
+}
+
+pub fn handle_cell_clicked(app: &mut KglanceApp, row: usize, col: usize) -> Task<Message> {
+    let target = crate::features::sheet::CellCoord { row, col };
+    let sheet_state = &mut app.state.spreadsheet;
+
+    if app.shift_held {
+        if let Some(existing) = sheet_state.selection {
+            sheet_state.selection = Some(crate::features::sheet::CellRange {
+                start: existing.start,
+                end: target,
+            });
+        } else {
+            sheet_state.selection = Some(crate::features::sheet::CellRange::single(target));
+        }
+    } else {
+        sheet_state.selection = Some(crate::features::sheet::CellRange::single(target));
+    }
+    Task::none()
+}
+
+pub fn handle_row_header_clicked(app: &mut KglanceApp, row: usize) -> Task<Message> {
+    let sheet_state = &mut app.state.spreadsheet;
+    let col_count = sheet_state
+        .sheets
+        .get(sheet_state.active_sheet)
+        .map_or(0, |s| s.columns.len());
+
+    if col_count > 0 {
+        let max_col = col_count.saturating_sub(1);
+        if app.shift_held {
+            if let Some(existing) = sheet_state.selection {
+                sheet_state.selection = Some(crate::features::sheet::CellRange {
+                    start: crate::features::sheet::CellCoord {
+                        row: existing.start.row,
+                        col: 0,
+                    },
+                    end: crate::features::sheet::CellCoord { row, col: max_col },
+                });
+            } else {
+                sheet_state.selection = Some(crate::features::sheet::CellRange {
+                    start: crate::features::sheet::CellCoord { row, col: 0 },
+                    end: crate::features::sheet::CellCoord { row, col: max_col },
+                });
+            }
+        } else {
+            sheet_state.selection = Some(crate::features::sheet::CellRange {
+                start: crate::features::sheet::CellCoord { row, col: 0 },
+                end: crate::features::sheet::CellCoord { row, col: max_col },
+            });
+        }
+    }
+    Task::none()
+}
+
+pub fn handle_copy_selection(app: &mut KglanceApp) -> Task<Message> {
+    if let Some(text) = app
+        .state
+        .spreadsheet
+        .selected_text()
+        .filter(|t| !t.is_empty())
+    {
+        let toast = app.show_toast("Copied selected!");
+        return Task::batch(vec![
+            crate::core::clipboard::copy_to_clipboard(text, None),
+            toast,
+        ]);
     }
     Task::none()
 }

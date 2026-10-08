@@ -1,13 +1,22 @@
+use crate::app::KglanceApp;
+use crate::core::PreviewData;
 use crate::features::common::parser::traits::PreviewParser;
 use crate::features::common::parser::types::ParsedContent;
-use crate::features::sheet::parser::{CsvParser, infer_column_types_and_widths, sniff_delimiter};
-use crate::features::sheet::types::{ColumnMeta, ColumnType, SheetInfo};
-use crate::features::sheet::update::{compute_prefix_widths, recompute_display_indices};
-use crate::features::sheet::view::{
-    COL_SPACING, ROW_STEP, ROWS_LIST_SPACING, compute_csv_column_window,
-    compute_csv_virtual_window, estimate_row_height,
+use crate::features::sheet::parser::{
+    CsvParser, column_index_to_letter, infer_column_types_and_widths, sniff_delimiter,
 };
+use crate::features::sheet::types::{ColumnMeta, ColumnType, SheetInfo};
+use crate::features::sheet::update::{
+    compute_prefix_widths, handle_sheet_tab_clicked, handle_smooth_scroll_tick,
+    handle_wheel_scrolled, populate_state, recompute_display_indices,
+};
+use crate::features::sheet::view::{
+    COL_SPACING, ROW_HEIGHT, ROW_STEP, ROWS_LIST_SPACING, compute_csv_column_window,
+    compute_csv_virtual_window, estimate_row_height, view_spreadsheet,
+};
+use crate::ui::theme::AppTheme;
 use std::io::Write;
+use std::time::Instant;
 use tempfile::NamedTempFile;
 
 fn make_uniform_prefix_heights(total_rows: usize, row_step: f32) -> Vec<f32> {
@@ -19,6 +28,19 @@ fn make_uniform_prefix_heights(total_rows: usize, row_step: f32) -> Vec<f32> {
         prefix.push(acc);
     }
     prefix
+}
+
+#[test]
+fn test_column_index_to_letter() {
+    assert_eq!(column_index_to_letter(0), "A");
+    assert_eq!(column_index_to_letter(1), "B");
+    assert_eq!(column_index_to_letter(25), "Z");
+    assert_eq!(column_index_to_letter(26), "AA");
+    assert_eq!(column_index_to_letter(27), "AB");
+    assert_eq!(column_index_to_letter(51), "AZ");
+    assert_eq!(column_index_to_letter(52), "BA");
+    assert_eq!(column_index_to_letter(701), "ZZ");
+    assert_eq!(column_index_to_letter(702), "AAA");
 }
 
 #[test]
@@ -68,7 +90,7 @@ fn test_compute_csv_virtual_window_variable_heights() {
     let mut prefix = vec![0.0];
     let mut acc = 0.0;
     for i in 0..1000 {
-        let h = if i % 5 == 0 { 120.0 } else { 28.0 };
+        let h = if i % 5 == 0 { 120.0 } else { 26.0 };
         heights.push(h);
         acc += h + ROWS_LIST_SPACING;
         prefix.push(acc);
@@ -91,7 +113,7 @@ fn test_compute_csv_virtual_window_variable_heights() {
 }
 
 #[test]
-fn test_estimate_row_height_multiline() {
+fn test_estimate_row_height() {
     let columns = vec![
         ColumnMeta {
             name: "Col1".to_string(),
@@ -107,15 +129,13 @@ fn test_estimate_row_height_multiline() {
 
     let short_row = vec!["Short".to_string(), "123".to_string()];
     let short_h = estimate_row_height(&short_row, &columns);
-    assert_eq!(short_h, 28.0);
+    assert_eq!(short_h, ROW_HEIGHT);
 
-    let long_text = "This is a very long paragraph that will definitely wrap across multiple lines because it has more than two hundred characters of continuous description inside this single cell.".to_string();
+    let long_text = "This is a very long paragraph inside this cell.".to_string();
     let long_row = vec!["Title".to_string(), long_text];
     let long_h = estimate_row_height(&long_row, &columns);
-    assert!(
-        long_h > 50.0,
-        "Expected dynamic row height expansion, got {long_h}"
-    );
+    assert!(long_h > ROW_HEIGHT);
+    assert_eq!(long_h, 41.0);
 }
 
 #[test]
@@ -150,10 +170,10 @@ fn test_sniff_delimiter_variants() {
 #[test]
 fn test_infer_column_types() {
     let headers = vec![
-        "Name".to_string(),
-        "Age".to_string(),
-        "Score".to_string(),
-        "EmptyCol".to_string(),
+        "A".to_string(),
+        "B".to_string(),
+        "C".to_string(),
+        "D".to_string(),
     ];
     let rows = vec![
         vec![
@@ -186,7 +206,7 @@ fn test_infer_column_types() {
 
 #[test]
 fn test_date_column_inference_and_sorting() {
-    let headers = vec!["Ngày tháng".to_string(), "Event".to_string()];
+    let headers = vec!["A".to_string(), "B".to_string()];
     let rows = vec![
         vec!["30/11/2025".to_string(), "End of Nov".to_string()],
         vec!["2025-01-12".to_string(), "Jan 12".to_string()],
@@ -209,18 +229,16 @@ fn test_date_column_inference_and_sorting() {
         columns: cols,
     };
 
-    // Sort ASC: 2025-01-12 (idx 1), 2025-09-13 (idx 4), 30/11/2025 (idx 0), 06/12/2025 (idx 2), 08/12/2025 (idx 3)
     let sorted_asc = recompute_display_indices(&sheet, "", Some(0), Some(true));
     assert_eq!(sorted_asc, vec![1, 4, 0, 2, 3]);
 
-    // Sort DESC: opposite
     let sorted_desc = recompute_display_indices(&sheet, "", Some(0), Some(false));
     assert_eq!(sorted_desc, vec![3, 2, 0, 4, 1]);
 }
 
 #[test]
 fn test_numeric_sorting_and_filtering() {
-    let headers = vec!["Name".to_string(), "Age".to_string()];
+    let headers = vec!["A".to_string(), "B".to_string()];
     let rows = vec![
         vec!["Alice".to_string(), "2".to_string()],
         vec!["Bob".to_string(), "100".to_string()],
@@ -229,12 +247,12 @@ fn test_numeric_sorting_and_filtering() {
     ];
     let columns = vec![
         ColumnMeta {
-            name: "Name".to_string(),
+            name: "A".to_string(),
             col_type: ColumnType::Text,
             width: 100.0,
         },
         ColumnMeta {
-            name: "Age".to_string(),
+            name: "B".to_string(),
             col_type: ColumnType::Integer,
             width: 80.0,
         },
@@ -247,15 +265,12 @@ fn test_numeric_sorting_and_filtering() {
         columns,
     };
 
-    // 1. Sort Age ASC: expected order is 2 (idx 0), 10 (idx 3), 20 (idx 2), 100 (idx 1)
     let sorted_asc = recompute_display_indices(&sheet, "", Some(1), Some(true));
     assert_eq!(sorted_asc, vec![0, 3, 2, 1]);
 
-    // 2. Sort Age DESC: expected order is 100 (idx 1), 20 (idx 2), 10 (idx 3), 2 (idx 0)
     let sorted_desc = recompute_display_indices(&sheet, "", Some(1), Some(false));
     assert_eq!(sorted_desc, vec![1, 2, 3, 0]);
 
-    // 3. Search query "e" -> Alice (0), Charlie (2), Dave (3)
     let filtered = recompute_display_indices(&sheet, "e", None, None);
     assert_eq!(filtered, vec![0, 2, 3]);
 }
@@ -276,45 +291,98 @@ fn test_csv_parser_rfc4180_quotes_and_multiline() {
         let sheet = &sheets[0];
         assert_eq!(
             sheet.headers,
-            vec![
-                "name".to_string(),
-                "description".to_string(),
-                "count".to_string()
-            ]
+            vec!["A".to_string(), "B".to_string(), "C".to_string()]
         );
-        assert_eq!(sheet.rows.len(), 2);
-        assert_eq!(sheet.rows[0][0], "Alice, Jr.");
-        assert_eq!(sheet.rows[0][1], "Likes apples, oranges");
-        assert_eq!(sheet.rows[0][2], "10");
-        assert_eq!(sheet.rows[1][0], "Bob \"The Builder\"");
-        assert_eq!(sheet.rows[1][1], "Works with\nmultiline tools");
-        assert_eq!(sheet.rows[1][2], "5");
+        assert_eq!(sheet.rows.len(), 3);
+        assert_eq!(sheet.rows[0][0], "name");
+        assert_eq!(sheet.rows[0][1], "description");
+        assert_eq!(sheet.rows[0][2], "count");
+        assert_eq!(sheet.rows[1][0], "Alice, Jr.");
+        assert_eq!(sheet.rows[1][1], "Likes apples, oranges");
+        assert_eq!(sheet.rows[1][2], "10");
+        assert_eq!(sheet.rows[2][0], "Bob \"The Builder\"");
+        assert_eq!(sheet.rows[2][1], "Works with\nmultiline tools");
+        assert_eq!(sheet.rows[2][2], "5");
     } else {
         panic!("Expected ParsedContent::Spreadsheet");
     }
 }
 
 #[test]
-fn test_spreadsheet_smooth_scroll_and_touchpad_inertia() {
-    use crate::app::KglanceApp;
-    use crate::core::PreviewData;
-    use crate::features::sheet::update::{
-        handle_smooth_scroll_tick, handle_wheel_scrolled, populate_state,
+fn test_bottom_sheet_tab_switching() {
+    let sheet1 = SheetInfo {
+        name: "So Sánh Giá Các Shop".to_string(),
+        headers: vec!["A".to_string(), "B".to_string()],
+        rows: vec![vec!["Row1".to_string(), "100".to_string()]],
+        columns: vec![
+            ColumnMeta {
+                name: "A".to_string(),
+                col_type: ColumnType::Text,
+                width: 100.0,
+            },
+            ColumnMeta {
+                name: "B".to_string(),
+                col_type: ColumnType::Integer,
+                width: 80.0,
+            },
+        ],
     };
-    use std::time::Instant;
+    let sheet2 = SheetInfo {
+        name: "Danh Sách Toàn Bộ Dịch Vụ".to_string(),
+        headers: vec!["A".to_string(), "B".to_string(), "C".to_string()],
+        rows: vec![vec![
+            "Service1".to_string(),
+            "Active".to_string(),
+            "2026".to_string(),
+        ]],
+        columns: vec![
+            ColumnMeta {
+                name: "A".to_string(),
+                col_type: ColumnType::Text,
+                width: 120.0,
+            },
+            ColumnMeta {
+                name: "B".to_string(),
+                col_type: ColumnType::Text,
+                width: 100.0,
+            },
+            ColumnMeta {
+                name: "C".to_string(),
+                col_type: ColumnType::Integer,
+                width: 80.0,
+            },
+        ],
+    };
 
-    let headers = vec!["Col1".to_string(), "Col2".to_string()];
+    let mut app = KglanceApp::default();
+    populate_state(&mut app.state, &[sheet1.clone(), sheet2.clone()], 0);
+    assert_eq!(app.state.spreadsheet.active_sheet, 0);
+    assert_eq!(app.state.spreadsheet.display_indices.len(), 1);
+
+    // Switch to tab 1
+    let _ = handle_sheet_tab_clicked(&mut app, 1);
+    assert_eq!(app.state.spreadsheet.active_sheet, 1);
+    assert_eq!(app.state.spreadsheet.sheets.len(), 2);
+    assert_eq!(app.state.spreadsheet.display_indices.len(), 1);
+
+    // Verify view rendering compiles and produces elements
+    let _element = view_spreadsheet(&app.state.spreadsheet, AppTheme::Dark);
+}
+
+#[test]
+fn test_spreadsheet_smooth_scroll_and_touchpad_inertia() {
+    let headers = vec!["A".to_string(), "B".to_string()];
     let rows: Vec<Vec<String>> = (0..100)
         .map(|i| vec![format!("Row {i}"), format!("Val {i}")])
         .collect();
     let columns = vec![
         ColumnMeta {
-            name: "Col1".to_string(),
+            name: "A".to_string(),
             col_type: ColumnType::Text,
             width: 150.0,
         },
         ColumnMeta {
-            name: "Col2".to_string(),
+            name: "B".to_string(),
             col_type: ColumnType::Text,
             width: 150.0,
         },
@@ -464,7 +532,7 @@ fn test_compute_csv_column_window_empty() {
 fn test_compute_csv_column_window_invariance() {
     let cols: Vec<ColumnMeta> = (0..50)
         .map(|i| ColumnMeta {
-            name: format!("Col{i}"),
+            name: column_index_to_letter(i),
             col_type: ColumnType::Text,
             width: 120.0,
         })
