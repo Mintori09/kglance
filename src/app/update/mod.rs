@@ -390,6 +390,15 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::SpreadsheetMsg::ColumnClicked(col) => {
                 crate::features::sheet::update::handle_column_clicked(app, col)
             }
+            crate::app::messages::SpreadsheetMsg::CellClicked { row, col } => {
+                crate::features::sheet::update::handle_cell_clicked(app, row, col)
+            }
+            crate::app::messages::SpreadsheetMsg::RowHeaderClicked(row) => {
+                crate::features::sheet::update::handle_row_header_clicked(app, row)
+            }
+            crate::app::messages::SpreadsheetMsg::CopySelection => {
+                crate::features::sheet::update::handle_copy_selection(app)
+            }
             crate::app::messages::SpreadsheetMsg::SearchQueryChanged(q) => {
                 crate::features::sheet::update::handle_search_query_changed(app, q)
             }

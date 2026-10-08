@@ -1,39 +1,38 @@
 use crate::app::Message;
 use crate::core::SpreadsheetState;
 use crate::features::sheet::types::{ColumnMeta, ColumnType, SheetInfo};
+use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
+use crate::ui::theme::AppTheme;
 use crate::ui::theme::tokens::spacing;
-use crate::ui::theme::{
-    AppTheme, default_button, default_button_primary, default_card, default_tooltip,
-};
 use iced::alignment;
-use iced::widget::{button, column, container, row, text, tooltip};
-use iced::{Element, Length, Theme};
+use iced::widget::{button, column, container, row, text};
+use iced::{Border, Color, Element, Length, Shadow, Theme};
 
 const SORT_ASCENDING_INDICATOR: &str = " ▲";
 const SORT_DESCENDING_INDICATOR: &str = " ▼";
 const SORT_NONE_INDICATOR: &str = "";
 
-const CELL_TEXT_SIZE: f32 = 13.0;
-const ROW_NUM_TEXT_SIZE: f32 = 12.0;
-const EMPTY_STATE_TEXT_SIZE: f32 = 16.0;
+const CELL_TEXT_SIZE: f32 = 12.0;
+const ROW_NUM_TEXT_SIZE: f32 = 11.0;
+const HEADER_TEXT_SIZE: f32 = 11.5;
+const TAB_TEXT_SIZE: f32 = 12.0;
+const EMPTY_STATE_TEXT_SIZE: f32 = 14.0;
 
-const TAB_SPACING: f32 = spacing::XS;
-const MAIN_SPACING: f32 = spacing::XS;
-pub const COL_SPACING: f32 = spacing::XXS;
-pub const ROWS_LIST_SPACING: f32 = 2.0;
+pub const COL_SPACING: f32 = 0.0;
+pub const ROWS_LIST_SPACING: f32 = 0.0;
 
-const CARD_PADDING: [u16; 2] = [spacing::XS as u16, spacing::S as u16];
-pub const ROW_NUMBER_COL_WIDTH: f32 = 52.0;
-
-pub const MIN_ROW_HEIGHT: f32 = 28.0;
+pub const ROW_NUMBER_COL_WIDTH: f32 = 48.0;
+pub const MIN_ROW_HEIGHT: f32 = 26.0;
 pub const ROW_HEIGHT: f32 = MIN_ROW_HEIGHT;
-pub const HEADER_HEIGHT: f32 = 30.0;
+pub const HEADER_HEIGHT: f32 = 26.0;
+pub const BOTTOM_BAR_HEIGHT: f32 = 32.0;
 pub const ROW_STEP: f32 = MIN_ROW_HEIGHT + ROWS_LIST_SPACING;
-pub const LINE_HEIGHT: f32 = 18.0;
-pub const CELL_PADDING_Y: f32 = 8.0;
+pub const LINE_HEIGHT: f32 = 17.5;
+pub const CELL_PADDING_Y: f32 = 6.0;
+pub const CELL_PADDING_X: f32 = 6.0;
 
-/// Estimates dynamic row height based on cell text lengths and column widths.
+/// Estimates row height accurately based on realistic word-wrapping and line bounds.
 pub fn estimate_row_height(row_data: &[String], columns: &[ColumnMeta]) -> f32 {
     let mut max_lines = 1;
     for (col_idx, col_meta) in columns.iter().enumerate() {
@@ -42,62 +41,88 @@ pub fn estimate_row_height(row_data: &[String], columns: &[ColumnMeta]) -> f32 {
             if trimmed.is_empty() {
                 continue;
             }
-            let inner_width = (col_meta.width - 12.0).max(40.0);
-            let chars_per_line = ((inner_width / 7.5).floor() as usize).max(1);
+            let inner_width = (col_meta.width - (CELL_PADDING_X * 2.0)).max(30.0);
+            let chars_per_line = ((inner_width / 6.8).floor() as usize).max(1);
 
             let mut cell_lines = 0;
-            for line in trimmed.split('\n') {
-                let char_count = line.chars().count();
-                let wrapped = char_count.div_ceil(chars_per_line);
-                cell_lines += wrapped.max(1);
+            for raw_line in trimmed.split('\n') {
+                let mut cur_line_len = 0;
+                let mut seg_lines = 1;
+                for word in raw_line.split_whitespace() {
+                    let w_len = word.chars().count();
+                    if cur_line_len == 0 {
+                        cur_line_len = w_len;
+                    } else if cur_line_len + 1 + w_len <= chars_per_line {
+                        cur_line_len += 1 + w_len;
+                    } else {
+                        seg_lines += 1;
+                        cur_line_len = w_len;
+                    }
+                }
+                cell_lines += seg_lines;
             }
             if cell_lines > max_lines {
                 max_lines = cell_lines;
             }
         }
     }
-    (max_lines as f32 * LINE_HEIGHT + CELL_PADDING_Y).clamp(MIN_ROW_HEIGHT, 300.0)
+    (max_lines as f32 * LINE_HEIGHT + CELL_PADDING_Y).clamp(MIN_ROW_HEIGHT, 500.0)
 }
 
 pub fn view_spreadsheet<'a>(state: &'a SpreadsheetState, theme: AppTheme) -> Element<'a, Message> {
     let active_sheet = state.sheets.get(state.active_sheet);
 
-    let tabs_bar = render_sheet_tabs(&state.sheets, state.active_sheet);
     let content_body = match active_sheet {
         Some(sheet) => render_spreadsheet_body(state, sheet, theme),
-        None => render_empty_state("No spreadsheet data loaded"),
+        None => render_empty_state("No spreadsheet data loaded", theme),
     };
 
-    column![tabs_bar, content_body].spacing(MAIN_SPACING).into()
+    let bottom_bar = render_bottom_sheet_bar(&state.sheets, state.active_sheet, theme);
+
+    column![content_body, bottom_bar].into()
 }
 
-fn render_sheet_tabs<'a>(
+fn render_bottom_sheet_bar<'a>(
     sheets: &'a [SheetInfo],
     active_sheet_index: usize,
+    theme: AppTheme,
 ) -> Element<'a, Message> {
-    if sheets.len() <= 1 {
-        return container(row![]).into();
+    if sheets.is_empty() {
+        return container(row![]).height(Length::Shrink).into();
     }
 
-    let mut tabs_row = row![].spacing(TAB_SPACING);
+    let mut tabs_row = row![].spacing(4.0).align_y(alignment::Vertical::Center);
 
     for (index, sheet) in sheets.iter().enumerate() {
         let is_active = index == active_sheet_index;
-        let tab_button = button(text(&sheet.name))
-            .on_press(crate::app::messages::SpreadsheetMsg::SheetTabClicked(index).into())
-            .style(if is_active {
-                default_button_primary
-            } else {
-                default_button
-            });
+        let tab_button = button(
+            text(&sheet.name)
+                .size(TAB_TEXT_SIZE)
+                .align_x(alignment::Horizontal::Center),
+        )
+        .on_press(crate::app::messages::SpreadsheetMsg::SheetTabClicked(index).into())
+        .style(sheet_tab_button_style(theme, is_active))
+        .padding([2, 10]);
 
         tabs_row = tabs_row.push(tab_button);
     }
 
-    container(tabs_row)
-        .style(default_card)
-        .padding(CARD_PADDING)
-        .into()
+    container(
+        scroll_pane("sheet_tabs_scroll", tabs_row)
+            .direction(iced::widget::scrollable::Direction::Horizontal(
+                iced::widget::scrollable::Scrollbar::new()
+                    .width(0)
+                    .scroller_width(0)
+                    .margin(0),
+            ))
+            .build(),
+    )
+    .width(Length::Fill)
+    .height(Length::Fixed(BOTTOM_BAR_HEIGHT))
+    .padding([2, 6])
+    .align_y(alignment::Vertical::Center)
+    .style(move |_: &Theme| bottom_bar_style(theme))
+    .into()
 }
 
 fn render_spreadsheet_body<'a>(
@@ -106,17 +131,20 @@ fn render_spreadsheet_body<'a>(
     theme: AppTheme,
 ) -> Element<'a, Message> {
     if sheet.rows.is_empty() {
-        return render_empty_state("Sheet is empty");
+        return render_empty_state("Sheet is empty", theme);
     }
 
-    let mut layout = column![].spacing(MAIN_SPACING);
+    let mut layout = column![];
 
     if state.search_visible {
-        layout = layout.push(search_bar(
-            SearchKind::Spreadsheet,
-            &state.search_query,
-            None,
-        ));
+        layout = layout.push(
+            container(search_bar(
+                SearchKind::Spreadsheet,
+                &state.search_query,
+                None,
+            ))
+            .padding([3, 6]),
+        );
     }
 
     let header = render_table_header(&sheet.columns, state, theme);
@@ -141,25 +169,27 @@ fn render_spreadsheet_body<'a>(
 
     let table_content = column![header, rows_list].spacing(ROWS_LIST_SPACING);
 
-    let scrollable_area =
-        crate::ui::components::scroll_pane::scroll_pane("content_scroll", table_content)
-            .direction(iced::widget::scrollable::Direction::Both {
-                vertical: iced::widget::scrollable::Scrollbar::new()
-                    .width(4)
-                    .scroller_width(4)
-                    .margin(2),
-                horizontal: iced::widget::scrollable::Scrollbar::new()
-                    .width(4)
-                    .scroller_width(4)
-                    .margin(2),
-            })
-            .filter_wheel(true)
-            .on_scroll(|vp| crate::app::messages::SpreadsheetMsg::Scrolled(vp).into())
-            .on_wheel(|delta| crate::app::messages::SpreadsheetMsg::WheelScrolled(delta).into())
-            .build();
+    let scrollable_area = scroll_pane("content_scroll", table_content)
+        .direction(iced::widget::scrollable::Direction::Both {
+            vertical: iced::widget::scrollable::Scrollbar::new()
+                .width(4)
+                .scroller_width(4)
+                .margin(2),
+            horizontal: iced::widget::scrollable::Scrollbar::new()
+                .width(4)
+                .scroller_width(4)
+                .margin(2),
+        })
+        .filter_wheel(true)
+        .on_scroll(|vp| crate::app::messages::SpreadsheetMsg::Scrolled(vp).into())
+        .on_wheel(|delta| crate::app::messages::SpreadsheetMsg::WheelScrolled(delta).into())
+        .build();
 
     layout = layout.push(scrollable_area);
-    layout.into()
+    container(layout)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
 }
 
 fn render_table_header<'a>(
@@ -173,10 +203,10 @@ fn render_table_header<'a>(
     let sort_ascending = state.sort_ascending;
     let mut header_row = row![].spacing(COL_SPACING);
 
-    // Fixed row number header column
+    // Fixed corner cell above row numbers
     let row_num_header = container(
-        text("#")
-            .size(ROW_NUM_TEXT_SIZE)
+        text("")
+            .size(HEADER_TEXT_SIZE)
             .align_x(alignment::Horizontal::Center)
             .wrapping(text::Wrapping::None)
             .width(Length::Fill),
@@ -184,7 +214,8 @@ fn render_table_header<'a>(
     .clip(true)
     .width(Length::Fixed(ROW_NUMBER_COL_WIDTH))
     .height(Length::Fixed(HEADER_HEIGHT))
-    .align_y(alignment::Vertical::Center);
+    .align_y(alignment::Vertical::Center)
+    .style(move |_: &Theme| grid_header_cell_style(theme));
 
     header_row = header_row.push(row_num_header);
 
@@ -200,40 +231,23 @@ fn render_table_header<'a>(
         let column_index = col_window.visible_start + col_offset;
         let indicator = get_sort_indicator(column_index, sort_column, sort_ascending);
         let button_label = format!("{}{}", col_meta.name, indicator);
+        let is_sorted = sort_column == Some(column_index);
 
         let header_button = button(
             text(button_label)
-                .size(CELL_TEXT_SIZE)
-                .align_x(alignment::Horizontal::Left)
+                .size(HEADER_TEXT_SIZE)
+                .align_x(alignment::Horizontal::Center)
                 .wrapping(text::Wrapping::None)
                 .width(Length::Fill),
         )
         .on_press(crate::app::messages::SpreadsheetMsg::ColumnClicked(column_index).into())
-        .style(if sort_column == Some(column_index) {
-            default_button_primary
-        } else {
-            default_button
-        })
+        .style(grid_header_button_style(theme, is_sorted))
         .clip(true)
+        .padding([0, 4])
         .width(Length::Fixed(col_meta.width))
         .height(Length::Fixed(HEADER_HEIGHT));
 
-        let tooltip_content =
-            container(
-                text(&col_meta.name)
-                    .size(12.0)
-                    .style(move |_: &Theme| text::Style {
-                        color: Some(theme.palette().base.text),
-                    }),
-            )
-            .padding([4, 8])
-            .style(default_tooltip);
-
-        let header_widget = tooltip(header_button, tooltip_content, tooltip::Position::Bottom)
-            .gap(4.0)
-            .snap_within_viewport(true);
-
-        header_row = header_row.push(header_widget);
+        header_row = header_row.push(header_button);
     }
 
     if col_window.visible_end < columns.len() && col_window.right_spacer_width > 0.0 {
@@ -360,7 +374,6 @@ pub fn compute_csv_virtual_window(
     let total_height = *prefix_heights.last().unwrap_or(&0.0);
     let clamped_scroll_y = scroll_y.clamp(0.0, total_height);
 
-    // Binary search for visible start
     let start_idx = match prefix_heights.binary_search_by(|&h| {
         if h <= clamped_scroll_y {
             std::cmp::Ordering::Less
@@ -437,31 +450,43 @@ fn render_table_rows<'a>(
             .unwrap_or(MIN_ROW_HEIGHT);
 
         let mut row_widget = row![].spacing(COL_SPACING);
+        let is_multiline = row_h > (MIN_ROW_HEIGHT + 2.0);
+        let is_row_selected = state.selection.is_some_and(|s| {
+            let (min_r, max_r) = s.row_range();
+            row_idx >= min_r && row_idx <= max_r
+        });
 
-        // Row number column (#) - exactly matching row_h
-        let row_num_text = format!("{}", original_row_idx + 1);
-        let row_num_container = container(
+        // Row number column (#) - clickable to select row
+        let row_num = original_row_idx + 1;
+        let row_num_text = format!("{row_num}");
+        let row_num_content = container(
             text(row_num_text)
                 .size(ROW_NUM_TEXT_SIZE)
-                .style(move |_: &Theme| text::Style {
-                    color: Some(theme.palette().base.text_dim),
-                })
                 .align_x(alignment::Horizontal::Center)
                 .wrapping(text::Wrapping::None)
                 .width(Length::Fill),
         )
-        .width(Length::Fixed(ROW_NUMBER_COL_WIDTH))
-        .height(Length::Fixed(row_h))
-        .align_y(alignment::Vertical::Center);
+        .align_y(if is_multiline {
+            alignment::Vertical::Top
+        } else {
+            alignment::Vertical::Center
+        })
+        .height(Length::Fill);
 
-        row_widget = row_widget.push(row_num_container);
+        let row_num_button = button(row_num_content)
+            .on_press(crate::app::messages::SpreadsheetMsg::RowHeaderClicked(row_idx).into())
+            .style(grid_row_num_style(theme, is_row_selected))
+            .clip(true)
+            .width(Length::Fixed(ROW_NUMBER_COL_WIDTH))
+            .height(Length::Fixed(row_h))
+            .padding([CELL_PADDING_Y / 2.0, 2.0]);
+
+        row_widget = row_widget.push(row_num_button);
 
         if col_win.visible_start > 0 && col_win.left_spacer_width > 0.0 {
             row_widget =
                 row_widget.push(iced::widget::Space::new().width(col_win.left_spacer_width));
         }
-
-        let is_single_line = row_h <= MIN_ROW_HEIGHT;
 
         for (col_offset, col_meta) in sheet.columns[col_win.visible_start..col_win.visible_end]
             .iter()
@@ -469,6 +494,12 @@ fn render_table_rows<'a>(
         {
             let col_idx = col_win.visible_start + col_offset;
             let cell_text = row_data.get(col_idx).map(String::as_str).unwrap_or("");
+            let is_selected = state
+                .selection
+                .is_some_and(|s| s.contains(row_idx, col_idx));
+            let is_primary = state
+                .selection
+                .is_some_and(|s| s.start.row == row_idx && s.start.col == col_idx);
 
             let text_align = match col_meta.col_type {
                 ColumnType::Integer | ColumnType::Float => alignment::Horizontal::Right,
@@ -476,25 +507,35 @@ fn render_table_rows<'a>(
                 ColumnType::Text | ColumnType::Empty => alignment::Horizontal::Left,
             };
 
-            let wrapping = if is_single_line {
-                text::Wrapping::None
-            } else {
-                text::Wrapping::WordOrGlyph
-            };
-
-            let cell_container = container(
+            let cell_content = container(
                 text(cell_text)
                     .size(CELL_TEXT_SIZE)
                     .align_x(text_align)
-                    .wrapping(wrapping)
+                    .wrapping(text::Wrapping::WordOrGlyph)
                     .width(Length::Fill),
             )
-            .width(Length::Fixed(col_meta.width))
-            .height(Length::Fixed(row_h))
-            .padding([2, 4])
-            .align_y(alignment::Vertical::Center);
+            .align_y(if is_multiline {
+                alignment::Vertical::Top
+            } else {
+                alignment::Vertical::Center
+            })
+            .height(Length::Fill);
 
-            row_widget = row_widget.push(cell_container);
+            let cell_button = button(cell_content)
+                .on_press(
+                    crate::app::messages::SpreadsheetMsg::CellClicked {
+                        row: row_idx,
+                        col: col_idx,
+                    }
+                    .into(),
+                )
+                .style(grid_data_cell_style(theme, is_selected, is_primary))
+                .clip(true)
+                .width(Length::Fixed(col_meta.width))
+                .height(Length::Fixed(row_h))
+                .padding([CELL_PADDING_Y / 2.0, CELL_PADDING_X]);
+
+            row_widget = row_widget.push(cell_button);
         }
 
         if col_win.visible_end < sheet.columns.len() && col_win.right_spacer_width > 0.0 {
@@ -502,17 +543,7 @@ fn render_table_rows<'a>(
                 row_widget.push(iced::widget::Space::new().width(col_win.right_spacer_width));
         }
 
-        let is_even_row = row_idx.is_multiple_of(2);
-        let row_container =
-            container(row_widget)
-                .height(Length::Fixed(row_h))
-                .style(move |_: &Theme| {
-                    if is_even_row {
-                        apply_even_row_style(theme)
-                    } else {
-                        container::Style::default()
-                    }
-                });
+        let row_container = container(row_widget).height(Length::Fixed(row_h));
 
         rows_list = rows_list.push(row_container);
     }
@@ -540,15 +571,190 @@ fn get_sort_indicator(
     }
 }
 
-fn apply_even_row_style(theme: AppTheme) -> container::Style {
+fn grid_header_cell_style(theme: AppTheme) -> container::Style {
     container::Style {
-        background: Some(theme.palette().base.surface.into()),
+        background: Some(theme.palette().base.surface_raised.into()),
+        border: Border {
+            color: theme.palette().base.border,
+            width: 1.0,
+            radius: 0.0.into(),
+        },
         ..container::Style::default()
     }
 }
 
-fn render_empty_state<'a>(message: &'a str) -> Element<'a, Message> {
-    container(text(message).size(EMPTY_STATE_TEXT_SIZE))
-        .padding(spacing::M as u16)
-        .into()
+fn grid_header_button_style(
+    theme: AppTheme,
+    is_sorted: bool,
+) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |_: &Theme, status: button::Status| {
+        let p = theme.palette().base;
+        let (bg, text_color) = match status {
+            button::Status::Hovered => (Some(Color::from_rgba(1.0, 1.0, 1.0, 0.10).into()), p.text),
+            button::Status::Pressed => (Some(Color::from_rgba(1.0, 1.0, 1.0, 0.16).into()), p.text),
+            _ => (
+                Some(p.surface_raised.into()),
+                if is_sorted { p.text } else { p.text_dim },
+            ),
+        };
+
+        button::Style {
+            background: bg,
+            text_color,
+            border: Border {
+                color: p.border,
+                width: 1.0,
+                radius: 0.0.into(),
+            },
+            shadow: Shadow::default(),
+            snap: false,
+        }
+    }
+}
+
+fn grid_row_num_style(
+    theme: AppTheme,
+    is_selected: bool,
+) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |_: &Theme, status: button::Status| {
+        let p = theme.palette().base;
+        let role = theme.palette().roles;
+
+        let (bg, border_color) = if is_selected {
+            let mut active_bg = role.accent;
+            active_bg.a = 0.25;
+            (Some(active_bg.into()), role.accent)
+        } else {
+            match status {
+                button::Status::Hovered => (
+                    Some(Color::from_rgba(1.0, 1.0, 1.0, 0.08).into()),
+                    p.border_focus,
+                ),
+                _ => (Some(p.surface_raised.into()), p.border),
+            }
+        };
+
+        button::Style {
+            background: bg,
+            text_color: if is_selected { p.text } else { p.text_dim },
+            border: Border {
+                color: border_color,
+                width: 1.0,
+                radius: 0.0.into(),
+            },
+            shadow: Shadow::default(),
+            snap: false,
+        }
+    }
+}
+
+fn grid_data_cell_style(
+    theme: AppTheme,
+    is_selected: bool,
+    is_primary: bool,
+) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |_: &Theme, status: button::Status| {
+        let p = theme.palette().base;
+        let role = theme.palette().roles;
+
+        let (bg, border_color, border_width) = if is_selected {
+            let mut active_bg = role.accent;
+            active_bg.a = if is_primary { 0.28 } else { 0.18 };
+            (Some(active_bg.into()), role.accent, 1.5)
+        } else {
+            match status {
+                button::Status::Hovered => (
+                    Some(Color::from_rgba(1.0, 1.0, 1.0, 0.05).into()),
+                    p.border_focus,
+                    1.0,
+                ),
+                button::Status::Pressed => (
+                    Some(Color::from_rgba(1.0, 1.0, 1.0, 0.10).into()),
+                    role.accent,
+                    1.0,
+                ),
+                _ => (Some(p.bg.into()), p.border, 1.0),
+            }
+        };
+
+        button::Style {
+            background: bg,
+            text_color: p.text,
+            border: Border {
+                color: border_color,
+                width: border_width,
+                radius: 0.0.into(),
+            },
+            shadow: Shadow::default(),
+            snap: false,
+        }
+    }
+}
+
+fn bottom_bar_style(theme: AppTheme) -> container::Style {
+    container::Style {
+        background: Some(theme.palette().base.surface.into()),
+        border: Border {
+            color: theme.palette().base.border,
+            width: 1.0,
+            radius: 0.0.into(),
+        },
+        ..container::Style::default()
+    }
+}
+
+fn sheet_tab_button_style(
+    theme: AppTheme,
+    is_active: bool,
+) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |_: &Theme, status: button::Status| {
+        let p = theme.palette().base;
+        if is_active {
+            button::Style {
+                background: Some(p.surface_raised.into()),
+                text_color: p.text,
+                border: Border {
+                    color: p.border_focus,
+                    width: 1.0,
+                    radius: 6.0.into(),
+                },
+                shadow: Shadow::default(),
+                snap: false,
+            }
+        } else {
+            let (bg, text_color) = match status {
+                button::Status::Hovered => {
+                    (Some(Color::from_rgba(1.0, 1.0, 1.0, 0.08).into()), p.text)
+                }
+                button::Status::Pressed => {
+                    (Some(Color::from_rgba(1.0, 1.0, 1.0, 0.14).into()), p.text)
+                }
+                _ => (None, p.text_dim),
+            };
+
+            button::Style {
+                background: bg,
+                text_color,
+                border: Border {
+                    color: Color::TRANSPARENT,
+                    width: 1.0,
+                    radius: 6.0.into(),
+                },
+                shadow: Shadow::default(),
+                snap: false,
+            }
+        }
+    }
+}
+
+fn render_empty_state<'a>(message: &'a str, theme: AppTheme) -> Element<'a, Message> {
+    container(
+        text(message)
+            .size(EMPTY_STATE_TEXT_SIZE)
+            .style(move |_: &Theme| text::Style {
+                color: Some(theme.palette().base.text_dim),
+            }),
+    )
+    .padding(spacing::M as u16)
+    .into()
 }

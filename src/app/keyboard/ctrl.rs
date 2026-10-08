@@ -108,6 +108,25 @@ impl KglanceApp {
                 crate::features::pdf::update::handle_select_all(&mut self.state.pdf);
                 Some(Task::none())
             }
+            Some(PreviewData::Spreadsheet { .. }) => {
+                let total_rows = self.state.spreadsheet.display_indices.len();
+                let total_cols = self
+                    .state
+                    .spreadsheet
+                    .sheets
+                    .get(self.state.spreadsheet.active_sheet)
+                    .map_or(0, |s| s.columns.len());
+                if total_rows > 0 && total_cols > 0 {
+                    self.state.spreadsheet.selection = Some(crate::features::sheet::CellRange {
+                        start: crate::features::sheet::CellCoord { row: 0, col: 0 },
+                        end: crate::features::sheet::CellCoord {
+                            row: total_rows - 1,
+                            col: total_cols - 1,
+                        },
+                    });
+                }
+                Some(Task::none())
+            }
             _ => None,
         }
     }
@@ -117,6 +136,10 @@ impl KglanceApp {
             (viewer.selected_text(), None)
         } else {
             match self.current_content {
+                Some(PreviewData::Spreadsheet { .. }) => {
+                    (self.state.spreadsheet.selected_text(), None)
+                }
+
                 Some(PreviewData::Json { .. }) if self.state.json.tree_mode => {
                     let txt = self.state.json.active_node.and_then(|idx| {
                         crate::features::json::parser::JsonParser::extract_subtree_json(

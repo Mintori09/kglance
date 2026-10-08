@@ -242,14 +242,15 @@ fn try_spreadsheet_direct(path: &str) -> Result<ParsedContent, ParseError> {
 
     for name in &sheet_names {
         if let Ok(range) = workbook.worksheet_range(name) {
-            let mut rows_iter = range.rows();
-            let headers: Vec<String> = rows_iter
-                .next()
+            let rows: Vec<Vec<String>> = range
+                .rows()
+                .take(100_000)
                 .map(|row| row.iter().map(cell_to_string).collect())
-                .unwrap_or_default();
+                .collect();
 
-            let rows: Vec<Vec<String>> = rows_iter
-                .map(|row| row.iter().map(cell_to_string).collect())
+            let max_cols = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+            let headers: Vec<String> = (0..max_cols)
+                .map(crate::features::sheet::column_index_to_letter)
                 .collect();
 
             sheets.push(SheetData {

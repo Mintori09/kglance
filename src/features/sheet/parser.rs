@@ -8,8 +8,22 @@ use crate::features::sheet::types::{ColumnMeta, ColumnType, SheetData};
 
 const SAMPLE_SIZE_BYTES: usize = 8192;
 const MAX_PREVIEW_ROWS: usize = 100_000;
-pub const MIN_COLUMN_WIDTH: f32 = 100.0;
-pub const MAX_COLUMN_WIDTH: f32 = 350.0;
+pub const MIN_COLUMN_WIDTH: f32 = 80.0;
+pub const MAX_COLUMN_WIDTH: f32 = 500.0;
+
+/// Converts a 0-indexed column number to standard spreadsheet column letter(s) (0 -> "A", 25 -> "Z", 26 -> "AA", etc.).
+pub fn column_index_to_letter(mut col: usize) -> String {
+    let mut s = String::new();
+    loop {
+        let rem = (col % 26) as u8;
+        s.push((b'A' + rem) as char);
+        if col < 26 {
+            break;
+        }
+        col = (col / 26) - 1;
+    }
+    s.chars().rev().collect()
+}
 
 pub struct CsvParser;
 
@@ -40,16 +54,8 @@ impl PreviewParser for CsvParser {
             .trim(csv::Trim::None)
             .from_reader(BufReader::new(file));
 
-        let mut raw_records = csv_reader.records();
+        let raw_records = csv_reader.records();
 
-        // 1. First record -> headers
-        let headers: Vec<String> = match raw_records.next() {
-            Some(Ok(record)) => record.iter().map(|s| s.trim().to_string()).collect(),
-            Some(Err(e)) => return Err(ParseError::ParseFailed(e.to_string())),
-            None => Vec::new(),
-        };
-
-        // 2. Remaining records -> rows
         let mut rows: Vec<Vec<String>> = Vec::new();
         for result in raw_records.take(MAX_PREVIEW_ROWS) {
             match result {
@@ -63,6 +69,9 @@ impl PreviewParser for CsvParser {
                 }
             }
         }
+
+        let max_cols = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+        let headers: Vec<String> = (0..max_cols).map(column_index_to_letter).collect();
 
         let sheet_name = path
             .file_stem()
@@ -159,8 +168,9 @@ pub fn infer_column_types_and_widths(headers: &[String], rows: &[Vec<String>]) -
     for col_idx in 0..col_count {
         let name = headers
             .get(col_idx)
+            .filter(|s| !s.is_empty())
             .cloned()
-            .unwrap_or_else(|| format!("Column {}", col_idx + 1));
+            .unwrap_or_else(|| column_index_to_letter(col_idx));
 
         let mut is_integer = true;
         let mut is_float = true;
@@ -204,10 +214,10 @@ pub fn infer_column_types_and_widths(headers: &[String], rows: &[Vec<String>]) -
             ColumnType::Text
         };
 
-        // Header contributes up to 25 chars, data contributes up to 35 chars
-        let effective_char_len = header_char_len.min(25).max(max_data_char_len.min(35));
+        // Header contributes up to 30 chars, data contributes up to 50 chars
+        let effective_char_len = header_char_len.min(30).max(max_data_char_len.min(50));
         let estimated_width =
-            ((effective_char_len as f32 * 8.5) + 36.0).clamp(MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH);
+            ((effective_char_len as f32 * 8.0) + 32.0).clamp(MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH);
 
         columns.push(ColumnMeta {
             name,
