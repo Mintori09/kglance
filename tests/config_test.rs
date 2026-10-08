@@ -48,6 +48,7 @@ fn test_config_serialization_round_trip() {
             font_family: Some("Noto Sans".into()),
             font_family_mono: Some("JetBrains Mono".into()),
             epub_font_family: Some("Noto Serif".into()),
+            epub_reading_mode: kglance::core::config::EpubReadingMode::Continuous,
             max_text_width: Some(720.0),
             default_width: 1024,
             default_height: 768,

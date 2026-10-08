@@ -5,6 +5,14 @@ use std::path::PathBuf;
 
 pub const DEFAULT_CACHE_MAX_MEMORY_MB: usize = 512;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EpubReadingMode {
+    #[default]
+    SingleChapter,
+    Continuous,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct UiConfig {
     pub theme: Option<String>,
@@ -12,6 +20,8 @@ pub struct UiConfig {
     pub font_family: Option<String>,
     pub font_family_mono: Option<String>,
     pub epub_font_family: Option<String>,
+    #[serde(default)]
+    pub epub_reading_mode: EpubReadingMode,
     pub max_text_width: Option<f32>,
     pub default_width: u32,
     pub default_height: u32,
@@ -82,6 +92,7 @@ impl Default for UiConfig {
             font_family: None,
             font_family_mono: None,
             epub_font_family: None,
+            epub_reading_mode: EpubReadingMode::default(),
             max_text_width: Some(820.0),
             default_width: 1024,
             default_height: 768,
