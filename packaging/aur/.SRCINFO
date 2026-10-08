@@ -1,0 +1,25 @@
+pkgbase = kglance
+	pkgdesc = A high-performance file preview system for KDE Plasma 6
+	pkgver = 0.4.0
+	pkgrel = 1
+	url = https://github.com/Mintori09/kglance
+	arch = x86_64
+	license = AGPL-3.0-only
+	makedepends = cargo
+	makedepends = pkgconf
+	depends = bzip2
+	depends = fontconfig
+	depends = freetype2
+	depends = gcc-libs
+	depends = glib2
+	depends = glibc
+	depends = gst-plugins-base-libs
+	depends = gstreamer
+	depends = zlib
+	optdepends = gst-libav: Libav/FFmpeg codecs in GStreamer
+	optdepends = gst-plugins-bad: Additional video/audio decoders
+	optdepends = gst-plugins-good: Popular video/audio decoders
+	source = kglance-0.4.0.tar.gz::https://github.com/Mintori09/kglance/archive/refs/tags/v0.4.0.tar.gz
+	sha256sums = 2f5369778a48b204c8e0ab93028ae16e3a8e7ebe131cf46e0a654326fa82ca48
+
+pkgname = kglance
