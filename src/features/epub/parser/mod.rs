@@ -72,6 +72,59 @@ pub fn load_chapter_from_epub(
     parse_chapter_content(&mut archive, &opf_path, file_href, anchor)
 }
 
+pub type LoadedAllChaptersContent = (
+    Vec<crate::core::types::EpubChapterInfo>,
+    HashMap<String, Vec<u8>>,
+);
+
+pub fn load_all_chapters_and_images_from_epub(
+    path: &Path,
+    chapters: &[crate::core::types::EpubChapterInfo],
+) -> Result<LoadedAllChaptersContent, ParseError> {
+    let file = File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let opf_path = read_container_opf_path(&mut archive)?;
+
+    let mut loaded_chapters = Vec::with_capacity(chapters.len());
+    let mut all_images = HashMap::new();
+    let mut file_blocks_cache: HashMap<String, Vec<Block>> = HashMap::new();
+
+    for ch in chapters {
+        let blocks = if !ch.blocks.is_empty() {
+            ch.blocks.clone()
+        } else if let Some(cached) = file_blocks_cache.get(&ch.file_href) {
+            cached.clone()
+        } else {
+            let parsed =
+                parse_chapter_content(&mut archive, &opf_path, &ch.file_href, ch.anchor.as_deref())
+                    .unwrap_or_default();
+            let imgs = extract_selective_images(
+                &mut archive,
+                &opf_path,
+                None,
+                &parsed,
+                Some(&ch.file_href),
+            );
+            for (k, v) in imgs {
+                all_images.insert(k, v);
+            }
+            file_blocks_cache.insert(ch.file_href.clone(), parsed.clone());
+            parsed
+        };
+
+        loaded_chapters.push(crate::core::types::EpubChapterInfo {
+            title: ch.title.clone(),
+            level: ch.level,
+            anchor: ch.anchor.clone(),
+            file_href: ch.file_href.clone(),
+            blocks,
+        });
+    }
+
+    Ok((loaded_chapters, all_images))
+}
+
 pub fn load_images_for_blocks_from_epub(
     archive: &mut zip::ZipArchive<impl Read + std::io::Seek>,
     opf_path: &str,

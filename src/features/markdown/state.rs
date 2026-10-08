@@ -60,6 +60,31 @@ pub fn rebuild_block_offsets(layouts: &[BlockLayout], _font_size: f32) -> (Vec<f
     (offsets, y + padding_v)
 }
 
+pub fn update_block_offsets_in_place(
+    layouts: &[BlockLayout],
+    offsets: &mut Vec<f32>,
+    min_changed_idx: usize,
+) -> f32 {
+    let padding_v = lc::CONTENT_PADDING * 2.0;
+    if offsets.len() != layouts.len() {
+        let (new_offsets, total_h) = rebuild_block_offsets(layouts, 0.0);
+        *offsets = new_offsets;
+        return total_h;
+    }
+
+    let mut y = if min_changed_idx > 0 {
+        offsets[min_changed_idx - 1] + layouts[min_changed_idx - 1].effective_height()
+    } else {
+        0.0
+    };
+
+    for i in min_changed_idx..layouts.len() {
+        offsets[i] = y;
+        y += layouts[i].effective_height();
+    }
+    y + padding_v
+}
+
 pub fn invalidate_markdown_geometry(state: &mut MarkdownState) {
     for layout in &mut state.block_layouts {
         layout.invalidate_measurement();
@@ -69,7 +94,7 @@ pub fn invalidate_markdown_geometry(state: &mut MarkdownState) {
 pub fn apply_measured_block_heights(
     state: &mut MarkdownState,
     measurements: &[(usize, f32)],
-    font_size: f32,
+    _font_size: f32,
 ) -> f32 {
     if measurements.is_empty() || state.block_layouts.is_empty() {
         return state.scroll_y;
@@ -87,26 +112,33 @@ pub fn apply_measured_block_heights(
     let old_anchor_y = old_offsets.get(anchor_idx).copied().unwrap_or(0.0);
 
     // 2. Batch update measured heights into BlockLayouts
-    let mut changed = false;
+    let mut min_changed_idx = usize::MAX;
     for &(idx, measured_h) in measurements {
         if let Some(layout) = state.block_layouts.get_mut(idx)
             && layout.measured_height != Some(measured_h)
         {
             layout.measured_height = Some(measured_h);
-            changed = true;
+            min_changed_idx = min_changed_idx.min(idx);
         }
     }
 
-    if !changed {
+    if min_changed_idx == usize::MAX {
         return state.scroll_y;
     }
 
-    // 3. Batched Prefix Rebuild
-    let (new_offsets, new_total_h) = rebuild_block_offsets(&state.block_layouts, font_size);
-    let new_anchor_y = new_offsets.get(anchor_idx).copied().unwrap_or(0.0);
+    // 3. Batched In-Place Prefix Update
+    let new_total_h = update_block_offsets_in_place(
+        &state.block_layouts,
+        &mut state.block_y_offsets,
+        min_changed_idx,
+    );
+    let new_anchor_y = state
+        .block_y_offsets
+        .get(anchor_idx)
+        .copied()
+        .unwrap_or(0.0);
     let delta = new_anchor_y - old_anchor_y;
 
-    state.block_y_offsets = new_offsets;
     state.total_content_height = new_total_h;
 
     for entry in &mut state.toc {

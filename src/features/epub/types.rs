@@ -1,3 +1,4 @@
+use crate::core::config::EpubReadingMode;
 use crate::features::markdown::MarkdownState;
 use crate::parsers::markdown::Block;
 use std::collections::HashSet;
@@ -17,6 +18,9 @@ pub struct EpubState {
     pub author: String,
     pub chapters: Vec<EpubChapterInfo>,
     pub active_chapter: usize,
+    pub reading_mode: EpubReadingMode,
+    pub chapter_block_offsets: Vec<usize>,
+    pub continuous_blocks: Vec<Block>,
     pub sidebar_visible: bool,
     pub sidebar_width: f32,
     pub sidebar_resizing: bool,
@@ -34,6 +38,9 @@ impl Default for EpubState {
             author: String::new(),
             chapters: Vec::new(),
             active_chapter: 0,
+            reading_mode: EpubReadingMode::default(),
+            chapter_block_offsets: Vec::new(),
+            continuous_blocks: Vec::new(),
             sidebar_visible: false,
             sidebar_width: 240.0,
             sidebar_resizing: false,
