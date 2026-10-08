@@ -25,7 +25,6 @@ fn test_compute_cache_key_invalidates_on_change() {
 
     let key1 = compute_cache_key("office", &sample_file).unwrap();
 
-    // Modify file content and size
     std::thread::sleep(std::time::Duration::from_millis(15));
     fs::write(&sample_file, b"version 2 updated content").unwrap();
 
@@ -36,7 +35,6 @@ fn test_compute_cache_key_invalidates_on_change() {
 #[test]
 fn test_atomic_create_and_get_cached_file() {
     let temp_cache_dir = tempdir().unwrap();
-    // Safety for tests: point cache directory to temp_cache_dir
     unsafe {
         std::env::set_var("KGLANCE_CACHE_DIR", temp_cache_dir.path().to_str().unwrap());
     }
@@ -56,6 +54,10 @@ fn test_atomic_create_and_get_cached_file() {
 
     assert!(cached.exists());
     assert_eq!(cached.extension().and_then(|e| e.to_str()), Some("pdf"));
+
+    // Check index file was saved
+    let index_file = index_file_path();
+    assert!(index_file.exists());
 
     // Second check: cache hit
     let hit = get_cached_path("office", &source_file, "pdf");
@@ -103,7 +105,7 @@ fn test_atomic_write_cleans_up_on_failure() {
     assert!(res.is_err());
     assert!(get_cached_path("office", &source_file, "pdf").is_none());
 
-    // Verify temp directory contains no leftover .tmp files
+    // Verify category dir contains no leftover .tmp files
     let cat_dir = category_dir("office");
     if cat_dir.exists() {
         let entries: Vec<_> = fs::read_dir(&cat_dir).unwrap().flatten().collect();
@@ -112,7 +114,57 @@ fn test_atomic_write_cleans_up_on_failure() {
 }
 
 #[test]
-fn test_prune_to_budget_removes_oldest() {
+fn test_startup_reconciliation_cleans_orphaned_and_missing_and_unindexed() {
+    let temp_cache_dir = tempdir().unwrap();
+    let cache_root = temp_cache_dir.path();
+    unsafe {
+        std::env::set_var("KGLANCE_CACHE_DIR", cache_root.to_str().unwrap());
+    }
+
+    let source_dir = tempdir().unwrap();
+    let src_active = source_dir.path().join("active.docx");
+    let src_deleted = source_dir.path().join("deleted.docx");
+    fs::write(&src_active, b"active").unwrap();
+    fs::write(&src_deleted, b"to be deleted").unwrap();
+
+    let cached_active = put_bytes("office", &src_active, "pdf", b"pdf active").unwrap();
+    let cached_deleted = put_bytes("office", &src_deleted, "pdf", b"pdf deleted").unwrap();
+
+    // Create an unindexed rogue file on disk
+    let rogue_file = category_dir("office").join("unindexed_file.bin");
+    fs::write(&rogue_file, b"rogue garbage").unwrap();
+
+    // Create a stale temp file
+    let stale_tmp = category_dir("office").join(".tmp_123_456");
+    fs::write(&stale_tmp, b"stale tmp").unwrap();
+
+    // Now delete the source file of cached_deleted
+    let _ = fs::remove_file(&src_deleted);
+
+    // Run reconciliation
+    access_index(|index| {
+        reconcile_index_with_disk(index, cache_root, true);
+    });
+
+    assert!(cached_active.exists(), "Active cache file must stay");
+    assert!(
+        !cached_deleted.exists(),
+        "Orphaned cache file must be deleted from disk"
+    );
+    assert!(
+        !rogue_file.exists(),
+        "Unindexed file must be cleaned from disk"
+    );
+    assert!(!stale_tmp.exists(), "Stale temp file must be cleaned");
+
+    access_index(|index| {
+        assert_eq!(index.entries.len(), 1);
+        assert_eq!(index.total_bytes, b"pdf active".len() as u64);
+    });
+}
+
+#[test]
+fn test_prune_does_not_run_under_80_percent_threshold() {
     let temp_cache_dir = tempdir().unwrap();
     unsafe {
         std::env::set_var("KGLANCE_CACHE_DIR", temp_cache_dir.path().to_str().unwrap());
@@ -120,29 +172,68 @@ fn test_prune_to_budget_removes_oldest() {
 
     let source_dir = tempdir().unwrap();
     let src1 = source_dir.path().join("file1.docx");
-    let src2 = source_dir.path().join("file2.docx");
-    let src3 = source_dir.path().join("file3.docx");
-
     fs::write(&src1, b"1").unwrap();
-    fs::write(&src2, b"2").unwrap();
-    fs::write(&src3, b"3").unwrap();
 
-    let path1 = put_bytes("office", &src1, "pdf", &[0u8; 1000]).unwrap();
-    std::thread::sleep(std::time::Duration::from_millis(20));
-    let path2 = put_bytes("office", &src2, "pdf", &[0u8; 1000]).unwrap();
-    std::thread::sleep(std::time::Duration::from_millis(20));
-    let path3 = put_bytes("office", &src3, "pdf", &[0u8; 1000]).unwrap();
-
+    let path1 = put_bytes("office", &src1, "pdf", &[0u8; 500]).unwrap();
     assert!(path1.exists());
-    assert!(path2.exists());
-    assert!(path3.exists());
 
-    // Total size ~ 3000 bytes. Prune to budget of 1500 bytes.
-    // Target is 85% of 1500 = 1275 bytes.
-    // path1 (oldest) and path2 should be removed, path3 kept.
-    let remaining = prune_to_budget(1500).unwrap();
-    assert!(remaining <= 1500);
+    // Budget = 1000 bytes. 500 bytes is 50% <= 80%.
+    let remaining = prune_to_budget(1000).unwrap();
+    assert_eq!(remaining, 500);
+    assert!(path1.exists(), "File should NOT be pruned under 80%");
+}
 
-    assert!(!path1.exists());
-    assert!(path3.exists());
+#[test]
+fn test_prune_two_stage_orphaned_then_lru() {
+    let temp_cache_dir = tempdir().unwrap();
+    unsafe {
+        std::env::set_var("KGLANCE_CACHE_DIR", temp_cache_dir.path().to_str().unwrap());
+    }
+
+    let source_dir = tempdir().unwrap();
+    let src_orphan = source_dir.path().join("orphan.docx");
+    let src_old = source_dir.path().join("old.docx");
+    let src_new = source_dir.path().join("new.docx");
+
+    fs::write(&src_orphan, b"orphan").unwrap();
+    fs::write(&src_old, b"old").unwrap();
+    fs::write(&src_new, b"new").unwrap();
+
+    let path_orphan = put_bytes("office", &src_orphan, "pdf", &[0u8; 400]).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let path_old = put_bytes("office", &src_old, "pdf", &[0u8; 300]).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let path_new = put_bytes("office", &src_new, "pdf", &[0u8; 300]).unwrap();
+
+    // Total size = 1000 bytes. Budget = 1000 bytes. Threshold 80% = 800 bytes.
+    // 1000 > 800 -> Triggers prune.
+    // First, delete source of orphan:
+    let _ = fs::remove_file(&src_orphan);
+
+    // Stage 1 will delete orphan (400 bytes). Remaining = 600 bytes <= 800 bytes (80%).
+    // So Stage 2 (LRU) won't even need to touch path_old!
+    let remaining = prune_to_budget(1000).unwrap();
+    assert_eq!(remaining, 600);
+
+    assert!(!path_orphan.exists(), "Orphaned cache file must be removed");
+    assert!(
+        path_old.exists(),
+        "Old file kept because orphan cleanup dropped under 80%"
+    );
+    assert!(path_new.exists(), "New file kept");
+
+    // Now test Stage 2 LRU: Add more data to push past 80% without orphans
+    let src_extra = source_dir.path().join("extra.docx");
+    fs::write(&src_extra, b"extra").unwrap();
+    let path_extra = put_bytes("office", &src_extra, "pdf", &[0u8; 400]).unwrap();
+
+    // Total = 600 + 400 = 1000 bytes > 800 (80%).
+    // Budget = 1000, target 70% = 700 bytes.
+    // path_old (300 bytes) should be deleted, bringing total to 700.
+    let remaining2 = prune_to_budget(1000).unwrap();
+    assert!(remaining2 <= 700);
+
+    assert!(!path_old.exists(), "Oldest file removed in Stage 2 LRU");
+    assert!(path_new.exists());
+    assert!(path_extra.exists());
 }
