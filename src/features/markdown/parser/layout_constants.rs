@@ -37,6 +37,7 @@ pub const MATH_PADDING: u16 = 8;
 
 // List
 pub const LIST_ITEM_PADDING: f32 = 2.0;
+pub const LIST_ITEM_SPACING: f32 = 4.0;
 pub const LIST_SUB_BLOCK_LEFT_PADDING: f32 = 20.0;
 
 // HTML

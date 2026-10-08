@@ -31,20 +31,20 @@ pub fn intrinsic_block_height(
             let text = flatten_inlines_toc(content);
             let explicit_lines = text.lines().count().max(1);
             let available_w = effective_width.max(100.0);
-            let chars_per_line = (available_w / (layout.font_size * 0.55)).max(10.0) as usize;
+            let chars_per_line = (available_w / (layout.font_size * 0.50)).max(10.0) as usize;
             let visual_units = text.chars().count();
             let wrapped_lines = (visual_units as f32 / chars_per_line as f32)
                 .ceil()
                 .max(1.0) as usize;
             let num_lines = explicit_lines.max(wrapped_lines) as f32;
-            let text_h = num_lines * layout.font_size * 1.35;
+            let text_h = num_lines * layout.font_size * 1.5;
             layout.padding_top + text_h + layout.padding_bottom + div
         }
         Block::Paragraph(inlines) => {
             let text = flatten_inlines_toc(inlines);
             let explicit_lines = text.lines().count().max(1);
             let available_w = effective_width.max(100.0);
-            let chars_per_line = (available_w / (font_size * 0.58)).max(15.0) as usize;
+            let chars_per_line = (available_w / (font_size * 0.50)).max(15.0) as usize;
             let visual_units = text
                 .chars()
                 .map(|c| {
@@ -59,7 +59,7 @@ pub fn intrinsic_block_height(
                     }
                 })
                 .sum::<usize>();
-            let wrapped_lines = ((visual_units as f32 * 1.05) / chars_per_line as f32)
+            let wrapped_lines = (visual_units as f32 / chars_per_line as f32)
                 .ceil()
                 .max(1.0) as usize;
             let num_lines = explicit_lines.max(wrapped_lines) as f32;
@@ -72,7 +72,7 @@ pub fn intrinsic_block_height(
             let top_bar = button_font_h
                 + (lc::CODE_BUTTON_PADDING_V * 2).max(lc::CODE_TOP_BAR_PADDING_V * 2) as f32;
             let code_font_size = scale_size(lc::CODE_LINE_FONT_SIZE, font_size);
-            let code_line_h = code_font_size * 1.35;
+            let code_line_h = code_font_size * 1.5;
             let pad_v = (lc::CODE_PADDING * 2) as f32;
             top_bar + pad_v + n * code_line_h
         }
@@ -85,10 +85,10 @@ pub fn intrinsic_block_height(
             .max(1);
             let available_w = effective_width.max(100.0);
             let col_width = (available_w / num_cols as f32).max(50.0);
-            let char_width = font_size * 0.55;
+            let char_width = font_size * 0.50;
             let approx_col_chars = (col_width / char_width).max(8.0) as usize;
 
-            let row_height = scale(28.0);
+            let row_height = scale(36.0);
             let mut total_lines = 0.0;
 
             if !t.headers.is_empty() {
@@ -128,7 +128,7 @@ pub fn intrinsic_block_height(
         Block::List { items, .. } => {
             let mut total_h = 0.0;
             let available_w = (effective_width - lc::LIST_SUB_BLOCK_LEFT_PADDING).max(100.0);
-            let chars_per_line = (available_w / (font_size * 0.60)).max(15.0) as usize;
+            let chars_per_line = (available_w / (font_size * 0.50)).max(15.0) as usize;
             for item in items {
                 let has_direct_content = !item.content.is_empty()
                     || item.is_task.is_some()
@@ -150,7 +150,7 @@ pub fn intrinsic_block_height(
                             }
                         })
                         .sum::<usize>();
-                    let wrapped_lines = ((visual_units as f32 * 1.15) / chars_per_line as f32)
+                    let wrapped_lines = (visual_units as f32 / chars_per_line as f32)
                         .ceil()
                         .max(1.0) as usize;
                     let n = explicit_lines.max(wrapped_lines) as f32;
@@ -171,7 +171,7 @@ pub fn intrinsic_block_height(
                 total_h += item_h;
             }
             if items.len() > 1 {
-                total_h += (items.len() - 1) as f32 * lc::SECTION_SPACING;
+                total_h += (items.len() - 1) as f32 * lc::LIST_ITEM_SPACING;
             }
             total_h.max(line)
         }
@@ -210,7 +210,7 @@ pub fn intrinsic_block_height(
                     intrinsic_block_height(b, font_size, block_index, image_sizes, effective_width)
                 })
                 .sum();
-            scale(16.0) + h + 8.0
+            h + 8.0
         }
         Block::Frontmatter(entries) => {
             let n = entries.len() as f32;

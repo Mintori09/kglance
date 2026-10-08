@@ -109,6 +109,12 @@ pub fn apply_measured_block_heights(
     state.block_y_offsets = new_offsets;
     state.total_content_height = new_total_h;
 
+    for entry in &mut state.toc {
+        if let Some(&block_y) = state.block_y_offsets.get(entry.block_index) {
+            entry.y_offset = lc::CONTENT_PADDING + block_y;
+        }
+    }
+
     // 4. Scroll Anchoring Invariant: Anchor screen Y remains unchanged (Δ_anchor ≈ 0)
     if delta.abs() > 0.001 {
         let max_y = crate::core::scroll::max_scroll_y(new_total_h, state.viewport_height);
@@ -407,5 +413,40 @@ mod tests {
         assert_eq!(state.block_layouts[1].measured_height, None);
         assert_eq!(state.block_layouts[0].effective_height(), 100.0);
         assert_eq!(state.block_layouts[1].effective_height(), 200.0);
+    }
+
+    #[test]
+    fn test_apply_measured_block_heights_updates_toc_offsets() {
+        let mut state = MarkdownState {
+            block_layouts: vec![
+                BlockLayout::new(50.0),  // block 0 (Heading): [0, 50)
+                BlockLayout::new(100.0), // block 1 (Paragraph): [50, 150)
+                BlockLayout::new(50.0),  // block 2 (Heading): [150, 200)
+            ],
+            block_y_offsets: vec![0.0, 50.0, 150.0],
+            toc: vec![
+                crate::core::TocEntry {
+                    level: 1,
+                    text: "H1".to_string(),
+                    block_index: 0,
+                    y_offset: lc::CONTENT_PADDING + 0.0,
+                },
+                crate::core::TocEntry {
+                    level: 2,
+                    text: "H2".to_string(),
+                    block_index: 2,
+                    y_offset: lc::CONTENT_PADDING + 150.0,
+                },
+            ],
+            total_content_height: 200.0 + lc::CONTENT_PADDING * 2.0,
+            ..Default::default()
+        };
+
+        // Paragraph measured 160px (+60px)
+        let measurements = vec![(1, 160.0)];
+        apply_measured_block_heights(&mut state, &measurements, 14.0);
+
+        assert_eq!(state.block_y_offsets[2], 210.0);
+        assert_eq!(state.toc[1].y_offset, lc::CONTENT_PADDING + 210.0);
     }
 }

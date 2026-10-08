@@ -79,15 +79,25 @@ pub fn handle_toc_toggle_collapse(app: &mut KglanceApp, idx: usize) -> Task<Mess
 }
 
 pub fn handle_toc_heading_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message> {
-    let y = app
-        .state
-        .markdown
-        .toc
-        .iter()
-        .find(|e| e.block_index == idx)
-        .map(|e| e.y_offset)
-        .unwrap_or(0.0);
     let state = &mut app.state.markdown;
+    let y = state
+        .block_y_offsets
+        .get(idx)
+        .map(|&block_y| {
+            if idx == 0 {
+                0.0
+            } else {
+                crate::parsers::markdown::layout_constants::CONTENT_PADDING + block_y
+            }
+        })
+        .unwrap_or_else(|| {
+            state
+                .toc
+                .iter()
+                .find(|e| e.block_index == idx)
+                .map(|e| e.y_offset)
+                .unwrap_or(0.0)
+        });
     let max_y =
         crate::core::scroll::max_scroll_y(state.total_content_height, state.viewport_height);
     state
