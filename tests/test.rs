@@ -14,7 +14,13 @@ async fn setup_mock_daemon() -> tokio::sync::mpsc::Receiver<kglance::dbus::Daemo
         let _ = run_zbus(registry, tx, is_gui_open).await;
     });
 
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    let start_wait = std::time::Instant::now();
+    while start_wait.elapsed() < Duration::from_secs(3) {
+        if kglance::dbus::is_gui_open().is_ok() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
     rx
 }
 

@@ -161,7 +161,7 @@ fn render_mermaid_by_mermaid_cli(
 ) -> Option<Vec<u8>> {
     const INPUT_EXTENSION: &str = ".mmd";
     const OUTPUT_EXTENSION: &str = ".png";
-    const TIMEOUT: Duration = Duration::from_millis(6000);
+    const TIMEOUT: Duration = Duration::from_millis(15000);
 
     let _lock = MMDC_SEMAPHORE.lock().ok()?;
 

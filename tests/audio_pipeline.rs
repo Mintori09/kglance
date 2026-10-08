@@ -401,12 +401,25 @@ fn test_audio_player_seek() {
     let player = AudioPlayer::new(path, 3.0).expect("Failed to create AudioPlayer");
 
     // Wait briefly for GStreamer playbin to preroll
-    std::thread::sleep(Duration::from_millis(250));
+    let start_preroll = Instant::now();
+    while start_preroll.elapsed() < Duration::from_secs(2) {
+        if player.position_secs() > 0.0 || player.is_playing() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
 
     // Seek to 1.5s
     player.seek_to_secs(1.5);
-    std::thread::sleep(Duration::from_millis(150));
-    let pos = player.position_secs();
+    let start_seek = Instant::now();
+    let mut pos = 0.0;
+    while start_seek.elapsed() < Duration::from_secs(2) {
+        pos = player.position_secs();
+        if (1.2..=2.2).contains(&pos) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
     assert!(
         (1.2..=2.2).contains(&pos),
         "Position after seek(1.5s) should be around 1.5s, got: {pos:.3}s"
@@ -414,8 +427,15 @@ fn test_audio_player_seek() {
 
     // Seek to ratio 0.8 (approx 2.4s)
     player.seek_to_ratio(0.8);
-    std::thread::sleep(Duration::from_millis(100));
-    let pos_ratio = player.position_secs();
+    let start_ratio = Instant::now();
+    let mut pos_ratio = 0.0;
+    while start_ratio.elapsed() < Duration::from_secs(2) {
+        pos_ratio = player.position_secs();
+        if (2.0..=2.8).contains(&pos_ratio) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
     assert!(
         (2.0..=2.8).contains(&pos_ratio),
         "Position after seek_to_ratio(0.8) should be around 2.4s, got: {pos_ratio:.3}s"
@@ -423,8 +443,15 @@ fn test_audio_player_seek() {
 
     // Seek relative back 1.0s
     player.seek_relative(-1.0);
-    std::thread::sleep(Duration::from_millis(100));
-    let pos_rel = player.position_secs();
+    let start_rel = Instant::now();
+    let mut pos_rel = pos_ratio;
+    while start_rel.elapsed() < Duration::from_secs(2) {
+        pos_rel = player.position_secs();
+        if pos_rel < pos_ratio {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
     assert!(
         pos_rel < pos_ratio,
         "Position after rewind should decrease: {pos_rel:.3}s < {pos_ratio:.3}s"
