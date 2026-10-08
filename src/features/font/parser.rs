@@ -11,11 +11,12 @@ impl PreviewParser for FontParser {
     }
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
-        let data = std::fs::read(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        let mmap = crate::core::MmapFile::open(path)
+            .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
         let fontdue_font =
-            fontdue::Font::from_bytes(&data[..], fontdue::FontSettings::default()).ok();
+            fontdue::Font::from_bytes(mmap.as_bytes(), fontdue::FontSettings::default()).ok();
 
-        let ttf_face = ttf_parser::Face::parse(&data, 0).ok();
+        let ttf_face = ttf_parser::Face::parse(mmap.as_bytes(), 0).ok();
 
         let (
             family,
@@ -118,7 +119,7 @@ impl PreviewParser for FontParser {
             ));
         };
 
-        let file_size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+        let file_size = mmap.len() as u64;
 
         let mut meta = Vec::new();
         meta.push(format!("Name: {full_name}"));
@@ -133,7 +134,8 @@ impl PreviewParser for FontParser {
         meta.push(format!("Units per EM: {units_per_em}"));
         meta.push(format!("Ascender: {asc}"));
         meta.push(format!("Descender: {desc}"));
-        meta.push(format!("File size: {}", human_size(file_size)));
+        let size_str = human_size(file_size);
+        meta.push(format!("File size: {size_str}"));
 
         let metadata = meta.join("\n");
         let sample_text = "The quick brown fox jumps over the lazy dog\nABCabc 123 !@#";
@@ -155,7 +157,7 @@ impl PreviewParser for FontParser {
             sample,
             sample_width: w,
             sample_height: h,
-            data,
+            data: mmap.to_vec(),
         })
     }
 }

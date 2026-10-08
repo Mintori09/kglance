@@ -1,6 +1,5 @@
 mod handle;
 pub mod types;
-use std::fs;
 use std::path::Path;
 
 use crate::features::common::parser::traits::{ParseError, PreviewParser};
@@ -26,8 +25,13 @@ impl PreviewParser for JsonParser {
     }
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
-        let content =
-            fs::read_to_string(path).map_err(|err| ParseError::ParseFailed(err.to_string()))?;
+        let mmap = crate::core::MmapFile::open(path)
+            .map_err(|err| ParseError::ParseFailed(err.to_string()))?;
+
+        let content = mmap
+            .as_str()
+            .map_err(|e| ParseError::ParseFailed(format!("Invalid UTF-8: {e}")))?
+            .to_string();
 
         let ext = path
             .extension()

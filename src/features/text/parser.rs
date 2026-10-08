@@ -129,8 +129,13 @@ impl PreviewParser for TextParser {
     }
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
-        let content =
-            std::fs::read_to_string(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        let mmap = crate::core::MmapFile::open(path)
+            .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+
+        let content = mmap
+            .as_str()
+            .map_err(|e| ParseError::ParseFailed(format!("Invalid UTF-8: {e}")))?
+            .to_string();
 
         let language = path
             .extension()
@@ -139,7 +144,7 @@ impl PreviewParser for TextParser {
             .unwrap_or("Plain Text")
             .to_string();
 
-        let line_count = content.lines().count();
+        let line_count = mmap.count_lines();
 
         Ok(ParsedContent::Text {
             content,

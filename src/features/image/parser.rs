@@ -1,4 +1,3 @@
-use std::io::Read;
 use std::path::Path;
 
 use crate::features::common::parser::traits::{ParseError, PreviewParser};
@@ -13,17 +12,15 @@ impl PreviewParser for ImageParser {
     }
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
-        let mut file =
-            std::fs::File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-        let mut data = Vec::new();
-        file.read_to_end(&mut data)
+        let mmap = crate::core::MmapFile::open(path)
             .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
-        let (width, height) = image::ImageReader::new(std::io::Cursor::new(&data))
+        let (width, height) = image::ImageReader::new(std::io::Cursor::new(mmap.as_bytes()))
             .with_guessed_format()
             .map_err(|e| ParseError::ParseFailed(e.to_string()))?
             .into_dimensions()
             .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+
         let format = match path
             .extension()
             .and_then(|e| e.to_str())
@@ -38,10 +35,10 @@ impl PreviewParser for ImageParser {
             _ => ImageFormat::Png,
         };
 
-        let exif = extract_exif_from_bytes(&data);
+        let exif = extract_exif_from_bytes(mmap.as_bytes());
 
         Ok(ParsedContent::Image {
-            data,
+            data: mmap.to_vec(),
             width,
             height,
             format,

@@ -1,5 +1,3 @@
-use std::fs::File;
-use std::io::{BufReader, Read};
 use std::path::Path;
 
 use crate::features::common::parser::traits::{ParseError, PreviewParser};
@@ -33,26 +31,21 @@ impl PreviewParser for CsvParser {
     }
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
-        let file = File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-        let mut reader = BufReader::new(file);
-
-        let mut sample_buf = vec![0u8; SAMPLE_SIZE_BYTES];
-        let bytes_read = reader
-            .read(&mut sample_buf)
+        let mmap = crate::core::MmapFile::open(path)
             .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-        sample_buf.truncate(bytes_read);
+
+        let sample_len = mmap.len().min(SAMPLE_SIZE_BYTES);
+        let sample_buf = &mmap[..sample_len];
 
         let ext_hint = path.extension().and_then(|s| s.to_str());
-        let delimiter = sniff_delimiter(&sample_buf, ext_hint);
+        let delimiter = sniff_delimiter(sample_buf, ext_hint);
 
-        // Re-open for full streaming parse
-        let file = File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
         let mut csv_reader = csv::ReaderBuilder::new()
             .delimiter(delimiter)
             .has_headers(false)
             .flexible(true)
             .trim(csv::Trim::None)
-            .from_reader(BufReader::new(file));
+            .from_reader(mmap.as_bytes());
 
         let raw_records = csv_reader.records();
 
