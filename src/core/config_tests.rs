@@ -23,6 +23,7 @@ fn test_default_config_values() {
 
     // Cache defaults
     assert_eq!(cfg.cache.max_memory_mb, DEFAULT_CACHE_MAX_MEMORY_MB);
+    assert_eq!(cfg.cache.max_disk_cache_mb, DEFAULT_CACHE_MAX_DISK_MB);
 
     // Scroll defaults
     assert!(cfg.scroll.smooth_scroll_enabled);
@@ -103,6 +104,7 @@ fn test_load_existing_custom_config() {
         },
         cache: CacheConfig {
             max_memory_mb: 1024,
+            max_disk_cache_mb: DEFAULT_CACHE_MAX_DISK_MB,
         },
         scroll: ScrollConfigOptions {
             smooth_scroll_enabled: false,

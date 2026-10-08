@@ -2,6 +2,7 @@ pub mod cache;
 pub mod clipboard;
 pub mod config;
 pub mod config_watcher;
+pub mod disk_cache;
 pub mod file_watcher;
 pub mod limit;
 pub mod mmap;
