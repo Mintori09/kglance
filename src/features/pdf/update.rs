@@ -455,6 +455,60 @@ pub fn handle_selection_clear(app: &mut KglanceApp) -> Task<Message> {
     Task::none()
 }
 
+pub fn handle_auto_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
+    let pdf_state = active_pdf_state_mut(app);
+    let Some(delta) = pdf_state.auto_scroll_delta else {
+        return Task::none();
+    };
+
+    let vh = if pdf_state.viewport_height > 0.0 {
+        pdf_state.viewport_height
+    } else {
+        800.0
+    };
+    let max_y = (pdf_state.total_content_height - vh).max(0.0);
+    let new_y = (pdf_state.scroll_y + delta).clamp(0.0, max_y);
+
+    pdf_state.scroll_y = new_y;
+    pdf_state.scroll_controller.set_position_y(new_y);
+    pdf_state.smooth_scroll.stop(new_y);
+
+    let count = pdf_state.page_count;
+    if count > 0 && !pdf_state.page_y_offsets.is_empty() {
+        let page_index = crate::features::pdf::viewport::find_visible_page(
+            &pdf_state.page_y_offsets,
+            new_y,
+            vh,
+            0.3,
+        );
+        pdf_state
+            .visible_page
+            .store(page_index, std::sync::atomic::Ordering::Relaxed);
+        promote_window_pages(pdf_state, page_index);
+    }
+
+    let win_w = app.state.current_window_size.width;
+    let drag_x = app.state.pdf.drag_last_x;
+    let drag_y = app.state.pdf.drag_last_y;
+    const HEADER_HEIGHT: f32 = 40.0;
+    let rel_y = (drag_y - HEADER_HEIGHT).max(0.0);
+    let content_y = new_y + rel_y;
+
+    if let Some(pos) = crate::features::pdf::selection::hit_test_pdf_position(
+        &app.state.pdf,
+        win_w,
+        drag_x,
+        content_y,
+    ) {
+        crate::features::pdf::selection::handle_selection_drag_update(&mut app.state.pdf, pos);
+    }
+
+    iced::widget::operation::scroll_to(
+        "content_scroll",
+        iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
+    )
+}
+
 pub fn handle_select_all(pdf_state: &mut crate::core::PdfState) {
     crate::features::pdf::selection::handle_select_all(pdf_state);
 }
@@ -806,5 +860,36 @@ mod tests {
         assert!(state.pages.get(10).is_none());
         assert!(promote_page_from_disk_if_cached(&mut state, 10));
         assert!(state.pages.get(10).is_some());
+    }
+
+    #[test]
+    fn test_pdf_auto_scroll_tick() {
+        let mut app = test_app(None);
+        app.state.pdf.page_count = 2;
+        app.state.pdf.page_dimensions = vec![
+            crate::features::pdf::types::PageDimensions {
+                width_pts: 595.0,
+                height_pts: 842.0,
+            },
+            crate::features::pdf::types::PageDimensions {
+                width_pts: 595.0,
+                height_pts: 842.0,
+            },
+        ];
+        app.state.pdf.page_y_offsets = vec![0.0, 850.0];
+        app.state.pdf.page_ends = vec![842.0, 1692.0];
+        app.state.pdf.total_content_height = 1692.0;
+        app.state.pdf.viewport_height = 800.0;
+        app.state.pdf.scroll_y = 100.0;
+        app.state.pdf.auto_scroll_delta = Some(20.0);
+        app.state.pdf.is_selecting = true;
+        app.state.pdf.selection_drag_start = Some(crate::features::pdf::PdfPosition {
+            page: 0,
+            line: 0,
+            char_idx: 0,
+        });
+
+        let _ = handle_auto_scroll_tick(&mut app);
+        assert_eq!(app.state.pdf.scroll_y, 120.0);
     }
 }

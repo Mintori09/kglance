@@ -371,6 +371,7 @@ pub fn handle_selection_drag_end(pdf_state: &mut crate::core::PdfState) {
         return;
     }
     pdf_state.is_selecting = false;
+    pdf_state.auto_scroll_delta = None;
     if let Some(selection) = pdf_state.selection {
         if selection.is_collapsed() {
             pdf_state.selection = None;
@@ -386,6 +387,110 @@ pub fn handle_selection_drag_end(pdf_state: &mut crate::core::PdfState) {
 
 pub fn handle_selection_clear(pdf_state: &mut crate::core::PdfState) {
     pdf_state.clear_selection();
+    pdf_state.auto_scroll_delta = None;
+}
+
+pub fn hit_test_pdf_position(
+    pdf_state: &crate::core::PdfState,
+    win_width: f32,
+    cursor_x: f32,
+    content_y: f32,
+) -> Option<PdfPosition> {
+    if pdf_state.page_count == 0 || pdf_state.page_y_offsets.is_empty() {
+        return None;
+    }
+
+    let total_pages = pdf_state.page_count;
+    let page_idx = if content_y <= 0.0 {
+        0
+    } else if content_y >= pdf_state.total_content_height {
+        total_pages.saturating_sub(1)
+    } else {
+        pdf_state
+            .page_ends
+            .partition_point(|&bottom| bottom < content_y)
+            .min(total_pages.saturating_sub(1))
+    };
+
+    let default_dims = crate::features::pdf::types::PageDimensions {
+        width_pts: 595.0,
+        height_pts: 842.0,
+    };
+    let dims = pdf_state
+        .page_dimensions
+        .get(page_idx)
+        .copied()
+        .unwrap_or(default_dims);
+
+    let page_width = if pdf_state.display_width > 0.0 {
+        pdf_state.display_width
+    } else {
+        pdf_state.desired_width.max(300.0)
+    };
+
+    let scale = (page_width / dims.width_pts.max(1.0)).max(0.001);
+    let sidebar_w = if pdf_state.sidebar_visible {
+        pdf_state.sidebar_width + 1.0
+    } else {
+        0.0
+    };
+    let content_area_w = (win_width - sidebar_w).max(page_width);
+    let page_left = sidebar_w + ((content_area_w - page_width) * 0.5).max(0.0);
+
+    let page_top_y = pdf_state
+        .page_y_offsets
+        .get(page_idx)
+        .copied()
+        .unwrap_or(0.0);
+    let page_bottom_y = pdf_state
+        .page_ends
+        .get(page_idx)
+        .copied()
+        .unwrap_or(page_top_y + dims.display_height(page_width));
+
+    let rel_x = cursor_x - page_left;
+    let rel_y = content_y - page_top_y;
+
+    let pt_x = rel_x / scale;
+    let pt_y = rel_y / scale;
+
+    if let Some(Some(page_text)) = pdf_state.page_texts.get(page_idx)
+        && !page_text.is_empty()
+    {
+        if content_y > page_bottom_y {
+            let last_line = page_text.lines.len().saturating_sub(1);
+            let last_char = page_text.lines[last_line].chars.len();
+            Some(PdfPosition {
+                page: page_idx,
+                line: last_line,
+                char_idx: last_char,
+            })
+        } else if content_y < page_top_y {
+            Some(PdfPosition {
+                page: page_idx,
+                line: 0,
+                char_idx: 0,
+            })
+        } else if let Some((line_idx, char_idx)) = page_text.hit_test(pt_x, pt_y) {
+            Some(PdfPosition {
+                page: page_idx,
+                line: line_idx,
+                char_idx,
+            })
+        } else {
+            Some(PdfPosition {
+                page: page_idx,
+                line: 0,
+                char_idx: 0,
+            })
+        }
+    } else {
+        Some(PdfPosition {
+            page: page_idx,
+            line: 0,
+            char_idx: 0,
+        })
+    }
 }
 
 pub fn handle_select_all(pdf_state: &mut crate::core::PdfState) {

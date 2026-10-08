@@ -1164,6 +1164,13 @@ impl KglanceApp {
             Subscription::none()
         };
 
+        let pdf_auto_scroll_sub = if self.state.pdf.auto_scroll_delta.is_some() {
+            iced::time::every(std::time::Duration::from_millis(16))
+                .map(|_| crate::app::messages::PdfMsg::AutoScrollTick.into())
+        } else {
+            Subscription::none()
+        };
+
         let smooth_scroll_sub = if self.is_active_smooth_scrolling() {
             iced::time::every(std::time::Duration::from_millis(
                 crate::features::markdown::update::SMOOTH_SCROLL_TICK_MS,
@@ -1203,6 +1210,7 @@ impl KglanceApp {
             auto_scroll_sub,
             text_auto_scroll_sub,
             spreadsheet_auto_scroll_sub,
+            pdf_auto_scroll_sub,
             smooth_scroll_sub,
             read_positions_sub,
             audio_tick_sub,
