@@ -86,7 +86,7 @@ pub(crate) fn render_math_block<'a>(
         }
         Err(_) => text::Text::new(sanitized)
             .font(iced::Font::MONOSPACE)
-            .color(iced::Color::from_rgb8(0xc0, 0x39, 0x2b))
+            .color(ctx.theme.palette().roles.danger)
             .into(),
     };
 

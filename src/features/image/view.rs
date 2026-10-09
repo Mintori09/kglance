@@ -1,13 +1,15 @@
 use crate::app::Message;
 use crate::core::ImageState;
 use crate::features::image::ImageCanvas;
+use crate::ui::theme::AppTheme;
+use crate::ui::theme::tokens::{elevation, radius, spacing, typography};
 use iced::Element;
 use iced::Length;
 use iced::Size;
 use iced::widget::{container, text};
 
 const EMPTY_LABEL: &str = "No image loaded";
-const EMPTY_LABEL_FONT_SIZE: f32 = 18.0;
+const EMPTY_LABEL_FONT_SIZE: f32 = typography::DISPLAY;
 const HEADER_HEIGHT: f32 = 50.0;
 
 pub fn is_loaded(state: &ImageState) -> bool {
@@ -25,7 +27,7 @@ pub fn view_image<'a>(state: &'a ImageState, font_family: Option<&str>) -> Eleme
                 container(card)
                     .width(Length::Fill)
                     .height(Length::Fill)
-                    .padding(16)
+                    .padding(spacing::L)
                     .align_x(iced::alignment::Horizontal::Right)
                     .align_y(iced::alignment::Vertical::Top),
             )
@@ -37,52 +39,52 @@ pub fn view_image<'a>(state: &'a ImageState, font_family: Option<&str>) -> Eleme
 
 fn render_info_card<'a>(state: &'a ImageState, font_family: Option<&str>) -> Element<'a, Message> {
     use iced::widget::{button, column, row};
-    use iced::{Border, Padding, Shadow, Vector};
+    use iced::{Border, Padding};
 
     let font = crate::ui::theme::font::get_main_font(font_family);
 
     let title_row = row![
         text("Image Info")
-            .size(13)
+            .size(typography::BODY_MD)
             .font(font)
             .style(|theme: &iced::Theme| {
-                let palette = theme.extended_palette();
+                let role = AppTheme::from(theme).palette().roles;
                 iced::widget::text::Style {
-                    color: Some(palette.primary.base.color),
+                    color: Some(role.accent),
                 }
             }),
         iced::widget::Space::new().width(Length::Fill),
-        button(text("✕").size(11).font(font))
+        button(text("✕").size(typography::CAPTION).font(font))
             .on_press(crate::app::messages::ImageMsg::CloseInfo.into())
             .style(iced::widget::button::text)
             .padding([0, 4]),
     ]
     .align_y(iced::Alignment::Center);
 
-    let mut lines_col = column![title_row].spacing(6);
+    let mut lines_col = column![title_row].spacing(spacing::XS + 2.0);
 
     for (k, v) in &state.exif_parsed_lines {
         let row = row![
             text(format!("{}:", k))
-                .size(11)
+                .size(typography::CAPTION)
                 .font(font)
                 .style(|theme: &iced::Theme| {
-                    let palette = theme.extended_palette();
+                    let p = AppTheme::from(theme).palette().base;
                     iced::widget::text::Style {
-                        color: Some(palette.background.weak.text),
+                        color: Some(p.text_dim),
                     }
                 }),
             text(v.as_str())
-                .size(11)
+                .size(typography::CAPTION)
                 .font(font)
                 .style(|theme: &iced::Theme| {
-                    let palette = theme.extended_palette();
+                    let p = AppTheme::from(theme).palette().base;
                     iced::widget::text::Style {
-                        color: Some(palette.background.base.text),
+                        color: Some(p.text),
                     }
                 }),
         ]
-        .spacing(6);
+        .spacing(spacing::XS + 2.0);
         lines_col = lines_col.push(row);
     }
 
@@ -95,27 +97,18 @@ fn render_info_card<'a>(state: &'a ImageState, font_family: Option<&str>) -> Ele
         })
         .max_width(320.0)
         .style(|theme: &iced::Theme| {
-            let palette = theme.extended_palette();
-            let mut bg = palette.background.base.color;
+            let palette = AppTheme::from(theme).palette();
+            let mut bg = palette.base.surface;
             bg.a = 0.92;
             container::Style {
                 background: Some(bg.into()),
-                text_color: Some(palette.background.base.text),
+                text_color: Some(palette.base.text),
                 border: Border {
-                    radius: 8.0.into(),
+                    radius: radius::LG.into(),
                     width: 1.0,
-                    color: palette.background.strong.color,
+                    color: palette.base.border,
                 },
-                shadow: Shadow {
-                    offset: Vector::new(0.0, 3.0),
-                    blur_radius: 10.0,
-                    color: iced::Color {
-                        r: 0.0,
-                        g: 0.0,
-                        b: 0.0,
-                        a: 0.35,
-                    },
-                },
+                shadow: elevation::floating_pill(palette.base.shadow),
                 ..Default::default()
             }
         })

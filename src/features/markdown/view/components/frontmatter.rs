@@ -1,8 +1,9 @@
 use crate::app::Message;
+use crate::ui::theme::tokens::{radius, spacing};
 use crate::ui::types::RenderContext;
 use iced::font::Weight;
 use iced::widget::{column, container, row, text};
-use iced::{Color, Element, Font, Length, Padding};
+use iced::{Element, Font, Length, Padding};
 
 pub(crate) fn render_frontmatter<'a>(
     entries: &'a [(String, String)],
@@ -25,25 +26,25 @@ pub(crate) fn render_frontmatter<'a>(
                 .size(ctx.font_size * 0.9)
                 .color(base_color.text);
 
-            row![key_label, val_label].spacing(8.0).into()
+            row![key_label, val_label].spacing(spacing::S).into()
         })
         .collect();
 
-    let col = column(rows).spacing(6.0);
+    let col = column(rows).spacing(spacing::XS + 2.0);
 
     container(col)
         .padding(Padding {
-            top: 12.0,
-            right: 16.0,
-            bottom: 12.0,
-            left: 16.0,
+            top: spacing::M,
+            right: spacing::L,
+            bottom: spacing::M,
+            left: spacing::L,
         })
         .style(move |_: &iced::Theme| container::Style {
-            background: Some(Color::from_rgba(0.5, 0.5, 0.5, 0.05).into()),
+            background: Some(base_color.surface_raised.into()),
             border: iced::Border {
                 color: base_color.border,
                 width: 1.0,
-                radius: 6.0.into(),
+                radius: radius::MD.into(),
             },
             ..Default::default()
         })

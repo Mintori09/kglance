@@ -58,7 +58,7 @@ where
             width,
             height,
             selection: None,
-            selection_color: Color::from_rgba(0.2, 0.45, 0.85, 0.35),
+            selection_color: crate::ui::theme::color::primitive::SELECTION_DARK_BG,
             is_selecting: false,
             on_drag_start: None,
             on_drag_update: None,
@@ -314,7 +314,7 @@ where
                 renderer::Quad {
                     bounds,
                     border: Border {
-                        radius: 4.0.into(),
+                        radius: crate::ui::theme::tokens::radius::SM.into(),
                         width: 1.0,
                         color: Color::from_rgba(0.5, 0.5, 0.5, 0.2),
                     },
@@ -345,7 +345,7 @@ where
                         renderer::Quad {
                             bounds: rect,
                             border: Border {
-                                radius: 2.0.into(),
+                                radius: crate::ui::theme::tokens::radius::XS.into(),
                                 width: 0.0,
                                 color: Color::TRANSPARENT,
                             },

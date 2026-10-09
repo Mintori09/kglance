@@ -4,7 +4,8 @@ use crate::features::sheet::types::{ColumnMeta, ColumnType, SheetInfo};
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::theme::AppTheme;
-use crate::ui::theme::tokens::spacing;
+use crate::ui::theme::color::primitive;
+use crate::ui::theme::tokens::{radius, spacing, typography};
 use iced::alignment;
 use iced::widget::{button, column, container, mouse_area, row, text};
 use iced::{Border, Color, Element, Length, Shadow, Theme};
@@ -13,11 +14,11 @@ const SORT_ASCENDING_INDICATOR: &str = " ▲";
 const SORT_DESCENDING_INDICATOR: &str = " ▼";
 const SORT_NONE_INDICATOR: &str = "";
 
-const CELL_TEXT_SIZE: f32 = 12.0;
-const ROW_NUM_TEXT_SIZE: f32 = 11.0;
+const CELL_TEXT_SIZE: f32 = typography::BODY;
+const ROW_NUM_TEXT_SIZE: f32 = typography::CAPTION;
 const HEADER_TEXT_SIZE: f32 = 11.5;
-const TAB_TEXT_SIZE: f32 = 12.0;
-const EMPTY_STATE_TEXT_SIZE: f32 = 14.0;
+const TAB_TEXT_SIZE: f32 = typography::BODY;
+const EMPTY_STATE_TEXT_SIZE: f32 = typography::BODY_LG;
 
 pub const COL_SPACING: f32 = 0.0;
 pub const ROWS_LIST_SPACING: f32 = 0.0;
@@ -94,7 +95,9 @@ fn render_bottom_sheet_bar<'a>(
         return container(row![]).height(Length::Shrink).into();
     }
 
-    let mut tabs_row = row![].spacing(4.0).align_y(alignment::Vertical::Center);
+    let mut tabs_row = row![]
+        .spacing(spacing::XS)
+        .align_y(alignment::Vertical::Center);
 
     for (index, sheet) in sheets.iter().enumerate() {
         let is_active = index == active_sheet_index;
@@ -607,8 +610,8 @@ fn grid_header_button_style(
     move |_: &Theme, status: button::Status| {
         let p = theme.palette().base;
         let (bg, text_color) = match status {
-            button::Status::Hovered => (Some(Color::from_rgba(1.0, 1.0, 1.0, 0.10).into()), p.text),
-            button::Status::Pressed => (Some(Color::from_rgba(1.0, 1.0, 1.0, 0.16).into()), p.text),
+            button::Status::Hovered => (Some(primitive::WHITE_010.into()), p.text),
+            button::Status::Pressed => (Some(primitive::WHITE_015.into()), p.text),
             _ => (
                 Some(p.surface_raised.into()),
                 if is_sorted { p.text } else { p.text_dim },
@@ -621,7 +624,7 @@ fn grid_header_button_style(
             border: Border {
                 color: p.border,
                 width: 1.0,
-                radius: 0.0.into(),
+                radius: radius::NONE.into(),
             },
             shadow: Shadow::default(),
             snap: false,
@@ -647,7 +650,7 @@ fn grid_row_num_style(theme: AppTheme, is_selected: bool) -> container::Style {
         border: Border {
             color: border_color,
             width: 1.0,
-            radius: 0.0.into(),
+            radius: radius::NONE.into(),
         },
         shadow: Shadow::default(),
         snap: false,
@@ -672,7 +675,7 @@ fn grid_data_cell_style(theme: AppTheme, is_selected: bool, is_primary: bool) ->
         border: Border {
             color: border_color,
             width: border_width,
-            radius: 0.0.into(),
+            radius: radius::NONE.into(),
         },
         shadow: Shadow::default(),
         snap: false,
@@ -685,7 +688,7 @@ fn bottom_bar_style(theme: AppTheme) -> container::Style {
         border: Border {
             color: theme.palette().base.border,
             width: 1.0,
-            radius: 0.0.into(),
+            radius: radius::NONE.into(),
         },
         ..container::Style::default()
     }
@@ -704,19 +707,15 @@ fn sheet_tab_button_style(
                 border: Border {
                     color: p.border_focus,
                     width: 1.0,
-                    radius: 6.0.into(),
+                    radius: radius::MD.into(),
                 },
                 shadow: Shadow::default(),
                 snap: false,
             }
         } else {
             let (bg, text_color) = match status {
-                button::Status::Hovered => {
-                    (Some(Color::from_rgba(1.0, 1.0, 1.0, 0.08).into()), p.text)
-                }
-                button::Status::Pressed => {
-                    (Some(Color::from_rgba(1.0, 1.0, 1.0, 0.14).into()), p.text)
-                }
+                button::Status::Hovered => (Some(primitive::WHITE_008.into()), p.text),
+                button::Status::Pressed => (Some(primitive::WHITE_015.into()), p.text),
                 _ => (None, p.text_dim),
             };
 
@@ -726,7 +725,7 @@ fn sheet_tab_button_style(
                 border: Border {
                     color: Color::TRANSPARENT,
                     width: 1.0,
-                    radius: 6.0.into(),
+                    radius: radius::MD.into(),
                 },
                 shadow: Shadow::default(),
                 snap: false,

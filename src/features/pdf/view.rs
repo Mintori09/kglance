@@ -4,13 +4,13 @@ use crate::core::preview::compute_pdf_page_offsets;
 use crate::core::types::PdfSidebarMode;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::sidebar::{drag_handle, sidebar_entry_style};
-use crate::ui::theme::tokens::spacing;
+use crate::ui::theme::tokens::{radius, spacing, typography};
 use iced::widget::{button, column, container, image, row, text};
 use iced::{Alignment, Border, Element, Length, Padding};
 
 const PAGE_SPACING: f32 = spacing::S;
 
-const EMPTY_STATE_TEXT_SIZE: f32 = 14.0;
+const EMPTY_STATE_TEXT_SIZE: f32 = typography::BODY_LG;
 
 const SCROLL_PANE_ID: &str = "content_scroll";
 const EMPTY_STATE_MESSAGE: &str = "No pages";
@@ -298,9 +298,12 @@ fn render_sidebar_tabs<'a>(
 ) -> Element<'a, Message> {
     let thumbs_btn = button(
         container(
-            row![text("🖼").size(12), text("Thumbs").size(11)]
-                .spacing(6)
-                .align_y(Alignment::Center),
+            row![
+                text("🖼").size(typography::ICON_MD),
+                text("Thumbs").size(typography::CAPTION)
+            ]
+            .spacing(spacing::XS + 2.0)
+            .align_y(Alignment::Center),
         )
         .center_x(Length::Fill),
     )
@@ -318,9 +321,12 @@ fn render_sidebar_tabs<'a>(
 
     let toc_btn = button(
         container(
-            row![text("≡").size(12), text("TOC").size(11)]
-                .spacing(6)
-                .align_y(Alignment::Center),
+            row![
+                text("≡").size(typography::ICON_MD),
+                text("TOC").size(typography::CAPTION)
+            ]
+            .spacing(spacing::XS + 2.0)
+            .align_y(Alignment::Center),
         )
         .center_x(Length::Fill),
     )
@@ -338,8 +344,8 @@ fn render_sidebar_tabs<'a>(
 
     container(
         row![thumbs_btn, toc_btn]
-            .spacing(4)
-            .padding(6)
+            .spacing(spacing::XS)
+            .padding(spacing::XS + 2.0)
             .align_y(Alignment::Center),
     )
     .width(Length::Fill)
@@ -411,16 +417,18 @@ fn render_thumb_item<'a>(
             .into()
     } else {
         container(
-            container(text(format!("{}", page_idx + 1)).size(12).style(move |_| {
-                iced::widget::text::Style {
-                    color: Some(p.text_dim),
-                }
-            }))
+            container(
+                text(format!("{}", page_idx + 1))
+                    .size(typography::BODY)
+                    .style(move |_| iced::widget::text::Style {
+                        color: Some(p.text_dim),
+                    }),
+            )
             .padding([3, 8])
             .style(move |_| container::Style {
                 background: Some(p.surface.into()),
                 border: Border {
-                    radius: 4.0.into(),
+                    radius: radius::SM.into(),
                     width: 0.0,
                     color: iced::Color::TRANSPARENT,
                 },
@@ -434,7 +442,7 @@ fn render_thumb_item<'a>(
         .style(move |_| container::Style {
             background: Some(p.surface.scale_alpha(0.3).into()),
             border: Border {
-                radius: 6.0.into(),
+                radius: radius::MD.into(),
                 width: 1.0,
                 color: p.border.scale_alpha(0.5),
             },
@@ -446,16 +454,18 @@ fn render_thumb_item<'a>(
     let badge_bg = p.surface.scale_alpha(0.85);
     let badge_text_color = p.text;
 
-    let page_badge = container(text(format!("{}", page_idx + 1)).size(10).style(move |_| {
-        iced::widget::text::Style {
-            color: Some(badge_text_color),
-        }
-    }))
+    let page_badge = container(
+        text(format!("{}", page_idx + 1))
+            .size(typography::BADGE)
+            .style(move |_| iced::widget::text::Style {
+                color: Some(badge_text_color),
+            }),
+    )
     .padding([2, 6])
     .style(move |_| container::Style {
         background: Some(badge_bg.into()),
         border: Border {
-            radius: 4.0.into(),
+            radius: radius::SM.into(),
             width: 1.0,
             color: p.border.scale_alpha(0.3),
         },
@@ -469,14 +479,14 @@ fn render_thumb_item<'a>(
             .height(Length::Fill)
             .align_x(iced::alignment::Horizontal::Right)
             .align_y(Alignment::End)
-            .padding(4)
+            .padding(spacing::XS)
     ])
     .width(Length::Fixed(img_width))
     .height(Length::Fixed(img_height))
     .style(move |_| container::Style {
         background: Some(iced::Color::TRANSPARENT.into()),
         border: Border {
-            radius: 6.0.into(),
+            radius: radius::MD.into(),
             width: 0.0,
             color: iced::Color::TRANSPARENT,
         },
@@ -498,8 +508,8 @@ fn render_toc_list<'a>(
     theme: crate::ui::theme::AppTheme,
 ) -> Element<'a, Message> {
     if state.outline.is_empty() {
-        return container(text("No TOC available").size(12))
-            .padding(12)
+        return container(text("No TOC available").size(typography::BODY))
+            .padding(spacing::M)
             .center_x(Length::Fill)
             .into();
     }
@@ -514,22 +524,24 @@ fn render_toc_list<'a>(
         .rposition(|entry| entry.page <= current_page);
 
     let p = theme.palette().base;
-    let mut toc_col = column![].spacing(2).padding(6);
+    let mut toc_col = column![].spacing(spacing::XXS).padding(spacing::XS + 2.0);
 
     for (idx, entry) in state.outline.iter().enumerate() {
         let is_active = active_idx == Some(idx);
         let indent = (entry.level.saturating_sub(1) as f32) * 12.0;
 
-        let title_text = text(&entry.title).size(12).width(Length::Fill);
+        let title_text = text(&entry.title)
+            .size(typography::BODY)
+            .width(Length::Fill);
 
         let page_label = text(format!("{}", entry.page + 1))
-            .size(11)
+            .size(typography::CAPTION)
             .style(move |_| iced::widget::text::Style {
                 color: Some(p.text_dim),
             });
 
         let row_content = row![title_text, page_label]
-            .spacing(8)
+            .spacing(spacing::S)
             .align_y(Alignment::Center)
             .width(Length::Fill);
 

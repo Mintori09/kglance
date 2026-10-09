@@ -1,19 +1,20 @@
 use crate::app::Message;
 use crate::app::messages::AudioMsg;
 use crate::features::audio::types::AudioState;
-use crate::ui::theme::color::{BaseColors, roles};
+use crate::ui::theme::color::{AppTheme, BaseColors, primitive, roles};
+use crate::ui::theme::tokens::{elevation, radius, spacing, typography};
 use crate::ui::theme::{default_button, default_button_primary, default_card, default_slider};
 use iced::widget::{Space, button, column, container, image, row, slider, svg, text};
-use iced::{Alignment, Border, Color, ContentFit, Element, Length, Shadow, Vector};
+use iced::{Alignment, Border, Color, ContentFit, Element, Length};
 
 const SEEK_STEP: f32 = 0.001;
 const VOLUME_STEP: f32 = 0.01;
 const SEEK_SKIP_SECONDS: f32 = 10.0;
 const COVER_SIZE: f32 = 176.0;
 
-const TITLE_TEXT_SIZE: f32 = 18.0;
-const SUBTITLE_TEXT_SIZE: f32 = 13.0;
-const BADGE_TEXT_SIZE: f32 = 12.0;
+const TITLE_TEXT_SIZE: f32 = typography::DISPLAY;
+const SUBTITLE_TEXT_SIZE: f32 = typography::BODY_MD;
+const BADGE_TEXT_SIZE: f32 = typography::BODY;
 
 const CARD_PADDING: [u16; 2] = [20, 24];
 
@@ -34,7 +35,7 @@ static SVG_NOTE: &[u8] =
 
 pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
     if let Some(err) = &state.error {
-        return container(text(err.as_str()).size(14.0))
+        return container(text(err.as_str()).size(typography::BODY_LG))
             .width(Length::Fill)
             .height(Length::Fill)
             .center_x(Length::Fill)
@@ -57,13 +58,9 @@ pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
                     border: Border {
                         color: p.border,
                         width: 1.0,
-                        radius: 10.0.into(),
+                        radius: radius::LG.into(),
                     },
-                    shadow: Shadow {
-                        color: Color::from_rgba(0.0, 0.0, 0.0, 0.25),
-                        offset: Vector::new(0.0, 4.0),
-                        blur_radius: 10.0,
-                    },
+                    shadow: elevation::medium(p.shadow),
                     snap: true,
                     ..Default::default()
                 }
@@ -125,24 +122,28 @@ pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
             border: Border {
                 color: p.border,
                 width: 1.0,
-                radius: 6.0.into(),
+                radius: radius::MD.into(),
             },
             ..Default::default()
         }
     });
 
-    let mut status_row = row![time_badge].spacing(12).align_y(Alignment::Center);
+    let mut status_row = row![time_badge]
+        .spacing(spacing::M)
+        .align_y(Alignment::Center);
 
     if !state.metadata.is_empty() {
         status_row = status_row.push(Space::new().width(Length::Fill));
-        let format_badge = container(text(state.metadata.as_str()).size(11.0).style(
-            |theme: &iced::Theme| {
-                let p = BaseColors::palette(theme);
-                iced::widget::text::Style {
-                    color: Some(p.text_dim),
-                }
-            },
-        ))
+        let format_badge = container(
+            text(state.metadata.as_str())
+                .size(typography::CAPTION)
+                .style(|theme: &iced::Theme| {
+                    let p = BaseColors::palette(theme);
+                    iced::widget::text::Style {
+                        color: Some(p.text_dim),
+                    }
+                }),
+        )
         .padding([2, 7])
         .style(|theme: &iced::Theme| {
             let p = BaseColors::palette(theme);
@@ -151,7 +152,7 @@ pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
                 border: Border {
                     color: p.border,
                     width: 1.0,
-                    radius: 4.0.into(),
+                    radius: radius::SM.into(),
                 },
                 ..Default::default()
             }
@@ -180,8 +181,8 @@ pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
 
     let play_pause_bytes = if state.playing { SVG_PAUSE } else { SVG_PLAY };
     let play_pause_icon = svg(svg::Handle::from_memory(play_pause_bytes))
-        .width(Length::Fixed(16.0))
-        .height(Length::Fixed(16.0))
+        .width(Length::Fixed(typography::TITLE))
+        .height(Length::Fixed(typography::TITLE))
         .style(|_theme: &iced::Theme, _status| svg::Style {
             color: Some(Color::WHITE),
         });
@@ -232,11 +233,11 @@ pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
     .style(default_slider);
 
     let volume_row = row![mute_button, volume_slider]
-        .spacing(6)
+        .spacing(spacing::XS + 2.0)
         .align_y(Alignment::Center);
 
     let center_controls = row![rewind_button, play_pause_button, fast_forward_button]
-        .spacing(10)
+        .spacing(spacing::M - 2.0)
         .align_y(Alignment::Center);
 
     let bottom_row = row![
@@ -251,7 +252,9 @@ pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
     .align_y(Alignment::Center)
     .width(Length::Fill);
 
-    let mut right_col = column![title_widget].spacing(4).width(Length::Fill);
+    let mut right_col = column![title_widget]
+        .spacing(spacing::XS)
+        .width(Length::Fill);
 
     if !subtitle.is_empty() {
         right_col = right_col.push(
@@ -274,7 +277,7 @@ pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
     right_col = right_col.push(bottom_row);
 
     let card_content = row![cover_view, right_col]
-        .spacing(24)
+        .spacing(spacing::XL)
         .align_y(Alignment::Center);
 
     let player_card = container(card_content)
@@ -309,9 +312,9 @@ fn render_cover_placeholder<'a>() -> Element<'a, Message> {
             container::Style {
                 background: Some(role.accent.into()),
                 border: Border {
-                    color: Color::from_rgba(1.0, 1.0, 1.0, 0.25),
+                    color: primitive::WHITE_020,
                     width: 2.0,
-                    radius: 22.0.into(),
+                    radius: radius::FULL.into(),
                 },
                 ..Default::default()
             }
@@ -322,19 +325,18 @@ fn render_cover_placeholder<'a>() -> Element<'a, Message> {
         .height(Length::Fixed(136.0))
         .center_x(Length::Fixed(136.0))
         .center_y(Length::Fixed(136.0))
-        .style(|_theme: &iced::Theme| container::Style {
-            background: Some(Color::from_rgb8(24, 25, 28).into()),
-            border: Border {
-                color: Color::from_rgba(1.0, 1.0, 1.0, 0.08),
-                width: 2.0,
-                radius: 68.0.into(),
-            },
-            shadow: Shadow {
-                color: Color::from_rgba(0.0, 0.0, 0.0, 0.35),
-                offset: Vector::new(0.0, 4.0),
-                blur_radius: 10.0,
-            },
-            ..Default::default()
+        .style(|theme: &iced::Theme| {
+            let audio = AppTheme::from(theme).palette().audio;
+            container::Style {
+                background: Some(audio.vinyl_bg.into()),
+                border: Border {
+                    color: audio.vinyl_border,
+                    width: 2.0,
+                    radius: radius::FULL.into(),
+                },
+                shadow: elevation::medium(audio.vinyl_shadow),
+                ..Default::default()
+            }
         });
 
     container(vinyl_disc)
@@ -349,7 +351,7 @@ fn render_cover_placeholder<'a>() -> Element<'a, Message> {
                 border: Border {
                     color: p.border,
                     width: 1.0,
-                    radius: 10.0.into(),
+                    radius: radius::LG.into(),
                 },
                 ..Default::default()
             }

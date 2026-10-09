@@ -7,30 +7,31 @@ use crate::features::text::outline::{CodeSymbol, SymbolKind};
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::sidebar::sidebar_entry_style;
 use crate::ui::theme::AppTheme;
-use crate::ui::theme::tokens::spacing;
+use crate::ui::theme::tokens::{radius, spacing, typography};
 
-const OUTLINE_ITEM_SPACING: f32 = 2.0;
+const OUTLINE_ITEM_SPACING: f32 = spacing::XXS;
 const OUTLINE_PADDING: Padding = Padding {
     top: 6.0,
     right: 6.0,
     bottom: 6.0,
     left: 6.0,
 };
-const BADGE_FONT_SIZE: f32 = 10.0;
-const NAME_FONT_SIZE: f32 = 12.0;
-const LINE_FONT_SIZE: f32 = 11.0;
+const BADGE_FONT_SIZE: f32 = typography::BADGE;
+const NAME_FONT_SIZE: f32 = typography::BODY;
+const LINE_FONT_SIZE: f32 = typography::CAPTION;
 const SCROLL_OFFSET_MARGIN: f32 = 40.0;
 
 fn symbol_badge_color(kind: SymbolKind, theme: AppTheme) -> Color {
     let p = theme.palette().base;
+    let s = theme.palette().symbols;
     match kind {
-        SymbolKind::Function => Color::from_rgb(0.35, 0.65, 0.95), // Blue
-        SymbolKind::Struct => Color::from_rgb(0.35, 0.85, 0.65),   // Green
-        SymbolKind::Class => Color::from_rgb(0.95, 0.65, 0.35),    // Orange
-        SymbolKind::Enum => Color::from_rgb(0.85, 0.45, 0.85),     // Purple
-        SymbolKind::Trait => Color::from_rgb(0.95, 0.85, 0.35),    // Yellow
-        SymbolKind::Module => Color::from_rgb(0.65, 0.75, 0.85),   // Slate
-        SymbolKind::Type => Color::from_rgb(0.45, 0.75, 0.85),     // Cyan
+        SymbolKind::Function => s.function,
+        SymbolKind::Struct => s.r#struct,
+        SymbolKind::Class => s.class,
+        SymbolKind::Enum => s.r#enum,
+        SymbolKind::Trait => s.r#trait,
+        SymbolKind::Module => s.module,
+        SymbolKind::Type => s.r#type,
         SymbolKind::Const => p.text_dim,
     }
 }
@@ -140,7 +141,7 @@ fn render_symbol_entry<'a>(
             .into(),
         ),
         border: Border {
-            radius: 3.0.into(),
+            radius: radius::XS.into(),
             ..Default::default()
         },
         ..Default::default()
