@@ -54,7 +54,7 @@ impl KglanceApp {
     fn close_current(&mut self) -> Task<Message> {
         self.record_read_position();
         if self.state.read_positions_dirty {
-            let _ = self.state.read_positions.save();
+            let _ = self.save_read_positions();
             self.state.read_positions_dirty = false;
         }
 

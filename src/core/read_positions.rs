@@ -8,6 +8,8 @@ const MAX_ENTRIES: usize = 200;
 pub struct ReadPosition {
     pub scroll_y: f32,
     pub chapter: usize,
+    #[serde(default)]
+    pub reading_mode: Option<crate::core::config::EpubReadingMode>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -23,8 +25,12 @@ pub struct ReadPositions {
 
 impl ReadPositions {
     pub fn load() -> Self {
+        Self::load_from_path(&Self::file_path())
+    }
+
+    pub fn load_from_path(path: &std::path::Path) -> Self {
         let mut cache = ReadPositions::default();
-        if let Ok(json) = std::fs::read_to_string(Self::file_path())
+        if let Ok(json) = std::fs::read_to_string(path)
             && let Ok(file) = serde_json::from_str::<ReadPositionsFile>(&json)
         {
             for (path, pos) in file.positions {
@@ -38,18 +44,23 @@ impl ReadPositions {
     }
 
     pub fn save(&self) -> Result<(), String> {
-        let dir = crate::core::config::ConfigManager::get_config_dir();
-        if !dir.exists() {
-            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        self.save_to_path(&Self::file_path())
+    }
+
+    pub fn save_to_path(&self, path: &std::path::Path) -> Result<(), String> {
+        if let Some(dir) = path.parent()
+            && !dir.exists()
+        {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         }
         let json = serde_json::to_string_pretty(&ReadPositionsFile {
             positions: self.map.clone(),
         })
         .map_err(|e| e.to_string())?;
-        std::fs::write(Self::file_path(), json).map_err(|e| e.to_string())
+        std::fs::write(path, json).map_err(|e| e.to_string())
     }
 
-    fn file_path() -> PathBuf {
+    pub fn file_path() -> PathBuf {
         crate::core::config::ConfigManager::get_config_dir().join("read_positions.json")
     }
 
@@ -82,12 +93,6 @@ impl ReadPositions {
 mod tests {
     use super::*;
 
-    fn temp_dir() -> std::path::PathBuf {
-        let d = std::env::temp_dir().join("kglance-rp-test");
-        let _ = std::fs::create_dir_all(&d);
-        d
-    }
-
     #[test]
     fn insert_get_roundtrip() {
         let mut rp = ReadPositions::default();
@@ -96,13 +101,15 @@ mod tests {
             ReadPosition {
                 scroll_y: 120.0,
                 chapter: 0,
+                reading_mode: None,
             },
         );
         assert_eq!(
             rp.get("/a.md"),
             Some(ReadPosition {
                 scroll_y: 120.0,
-                chapter: 0
+                chapter: 0,
+                reading_mode: None,
             })
         );
         assert_eq!(rp.get("/missing"), None);
@@ -116,6 +123,7 @@ mod tests {
             ReadPosition {
                 scroll_y: 0.0,
                 chapter: 0,
+                reading_mode: None,
             },
         );
         assert!(rp.get("/t.txt").is_none());
@@ -123,32 +131,27 @@ mod tests {
 
     #[test]
     fn save_load_roundtrip() {
-        let dir = temp_dir();
-        // SAFETY: tests run single-threaded; env var is scoped to the test.
-        unsafe {
-            std::env::set_var("KGLANCE_CONFIG_DIR", &dir);
-        }
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("read_positions.json");
         let mut rp = ReadPositions::default();
         rp.insert(
             "/a.md".into(),
             ReadPosition {
                 scroll_y: 5.0,
                 chapter: 1,
+                reading_mode: Some(crate::core::config::EpubReadingMode::Continuous),
             },
         );
-        rp.save().unwrap();
-        let loaded = ReadPositions::load();
+        rp.save_to_path(&path).unwrap();
+        let loaded = ReadPositions::load_from_path(&path);
         assert_eq!(
             loaded.get("/a.md"),
             Some(ReadPosition {
                 scroll_y: 5.0,
-                chapter: 1
+                chapter: 1,
+                reading_mode: Some(crate::core::config::EpubReadingMode::Continuous),
             })
         );
-        let _ = std::fs::remove_dir_all(&dir);
-        unsafe {
-            std::env::remove_var("KGLANCE_CONFIG_DIR");
-        }
     }
 
     #[test]
@@ -160,6 +163,7 @@ mod tests {
                 ReadPosition {
                     scroll_y: 1.0,
                     chapter: 0,
+                    reading_mode: None,
                 },
             );
         }

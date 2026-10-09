@@ -96,7 +96,7 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::SystemMsg::ReadPositionsTick => {
                 if app.state.read_positions_dirty {
-                    let _ = app.state.read_positions.save();
+                    let _ = app.save_read_positions();
                     app.state.read_positions_dirty = false;
                 }
                 iced::Task::none()
@@ -595,9 +595,9 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::SettingsMsg::ThemeChanged(t) => {
                 app.state.theme_setting = t.clone();
                 app.state.app_theme = crate::core::config::ConfigManager::resolve_theme(&t);
-                let mut config = crate::core::config::ConfigManager::load_or_create();
+                let mut config = app.load_config();
                 config.ui.theme = Some(t);
-                let _ = crate::core::config::ConfigManager::save(&config);
+                let _ = app.save_config(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::FontSizeChanged(s) => {
@@ -631,66 +631,101 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                     win_w,
                     theme,
                 );
+                if let Some(crate::core::PreviewData::Markdown { blocks, .. }) =
+                    &app.current_content
+                {
+                    let content_width = app.state.markdown_content_width();
+                    crate::features::markdown::rescale_and_update_markdown_layout(
+                        &mut app.state.markdown,
+                        blocks,
+                        old_size,
+                        s,
+                        content_width,
+                    );
+                } else if let Some(crate::core::PreviewData::Epub { chapters, .. }) =
+                    &app.current_content
+                {
+                    let content_width = app.state.epub_content_width();
+                    let blocks = if app.state.epub.reading_mode
+                        == crate::core::config::EpubReadingMode::Continuous
+                    {
+                        app.state.epub.continuous_blocks.as_slice()
+                    } else {
+                        let active_chapter = app.state.epub.active_chapter;
+                        chapters
+                            .get(active_chapter)
+                            .map_or([].as_slice(), |c| c.blocks.as_slice())
+                    };
+                    if !blocks.is_empty() {
+                        crate::features::markdown::rescale_and_update_markdown_layout(
+                            &mut app.state.epub.markdown_state,
+                            blocks,
+                            old_size,
+                            s,
+                            content_width,
+                        );
+                    }
+                }
 
-                let mut config = crate::core::config::ConfigManager::load_or_create();
+                let mut config = app.load_config();
                 config.ui.font_size = s;
-                let _ = crate::core::config::ConfigManager::save(&config);
+                let _ = app.save_config(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::FontFamilySelected(f) => {
                 app.state.font_family = Some(f.clone());
-                let mut config = crate::core::config::ConfigManager::load_or_create();
+                let mut config = app.load_config();
                 config.ui.font_family = Some(f);
-                let _ = crate::core::config::ConfigManager::save(&config);
+                let _ = app.save_config(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::FontFamilyMonoSelected(f) => {
                 app.state.font_family_mono = Some(f.clone());
-                let mut config = crate::core::config::ConfigManager::load_or_create();
+                let mut config = app.load_config();
                 config.ui.font_family_mono = Some(f);
-                let _ = crate::core::config::ConfigManager::save(&config);
+                let _ = app.save_config(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::EpubFontFamilySelected(f) => {
                 app.state.epub_font_family = Some(f.clone());
-                let mut config = crate::core::config::ConfigManager::load_or_create();
+                let mut config = app.load_config();
                 config.ui.epub_font_family = Some(f);
-                let _ = crate::core::config::ConfigManager::save(&config);
+                let _ = app.save_config(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::MaxTextWidthChanged(w) => {
                 app.state.max_text_width = w;
-                let mut config = crate::core::config::ConfigManager::load_or_create();
+                let mut config = app.load_config();
                 config.ui.max_text_width = w;
-                let _ = crate::core::config::ConfigManager::save(&config);
+                let _ = app.save_config(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::DefaultWidthChanged(w) => {
                 app.state.window_default_size.width = w as f32;
-                let mut config = crate::core::config::ConfigManager::load_or_create();
+                let mut config = app.load_config();
                 config.ui.default_width = w;
-                let _ = crate::core::config::ConfigManager::save(&config);
+                let _ = app.save_config(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::DefaultHeightChanged(h) => {
                 app.state.window_default_size.height = h as f32;
-                let mut config = crate::core::config::ConfigManager::load_or_create();
+                let mut config = app.load_config();
                 config.ui.default_height = h;
-                let _ = crate::core::config::ConfigManager::save(&config);
+                let _ = app.save_config(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::MinWidthChanged(w) => {
                 app.state.window_min_size.width = w as f32;
-                let mut config = crate::core::config::ConfigManager::load_or_create();
+                let mut config = app.load_config();
                 config.ui.min_width = w;
-                let _ = crate::core::config::ConfigManager::save(&config);
+                let _ = app.save_config(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::MinHeightChanged(h) => {
                 app.state.window_min_size.height = h as f32;
-                let mut config = crate::core::config::ConfigManager::load_or_create();
+                let mut config = app.load_config();
                 config.ui.min_height = h;
-                let _ = crate::core::config::ConfigManager::save(&config);
+                let _ = app.save_config(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::WordWrapChanged(enabled) => {
@@ -768,17 +803,17 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                     theme,
                 );
 
-                let mut config = crate::core::config::ConfigManager::load_or_create();
+                let mut config = app.load_config();
                 config.ui.word_wrap = enabled;
-                let _ = crate::core::config::ConfigManager::save(&config);
+                let _ = app.save_config(&config);
                 Task::none()
             }
             crate::app::messages::SettingsMsg::JsonTreeViewChanged(enabled) => {
                 app.state.json_tree_view = enabled;
                 app.state.json.tree_mode = enabled;
-                let mut config = crate::core::config::ConfigManager::load_or_create();
+                let mut config = app.load_config();
                 config.ui.json_tree_view = enabled;
-                let _ = crate::core::config::ConfigManager::save(&config);
+                let _ = app.save_config(&config);
                 Task::none()
             }
         },

@@ -301,9 +301,9 @@ pub fn handle_wrap_toggled(app: &mut KglanceApp) -> Task<Message> {
     let theme = app.state.app_theme;
     update_tokens_for_viewport(&mut app.state.text, new_scroll_y, theme);
 
-    let mut config = crate::core::config::ConfigManager::load_or_create();
+    let mut config = app.load_config();
     config.ui.word_wrap = app.state.word_wrap;
-    let _ = crate::core::config::ConfigManager::save(&config);
+    let _ = app.save_config(&config);
 
     iced::widget::operation::scroll_to(
         CONTENT_SCROLL_ID,
@@ -701,10 +701,10 @@ pub fn handle_toggle_word_wrap(app: &mut KglanceApp) -> Option<Task<Message>> {
         update_tokens_for_viewport(&mut app.state.typst.source_text, typst_scroll_y, theme);
     }
 
-    let mut config = crate::core::config::ConfigManager::load_or_create();
+    let mut config = app.load_config();
     config.ui.word_wrap = app.state.word_wrap;
 
-    if let Err(err) = crate::core::config::ConfigManager::save(&config) {
+    if let Err(err) = app.save_config(&config) {
         crate::log_error!("failed to save word-wrap preference: {err}");
     }
 

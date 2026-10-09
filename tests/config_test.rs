@@ -1,20 +1,6 @@
-use std::sync::Mutex;
-
 use kglance::core::config::{AppConfig, ConfigManager, UiConfig};
 use kglance::ui::theme::AppTheme;
-
-static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-fn with_temp_config_dir<F>(f: F)
-where
-    F: FnOnce(&std::path::Path),
-{
-    let _guard = ENV_LOCK.lock().unwrap();
-    let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::set_var("KGLANCE_CONFIG_DIR", tmp.path()) };
-    f(tmp.path());
-    unsafe { std::env::remove_var("KGLANCE_CONFIG_DIR") };
-}
+use tempfile::tempdir;
 
 #[test]
 fn test_ui_config_default() {
@@ -138,7 +124,6 @@ fn test_config_path_format() {
 
 #[test]
 fn test_config_dir_format() {
-    let _guard = ENV_LOCK.lock().unwrap();
     let dir = ConfigManager::get_config_dir();
     let dir_str = dir.to_string_lossy();
     assert!(
@@ -150,81 +135,82 @@ fn test_config_dir_format() {
 
 #[test]
 fn test_save_load_and_create_default() {
-    with_temp_config_dir(|_tmp| {
-        let original = AppConfig {
-            ui: UiConfig {
-                theme: Some("Dark".into()),
-                font_size: 18.0,
-                font_family: Some("Fira Sans".into()),
-                ..Default::default()
-            },
+    let tmp = tempdir().unwrap();
+    let config_path = tmp.path().join("config.json");
+
+    let original = AppConfig {
+        ui: UiConfig {
+            theme: Some("Dark".into()),
+            font_size: 18.0,
+            font_family: Some("Fira Sans".into()),
             ..Default::default()
-        };
+        },
+        ..Default::default()
+    };
 
-        ConfigManager::save(&original).unwrap();
-        let loaded = ConfigManager::load_or_create();
-        assert_eq!(loaded.ui.theme, original.ui.theme);
-        assert_eq!(loaded.ui.font_size, original.ui.font_size);
-        assert_eq!(loaded.ui.font_family, original.ui.font_family);
-    });
+    ConfigManager::save_to_path(&config_path, &original).unwrap();
+    let loaded = ConfigManager::load_from_path(&config_path);
+    assert_eq!(loaded.ui.theme, original.ui.theme);
+    assert_eq!(loaded.ui.font_size, original.ui.font_size);
+    assert_eq!(loaded.ui.font_family, original.ui.font_family);
 
-    with_temp_config_dir(|tmp| {
-        let config = ConfigManager::load_or_create();
-        assert!((config.ui.max_text_width.unwrap() - 820.0).abs() < f32::EPSILON);
-        assert_eq!(config.ui.default_width, 1024);
-        assert_eq!(config.ui.min_width, 800);
-        assert!(tmp.join("config.json").exists());
-    });
+    let tmp2 = tempdir().unwrap();
+    let config_path2 = tmp2.path().join("config.json");
+    let config = ConfigManager::load_from_path(&config_path2);
+    assert!((config.ui.max_text_width.unwrap() - 820.0).abs() < f32::EPSILON);
+    assert_eq!(config.ui.default_width, 1024);
+    assert_eq!(config.ui.min_width, 800);
+    assert!(config_path2.exists());
 }
 
 #[test]
 fn test_load_or_create_handles_corrupted_json() {
-    with_temp_config_dir(|tmp| {
-        std::fs::write(tmp.join("config.json"), b"not valid json {").unwrap();
+    let tmp = tempdir().unwrap();
+    let config_path = tmp.path().join("config.json");
+    std::fs::write(&config_path, b"not valid json {").unwrap();
 
-        let config = ConfigManager::load_or_create();
-        assert_eq!(config.ui.default_width, 1024);
-        assert_eq!(config.ui.min_height, 600);
-        assert!((config.ui.max_text_width.unwrap() - 820.0).abs() < f32::EPSILON);
+    let config = ConfigManager::load_from_path(&config_path);
+    assert_eq!(config.ui.default_width, 1024);
+    assert_eq!(config.ui.min_height, 600);
+    assert!((config.ui.max_text_width.unwrap() - 820.0).abs() < f32::EPSILON);
 
-        let content = std::fs::read_to_string(tmp.join("config.json")).unwrap();
-        let reparsed: AppConfig = serde_json::from_str(&content).unwrap();
-        assert_eq!(reparsed, AppConfig::default());
-    });
+    let content = std::fs::read_to_string(&config_path).unwrap();
+    let reparsed: AppConfig = serde_json::from_str(&content).unwrap();
+    assert_eq!(reparsed, AppConfig::default());
 }
 
 #[test]
 fn test_load_or_create_handles_empty_file() {
-    with_temp_config_dir(|tmp| {
-        std::fs::write(tmp.join("config.json"), b"").unwrap();
+    let tmp = tempdir().unwrap();
+    let config_path = tmp.path().join("config.json");
+    std::fs::write(&config_path, b"").unwrap();
 
-        let config = ConfigManager::load_or_create();
-        assert_eq!(config.ui.default_width, 1024);
-        assert_eq!(config.ui.min_width, 800);
-    });
+    let config = ConfigManager::load_from_path(&config_path);
+    assert_eq!(config.ui.default_width, 1024);
+    assert_eq!(config.ui.min_width, 800);
 }
 
 #[test]
 fn test_load_or_create_legacy_config_without_min_fields() {
-    with_temp_config_dir(|tmp| {
-        let legacy = r#"{
-            "ui": {
-                "theme": "Dark",
-                "font_size": 15.0,
-                "default_width": 900,
-                "default_height": 600
-            }
-        }"#;
-        std::fs::write(tmp.join("config.json"), legacy).unwrap();
+    let tmp = tempdir().unwrap();
+    let config_path = tmp.path().join("config.json");
+    let legacy = r#"{
+        "ui": {
+            "theme": "Dark",
+            "font_size": 15.0,
+            "default_width": 900,
+            "default_height": 600
+        }
+    }"#;
+    std::fs::write(&config_path, legacy).unwrap();
 
-        let config = ConfigManager::load_or_create();
-        assert_eq!(config.ui.theme.as_deref(), Some("Dark"));
-        assert_eq!(config.ui.font_size, 15.0);
-        assert_eq!(config.ui.default_width, 900);
-        assert_eq!(config.ui.default_height, 600);
-        assert_eq!(config.ui.min_width, 800);
-        assert_eq!(config.ui.min_height, 600);
-    });
+    let config = ConfigManager::load_from_path(&config_path);
+    assert_eq!(config.ui.theme.as_deref(), Some("Dark"));
+    assert_eq!(config.ui.font_size, 15.0);
+    assert_eq!(config.ui.default_width, 900);
+    assert_eq!(config.ui.default_height, 600);
+    assert_eq!(config.ui.min_width, 800);
+    assert_eq!(config.ui.min_height, 600);
 }
 
 #[test]
