@@ -572,34 +572,45 @@ pub fn handle_wheel_scrolled(
             let scaled_delta_y = -dy * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
             let scaled_delta_x = -dx * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
 
-            if scaled_delta_y.abs() > f32::EPSILON {
-                state.scroll_controller.set_position_y(state.scroll_y);
+            if scaled_delta_y.abs() <= f32::EPSILON && scaled_delta_x.abs() <= f32::EPSILON {
                 state.scroll_controller.handle_input(
-                    crate::core::scroll::ScrollInput::Motion {
-                        delta_x: scaled_delta_x,
-                        delta_y: scaled_delta_y,
-                        time: now,
-                    },
+                    crate::core::scroll::ScrollInput::End { time: now },
                     extent_y,
                 );
-                let new_y = state.scroll_controller.position_y();
-                state.scroll_y = new_y;
-                state.smooth_scroll.stop(new_y);
-            }
-
-            if scaled_delta_x.abs() > f32::EPSILON {
-                state.scroll_controller_x.set_position_y(state.scroll_x);
                 state.scroll_controller_x.handle_input(
-                    crate::core::scroll::ScrollInput::Motion {
-                        delta_x: 0.0,
-                        delta_y: scaled_delta_x,
-                        time: now,
-                    },
+                    crate::core::scroll::ScrollInput::End { time: now },
                     extent_x,
                 );
-                let new_x = state.scroll_controller_x.position_y();
-                state.scroll_x = new_x;
-                state.smooth_scroll_x.stop(new_x);
+            } else {
+                if scaled_delta_y.abs() > f32::EPSILON {
+                    state.scroll_controller.set_position_y(state.scroll_y);
+                    state.scroll_controller.handle_input(
+                        crate::core::scroll::ScrollInput::Motion {
+                            delta_x: scaled_delta_x,
+                            delta_y: scaled_delta_y,
+                            time: now,
+                        },
+                        extent_y,
+                    );
+                    let new_y = state.scroll_controller.position_y();
+                    state.scroll_y = new_y;
+                    state.smooth_scroll.stop(new_y);
+                }
+
+                if scaled_delta_x.abs() > f32::EPSILON {
+                    state.scroll_controller_x.set_position_y(state.scroll_x);
+                    state.scroll_controller_x.handle_input(
+                        crate::core::scroll::ScrollInput::Motion {
+                            delta_x: 0.0,
+                            delta_y: scaled_delta_x,
+                            time: now,
+                        },
+                        extent_x,
+                    );
+                    let new_x = state.scroll_controller_x.position_y();
+                    state.scroll_x = new_x;
+                    state.smooth_scroll_x.stop(new_x);
+                }
             }
 
             iced::widget::operation::scroll_to(

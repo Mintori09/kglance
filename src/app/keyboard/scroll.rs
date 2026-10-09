@@ -874,6 +874,94 @@ mod tests {
     }
 
     #[test]
+    fn test_text_touchpad_hold_finger_does_not_fling() {
+        use crate::app::test_util::text_content;
+
+        let code = (0..500)
+            .map(|i| format!("fn line_{i}() {{ println!(\"Code Line {i}\"); }}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut app = test_app(Some(text_content(&code, "rs")));
+        app.state.text.viewport_height = 800.0;
+        app.state.text.total_content_height = 10000.0;
+        app.state.text.scroll_y = 0.0;
+
+        // User swipes with finger
+        let _ = crate::features::text::update::handle_wheel_scrolled(
+            &mut app,
+            iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -20.0 },
+        );
+        assert_eq!(app.state.text.scroll_y, 50.0);
+        assert_eq!(
+            app.state.text.scroll_controller.state(),
+            crate::core::scroll::GestureState::Dragging
+        );
+
+        // User keeps finger held on touchpad (45ms pass without new events)
+        let now = std::time::Instant::now() + std::time::Duration::from_millis(45);
+        let _ = crate::features::text::update::handle_smooth_scroll_tick(&mut app, now);
+
+        // Must settle to Idle without flinging
+        assert_eq!(
+            app.state.text.scroll_controller.state(),
+            crate::core::scroll::GestureState::Idle
+        );
+        assert!(!app.state.text.scroll_controller.is_animating());
+        assert_eq!(app.state.text.scroll_y, 50.0);
+    }
+
+    #[test]
+    fn test_text_touchpad_touch_interrupts_ongoing_fling() {
+        use crate::app::test_util::text_content;
+
+        let code = (0..500)
+            .map(|i| format!("fn line_{i}() {{ println!(\"Code Line {i}\"); }}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut app = test_app(Some(text_content(&code, "rs")));
+        app.state.text.viewport_height = 800.0;
+        app.state.text.total_content_height = 10000.0;
+        app.state.text.scroll_y = 100.0;
+
+        // Start a kinetic fling
+        app.state
+            .text
+            .scroll_controller
+            .start_kinetic(100.0, 2000.0, 9200.0);
+        assert!(app.state.text.scroll_controller.is_animating());
+        assert_eq!(
+            app.state.text.scroll_controller.state(),
+            crate::core::scroll::GestureState::Flinging
+        );
+
+        // Advance 16ms of fling
+        let now1 = std::time::Instant::now() + std::time::Duration::from_millis(16);
+        let _ = crate::features::text::update::handle_smooth_scroll_tick(&mut app, now1);
+        let y_during_fling = app.state.text.scroll_y;
+        assert!(y_during_fling > 100.0);
+
+        // User touches touchpad to stop fling
+        let _ = crate::features::text::update::handle_wheel_scrolled(
+            &mut app,
+            iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -0.5 },
+        );
+        assert!(!app.state.text.scroll_controller.is_animating());
+        assert_eq!(
+            app.state.text.scroll_controller.state(),
+            crate::core::scroll::GestureState::Dragging
+        );
+
+        // User keeps finger held on touchpad for 45ms
+        let now2 = std::time::Instant::now() + std::time::Duration::from_millis(50);
+        let _ = crate::features::text::update::handle_smooth_scroll_tick(&mut app, now2);
+        assert_eq!(
+            app.state.text.scroll_controller.state(),
+            crate::core::scroll::GestureState::Idle
+        );
+        assert!(!app.state.text.scroll_controller.is_animating());
+    }
+
+    #[test]
     fn test_text_gt_shortcut_toggles_outline() {
         use crate::app::test_util::text_content;
 
