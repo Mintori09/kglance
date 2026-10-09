@@ -269,7 +269,7 @@ fn spring_boundary_bounces_back_to_boundary() {
 }
 
 #[test]
-fn update_timeout_triggers_flinging_from_fast_flick() {
+fn test_touchpad_hold_finger_stops_and_settles_to_idle() {
     let json = include_str!("../../../tests/traces/fast_flick.json");
     let (mut controller, last_time) = run_trace_with_pos(json, 2500.0);
     let extent = ViewportExtent {
@@ -277,18 +277,58 @@ fn update_timeout_triggers_flinging_from_fast_flick() {
         viewport_height: 800.0,
     };
 
-    // Simulate 45ms passing without further motion (finger lifted)
+    // User scrolled and held fingers still for 45ms without lifting
     let timeout_time = last_time + Duration::from_millis(45);
     let next_y = controller.update(timeout_time, extent);
 
+    assert_eq!(controller.state(), GestureState::Idle);
+    assert!(!controller.is_animating());
+    assert_eq!(controller.velocity(), 0.0);
+    assert!(next_y.is_none());
+}
+
+#[test]
+fn test_touchpad_touch_down_interrupts_kinetic_fling() {
+    let mut controller = ScrollController::new();
+    let extent = ViewportExtent {
+        content_height: 5000.0,
+        viewport_height: 800.0,
+    };
+    let start_time = Instant::now();
+
+    // Start a kinetic fling at 2000 px/s
+    controller.start_kinetic(500.0, 2000.0, 4200.0);
     assert_eq!(controller.state(), GestureState::Flinging);
     assert!(controller.is_animating());
-    assert!(
-        controller.velocity().abs() > 400.0,
-        "Velocity: {}",
-        controller.velocity()
-    );
+
+    // Advance 20ms of fling
+    let step_time = start_time + Duration::from_millis(20);
+    let next_y = controller.update(step_time, extent);
     assert!(next_y.is_some());
+    assert_eq!(controller.state(), GestureState::Flinging);
+
+    // User touches touchpad (places finger down to stop)
+    let touch_time = step_time + Duration::from_millis(5);
+    controller.handle_input(
+        ScrollInput::Motion {
+            delta_x: 0.0,
+            delta_y: 0.5,
+            time: touch_time,
+        },
+        extent,
+    );
+
+    assert_eq!(controller.state(), GestureState::Dragging);
+    assert!(!controller.is_animating());
+    assert_eq!(controller.velocity(), 0.0);
+
+    // User holds finger on touchpad for 45ms
+    let hold_time = touch_time + Duration::from_millis(45);
+    let hold_y = controller.update(hold_time, extent);
+    assert!(hold_y.is_none());
+    assert_eq!(controller.state(), GestureState::Idle);
+    assert!(!controller.is_animating());
+    assert_eq!(controller.velocity(), 0.0);
 }
 
 #[test]

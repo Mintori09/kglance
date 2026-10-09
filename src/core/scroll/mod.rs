@@ -199,7 +199,9 @@ impl ScrollController {
         self.position_y = y;
         self.target_y = y;
         self.last_applied_y = y;
-        self.scroll_state = ScrollState::Idle { position: y };
+        if self.gesture.state() != GestureState::Dragging {
+            self.scroll_state = ScrollState::Idle { position: y };
+        }
     }
 
     #[inline]
@@ -379,9 +381,16 @@ impl ScrollController {
                     return;
                 }
 
-                if self.gesture.handle_input(input).is_some() {
+                if let Some(new_state) = self.gesture.handle_input(input)
+                    && new_state == GestureState::Dragging
+                {
                     self.physics.stop();
+                    self.velocity_estimator.reset();
+                    self.is_animating = false;
+                    self.velocity = 0.0;
+                    self.mode = SmoothScrollMode::Interactive;
                 }
+                self.is_animating = false;
                 self.velocity_estimator.push_sample(time, delta_y);
 
                 self.position_y = (self.position_y + delta_y).clamp(0.0, max_y);
@@ -498,8 +507,7 @@ impl ScrollController {
 
     pub fn update(&mut self, now: Instant, extent: ViewportExtent) -> Option<f32> {
         if self.gesture.check_timeout(now) {
-            let end_time = self.gesture.last_motion_time().unwrap_or(now);
-            self.handle_input(ScrollInput::End { time: end_time }, extent);
+            self.handle_input(ScrollInput::End { time: now }, extent);
         }
 
         let dt = match self.last_tick.replace(now) {
