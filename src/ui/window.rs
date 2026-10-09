@@ -5,7 +5,9 @@ use iced::{
 
 use crate::app::Message;
 use crate::core::KglanceState;
+use crate::ui::theme::AppTheme;
 use crate::ui::theme::color::primitive::OVERLAY_SHADOW;
+use crate::ui::theme::tokens::{elevation, radius, spacing, typography};
 use crate::ui::theme::{default_raised, default_root};
 use std::path::Path;
 
@@ -69,21 +71,21 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         counter,
         page_counter,
         toc_btn,
-        text(left).size(11).style(metadata_style),
+        text(left).size(typography::CAPTION).style(metadata_style),
     ]
-    .spacing(8)
+    .spacing(spacing::S)
     .align_y(Alignment::Center);
 
     let font_badge = font_size_indicator(state);
 
     let right_row = row![
-        text(right).size(11).style(metadata_style),
+        text(right).size(typography::CAPTION).style(metadata_style),
         typst,
         info,
         font_badge,
         setting_button(),
     ]
-    .spacing(8)
+    .spacing(spacing::S)
     .align_y(Alignment::Center);
 
     container(
@@ -105,7 +107,7 @@ fn toc_toggle_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
             iced::widget::button::secondary
         };
         Some(
-            button(text("📑 Outline").size(11))
+            button(text("📑 Outline").size(typography::CAPTION))
                 .on_press(crate::app::messages::MarkdownMsg::TocToggled.into())
                 .style(style)
                 .padding([2, 6])
@@ -120,7 +122,7 @@ fn toc_toggle_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
             iced::widget::button::secondary
         };
         Some(
-            button(text("📑 Chapters").size(11))
+            button(text("📑 Chapters").size(typography::CAPTION))
                 .on_press(crate::app::messages::EpubMsg::SidebarToggled.into())
                 .style(style)
                 .padding([2, 6])
@@ -203,7 +205,7 @@ fn font_size_indicator<'a>(state: &KglanceState) -> Option<Element<'a, Message>>
 }
 
 fn setting_button<'a>() -> Element<'a, Message> {
-    iced::widget::button(text("⚙").size(12).style(metadata_style))
+    iced::widget::button(text("⚙").size(typography::ICON_MD).style(metadata_style))
         .on_press(crate::app::messages::NavigationMsg::ToggleSettingsClicked.into())
         .style(iced::widget::button::secondary)
         .padding([2, 6])
@@ -218,7 +220,7 @@ fn image_info_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
             iced::widget::button::secondary
         };
         Some(
-            iced::widget::button(text("ℹ").size(12))
+            iced::widget::button(text("ℹ").size(typography::ICON_MD))
                 .on_press(crate::app::messages::ImageMsg::ToggleInfo.into())
                 .style(style)
                 .padding([2, 6])
@@ -237,7 +239,7 @@ fn typst_toggle_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>>
             "</> Source"
         };
         Some(
-            iced::widget::button(text(label).size(11).style(metadata_style))
+            iced::widget::button(text(label).size(typography::CAPTION).style(metadata_style))
                 .on_press(crate::app::messages::TypstMsg::ToggleSource.into())
                 .style(iced::widget::button::secondary)
                 .padding([2, 8])
@@ -257,7 +259,7 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         .toasts
         .iter()
         .map(|t| {
-            container(text(&t.message).size(13))
+            container(text(&t.message).size(typography::BODY_MD))
                 .padding(Padding {
                     top: 6.0,
                     right: 16.0,
@@ -266,20 +268,16 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
                 })
                 .style(|theme: &iced::Theme| {
                     use iced::widget::container;
-                    let palette = theme.extended_palette();
+                    let p = AppTheme::from(theme).palette().base;
                     container::Style {
-                        background: Some(palette.background.base.color.into()),
-                        text_color: Some(palette.background.base.text),
+                        background: Some(p.surface_raised.into()),
+                        text_color: Some(p.text),
                         border: iced::Border {
-                            radius: 6.0.into(),
-                            width: 0.0,
-                            color: iced::Color::TRANSPARENT,
+                            radius: radius::MD.into(),
+                            width: 1.0,
+                            color: p.border,
                         },
-                        shadow: iced::Shadow {
-                            offset: iced::Vector::new(0.0, 2.0),
-                            blur_radius: 8.0,
-                            color: OVERLAY_SHADOW,
-                        },
+                        shadow: elevation::medium(OVERLAY_SHADOW),
                         ..Default::default()
                     }
                 })
@@ -288,11 +286,11 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         .collect();
 
     column(items)
-        .spacing(6)
+        .spacing(spacing::XS + 2.0)
         .padding(Padding {
             top: 0.0,
             right: 0.0,
-            bottom: 24.0,
+            bottom: spacing::XL,
             left: 0.0,
         })
         .width(Length::Shrink)
@@ -374,9 +372,12 @@ pub fn view_window<'a>(
                 .height(Length::Fill)
                 .align_x(iced::alignment::Horizontal::Center)
                 .align_y(Alignment::Center)
-                .style(|_| container::Style {
-                    background: Some(iced::Color::from_rgba(0.0, 0.0, 0.0, 0.5).into()),
-                    ..Default::default()
+                .style(|theme: &iced::Theme| {
+                    let overlay = AppTheme::from(theme).palette().overlay;
+                    container::Style {
+                        background: Some(overlay.backdrop_modal.into()),
+                        ..Default::default()
+                    }
                 }),
         );
 

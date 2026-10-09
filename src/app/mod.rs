@@ -1099,7 +1099,9 @@ impl KglanceApp {
                     *width,
                     *height,
                 ),
-                PreviewData::Error(err) => iced::widget::text(err).size(18).into(),
+                PreviewData::Error(err) => iced::widget::text(err)
+                    .size(crate::ui::theme::tokens::typography::DISPLAY)
+                    .into(),
             }
         } else if !self.state.file_name.is_empty() {
             crate::ui::views::view_loading(
@@ -1108,7 +1110,9 @@ impl KglanceApp {
                 self.state.app_theme,
             )
         } else {
-            iced::widget::text("No file loaded.").size(18).into()
+            iced::widget::text("No file loaded.")
+                .size(crate::ui::theme::tokens::typography::DISPLAY)
+                .into()
         };
 
         let window = crate::ui::window::view_window(&self.state, preview_body);

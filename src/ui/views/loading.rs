@@ -13,16 +13,9 @@ pub fn view_loading<'a>(
     angle_deg: f32,
     app_theme: AppTheme,
 ) -> Element<'a, Message> {
-    let base_color = match app_theme {
-        AppTheme::Dark => Color::from_rgb(0.9, 0.9, 0.9),
-        AppTheme::Light => Color::from_rgb(0.1, 0.1, 0.1),
-        AppTheme::Nord => Color::from_rgb(0.88, 0.91, 0.94),
-    };
-    let accent_color = match app_theme {
-        AppTheme::Dark => Color::from_rgb(0.24, 0.51, 0.96),
-        AppTheme::Light => Color::from_rgb(0.15, 0.45, 0.85),
-        AppTheme::Nord => Color::from_rgb(0.53, 0.75, 0.82),
-    };
+    let palette = app_theme.palette();
+    let base_color = palette.base.text;
+    let accent_color = palette.roles.accent;
     let track_color = Color {
         a: 0.15,
         ..accent_color
@@ -49,15 +42,15 @@ pub fn view_loading<'a>(
 
     let content = column![
         spinner,
-        Space::new().height(Length::Fixed(16.0)),
+        Space::new().height(Length::Fixed(crate::ui::theme::tokens::spacing::L)),
         text(label)
-            .size(14)
+            .size(crate::ui::theme::tokens::typography::BODY_LG)
             .style(move |_| iced::widget::text::Style {
                 color: Some(base_color),
             }),
     ]
     .align_x(Alignment::Center)
-    .spacing(4);
+    .spacing(crate::ui::theme::tokens::spacing::XS);
 
     container(content)
         .width(Length::Fill)
