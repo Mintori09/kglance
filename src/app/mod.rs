@@ -77,14 +77,32 @@ impl KglanceApp {
 
     pub fn save_config(&self, config: &crate::core::config::AppConfig) -> Result<(), String> {
         match &self.config_path {
-            Some(path) => crate::core::config::ConfigManager::save_to_path(path, config),
+            Some(path) => {
+                let path = path.clone();
+                let config = config.clone();
+                let _ = std::thread::Builder::new()
+                    .name("kglance-save-config".into())
+                    .spawn(move || {
+                        let _ = crate::core::config::ConfigManager::save_to_path(&path, &config);
+                    });
+                Ok(())
+            }
             None => Ok(()),
         }
     }
 
     pub fn save_read_positions(&self) -> Result<(), String> {
         match &self.read_positions_path {
-            Some(path) => self.state.read_positions.save_to_path(path),
+            Some(path) => {
+                let path = path.clone();
+                let positions = self.state.read_positions.clone();
+                let _ = std::thread::Builder::new()
+                    .name("kglance-save-positions".into())
+                    .spawn(move || {
+                        let _ = positions.save_to_path(&path);
+                    });
+                Ok(())
+            }
             None => Ok(()),
         }
     }
@@ -868,6 +886,8 @@ impl KglanceApp {
         self.state.media.subtitles_enabled = false;
         self.state.audio.error = None;
 
+        self.clear_media();
+
         if is_video {
             match crate::features::video::handler::load_video(path) {
                 Ok(video) => {
@@ -880,8 +900,6 @@ impl KglanceApp {
                     self.video = None;
                 }
             }
-        } else {
-            self.video = None;
         }
 
         if is_audio {
@@ -902,8 +920,6 @@ impl KglanceApp {
                     self.audio = None;
                 }
             }
-        } else {
-            self.audio = None;
         }
 
         if is_video {

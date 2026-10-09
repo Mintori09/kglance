@@ -58,8 +58,7 @@ impl KglanceApp {
             self.state.read_positions_dirty = false;
         }
 
-        self.video = None;
-        self.audio = None;
+        self.clear_media();
         self.current_content = None;
         self.state.reset_content_state();
         self.invalidate_render_generations();
@@ -219,9 +218,19 @@ impl KglanceApp {
         Task::none()
     }
 
-    fn handle_window_close_requested(&mut self, window_id: window::Id) -> Task<Message> {
-        self.video = None;
+    pub(crate) fn clear_media(&mut self) {
+        if let Some(video) = self.video.take() {
+            let _ = std::thread::Builder::new()
+                .name("kglance-video-teardown".into())
+                .spawn(move || {
+                    drop(video);
+                });
+        }
         self.audio = None;
+    }
+
+    fn handle_window_close_requested(&mut self, window_id: window::Id) -> Task<Message> {
+        self.clear_media();
         if self.is_daemon {
             if let Some(ref watcher) = self.file_watcher {
                 let _ = watcher
