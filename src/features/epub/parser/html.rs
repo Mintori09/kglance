@@ -73,16 +73,16 @@ impl HtmlToMarkdownConverter {
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(ref e)) => {
-                    let name = e.name().as_ref().to_ascii_lowercase();
-                    self.handle_start_tag(&name, e);
+                    let name = e.name();
+                    self.handle_start_tag(name.as_ref(), e);
                 }
                 Ok(Event::End(ref e)) => {
-                    let name = e.name().as_ref().to_ascii_lowercase();
-                    self.handle_end_tag(&name);
+                    let name = e.name();
+                    self.handle_end_tag(name.as_ref());
                 }
                 Ok(Event::Empty(ref e)) => {
-                    let name = e.name().as_ref().to_ascii_lowercase();
-                    self.handle_empty_tag(&name, e);
+                    let name = e.name();
+                    self.handle_empty_tag(name.as_ref(), e);
                 }
                 Ok(Event::Text(ref e)) => {
                     let raw_str = e.as_ref();
@@ -111,12 +111,23 @@ impl HtmlToMarkdownConverter {
 
         let decoded = decode_html_entities(&self.output);
         let normalized = normalize_nfc(&decoded);
-        let cleaned = normalized.replace("\\-", "-");
+        let cleaned = if normalized.contains("\\-") {
+            normalized.replace("\\-", "-")
+        } else {
+            normalized
+        };
 
         clean_markdown_output(&cleaned)
     }
 
     fn handle_start_tag(&mut self, name: &str, e: &quick_xml::events::BytesStart) {
+        let name_lower = if name.bytes().any(|b| b.is_ascii_uppercase()) {
+            std::borrow::Cow::Owned(name.to_ascii_lowercase())
+        } else {
+            std::borrow::Cow::Borrowed(name)
+        };
+        let name = name_lower.as_ref();
+
         if matches!(name, "style" | "script" | "head" | "title") {
             self.skip_depth += 1;
             return;
@@ -284,6 +295,13 @@ impl HtmlToMarkdownConverter {
     }
 
     fn handle_end_tag(&mut self, name: &str) {
+        let name_lower = if name.bytes().any(|b| b.is_ascii_uppercase()) {
+            std::borrow::Cow::Owned(name.to_ascii_lowercase())
+        } else {
+            std::borrow::Cow::Borrowed(name)
+        };
+        let name = name_lower.as_ref();
+
         if matches!(name, "style" | "script" | "head" | "title") {
             if self.skip_depth > 0 {
                 self.skip_depth -= 1;
@@ -395,6 +413,13 @@ impl HtmlToMarkdownConverter {
     }
 
     fn handle_empty_tag(&mut self, name: &str, e: &quick_xml::events::BytesStart) {
+        let name_lower = if name.bytes().any(|b| b.is_ascii_uppercase()) {
+            std::borrow::Cow::Owned(name.to_ascii_lowercase())
+        } else {
+            std::borrow::Cow::Borrowed(name)
+        };
+        let name = name_lower.as_ref();
+
         if self.skip_depth > 0 {
             return;
         }
@@ -412,7 +437,7 @@ impl HtmlToMarkdownConverter {
             "hr" => self.append_str("\n\n---\n\n"),
             "img" => {
                 let mut src = String::new();
-                let mut alt = String::from("image");
+                let mut alt = "image".to_string();
 
                 for attr in e.attributes().flatten() {
                     if attr.key.as_ref().eq_ignore_ascii_case("src") {
@@ -642,41 +667,60 @@ fn clean_lang_token(token: &str) -> String {
 }
 
 fn clean_markdown_output(text: &str) -> String {
-    let mut result = Vec::new();
+    let mut result = String::with_capacity(text.len());
     let mut in_code_fence = false;
-    let mut code_fence_lines: Vec<String> = Vec::new();
+    let mut code_fence_lines: Vec<&str> = Vec::new();
 
     for line in text.lines() {
         let trimmed_start = line.trim_start();
         if trimmed_start.starts_with("```") {
             if in_code_fence {
-                code_fence_lines.push(line.to_string());
-                result.push(code_fence_lines.join("\n"));
+                code_fence_lines.push(line);
+                if !result.is_empty() {
+                    result.push_str("\n\n");
+                }
+                for (idx, cl) in code_fence_lines.iter().enumerate() {
+                    if idx > 0 {
+                        result.push('\n');
+                    }
+                    result.push_str(cl);
+                }
                 code_fence_lines.clear();
                 in_code_fence = false;
             } else {
                 in_code_fence = true;
                 code_fence_lines.clear();
-                code_fence_lines.push(line.to_string());
+                code_fence_lines.push(line);
             }
             continue;
         }
 
         if in_code_fence {
-            code_fence_lines.push(line.to_string());
+            code_fence_lines.push(line);
         } else {
             let trimmed = line.trim();
             if !trimmed.is_empty() {
-                result.push(trimmed.to_string());
+                if !result.is_empty() {
+                    result.push_str("\n\n");
+                }
+                result.push_str(trimmed);
             }
         }
     }
 
     if !code_fence_lines.is_empty() {
-        result.push(code_fence_lines.join("\n"));
+        if !result.is_empty() {
+            result.push_str("\n\n");
+        }
+        for (idx, cl) in code_fence_lines.iter().enumerate() {
+            if idx > 0 {
+                result.push('\n');
+            }
+            result.push_str(cl);
+        }
     }
 
-    result.join("\n\n")
+    result
 }
 
 fn mathml_to_latex(raw: &str) -> String {
@@ -692,6 +736,10 @@ pub fn strip_html_tags(html: &str) -> String {
 }
 
 pub fn decode_html_entities(text: &str) -> String {
+    if !text.contains('&') {
+        return normalize_nfc(text);
+    }
+
     let mut result = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
 
@@ -737,6 +785,9 @@ pub fn decode_html_entities(text: &str) -> String {
 
 pub fn normalize_nfc(text: &str) -> String {
     use unicode_normalization::UnicodeNormalization;
+    if !text.contains('´') && !text.contains('`') && !text.contains("ộ") {
+        return text.to_string();
+    }
     let preprocessed = text.replace("ộ\u{0301}", "ối").replace("ộ´", "ối");
 
     let mut transformed = String::with_capacity(preprocessed.len());

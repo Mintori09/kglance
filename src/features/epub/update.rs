@@ -810,4 +810,87 @@ mod tests {
             initial_blocks_count
         );
     }
+
+    #[test]
+    fn test_single_chapter_mode_ctrl_scroll_zoom_anchoring_on_lazy_chapter() {
+        let ch1_blocks = vec![
+            crate::parsers::markdown::Block::Heading {
+                level: 1,
+                content: vec![crate::parsers::markdown::Inline::Text(
+                    "Chapter 1".to_string(),
+                )],
+            },
+            crate::parsers::markdown::Block::Paragraph(vec![
+                crate::parsers::markdown::Inline::Text("Paragraph 1".to_string()),
+            ]),
+        ];
+        let ch2_blocks = vec![
+            crate::parsers::markdown::Block::Heading {
+                level: 1,
+                content: vec![crate::parsers::markdown::Inline::Text(
+                    "Chapter 2".to_string(),
+                )],
+            },
+            crate::parsers::markdown::Block::Paragraph(vec![
+                crate::parsers::markdown::Inline::Text("Paragraph A".to_string()),
+            ]),
+            crate::parsers::markdown::Block::Paragraph(vec![
+                crate::parsers::markdown::Inline::Text("Paragraph B".to_string()),
+            ]),
+        ];
+
+        let chapters = vec![
+            crate::core::types::EpubChapterInfo {
+                title: "Chapter 1".to_string(),
+                level: 1,
+                anchor: None,
+                file_href: "ch1.xhtml".to_string(),
+                blocks: ch1_blocks,
+            },
+            crate::core::types::EpubChapterInfo {
+                title: "Chapter 2".to_string(),
+                level: 1,
+                anchor: None,
+                file_href: "ch2.xhtml".to_string(),
+                blocks: Vec::new(), // Lazy loaded
+            },
+        ];
+
+        let mut app = test_app(Some(crate::core::PreviewData::Epub {
+            title: "Book".to_string(),
+            author: "Author".to_string(),
+            chapters: chapters.clone(),
+            active_chapter: 0,
+            images: std::collections::HashMap::new(),
+        }));
+        app.state.epub_reading_mode = crate::core::config::EpubReadingMode::SingleChapter;
+        crate::features::epub::state::populate_state(
+            &mut app.state,
+            "Book",
+            "Author",
+            &chapters,
+            0,
+            &std::collections::HashMap::new(),
+        );
+
+        // Manually populate chapter 2 blocks as if loaded on demand
+        app.state.epub.chapters[1].blocks = ch2_blocks;
+        let _ = handle_chapter_clicked(&mut app, 1);
+
+        assert_eq!(app.state.epub.active_chapter, 1);
+        assert_eq!(app.state.epub.markdown_state.block_y_offsets.len(), 3);
+        let ch2_p2_initial_y = app.state.epub.markdown_state.block_y_offsets[2];
+        app.state.epub.markdown_state.scroll_y = ch2_p2_initial_y;
+
+        // Zoom in with Ctrl + Scroll
+        app.ctrl_held = true;
+        let _ = app.handle_scroll_delta(0.0, 1.0);
+
+        // Font size increased and layout recomputed for chapter 2
+        assert_eq!(app.state.font_size, 15.0);
+        assert_eq!(app.state.epub.markdown_state.block_y_offsets.len(), 3);
+        let ch2_p2_new_y = app.state.epub.markdown_state.block_y_offsets[2];
+        assert_eq!(app.state.epub.markdown_state.scroll_y, ch2_p2_new_y);
+        assert!(ch2_p2_new_y > ch2_p2_initial_y);
+    }
 }

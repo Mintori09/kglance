@@ -642,9 +642,10 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                         s,
                         content_width,
                     );
-                } else if let Some(crate::core::PreviewData::Epub { chapters, .. }) =
-                    &app.current_content
-                {
+                } else if matches!(
+                    app.current_content,
+                    Some(crate::core::PreviewData::Epub { .. })
+                ) {
                     let content_width = app.state.epub_content_width();
                     let blocks = if app.state.epub.reading_mode
                         == crate::core::config::EpubReadingMode::Continuous
@@ -652,7 +653,9 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                         app.state.epub.continuous_blocks.as_slice()
                     } else {
                         let active_chapter = app.state.epub.active_chapter;
-                        chapters
+                        app.state
+                            .epub
+                            .chapters
                             .get(active_chapter)
                             .map_or([].as_slice(), |c| c.blocks.as_slice())
                     };

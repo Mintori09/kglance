@@ -285,6 +285,8 @@ pub fn rescale_and_update_markdown_layout(
     };
 
     state.scroll_y = new_scroll_y;
+    state.scroll_controller.stop(new_scroll_y);
+    state.smooth_scroll.stop(new_scroll_y);
     new_scroll_y
 }
 
