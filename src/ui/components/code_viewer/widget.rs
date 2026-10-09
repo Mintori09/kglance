@@ -414,9 +414,9 @@ where
         let gutter_bg = self.theme.palette().base.surface;
         let gutter_border = self.theme.palette().base.border;
         let default_text_color = self.theme.palette().base.text;
-        let selection_bg = Color::from_rgba(0.2, 0.4, 0.8, 0.35);
-        let search_match_bg = Color::from_rgba(0.9, 0.7, 0.1, 0.4);
-        let active_match_bg = Color::from_rgba(0.95, 0.45, 0.1, 0.7);
+        let selection_bg = self.theme.palette().overlay.selection_bg;
+        let search_match_bg = self.theme.palette().markdown.search_inactive_bg;
+        let active_match_bg = self.theme.palette().markdown.search_active_bg;
         let bold_font = Font {
             weight: iced::font::Weight::Bold,
             ..self.font

@@ -57,168 +57,26 @@ impl super::KglanceApp {
                 Task::none()
             }
         } else if is_mod {
-            if matches!(
-                self.current_content,
-                Some(PreviewData::Markdown { .. })
-                    | Some(PreviewData::Text { .. })
-                    | Some(PreviewData::Epub { .. })
-                    | Some(PreviewData::Json { .. })
-                    | Some(PreviewData::Typst { .. })
-            ) {
-                let delta = if scroll_val > 0.0 { 1.0 } else { -1.0 };
-                let old_font_size = self.state.font_size;
-                let next_font_size = (old_font_size + delta).clamp(8.0, 48.0);
-                if (next_font_size - old_font_size).abs() > f32::EPSILON {
-                    self.state.font_size = next_font_size;
-
-                    match self.current_content {
-                        Some(PreviewData::Markdown { ref blocks, .. }) => {
-                            let content_width = self.state.markdown_content_width();
-                            let new_scroll_y =
-                                crate::features::markdown::rescale_and_update_markdown_layout(
-                                    &mut self.state.markdown,
-                                    blocks,
-                                    old_font_size,
-                                    next_font_size,
-                                    content_width,
-                                );
-                            operation::scroll_to(
-                                "content_scroll",
-                                AbsoluteOffset {
-                                    x: 0.0,
-                                    y: new_scroll_y,
-                                },
-                            )
-                        }
-                        Some(PreviewData::Epub { .. }) => {
-                            let blocks = if self.state.epub.reading_mode
-                                == crate::core::config::EpubReadingMode::Continuous
-                            {
-                                self.state.epub.continuous_blocks.as_slice()
-                            } else {
-                                let active_chapter = self.state.epub.active_chapter;
-                                self.state
-                                    .epub
-                                    .chapters
-                                    .get(active_chapter)
-                                    .map_or([].as_slice(), |c| c.blocks.as_slice())
-                            };
-                            if !blocks.is_empty() {
-                                let epub_content_width = self.state.epub_content_width();
-                                let new_scroll_y =
-                                    crate::features::markdown::rescale_and_update_markdown_layout(
-                                        &mut self.state.epub.markdown_state,
-                                        blocks,
-                                        old_font_size,
-                                        next_font_size,
-                                        epub_content_width,
-                                    );
-                                operation::scroll_to(
-                                    "content_scroll",
-                                    AbsoluteOffset {
-                                        x: 0.0,
-                                        y: new_scroll_y,
-                                    },
-                                )
-                            } else {
-                                Task::none()
-                            }
-                        }
-                        Some(PreviewData::Text { .. }) => {
-                            let win_w = self.state.current_window_size.width;
-                            let theme = self.state.app_theme;
-                            let word_wrap = self.state.word_wrap;
-                            let new_scroll_y = crate::features::text::rescale_text_geometry(
-                                &mut self.state.text,
-                                old_font_size,
-                                next_font_size,
-                                word_wrap,
-                                win_w,
-                                theme,
-                            );
-                            operation::scroll_to(
-                                "content_scroll",
-                                AbsoluteOffset {
-                                    x: 0.0,
-                                    y: new_scroll_y,
-                                },
-                            )
-                        }
-                        Some(PreviewData::Json { .. }) => {
-                            if self.state.json.tree_mode {
-                                let old_row_h = crate::features::json::view::tree::json_row_height(
-                                    old_font_size,
-                                );
-                                let new_row_h = crate::features::json::view::tree::json_row_height(
-                                    next_font_size,
-                                );
-                                let node_index = if old_row_h > 0.0 {
-                                    (self.state.json.scroll_y / old_row_h).max(0.0)
-                                } else {
-                                    0.0
-                                };
-                                let new_scroll_y = (node_index * new_row_h).max(0.0);
-                                self.state.json.scroll_y = new_scroll_y;
-                                operation::scroll_to(
-                                    "content_scroll",
-                                    AbsoluteOffset {
-                                        x: 0.0,
-                                        y: new_scroll_y,
-                                    },
-                                )
-                            } else {
-                                let win_w = self.state.current_window_size.width;
-                                let theme = self.state.app_theme;
-                                let word_wrap = self.state.word_wrap;
-                                let new_scroll_y = crate::features::text::rescale_text_geometry(
-                                    &mut self.state.json.raw_text,
-                                    old_font_size,
-                                    next_font_size,
-                                    word_wrap,
-                                    win_w,
-                                    theme,
-                                );
-                                self.state.json.scroll_y = new_scroll_y;
-                                operation::scroll_to(
-                                    "json_raw_scroll",
-                                    AbsoluteOffset {
-                                        x: 0.0,
-                                        y: new_scroll_y,
-                                    },
-                                )
-                            }
-                        }
-                        Some(PreviewData::Typst { .. }) => {
-                            if self.state.typst.show_source {
-                                let win_w = self.state.current_window_size.width;
-                                let theme = self.state.app_theme;
-                                let word_wrap = self.state.word_wrap;
-                                let new_scroll_y = crate::features::text::rescale_text_geometry(
-                                    &mut self.state.typst.source_text,
-                                    old_font_size,
-                                    next_font_size,
-                                    word_wrap,
-                                    win_w,
-                                    theme,
-                                );
-                                operation::scroll_to(
-                                    "typst_source_scroll",
-                                    AbsoluteOffset {
-                                        x: 0.0,
-                                        y: new_scroll_y,
-                                    },
-                                )
-                            } else {
-                                Task::none()
-                            }
-                        }
-                        _ => Task::none(),
-                    }
-                } else {
-                    Task::none()
+            let delta = if scroll_val > 0.0 { 1.0 } else { -1.0 };
+            let target_font_size = self.state.font_size + delta;
+            match self.current_content {
+                Some(PreviewData::Markdown { .. } | PreviewData::Epub { .. }) => {
+                    crate::features::markdown::update::rescale_markdown_font(self, target_font_size)
+                        .unwrap_or_else(Task::none)
                 }
-            } else {
-                Task::none()
+                Some(PreviewData::Text { .. }) => {
+                    crate::features::text::update::rescale_text_font(self, target_font_size)
+                        .unwrap_or_else(Task::none)
+                }
+                Some(PreviewData::Json { .. }) => {
+                    crate::features::json::update::rescale_json_font(self, target_font_size)
+                        .unwrap_or_else(Task::none)
+                }
+                Some(PreviewData::Typst { .. }) if self.state.typst.show_source => {
+                    crate::features::text::update::rescale_typst_font(self, target_font_size)
+                        .unwrap_or_else(Task::none)
+                }
+                _ => Task::none(),
             }
         } else {
             Task::none()

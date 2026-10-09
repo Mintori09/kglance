@@ -37,4 +37,54 @@ impl SymbolColors {
         module: primitive::NORD9,
         r#type: primitive::NORD7,
     };
+
+    pub const CATPPUCCIN_MOCHA: SymbolColors = SymbolColors {
+        function: primitive::MOCHA_BLUE,
+        r#struct: primitive::MOCHA_YELLOW,
+        class: primitive::MOCHA_YELLOW,
+        r#enum: primitive::MOCHA_MAUVE,
+        r#trait: primitive::MOCHA_TEAL,
+        module: primitive::MOCHA_LAVENDER,
+        r#type: primitive::MOCHA_SKY,
+    };
+
+    pub const CATPPUCCIN_LATTE: SymbolColors = SymbolColors {
+        function: primitive::LATTE_BLUE,
+        r#struct: primitive::LATTE_YELLOW,
+        class: primitive::LATTE_YELLOW,
+        r#enum: primitive::LATTE_LAVENDER,
+        r#trait: primitive::LATTE_SAPPHIRE,
+        module: primitive::LATTE_LAVENDER,
+        r#type: primitive::LATTE_SKY,
+    };
+
+    pub const TOKYO_NIGHT: SymbolColors = SymbolColors {
+        function: primitive::TOKYO_BLUE,
+        r#struct: primitive::TOKYO_YELLOW,
+        class: primitive::TOKYO_YELLOW,
+        r#enum: primitive::TOKYO_PURPLE,
+        r#trait: primitive::TOKYO_CYAN,
+        module: primitive::TOKYO_CYAN,
+        r#type: primitive::TOKYO_BLUE,
+    };
+
+    pub const GRUVBOX_DARK: SymbolColors = SymbolColors {
+        function: primitive::GRUVBOX_GREEN,
+        r#struct: primitive::GRUVBOX_YELLOW,
+        class: primitive::GRUVBOX_YELLOW,
+        r#enum: primitive::GRUVBOX_PURPLE,
+        r#trait: primitive::GRUVBOX_AQUA,
+        module: primitive::GRUVBOX_ORANGE,
+        r#type: primitive::GRUVBOX_AQUA,
+    };
+
+    pub const DRACULA: SymbolColors = SymbolColors {
+        function: primitive::DRACULA_GREEN,
+        r#struct: primitive::DRACULA_CYAN,
+        class: primitive::DRACULA_CYAN,
+        r#enum: primitive::DRACULA_PURPLE,
+        r#trait: primitive::DRACULA_PINK,
+        module: primitive::DRACULA_ORANGE,
+        r#type: primitive::DRACULA_YELLOW,
+    };
 }

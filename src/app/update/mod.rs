@@ -595,6 +595,28 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::SettingsMsg::ThemeChanged(t) => {
                 app.state.theme_setting = t.clone();
                 app.state.app_theme = crate::core::config::ConfigManager::resolve_theme(&t);
+                let theme = app.state.app_theme;
+                let text_scroll = app.state.text.scroll_y;
+                app.state.text.cached_tokens.clear();
+                crate::features::text::update_tokens_for_viewport(
+                    &mut app.state.text,
+                    text_scroll,
+                    theme,
+                );
+                let json_scroll = app.state.json.raw_text.scroll_y;
+                app.state.json.raw_text.cached_tokens.clear();
+                crate::features::text::update_tokens_for_viewport(
+                    &mut app.state.json.raw_text,
+                    json_scroll,
+                    theme,
+                );
+                let typst_scroll = app.state.typst.source_text.scroll_y;
+                app.state.typst.source_text.cached_tokens.clear();
+                crate::features::text::update_tokens_for_viewport(
+                    &mut app.state.typst.source_text,
+                    typst_scroll,
+                    theme,
+                );
                 let mut config = app.load_config();
                 config.ui.theme = Some(t);
                 let _ = app.save_config(&config);

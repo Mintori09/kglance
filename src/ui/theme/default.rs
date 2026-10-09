@@ -109,9 +109,10 @@ pub fn default_row_button(
             Some(c.into())
         }
         (false, button::Status::Hovered) => Some(
-            match app_theme {
-                AppTheme::Light => primitive::BLACK_006,
-                AppTheme::Dark | AppTheme::Nord => primitive::WHITE_006,
+            if app_theme.is_dark() {
+                primitive::WHITE_006
+            } else {
+                primitive::BLACK_006
             }
             .into(),
         ),
@@ -150,10 +151,7 @@ pub fn default_grid_card(
 
     let (bg_color, border_color, border_width, shadow) = if is_selected {
         let mut active_bg = role.accent;
-        active_bg.a = match app_theme {
-            AppTheme::Light => 0.20,
-            AppTheme::Dark | AppTheme::Nord => 0.25,
-        };
+        active_bg.a = if app_theme.is_dark() { 0.25 } else { 0.20 };
 
         let active_shadow = Shadow {
             color: Color {
@@ -167,9 +165,10 @@ pub fn default_grid_card(
     } else {
         match status {
             button::Status::Hovered => {
-                let (hover_bg, hover_border) = match app_theme {
-                    AppTheme::Light => (primitive::BLACK_008, primitive::BLACK_015),
-                    AppTheme::Dark | AppTheme::Nord => (primitive::WHITE_012, primitive::WHITE_020),
+                let (hover_bg, hover_border) = if app_theme.is_dark() {
+                    (primitive::WHITE_012, primitive::WHITE_020)
+                } else {
+                    (primitive::BLACK_008, primitive::BLACK_015)
                 };
                 (hover_bg, hover_border, 1.0, Shadow::default())
             }
@@ -365,9 +364,10 @@ pub fn default_checkbox(theme: &Theme, status: checkbox::Status) -> checkbox::St
 pub fn default_tooltip(theme: &Theme) -> container::Style {
     let p = BaseColors::palette(theme);
     let app_theme = AppTheme::from(theme);
-    let (bg, border_color) = match app_theme {
-        AppTheme::Light => (primitive::LIGHT_TOOLTIP, p.border),
-        AppTheme::Dark | AppTheme::Nord => (primitive::DARK_TOOLTIP, p.border),
+    let (bg, border_color) = if app_theme.is_dark() {
+        (primitive::DARK_TOOLTIP, p.border)
+    } else {
+        (primitive::LIGHT_TOOLTIP, p.border)
     };
     container::Style {
         background: Some(bg.into()),

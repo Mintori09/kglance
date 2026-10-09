@@ -7,7 +7,7 @@ fn test_default_config_values() {
     let cfg = AppConfig::default();
 
     // UI defaults
-    assert_eq!(cfg.ui.theme, Some("Auto".into()));
+    assert_eq!(cfg.ui.theme, Some("dark".into()));
     assert_eq!(cfg.ui.font_size, 14.0);
     assert_eq!(cfg.ui.font_family, None);
     assert_eq!(cfg.ui.font_family_mono, None);
@@ -167,10 +167,53 @@ fn test_load_fallback_when_corrupted_json() {
 fn test_theme_resolution() {
     assert_eq!(ConfigManager::resolve_theme("Light"), AppTheme::Light);
     assert_eq!(ConfigManager::resolve_theme("light"), AppTheme::Light);
-    assert_eq!(ConfigManager::resolve_theme("Nord"), AppTheme::Nord);
-    assert_eq!(ConfigManager::resolve_theme("nord"), AppTheme::Nord);
+    assert_eq!(
+        ConfigManager::resolve_theme("breeze-light"),
+        AppTheme::Light
+    );
     assert_eq!(ConfigManager::resolve_theme("Dark"), AppTheme::Dark);
     assert_eq!(ConfigManager::resolve_theme("dark"), AppTheme::Dark);
+    assert_eq!(ConfigManager::resolve_theme("breeze-dark"), AppTheme::Dark);
+    assert_eq!(ConfigManager::resolve_theme("Nord"), AppTheme::Nord);
+    assert_eq!(ConfigManager::resolve_theme("nord"), AppTheme::Nord);
+    assert_eq!(
+        ConfigManager::resolve_theme("Catppuccin-Mocha"),
+        AppTheme::CatppuccinMocha
+    );
+    assert_eq!(
+        ConfigManager::resolve_theme("catppuccin_mocha"),
+        AppTheme::CatppuccinMocha
+    );
+    assert_eq!(
+        ConfigManager::resolve_theme("mocha"),
+        AppTheme::CatppuccinMocha
+    );
+    assert_eq!(
+        ConfigManager::resolve_theme("Catppuccin-Latte"),
+        AppTheme::CatppuccinLatte
+    );
+    assert_eq!(
+        ConfigManager::resolve_theme("latte"),
+        AppTheme::CatppuccinLatte
+    );
+    assert_eq!(
+        ConfigManager::resolve_theme("Tokyo-Night"),
+        AppTheme::TokyoNight
+    );
+    assert_eq!(
+        ConfigManager::resolve_theme("tokyonight"),
+        AppTheme::TokyoNight
+    );
+    assert_eq!(
+        ConfigManager::resolve_theme("Gruvbox"),
+        AppTheme::GruvboxDark
+    );
+    assert_eq!(
+        ConfigManager::resolve_theme("gruvbox-dark"),
+        AppTheme::GruvboxDark
+    );
+    assert_eq!(ConfigManager::resolve_theme("Dracula"), AppTheme::Dracula);
+    assert_eq!(ConfigManager::resolve_theme("dracula"), AppTheme::Dracula);
     assert_eq!(ConfigManager::resolve_theme("unknown"), AppTheme::Dark);
 }
 

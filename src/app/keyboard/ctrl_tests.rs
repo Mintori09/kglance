@@ -462,3 +462,18 @@ fn test_bare_arrow_keys_do_not_switch_file_in_detail_view() {
     assert!(app.handle_view_mode_navigation(&arrow_right).is_none());
     assert!(app.handle_view_mode_navigation(&arrow_left).is_none());
 }
+
+#[test]
+fn test_ctrl_t_toggles_theme_and_syncs_setting() {
+    let mut app = test_app(Some(crate::app::test_util::markdown_content("Hello")));
+    assert_eq!(app.state.app_theme, crate::ui::theme::AppTheme::Dark);
+
+    // handle_toggle_theme emits SystemMsg::ThemeToggled
+    let task = app.handle_toggle_theme();
+    assert!(task.is_some());
+
+    // Calling handle_theme_toggled directly updates app_theme and theme_setting
+    let _ = crate::app::update::misc::handle_theme_toggled(&mut app);
+    assert_eq!(app.state.app_theme, crate::ui::theme::AppTheme::Light);
+    assert_eq!(app.state.theme_setting, "Light");
+}

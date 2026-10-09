@@ -188,7 +188,7 @@ impl Default for KglanceState {
             window_default_size: Size::new(1024.0, 768.0),
             window_min_size: Size::new(800.0, 600.0),
             app_theme: crate::ui::theme::AppTheme::Dark,
-            theme_setting: "Auto".to_string(),
+            theme_setting: "dark".to_string(),
             toasts: Vec::new(),
             next_toast_id: 0,
             prefer_mermaid_cli: false,

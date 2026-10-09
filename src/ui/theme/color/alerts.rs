@@ -78,4 +78,144 @@ impl AlertColors {
             border: primitive::NORD11,
         },
     };
+
+    pub const CATPPUCCIN_MOCHA: AlertColors = AlertColors {
+        note: AlertGroup {
+            fg: primitive::MOCHA_BLUE,
+            bg: primitive::MOCHA_SURFACE0,
+            border: primitive::MOCHA_BLUE,
+        },
+        tip: AlertGroup {
+            fg: primitive::MOCHA_GREEN,
+            bg: primitive::MOCHA_SURFACE0,
+            border: primitive::MOCHA_GREEN,
+        },
+        info: AlertGroup {
+            fg: primitive::MOCHA_MAUVE,
+            bg: primitive::MOCHA_SURFACE0,
+            border: primitive::MOCHA_MAUVE,
+        },
+        warning: AlertGroup {
+            fg: primitive::MOCHA_YELLOW,
+            bg: primitive::MOCHA_SURFACE0,
+            border: primitive::MOCHA_YELLOW,
+        },
+        caution: AlertGroup {
+            fg: primitive::MOCHA_RED,
+            bg: primitive::MOCHA_SURFACE0,
+            border: primitive::MOCHA_RED,
+        },
+    };
+
+    pub const CATPPUCCIN_LATTE: AlertColors = AlertColors {
+        note: AlertGroup {
+            fg: primitive::LATTE_BLUE,
+            bg: primitive::LATTE_SURFACE0,
+            border: primitive::LATTE_BLUE,
+        },
+        tip: AlertGroup {
+            fg: primitive::LATTE_GREEN,
+            bg: primitive::LATTE_SURFACE0,
+            border: primitive::LATTE_GREEN,
+        },
+        info: AlertGroup {
+            fg: primitive::LATTE_LAVENDER,
+            bg: primitive::LATTE_SURFACE0,
+            border: primitive::LATTE_LAVENDER,
+        },
+        warning: AlertGroup {
+            fg: primitive::LATTE_YELLOW,
+            bg: primitive::LATTE_SURFACE0,
+            border: primitive::LATTE_YELLOW,
+        },
+        caution: AlertGroup {
+            fg: primitive::LATTE_RED,
+            bg: primitive::LATTE_SURFACE0,
+            border: primitive::LATTE_RED,
+        },
+    };
+
+    pub const TOKYO_NIGHT: AlertColors = AlertColors {
+        note: AlertGroup {
+            fg: primitive::TOKYO_BLUE,
+            bg: primitive::TOKYO_SURFACE,
+            border: primitive::TOKYO_BLUE,
+        },
+        tip: AlertGroup {
+            fg: primitive::TOKYO_GREEN,
+            bg: primitive::TOKYO_SURFACE,
+            border: primitive::TOKYO_GREEN,
+        },
+        info: AlertGroup {
+            fg: primitive::TOKYO_PURPLE,
+            bg: primitive::TOKYO_SURFACE,
+            border: primitive::TOKYO_PURPLE,
+        },
+        warning: AlertGroup {
+            fg: primitive::TOKYO_YELLOW,
+            bg: primitive::TOKYO_SURFACE,
+            border: primitive::TOKYO_YELLOW,
+        },
+        caution: AlertGroup {
+            fg: primitive::TOKYO_RED,
+            bg: primitive::TOKYO_SURFACE,
+            border: primitive::TOKYO_RED,
+        },
+    };
+
+    pub const GRUVBOX_DARK: AlertColors = AlertColors {
+        note: AlertGroup {
+            fg: primitive::GRUVBOX_AQUA,
+            bg: primitive::GRUVBOX_SURFACE,
+            border: primitive::GRUVBOX_AQUA,
+        },
+        tip: AlertGroup {
+            fg: primitive::GRUVBOX_GREEN,
+            bg: primitive::GRUVBOX_SURFACE,
+            border: primitive::GRUVBOX_GREEN,
+        },
+        info: AlertGroup {
+            fg: primitive::GRUVBOX_PURPLE,
+            bg: primitive::GRUVBOX_SURFACE,
+            border: primitive::GRUVBOX_PURPLE,
+        },
+        warning: AlertGroup {
+            fg: primitive::GRUVBOX_YELLOW,
+            bg: primitive::GRUVBOX_SURFACE,
+            border: primitive::GRUVBOX_YELLOW,
+        },
+        caution: AlertGroup {
+            fg: primitive::GRUVBOX_RED,
+            bg: primitive::GRUVBOX_SURFACE,
+            border: primitive::GRUVBOX_RED,
+        },
+    };
+
+    pub const DRACULA: AlertColors = AlertColors {
+        note: AlertGroup {
+            fg: primitive::DRACULA_CYAN,
+            bg: primitive::DRACULA_SURFACE,
+            border: primitive::DRACULA_CYAN,
+        },
+        tip: AlertGroup {
+            fg: primitive::DRACULA_GREEN,
+            bg: primitive::DRACULA_SURFACE,
+            border: primitive::DRACULA_GREEN,
+        },
+        info: AlertGroup {
+            fg: primitive::DRACULA_PURPLE,
+            bg: primitive::DRACULA_SURFACE,
+            border: primitive::DRACULA_PURPLE,
+        },
+        warning: AlertGroup {
+            fg: primitive::DRACULA_YELLOW,
+            bg: primitive::DRACULA_SURFACE,
+            border: primitive::DRACULA_YELLOW,
+        },
+        caution: AlertGroup {
+            fg: primitive::DRACULA_RED,
+            bg: primitive::DRACULA_SURFACE,
+            border: primitive::DRACULA_RED,
+        },
+    };
 }

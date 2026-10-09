@@ -58,13 +58,9 @@ impl KglanceApp {
     }
 
     fn handle_toggle_theme(&mut self) -> Option<Task<Message>> {
-        self.state.app_theme = match self.state.app_theme {
-            crate::ui::theme::AppTheme::Dark => crate::ui::theme::AppTheme::Light,
-            crate::ui::theme::AppTheme::Light => crate::ui::theme::AppTheme::Nord,
-            crate::ui::theme::AppTheme::Nord => crate::ui::theme::AppTheme::Dark,
-        };
-
-        Some(Task::none())
+        Some(Task::done(
+            crate::app::messages::SystemMsg::ThemeToggled.into(),
+        ))
     }
 
     fn active_code_viewer_mut(&mut self) -> Option<&mut crate::core::TextState> {
@@ -208,15 +204,7 @@ impl KglanceApp {
             Some(PreviewData::Typst { .. }) => {
                 if self.state.typst.show_source {
                     let new_size = self.state.font_size + direction;
-                    crate::features::text::update::rescale_text_state_font(
-                        &mut self.state.typst.source_text,
-                        &mut self.state.font_size,
-                        new_size,
-                        self.state.word_wrap,
-                        self.state.current_window_size.width,
-                        self.state.app_theme,
-                        "typst_source_scroll",
-                    )
+                    crate::features::text::update::rescale_typst_font(self, new_size)
                 } else {
                     crate::features::pdf::update::resize_pdf_preview(
                         &mut self.state.pdf,
@@ -351,15 +339,7 @@ impl KglanceApp {
 
                     Some(PreviewData::Typst { .. }) => {
                         if self.state.typst.show_source {
-                            crate::features::text::update::rescale_text_state_font(
-                                &mut self.state.typst.source_text,
-                                &mut self.state.font_size,
-                                default_size,
-                                self.state.word_wrap,
-                                self.state.current_window_size.width,
-                                self.state.app_theme,
-                                "typst_source_scroll",
-                            )
+                            crate::features::text::update::rescale_typst_font(self, default_size)
                         } else {
                             Some(crate::features::pdf::update::reset_pdf_width(
                                 &mut self.state.pdf,

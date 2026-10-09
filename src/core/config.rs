@@ -52,43 +52,10 @@ fn default_min_height() -> u32 {
 
 use crate::ui::theme::AppTheme;
 
-pub fn detect_system_theme() -> String {
-    // 1. KDE Plasma 6 check via kreadconfig6
-    if let Ok(output) = std::process::Command::new("kreadconfig6")
-        .args(["--group", "General", "--key", "ColorScheme"])
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout).to_lowercase();
-        if !stdout.trim().is_empty() {
-            if stdout.contains("dark") || stdout.contains("breeze-dark") || stdout.contains("black")
-            {
-                return "Dark".to_string();
-            } else if stdout.contains("light") || stdout.contains("breeze-light") {
-                return "Light".to_string();
-            }
-        }
-    }
-
-    // 2. GNOME / Freedesktop color-scheme check via gsettings
-    if let Ok(output) = std::process::Command::new("gsettings")
-        .args(["get", "org.gnome.desktop.interface", "color-scheme"])
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        if stdout.contains("prefer-light") {
-            return "Light".to_string();
-        } else if stdout.contains("prefer-dark") {
-            return "Dark".to_string();
-        }
-    }
-
-    "Dark".to_string()
-}
-
 impl Default for UiConfig {
     fn default() -> Self {
         Self {
-            theme: Some("Auto".into()),
+            theme: Some("dark".into()),
             font_size: 14.0,
             font_family: None,
             font_family_mono: None,
@@ -210,7 +177,12 @@ impl ConfigManager {
             None => None,
         };
 
-        if let Some(config) = loaded {
+        if let Some(mut config) = loaded {
+            if let Some(ref t) = config.ui.theme
+                && t.eq_ignore_ascii_case("auto")
+            {
+                config.ui.theme = Some("dark".to_string());
+            }
             let reserialized = serde_json::to_string_pretty(&config).unwrap_or_default();
             if raw.as_deref() != Some(reserialized.as_str())
                 && Self::save_to_path(path, &config).is_err()
@@ -249,27 +221,14 @@ impl ConfigManager {
     }
 
     pub fn get_theme_setting(config: &AppConfig) -> String {
-        config
-            .ui
-            .theme
-            .clone()
-            .unwrap_or_else(|| "Auto".to_string())
+        match config.ui.theme.as_deref() {
+            Some(t) if !t.eq_ignore_ascii_case("auto") => t.to_string(),
+            _ => "dark".to_string(),
+        }
     }
 
     pub fn resolve_theme(setting_str: &str) -> AppTheme {
-        match setting_str {
-            "Auto" | "auto" => {
-                let detected = detect_system_theme();
-                if detected == "Light" {
-                    AppTheme::Light
-                } else {
-                    AppTheme::Dark
-                }
-            }
-            "Light" | "light" => AppTheme::Light,
-            "Nord" | "nord" => AppTheme::Nord,
-            _ => AppTheme::Dark,
-        }
+        setting_str.parse().unwrap_or(AppTheme::Dark)
     }
 }
 

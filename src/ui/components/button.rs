@@ -6,7 +6,7 @@ use iced::{Background, Border, Color, Shadow, Theme};
 
 pub fn breeze(theme: &Theme, status: Status) -> Style {
     let p = BaseColors::palette(theme);
-    let role = roles::RoleColors::DARK;
+    let role = roles::palette(theme);
     let (bg, border_color, text_color) = match status {
         Status::Active => (p.surface_raised, p.border, p.text),
         Status::Hovered => (role.accent_hover, role.accent_hover, Color::WHITE),
@@ -33,7 +33,7 @@ pub fn breeze(theme: &Theme, status: Status) -> Style {
 
 pub fn breeze_primary(theme: &Theme, status: Status) -> Style {
     let p = BaseColors::palette(theme);
-    let role = roles::RoleColors::DARK;
+    let role = roles::palette(theme);
     let bg = match status {
         Status::Hovered => role.accent_hover,
         Status::Pressed => role.accent_pressed,
