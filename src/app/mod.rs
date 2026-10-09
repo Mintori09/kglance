@@ -39,6 +39,8 @@ pub struct KglanceApp {
     pub pending_g: bool,
     pub pending_home: bool,
     pub file_watcher: Option<crate::core::file_watcher::FileWatcher>,
+    pub config_path: Option<std::path::PathBuf>,
+    pub read_positions_path: Option<std::path::PathBuf>,
 }
 
 impl Default for KglanceApp {
@@ -59,11 +61,34 @@ impl Default for KglanceApp {
             pending_g: false,
             pending_home: false,
             file_watcher: None,
+            config_path: None,
+            read_positions_path: None,
         }
     }
 }
 
 impl KglanceApp {
+    pub fn load_config(&self) -> crate::core::config::AppConfig {
+        match &self.config_path {
+            Some(path) => crate::core::config::ConfigManager::load_from_path(path),
+            None => crate::core::config::AppConfig::default(),
+        }
+    }
+
+    pub fn save_config(&self, config: &crate::core::config::AppConfig) -> Result<(), String> {
+        match &self.config_path {
+            Some(path) => crate::core::config::ConfigManager::save_to_path(path, config),
+            None => Ok(()),
+        }
+    }
+
+    pub fn save_read_positions(&self) -> Result<(), String> {
+        match &self.read_positions_path {
+            Some(path) => self.state.read_positions.save_to_path(path),
+            None => Ok(()),
+        }
+    }
+
     pub fn new(
         registry: Arc<ParserRegistry>,
         daemon_rx: Option<mpsc::Receiver<DaemonCommand>>,
@@ -73,9 +98,12 @@ impl KglanceApp {
     ) -> (Self, Task<Message>) {
         let file_watcher = crate::core::file_watcher::FileWatcher::new().ok();
 
-        let config = crate::core::config::ConfigManager::load_or_create();
+        let config_path = crate::core::config::ConfigManager::get_config_path();
+        let config = crate::core::config::ConfigManager::load_from_path(&config_path);
         let theme_setting = crate::core::config::ConfigManager::get_theme_setting(&config);
         let app_theme = crate::core::config::ConfigManager::resolve_theme(&theme_setting);
+        let read_positions_path = crate::core::read_positions::ReadPositions::file_path();
+        let read_positions = crate::core::ReadPositions::load_from_path(&read_positions_path);
 
         let mut state = KglanceState {
             app_theme,
@@ -106,7 +134,7 @@ impl KglanceApp {
             .cache
             .set_max_bytes(config.cache.max_memory_mb.saturating_mul(1024 * 1024));
 
-        state.read_positions = crate::core::ReadPositions::load();
+        state.read_positions = read_positions;
         state.json.tree_mode = config.ui.json_tree_view;
         state.apply_scroll_config(&config.scroll);
 
@@ -134,6 +162,8 @@ impl KglanceApp {
             pending_g: false,
             pending_home: false,
             file_watcher,
+            config_path: Some(config_path),
+            read_positions_path: Some(read_positions_path),
         };
 
         let task = if !initial_paths.is_empty() {
@@ -157,14 +187,17 @@ impl KglanceApp {
             Some(crate::core::PreviewData::Text { .. }) => crate::core::ReadPosition {
                 scroll_y: self.state.text.scroll_y,
                 chapter: 0,
+                reading_mode: None,
             },
             Some(crate::core::PreviewData::Markdown { .. }) => crate::core::ReadPosition {
                 scroll_y: self.state.markdown.scroll_y,
                 chapter: 0,
+                reading_mode: None,
             },
             Some(crate::core::PreviewData::Epub { .. }) => crate::core::ReadPosition {
                 scroll_y: self.state.epub.markdown_state.scroll_y,
                 chapter: self.state.epub.active_chapter,
+                reading_mode: Some(self.state.epub.reading_mode),
             },
             _ => return,
         };
@@ -409,7 +442,7 @@ impl KglanceApp {
         self.record_read_position();
 
         if self.state.read_positions_dirty {
-            let _ = self.state.read_positions.save();
+            let _ = self.save_read_positions();
             self.state.read_positions_dirty = false;
         }
     }
@@ -1321,6 +1354,8 @@ pub(crate) mod test_util {
             pending_g: false,
             pending_home: false,
             file_watcher: None,
+            config_path: None,
+            read_positions_path: None,
         }
     }
 
@@ -1379,6 +1414,7 @@ pub(crate) mod test_util {
             crate::core::ReadPosition {
                 scroll_y: 42.5,
                 chapter: 0,
+                reading_mode: None,
             },
         );
         let _task = app.restore_read_position_for("/tmp/x.md");

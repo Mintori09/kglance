@@ -73,6 +73,7 @@ fn test_read_positions_tracking_and_retrieval() {
         ReadPosition {
             scroll_y: 1250.5,
             chapter: 3,
+            reading_mode: Some(kglance::core::config::EpubReadingMode::Continuous),
         },
     );
 
@@ -81,6 +82,7 @@ fn test_read_positions_tracking_and_retrieval() {
         ReadPosition {
             scroll_y: 420.0,
             chapter: 0,
+            reading_mode: None,
         },
     );
 
