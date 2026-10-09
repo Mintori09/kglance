@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 static PRUNER_SIGNAL: (Mutex<bool>, Condvar) = (Mutex::new(false), Condvar::new());
-static CACHE_INDEX: OnceLock<RwLock<DiskCacheIndex>> = OnceLock::new();
+static GLOBAL_DISK_CACHE: OnceLock<DiskCache> = OnceLock::new();
 
 pub const INDEX_FILE_NAME: &str = "cache_index.json";
 
@@ -54,10 +54,6 @@ pub fn cache_dir() -> PathBuf {
         .unwrap_or_else(|| std::env::temp_dir().join("kglance_cache"))
 }
 
-pub fn index_file_path() -> PathBuf {
-    cache_dir().join(INDEX_FILE_NAME)
-}
-
 fn current_timestamp_nanos() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -65,25 +61,344 @@ fn current_timestamp_nanos() -> u128 {
         .as_nanos()
 }
 
-fn get_index() -> &'static RwLock<DiskCacheIndex> {
-    CACHE_INDEX.get_or_init(|| {
-        let root = cache_dir();
+/// Persistent disk cache manager with index tracking, LRU eviction, and atomic writes.
+#[derive(Debug)]
+pub struct DiskCache {
+    root: PathBuf,
+    index: RwLock<DiskCacheIndex>,
+}
+
+impl DiskCache {
+    /// Create or load a disk cache at the specified root path.
+    pub fn new(root: impl Into<PathBuf>) -> Self {
+        let root = root.into();
         let index = load_or_reconcile_index_from_disk(&root);
-        RwLock::new(index)
+        Self {
+            root,
+            index: RwLock::new(index),
+        }
+    }
+
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    pub fn category_dir(&self, category: &str) -> PathBuf {
+        self.root.join(category)
+    }
+
+    pub fn index_file_path(&self) -> PathBuf {
+        self.root.join(INDEX_FILE_NAME)
+    }
+
+    pub fn cached_file_path(
+        &self,
+        category: &str,
+        source_path: &Path,
+        ext: &str,
+    ) -> Option<PathBuf> {
+        let key = compute_cache_key(category, source_path)?;
+        let file_name = if ext.is_empty() {
+            key
+        } else {
+            format!("{key}.{ext}")
+        };
+        Some(self.category_dir(category).join(file_name))
+    }
+
+    pub fn get_cached_path(
+        &self,
+        category: &str,
+        source_path: &Path,
+        ext: &str,
+    ) -> Option<PathBuf> {
+        let key = compute_cache_key(category, source_path)?;
+        let mut guard = self
+            .index
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        if let Some(entry) = guard.entries.get_mut(&key)
+            && entry.cached_path.exists()
+            && fs::metadata(&entry.cached_path)
+                .map(|m| m.len() > 0)
+                .unwrap_or(false)
+        {
+            entry.last_accessed_nanos = current_timestamp_nanos();
+            return Some(entry.cached_path.clone());
+        }
+
+        // Fallback: check filesystem directly
+        let file_name = if ext.is_empty() {
+            key.clone()
+        } else {
+            format!("{key}.{ext}")
+        };
+        let target = self.category_dir(category).join(file_name);
+        if target.exists() && fs::metadata(&target).map(|m| m.len() > 0).unwrap_or(false) {
+            let size = fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
+            guard.entries.insert(
+                key,
+                DiskCacheEntryMeta {
+                    category: category.to_string(),
+                    source_path: source_path.to_path_buf(),
+                    cached_path: target.clone(),
+                    size_bytes: size,
+                    last_accessed_nanos: current_timestamp_nanos(),
+                },
+            );
+            guard.total_bytes = guard.total_bytes.saturating_add(size);
+            let _ = save_index_to_disk(&guard, &self.root);
+            Some(target)
+        } else {
+            None
+        }
+    }
+
+    pub fn create_cached_file<F>(
+        &self,
+        category: &str,
+        source_path: &Path,
+        ext: &str,
+        writer: F,
+    ) -> io::Result<PathBuf>
+    where
+        F: FnOnce(&Path) -> io::Result<()>,
+    {
+        let key = compute_cache_key(category, source_path).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "Could not compute cache key for source file",
+            )
+        })?;
+
+        let file_name = if ext.is_empty() {
+            key.clone()
+        } else {
+            format!("{key}.{ext}")
+        };
+        let cat_dir = self.category_dir(category);
+        let target_path = cat_dir.join(file_name);
+
+        if target_path.exists()
+            && fs::metadata(&target_path)
+                .map(|m| m.len() > 0)
+                .unwrap_or(false)
+        {
+            return Ok(target_path);
+        }
+
+        fs::create_dir_all(&cat_dir)?;
+
+        let unique_ctr = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let pid = std::process::id();
+        let nanos = current_timestamp_nanos();
+        let tmp_file_name = if ext.is_empty() {
+            format!(".tmp_{pid}_{nanos}_{unique_ctr}")
+        } else {
+            format!(".tmp_{pid}_{nanos}_{unique_ctr}.{ext}")
+        };
+        let tmp_path = cat_dir.join(tmp_file_name);
+
+        let write_result = writer(&tmp_path);
+        if let Err(err) = write_result {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(err);
+        }
+
+        if !tmp_path.exists()
+            || !fs::metadata(&tmp_path)
+                .map(|m| m.len() > 0)
+                .unwrap_or(false)
+        {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(io::Error::other(
+                "Cache generator produced an empty or missing output file",
+            ));
+        }
+
+        // Atomic rename
+        fs::rename(&tmp_path, &target_path)?;
+
+        // Register entry in cache index
+        let size = fs::metadata(&target_path).map(|m| m.len()).unwrap_or(0);
+        {
+            let mut guard = self
+                .index
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let old_size = guard
+                .entries
+                .insert(
+                    key,
+                    DiskCacheEntryMeta {
+                        category: category.to_string(),
+                        source_path: source_path.to_path_buf(),
+                        cached_path: target_path.clone(),
+                        size_bytes: size,
+                        last_accessed_nanos: current_timestamp_nanos(),
+                    },
+                )
+                .map(|e| e.size_bytes)
+                .unwrap_or(0);
+
+            guard.total_bytes = guard
+                .total_bytes
+                .saturating_sub(old_size)
+                .saturating_add(size);
+            let _ = save_index_to_disk(&guard, &self.root);
+        }
+
+        notify_cache_changed();
+        Ok(target_path)
+    }
+
+    pub fn put_bytes(
+        &self,
+        category: &str,
+        source_path: &Path,
+        ext: &str,
+        data: &[u8],
+    ) -> io::Result<PathBuf> {
+        self.create_cached_file(category, source_path, ext, |tmp_path| {
+            fs::write(tmp_path, data)
+        })
+    }
+
+    pub fn prune_to_budget(&self, max_bytes: u64) -> io::Result<u64> {
+        let mut guard = self
+            .index
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let threshold_80 = (max_bytes as f64 * 0.80) as u64;
+
+        if guard.total_bytes <= threshold_80 {
+            return Ok(guard.total_bytes);
+        }
+
+        // Stage 1: Remove orphaned cache entries whose source file was deleted
+        let mut orphaned_keys = Vec::new();
+        for (key, entry) in guard.entries.iter() {
+            if !entry.source_path.exists() {
+                orphaned_keys.push(key.clone());
+            }
+        }
+
+        for key in orphaned_keys {
+            if let Some(entry) = guard.entries.remove(&key) {
+                let _ = fs::remove_file(&entry.cached_path);
+                guard.total_bytes = guard.total_bytes.saturating_sub(entry.size_bytes);
+            }
+        }
+
+        if guard.total_bytes <= threshold_80 {
+            let _ = save_index_to_disk(&guard, &self.root);
+            return Ok(guard.total_bytes);
+        }
+
+        // Stage 2: Prune oldest LRU entries to 70% budget target
+        let target_70 = (max_bytes as f64 * 0.70) as u64;
+        let mut sorted_keys: Vec<(String, u128, u64, PathBuf)> = guard
+            .entries
+            .iter()
+            .map(|(k, v)| {
+                (
+                    k.clone(),
+                    v.last_accessed_nanos,
+                    v.size_bytes,
+                    v.cached_path.clone(),
+                )
+            })
+            .collect();
+
+        // Sort ascending by last_accessed_nanos (oldest first)
+        sorted_keys.sort_by_key(|item| item.1);
+
+        for (key, _nanos, size, cached_path) in sorted_keys {
+            if guard.total_bytes <= target_70 {
+                break;
+            }
+            let _ = fs::remove_file(&cached_path);
+            guard.entries.remove(&key);
+            guard.total_bytes = guard.total_bytes.saturating_sub(size);
+        }
+
+        let _ = save_index_to_disk(&guard, &self.root);
+        Ok(guard.total_bytes)
+    }
+
+    pub fn reconcile(&self, clean_unindexed: bool) {
+        let mut guard = self
+            .index
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        reconcile_index_with_disk(&mut guard, &self.root, clean_unindexed);
+        let _ = save_index_to_disk(&guard, &self.root);
+    }
+
+    pub fn inspect_index<R>(&self, f: impl FnOnce(&DiskCacheIndex) -> R) -> R {
+        let guard = self
+            .index
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        f(&guard)
+    }
+
+    pub fn inspect_index_mut<R>(&self, f: impl FnOnce(&mut DiskCacheIndex) -> R) -> R {
+        let mut guard = self
+            .index
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        f(&mut guard)
+    }
+}
+
+pub fn global_cache() -> &'static DiskCache {
+    GLOBAL_DISK_CACHE.get_or_init(|| {
+        let root = cache_dir();
+        DiskCache::new(root)
     })
 }
 
-/// Ensure in-memory index is synced with current cache_dir (e.g. if env changed in tests).
-fn access_index<R>(f: impl FnOnce(&mut DiskCacheIndex) -> R) -> R {
-    let lock = get_index();
-    let mut guard = lock
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let current_root = cache_dir();
-    if guard.cache_root != current_root {
-        *guard = load_or_reconcile_index_from_disk(&current_root);
-    }
-    f(&mut guard)
+pub fn category_dir(category: &str) -> PathBuf {
+    global_cache().category_dir(category)
+}
+
+pub fn index_file_path() -> PathBuf {
+    global_cache().index_file_path()
+}
+
+pub fn cached_file_path(category: &str, source_path: &Path, ext: &str) -> Option<PathBuf> {
+    global_cache().cached_file_path(category, source_path, ext)
+}
+
+pub fn get_cached_path(category: &str, source_path: &Path, ext: &str) -> Option<PathBuf> {
+    global_cache().get_cached_path(category, source_path, ext)
+}
+
+pub fn create_cached_file<F>(
+    category: &str,
+    source_path: &Path,
+    ext: &str,
+    writer: F,
+) -> io::Result<PathBuf>
+where
+    F: FnOnce(&Path) -> io::Result<()>,
+{
+    global_cache().create_cached_file(category, source_path, ext, writer)
+}
+
+pub fn put_bytes(
+    category: &str,
+    source_path: &Path,
+    ext: &str,
+    data: &[u8],
+) -> io::Result<PathBuf> {
+    global_cache().put_bytes(category, source_path, ext, data)
+}
+
+pub fn prune_to_budget(max_bytes: u64) -> io::Result<u64> {
+    global_cache().prune_to_budget(max_bytes)
 }
 
 /// Load index from disk or create a fresh one, then perform 2-way reconciliation.
@@ -114,12 +429,9 @@ fn save_index_to_disk(index: &DiskCacheIndex, root: &Path) -> io::Result<()> {
         serde_json::to_string(index).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
     let unique_ctr = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let tmp_path = root.join(format!(
-        ".tmp_index_{}_{}_{}",
-        std::process::id(),
-        current_timestamp_nanos(),
-        unique_ctr
-    ));
+    let pid = std::process::id();
+    let nanos = current_timestamp_nanos();
+    let tmp_path = root.join(format!(".tmp_index_{pid}_{nanos}_{unique_ctr}"));
 
     fs::write(&tmp_path, serialized.as_bytes())?;
     fs::rename(&tmp_path, &target_path)?;
@@ -135,7 +447,7 @@ pub fn reconcile_index_with_disk(index: &mut DiskCacheIndex, root: &Path, clean_
 
     // Step 1: Index -> Disk validation
     let mut keys_to_remove = Vec::new();
-    let mut active_cached_paths = std::collections::HashSet::new();
+    let mut active_cached_paths = HashSet::new();
 
     for (key, entry) in index.entries.iter_mut() {
         // If cached artifact is missing on disk
@@ -173,7 +485,7 @@ pub fn reconcile_index_with_disk(index: &mut DiskCacheIndex, root: &Path, clean_
 
 fn clean_unindexed_and_temp_files(
     dir: &Path,
-    active_paths: &std::collections::HashSet<PathBuf>,
+    active_paths: &HashSet<PathBuf>,
     clean_unindexed: bool,
 ) {
     if let Ok(read_dir) = fs::read_dir(dir) {
@@ -224,169 +536,6 @@ pub fn compute_cache_key(category: &str, source_path: &Path) -> Option<String> {
     Some(format!("{:x}", md5::compute(input.as_bytes())))
 }
 
-pub fn category_dir(category: &str) -> PathBuf {
-    cache_dir().join(category)
-}
-
-pub fn cached_file_path(category: &str, source_path: &Path, ext: &str) -> Option<PathBuf> {
-    let key = compute_cache_key(category, source_path)?;
-    let file_name = if ext.is_empty() {
-        key
-    } else {
-        format!("{key}.{ext}")
-    };
-    Some(category_dir(category).join(file_name))
-}
-
-/// Look up cached file path. Updates LRU timestamp on cache hit.
-pub fn get_cached_path(category: &str, source_path: &Path, ext: &str) -> Option<PathBuf> {
-    let key = compute_cache_key(category, source_path)?;
-    access_index(|index| {
-        if let Some(entry) = index.entries.get_mut(&key)
-            && entry.cached_path.exists()
-            && fs::metadata(&entry.cached_path)
-                .map(|m| m.len() > 0)
-                .unwrap_or(false)
-        {
-            entry.last_accessed_nanos = current_timestamp_nanos();
-            return Some(entry.cached_path.clone());
-        }
-
-        // Fallback: check filesystem directly
-        let file_name = if ext.is_empty() {
-            key.clone()
-        } else {
-            format!("{key}.{ext}")
-        };
-        let target = category_dir(category).join(file_name);
-        if target.exists() && fs::metadata(&target).map(|m| m.len() > 0).unwrap_or(false) {
-            let size = fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
-            index.entries.insert(
-                key,
-                DiskCacheEntryMeta {
-                    category: category.to_string(),
-                    source_path: source_path.to_path_buf(),
-                    cached_path: target.clone(),
-                    size_bytes: size,
-                    last_accessed_nanos: current_timestamp_nanos(),
-                },
-            );
-            index.total_bytes = index.total_bytes.saturating_add(size);
-            let _ = save_index_to_disk(index, &index.cache_root.clone());
-            Some(target)
-        } else {
-            None
-        }
-    })
-}
-
-/// Create a cached file atomically using a generator closure.
-pub fn create_cached_file<F>(
-    category: &str,
-    source_path: &Path,
-    ext: &str,
-    writer: F,
-) -> io::Result<PathBuf>
-where
-    F: FnOnce(&Path) -> io::Result<()>,
-{
-    // Ensure index is loaded and synchronized with current cache_dir before creating any file
-    access_index(|_| ());
-    let key = compute_cache_key(category, source_path).ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::NotFound,
-            "Could not compute cache key for source file",
-        )
-    })?;
-
-    let file_name = if ext.is_empty() {
-        key.clone()
-    } else {
-        format!("{key}.{ext}")
-    };
-    let cat_dir = category_dir(category);
-    let target_path = cat_dir.join(file_name);
-
-    if target_path.exists()
-        && fs::metadata(&target_path)
-            .map(|m| m.len() > 0)
-            .unwrap_or(false)
-    {
-        return Ok(target_path);
-    }
-
-    fs::create_dir_all(&cat_dir)?;
-
-    let unique_ctr = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let nanos = current_timestamp_nanos();
-    let tmp_file_name = if ext.is_empty() {
-        format!(".tmp_{}_{}_{}", std::process::id(), nanos, unique_ctr)
-    } else {
-        format!(".tmp_{}_{}_{}.{ext}", std::process::id(), nanos, unique_ctr)
-    };
-    let tmp_path = cat_dir.join(tmp_file_name);
-
-    let write_result = writer(&tmp_path);
-    if let Err(err) = write_result {
-        let _ = fs::remove_file(&tmp_path);
-        return Err(err);
-    }
-
-    if !tmp_path.exists()
-        || !fs::metadata(&tmp_path)
-            .map(|m| m.len() > 0)
-            .unwrap_or(false)
-    {
-        let _ = fs::remove_file(&tmp_path);
-        return Err(io::Error::other(
-            "Cache generator produced an empty or missing output file",
-        ));
-    }
-
-    // Atomic rename
-    fs::rename(&tmp_path, &target_path)?;
-
-    // Register entry in cache index
-    let size = fs::metadata(&target_path).map(|m| m.len()).unwrap_or(0);
-    access_index(|index| {
-        let old_size = index
-            .entries
-            .insert(
-                key,
-                DiskCacheEntryMeta {
-                    category: category.to_string(),
-                    source_path: source_path.to_path_buf(),
-                    cached_path: target_path.clone(),
-                    size_bytes: size,
-                    last_accessed_nanos: current_timestamp_nanos(),
-                },
-            )
-            .map(|e| e.size_bytes)
-            .unwrap_or(0);
-
-        index.total_bytes = index
-            .total_bytes
-            .saturating_sub(old_size)
-            .saturating_add(size);
-        let _ = save_index_to_disk(index, &index.cache_root.clone());
-    });
-
-    notify_cache_changed();
-    Ok(target_path)
-}
-
-/// Store raw byte data into persistent disk cache atomically.
-pub fn put_bytes(
-    category: &str,
-    source_path: &Path,
-    ext: &str,
-    data: &[u8],
-) -> io::Result<PathBuf> {
-    create_cached_file(category, source_path, ext, |tmp_path| {
-        fs::write(tmp_path, data)
-    })
-}
-
 /// Notify background pruner that new cache artifacts have been written.
 pub fn notify_cache_changed() {
     let (lock, cvar) = &PRUNER_SIGNAL;
@@ -396,79 +545,12 @@ pub fn notify_cache_changed() {
     }
 }
 
-/// Prune disk cache only when total size exceeds 80% of max_bytes budget:
-/// Stage 1: Clean up orphaned cache entries (source file no longer exists).
-/// Stage 2: If still > 80%, remove oldest (LRU) files until down to 70% budget.
-pub fn prune_to_budget(max_bytes: u64) -> io::Result<u64> {
-    access_index(|index| {
-        let threshold_80 = (max_bytes as f64 * 0.80) as u64;
-
-        if index.total_bytes <= threshold_80 {
-            return Ok(index.total_bytes);
-        }
-
-        // Stage 1: Remove orphaned cache entries whose source file was deleted
-        let mut orphaned_keys = Vec::new();
-        for (key, entry) in index.entries.iter() {
-            if !entry.source_path.exists() {
-                orphaned_keys.push(key.clone());
-            }
-        }
-
-        for key in orphaned_keys {
-            if let Some(entry) = index.entries.remove(&key) {
-                let _ = fs::remove_file(&entry.cached_path);
-                index.total_bytes = index.total_bytes.saturating_sub(entry.size_bytes);
-            }
-        }
-
-        if index.total_bytes <= threshold_80 {
-            let _ = save_index_to_disk(index, &index.cache_root.clone());
-            return Ok(index.total_bytes);
-        }
-
-        // Stage 2: Prune oldest LRU entries to 70% budget target
-        let target_70 = (max_bytes as f64 * 0.70) as u64;
-        let mut sorted_keys: Vec<(String, u128, u64, PathBuf)> = index
-            .entries
-            .iter()
-            .map(|(k, v)| {
-                (
-                    k.clone(),
-                    v.last_accessed_nanos,
-                    v.size_bytes,
-                    v.cached_path.clone(),
-                )
-            })
-            .collect();
-
-        // Sort ascending by last_accessed_nanos (oldest first)
-        sorted_keys.sort_by_key(|item| item.1);
-
-        for (key, _nanos, size, cached_path) in sorted_keys {
-            if index.total_bytes <= target_70 {
-                break;
-            }
-            let _ = fs::remove_file(&cached_path);
-            index.entries.remove(&key);
-            index.total_bytes = index.total_bytes.saturating_sub(size);
-        }
-
-        let _ = save_index_to_disk(index, &index.cache_root.clone());
-        Ok(index.total_bytes)
-    })
-}
-
 /// Spawns the background disk cache pruner daemon thread.
 /// Runs startup reconciliation & prune once, then sleeps waiting for write notifications.
 pub fn start_disk_cache_pruner_daemon(max_bytes: u64) {
     std::thread::spawn(move || {
-        // Startup reconciliation and initial prune
-        access_index(|index| {
-            reconcile_index_with_disk(index, &index.cache_root.clone(), true);
-            let _ = save_index_to_disk(index, &index.cache_root.clone());
-        });
-        let _ = prune_to_budget(max_bytes);
+        global_cache().reconcile(true);
+        let _ = global_cache().prune_to_budget(max_bytes);
 
         let (lock, cvar) = &PRUNER_SIGNAL;
         loop {
@@ -489,7 +571,7 @@ pub fn start_disk_cache_pruner_daemon(max_bytes: u64) {
             // Debounce: sleep 5 seconds to batch burst writes
             std::thread::sleep(std::time::Duration::from_secs(5));
 
-            let _ = prune_to_budget(max_bytes);
+            let _ = global_cache().prune_to_budget(max_bytes);
         }
     });
 }

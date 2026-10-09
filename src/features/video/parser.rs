@@ -103,10 +103,6 @@ mod tests {
     #[test]
     fn test_extract_video_thumbnail_returns_cached_bytes() {
         let temp_dir = tempdir().unwrap();
-        let cache_dir = tempdir().unwrap();
-        unsafe {
-            std::env::set_var("KGLANCE_CACHE_DIR", cache_dir.path().to_str().unwrap());
-        }
 
         let video_path = temp_dir.path().join("clip.mp4");
         std::fs::write(&video_path, b"dummy video file").unwrap();

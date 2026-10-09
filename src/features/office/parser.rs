@@ -282,10 +282,6 @@ mod tests {
     #[test]
     fn test_office_parser_returns_cached_pdf_if_present() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let cache_dir = tempfile::tempdir().unwrap();
-        unsafe {
-            std::env::set_var("KGLANCE_CACHE_DIR", cache_dir.path().to_str().unwrap());
-        }
 
         let doc_path = temp_dir.path().join("test_presentation.pptx");
         std::fs::write(&doc_path, b"fake pptx content").unwrap();
