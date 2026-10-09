@@ -17,7 +17,7 @@ struct ReadPositionsFile {
     positions: HashMap<String, ReadPosition>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ReadPositions {
     map: HashMap<String, ReadPosition>,
     order: VecDeque<String>,

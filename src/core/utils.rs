@@ -53,12 +53,16 @@ pub fn human_size(bytes: u64) -> String {
 #[cfg(target_os = "linux")]
 #[inline]
 pub fn trim_process_memory() {
-    unsafe extern "C" {
-        fn malloc_trim(pad: usize) -> i32;
-    }
-    unsafe {
-        malloc_trim(0);
-    }
+    let _ = std::thread::Builder::new()
+        .name("kglance-trim-mem".into())
+        .spawn(|| {
+            unsafe extern "C" {
+                fn malloc_trim(pad: usize) -> i32;
+            }
+            unsafe {
+                malloc_trim(0);
+            }
+        });
 }
 
 #[cfg(not(target_os = "linux"))]
