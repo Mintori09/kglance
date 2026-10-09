@@ -90,14 +90,16 @@ impl super::KglanceApp {
                                 },
                             )
                         }
-                        Some(PreviewData::Epub { ref chapters, .. }) => {
+                        Some(PreviewData::Epub { .. }) => {
                             let blocks = if self.state.epub.reading_mode
                                 == crate::core::config::EpubReadingMode::Continuous
                             {
                                 self.state.epub.continuous_blocks.as_slice()
                             } else {
                                 let active_chapter = self.state.epub.active_chapter;
-                                chapters
+                                self.state
+                                    .epub
+                                    .chapters
                                     .get(active_chapter)
                                     .map_or([].as_slice(), |c| c.blocks.as_slice())
                             };

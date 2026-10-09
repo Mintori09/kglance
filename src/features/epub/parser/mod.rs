@@ -7,8 +7,10 @@ mod tests;
 
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::io::Read;
+use std::io::{BufReader, Read, Seek};
 use std::path::Path;
+
+use rayon::prelude::*;
 
 use crate::features::common::parser::traits::{ParseError, PreviewParser};
 use crate::features::common::parser::types::{ParsedContent, ParsedEpubChapter};
@@ -31,7 +33,7 @@ const DEFAULT_AUTHOR: &str = "Unknown Author";
 
 pub struct EpubParser;
 
-pub fn parse_chapter_content<R: Read + std::io::Seek>(
+pub fn parse_chapter_content<R: Read + Seek>(
     archive: &mut zip::ZipArchive<R>,
     opf_path: &str,
     file_href: &str,
@@ -52,8 +54,9 @@ pub fn load_chapter_content_and_images_from_epub(
     anchor: Option<&str>,
 ) -> Result<LoadedChapterContent, ParseError> {
     let file = File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let reader = BufReader::new(file);
     let mut archive =
-        zip::ZipArchive::new(file).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        zip::ZipArchive::new(reader).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     let opf_path = read_container_opf_path(&mut archive)?;
     let blocks = parse_chapter_content(&mut archive, &opf_path, file_href, anchor)?;
     let images = extract_selective_images(&mut archive, &opf_path, None, &blocks, Some(file_href));
@@ -66,8 +69,9 @@ pub fn load_chapter_from_epub(
     anchor: Option<&str>,
 ) -> Result<Vec<Block>, ParseError> {
     let file = File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let reader = BufReader::new(file);
     let mut archive =
-        zip::ZipArchive::new(file).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        zip::ZipArchive::new(reader).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     let opf_path = read_container_opf_path(&mut archive)?;
     parse_chapter_content(&mut archive, &opf_path, file_href, anchor)
 }
@@ -82,36 +86,78 @@ pub fn load_all_chapters_and_images_from_epub(
     chapters: &[crate::core::types::EpubChapterInfo],
 ) -> Result<LoadedAllChaptersContent, ParseError> {
     let file = File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let reader = BufReader::new(file);
     let mut archive =
-        zip::ZipArchive::new(file).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        zip::ZipArchive::new(reader).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     let opf_path = read_container_opf_path(&mut archive)?;
 
+    // 1. Identify all unique file hrefs that need to be read/parsed
+    let mut needed_hrefs = HashSet::new();
+    for ch in chapters {
+        if ch.blocks.is_empty() && !ch.file_href.is_empty() {
+            needed_hrefs.insert(ch.file_href.clone());
+        }
+    }
+
+    // 2. Read distinct XHTML files in 1 sequential pass from the zip archive
+    let mut raw_files: Vec<(String, String)> = Vec::with_capacity(needed_hrefs.len());
+    for href in needed_hrefs {
+        let resolved = resolve_relative_path(&opf_path, &href);
+        if let Ok(content) = read_archive_entry_string(&mut archive, &resolved) {
+            raw_files.push((href, content));
+        }
+    }
+
+    // 3. Parse HTML to markdown and then to blocks in parallel using rayon
+    let parsed_files: HashMap<String, Vec<Block>> = raw_files
+        .into_par_iter()
+        .map(|(href, html)| {
+            let md = convert_html_to_markdown(&html);
+            let blocks = parse_to_blocks(&md);
+            (href, blocks)
+        })
+        .collect();
+
+    // 4. Construct the loaded chapter list and collect all referenced images
     let mut loaded_chapters = Vec::with_capacity(chapters.len());
-    let mut all_images = HashMap::new();
-    let mut file_blocks_cache: HashMap<String, Vec<Block>> = HashMap::new();
+    let mut target_names: HashSet<String> = HashSet::new();
+    let mut target_to_orig: HashMap<String, Vec<String>> = HashMap::new();
 
     for ch in chapters {
         let blocks = if !ch.blocks.is_empty() {
             ch.blocks.clone()
-        } else if let Some(cached) = file_blocks_cache.get(&ch.file_href) {
-            cached.clone()
+        } else if let Some(parsed) = parsed_files.get(&ch.file_href) {
+            parsed.clone()
         } else {
-            let parsed =
-                parse_chapter_content(&mut archive, &opf_path, &ch.file_href, ch.anchor.as_deref())
-                    .unwrap_or_default();
-            let imgs = extract_selective_images(
-                &mut archive,
-                &opf_path,
-                None,
-                &parsed,
-                Some(&ch.file_href),
-            );
-            for (k, v) in imgs {
-                all_images.insert(k, v);
-            }
-            file_blocks_cache.insert(ch.file_href.clone(), parsed.clone());
-            parsed
+            Vec::new()
         };
+
+        let block_imgs = extract_images_from_blocks(&blocks);
+        for img in block_imgs {
+            if !ch.file_href.is_empty() {
+                let ch_resolved = resolve_relative_path(&ch.file_href, &img);
+                let full_resolved = resolve_relative_path(&opf_path, &ch_resolved);
+                target_to_orig
+                    .entry(full_resolved.clone())
+                    .or_default()
+                    .push(img.clone());
+                target_to_orig
+                    .entry(ch_resolved.clone())
+                    .or_default()
+                    .push(img.clone());
+                target_names.insert(full_resolved);
+                target_names.insert(ch_resolved);
+            }
+            let resolved = resolve_relative_path(&opf_path, &img);
+            target_to_orig
+                .entry(resolved.clone())
+                .or_default()
+                .push(img.clone());
+            target_names.insert(resolved);
+            let filename = extract_filename(&img);
+            target_names.insert(filename);
+            target_names.insert(img);
+        }
 
         loaded_chapters.push(crate::core::types::EpubChapterInfo {
             title: ch.title.clone(),
@@ -122,11 +168,41 @@ pub fn load_all_chapters_and_images_from_epub(
         });
     }
 
+    // 5. Extract all matching images in a single pass over archive.file_names()
+    let file_names: Vec<String> = archive.file_names().map(ToString::to_string).collect();
+    let mut all_images = HashMap::new();
+
+    for name in file_names {
+        let filename = extract_filename(&name);
+        let matches_target = target_names.contains(&name) || target_names.contains(&filename);
+        let matches_cover = is_potential_cover_image(&name, false);
+
+        if is_image_extension(&name)
+            && (matches_target || matches_cover)
+            && let Ok(mut file) = archive.by_name(&name)
+        {
+            let mut buffer = Vec::new();
+            if file.read_to_end(&mut buffer).is_ok() {
+                if filename != name {
+                    all_images.insert(filename.clone(), buffer.clone());
+                }
+                if let Some(origs) = target_to_orig.get(&name) {
+                    for orig in origs {
+                        if orig != &name && orig != &filename {
+                            all_images.insert(orig.clone(), buffer.clone());
+                        }
+                    }
+                }
+                all_images.insert(name, buffer);
+            }
+        }
+    }
+
     Ok((loaded_chapters, all_images))
 }
 
 pub fn load_images_for_blocks_from_epub(
-    archive: &mut zip::ZipArchive<impl Read + std::io::Seek>,
+    archive: &mut zip::ZipArchive<impl Read + Seek>,
     opf_path: &str,
     blocks: &[Block],
     chapter_file_href: Option<&str>,
@@ -141,8 +217,9 @@ impl PreviewParser for EpubParser {
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
         let file = File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+        let reader = BufReader::new(file);
         let mut archive =
-            zip::ZipArchive::new(file).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+            zip::ZipArchive::new(reader).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
 
         let opf_path = read_container_opf_path(&mut archive)?;
         let opf_xml = read_archive_entry_string(&mut archive, &opf_path)?;
@@ -204,7 +281,7 @@ impl PreviewParser for EpubParser {
     }
 }
 
-fn read_container_opf_path<R: Read + std::io::Seek>(
+fn read_container_opf_path<R: Read + Seek>(
     archive: &mut zip::ZipArchive<R>,
 ) -> Result<String, ParseError> {
     let xml = read_archive_entry_string(archive, "META-INF/container.xml")
@@ -214,7 +291,7 @@ fn read_container_opf_path<R: Read + std::io::Seek>(
         .ok_or_else(|| ParseError::ParseFailed("Could not locate OPF file in container.xml".into()))
 }
 
-fn read_archive_entry_string<R: Read + std::io::Seek>(
+fn read_archive_entry_string<R: Read + Seek>(
     archive: &mut zip::ZipArchive<R>,
     entry_name: &str,
 ) -> Result<String, ParseError> {
@@ -230,7 +307,7 @@ fn read_archive_entry_string<R: Read + std::io::Seek>(
     Ok(read_bytes_to_string(&bytes))
 }
 
-fn build_lazy_chapters_from_ncx<R: Read + std::io::Seek>(
+fn build_lazy_chapters_from_ncx<R: Read + Seek>(
     archive: &mut zip::ZipArchive<R>,
     opf_path: &str,
     ncx_entries: &[NcxNavPoint],
@@ -260,7 +337,7 @@ fn build_lazy_chapters_from_ncx<R: Read + std::io::Seek>(
     chapters
 }
 
-fn build_lazy_chapters_from_spine<R: Read + std::io::Seek>(
+fn build_lazy_chapters_from_spine<R: Read + Seek>(
     archive: &mut zip::ZipArchive<R>,
     opf_path: &str,
     spine_items: &[String],
@@ -416,21 +493,42 @@ fn normalize_for_matching(text: &str) -> String {
         .to_lowercase()
 }
 
+fn contains_attr_value_case_insensitive(haystack: &str, attr_prefix: &str, value: &str) -> bool {
+    let len = haystack.len();
+    let val_len = value.len();
+    let p_len = attr_prefix.len();
+    if len < p_len + val_len + 3 {
+        return false;
+    }
+
+    for (i, _) in haystack.match_indices(attr_prefix) {
+        if i > 0 {
+            let prev = haystack.as_bytes()[i - 1];
+            if !prev.is_ascii_whitespace() && prev != b'<' {
+                continue;
+            }
+        }
+        let after = &haystack[i + p_len..];
+        if after.starts_with("=\"") || after.starts_with("='") {
+            let quote = after.as_bytes()[1];
+            let val_part = &after[2..];
+            if val_part.len() >= val_len
+                && val_part.as_bytes().get(val_len) == Some(&quote)
+                && val_part[..val_len].eq_ignore_ascii_case(value)
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 fn html_contains_anchor(html: &str, anchor: &str) -> bool {
-    let html_lower = html.to_lowercase();
-    let anchor_lower = anchor.to_lowercase();
-    let id_double = format!("id=\"{anchor_lower}\"");
-    let id_single = format!("id='{anchor_lower}'");
-    let xml_id_double = format!("xml:id=\"{anchor_lower}\"");
-    let xml_id_single = format!("xml:id='{anchor_lower}'");
-    let name_double = format!("name=\"{anchor_lower}\"");
-    let name_single = format!("name='{anchor_lower}'");
-    html_lower.contains(&id_double)
-        || html_lower.contains(&id_single)
-        || html_lower.contains(&xml_id_double)
-        || html_lower.contains(&xml_id_single)
-        || html_lower.contains(&name_double)
-        || html_lower.contains(&name_single)
+    contains_attr_value_case_insensitive(html, "id", anchor)
+        || contains_attr_value_case_insensitive(html, "xml:id", anchor)
+        || contains_attr_value_case_insensitive(html, "name", anchor)
+        || contains_attr_value_case_insensitive(html, "ID", anchor)
+        || contains_attr_value_case_insensitive(html, "NAME", anchor)
 }
 
 fn block_contains_anchor(block: &Block, anchor: &str) -> bool {
@@ -549,7 +647,7 @@ fn collect_images_from_inlines(inlines: &[Inline], paths: &mut Vec<String>) {
     }
 }
 
-pub fn extract_selective_images<R: Read + std::io::Seek>(
+pub fn extract_selective_images<R: Read + Seek>(
     archive: &mut zip::ZipArchive<R>,
     opf_path: &str,
     cover_href: Option<&str>,
@@ -595,37 +693,33 @@ pub fn extract_selective_images<R: Read + std::io::Seek>(
     }
 
     let mut found_cover = cover_href.is_some();
+    let file_names: Vec<String> = archive.file_names().map(ToString::to_string).collect();
 
-    for index in 0..archive.len() {
-        let Ok(file) = archive.by_index(index) else {
-            continue;
-        };
-        let name = file.name().to_string();
+    for name in file_names {
         let filename = extract_filename(&name);
-
         let matches_target = target_names.contains(&name) || target_names.contains(&filename);
         let matches_cover = is_potential_cover_image(&name, found_cover);
 
-        if is_image_extension(&name) && (matches_target || matches_cover) {
-            drop(file);
-            if let Ok(mut file) = archive.by_index(index) {
-                let mut buffer = Vec::new();
-                if file.read_to_end(&mut buffer).is_ok() {
-                    if matches_cover && !found_cover {
-                        found_cover = true;
-                    }
-                    if filename != name {
-                        images.insert(filename.clone(), buffer.clone());
-                    }
-                    if let Some(origs) = target_to_orig.get(&name) {
-                        for orig in origs {
-                            if orig != &name && orig != &filename {
-                                images.insert(orig.clone(), buffer.clone());
-                            }
+        if is_image_extension(&name)
+            && (matches_target || matches_cover)
+            && let Ok(mut file) = archive.by_name(&name)
+        {
+            let mut buffer = Vec::new();
+            if file.read_to_end(&mut buffer).is_ok() {
+                if matches_cover && !found_cover {
+                    found_cover = true;
+                }
+                if filename != name {
+                    images.insert(filename.clone(), buffer.clone());
+                }
+                if let Some(origs) = target_to_orig.get(&name) {
+                    for orig in origs {
+                        if orig != &name && orig != &filename {
+                            images.insert(orig.clone(), buffer.clone());
                         }
                     }
-                    images.insert(name, buffer);
                 }
+                images.insert(name, buffer);
             }
         }
     }

@@ -8,6 +8,8 @@ pub fn ensure_blocks_images(
     blocks: &[Block],
     images: &HashMap<String, Vec<u8>>,
 ) {
+    let mut dims_cache: HashMap<&[u8], (u32, u32)> = HashMap::new();
+
     for (i, block) in blocks.iter().enumerate() {
         if markdown_state.cached_image_handles.contains_key(&i) {
             continue;
@@ -21,10 +23,13 @@ pub fn ensure_blocks_images(
             if let Some(bytes) = images.get(img_path).or_else(|| images.get(filename)) {
                 let handle = iced::widget::image::Handle::from_bytes(bytes.clone());
                 markdown_state.cached_image_handles.insert(i, handle);
-                if let Ok(reader) =
+                if let Some(&dims) = dims_cache.get(bytes.as_slice()) {
+                    markdown_state.cached_image_sizes.insert(i, dims);
+                } else if let Ok(reader) =
                     image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()
                     && let Ok(dims) = reader.into_dimensions()
                 {
+                    dims_cache.insert(bytes.as_slice(), dims);
                     markdown_state.cached_image_sizes.insert(i, dims);
                 }
             }
@@ -42,21 +47,12 @@ pub fn ensure_chapter_images(
         return;
     };
 
-    let chapter_offset: usize = chapters
-        .iter()
-        .take(active_chapter)
-        .map(|ch| ch.blocks.len())
-        .sum();
+    markdown_state.cached_image_handles.clear();
+    markdown_state.cached_image_sizes.clear();
+
+    let mut dims_cache: HashMap<&[u8], (u32, u32)> = HashMap::new();
 
     for (i, block) in chapter.blocks.iter().enumerate() {
-        let block_global_idx = chapter_offset + i;
-        if markdown_state
-            .cached_image_handles
-            .contains_key(&block_global_idx)
-        {
-            continue;
-        }
-
         if let Block::Image { path: img_path, .. } = block {
             let filename = std::path::Path::new(img_path)
                 .file_name()
@@ -64,16 +60,15 @@ pub fn ensure_chapter_images(
                 .unwrap_or(img_path);
             if let Some(bytes) = images.get(img_path).or_else(|| images.get(filename)) {
                 let handle = iced::widget::image::Handle::from_bytes(bytes.clone());
-                markdown_state
-                    .cached_image_handles
-                    .insert(block_global_idx, handle);
-                if let Ok(reader) =
+                markdown_state.cached_image_handles.insert(i, handle);
+                if let Some(&dims) = dims_cache.get(bytes.as_slice()) {
+                    markdown_state.cached_image_sizes.insert(i, dims);
+                } else if let Ok(reader) =
                     image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()
                     && let Ok(dims) = reader.into_dimensions()
                 {
-                    markdown_state
-                        .cached_image_sizes
-                        .insert(block_global_idx, dims);
+                    dims_cache.insert(bytes.as_slice(), dims);
+                    markdown_state.cached_image_sizes.insert(i, dims);
                 }
             }
         }
@@ -81,12 +76,24 @@ pub fn ensure_chapter_images(
 }
 
 pub fn build_continuous_blocks(chapters: &[EpubChapterInfo]) -> (Vec<Block>, Vec<usize>) {
-    let mut all_blocks = Vec::new();
+    let total_block_count: usize = chapters.iter().map(|ch| ch.blocks.len() + 2).sum();
+    let mut all_blocks = Vec::with_capacity(total_block_count);
     let mut chapter_block_offsets = Vec::with_capacity(chapters.len());
+    let mut seen_file_offsets: HashMap<&str, usize> = HashMap::new();
 
     for (ch_idx, ch) in chapters.iter().enumerate() {
+        if !ch.file_href.is_empty()
+            && let Some(&existing_offset) = seen_file_offsets.get(ch.file_href.as_str())
+        {
+            chapter_block_offsets.push(existing_offset);
+            continue;
+        }
+
         let start_idx = all_blocks.len();
         chapter_block_offsets.push(start_idx);
+        if !ch.file_href.is_empty() {
+            seen_file_offsets.insert(&ch.file_href, start_idx);
+        }
 
         if ch.blocks.is_empty() {
             continue;
@@ -123,7 +130,7 @@ pub fn populate_state(
         .and_then(|p| p.reading_mode)
         .unwrap_or(state.epub_reading_mode);
     let old_sidebar = state.epub.sidebar_visible;
-    let old_scroll = state.epub.scroll_y;
+    let old_scroll = state.epub.markdown_state.scroll_y;
     let old_collapsed = std::mem::take(&mut state.epub.collapsed_chapters);
     let mut markdown_state = MarkdownState::default();
 
@@ -283,11 +290,12 @@ mod tests {
         // Activate chapter 0
         ensure_chapter_images(&mut markdown_state, &chapters, 0, &images);
         assert!(markdown_state.cached_image_handles.contains_key(&0));
-        assert!(!markdown_state.cached_image_handles.contains_key(&1));
+        assert!(markdown_state.cached_image_sizes.contains_key(&0));
 
-        // Switch to chapter 1
+        // Switch to chapter 1 (replaces cached images with chapter 1's local indices)
         ensure_chapter_images(&mut markdown_state, &chapters, 1, &images);
-        assert!(markdown_state.cached_image_handles.contains_key(&1));
+        assert!(markdown_state.cached_image_handles.contains_key(&0));
+        assert!(markdown_state.cached_image_sizes.contains_key(&0));
     }
 
     #[test]

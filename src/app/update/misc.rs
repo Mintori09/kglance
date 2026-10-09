@@ -75,8 +75,31 @@ pub fn handle_markdown_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task
 pub fn handle_epub_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task<Message> {
     use crate::ui::components::sidebar::{DEFAULT_MAX_SIDEBAR_WIDTH, DEFAULT_MIN_SIDEBAR_WIDTH};
 
-    app.state.epub.sidebar_width =
-        width.clamp(DEFAULT_MIN_SIDEBAR_WIDTH, DEFAULT_MAX_SIDEBAR_WIDTH);
+    let new_w = width.clamp(DEFAULT_MIN_SIDEBAR_WIDTH, DEFAULT_MAX_SIDEBAR_WIDTH);
+    if (app.state.epub.sidebar_width - new_w).abs() > 1.0 {
+        app.state.epub.sidebar_width = new_w;
+        let content_width = app.state.epub_content_width();
+        let old_y = app.state.epub.markdown_state.scroll_y;
+        if app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
+            crate::features::markdown::recompute_markdown_layout(
+                &mut app.state.epub.markdown_state,
+                &app.state.epub.continuous_blocks,
+                app.state.font_size,
+                content_width,
+            );
+        } else {
+            let active_chapter = app.state.epub.active_chapter;
+            if let Some(chapter) = app.state.epub.chapters.get(active_chapter) {
+                crate::features::markdown::recompute_markdown_layout(
+                    &mut app.state.epub.markdown_state,
+                    &chapter.blocks,
+                    app.state.font_size,
+                    content_width,
+                );
+            }
+        }
+        app.state.epub.markdown_state.scroll_y = old_y;
+    }
     Task::none()
 }
 
@@ -417,9 +440,10 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
                     app.state.font_size,
                     content_width,
                 );
-            } else if let Some(crate::core::PreviewData::Epub { chapters, .. }) =
-                &app.current_content
-            {
+            } else if matches!(
+                app.current_content,
+                Some(crate::core::PreviewData::Epub { .. })
+            ) {
                 let content_width = app.state.epub_content_width();
                 let old_y = app.state.epub.markdown_state.scroll_y;
                 if app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
@@ -431,7 +455,7 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
                     );
                 } else {
                     let active_chapter = app.state.epub.active_chapter;
-                    if let Some(chapter) = chapters.get(active_chapter) {
+                    if let Some(chapter) = app.state.epub.chapters.get(active_chapter) {
                         crate::features::markdown::recompute_markdown_layout(
                             &mut app.state.epub.markdown_state,
                             &chapter.blocks,

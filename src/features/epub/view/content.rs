@@ -17,22 +17,15 @@ pub(crate) fn build_epub_content<'a>(
     ctx: &RenderContext<'_>,
     max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
-    let (chapter_blocks, chapter_offset): (&[crate::parsers::markdown::Block], usize) =
+    let chapter_blocks: &[crate::parsers::markdown::Block] =
         if state.reading_mode == crate::core::config::EpubReadingMode::Continuous {
-            (state.continuous_blocks.as_slice(), 0)
+            state.continuous_blocks.as_slice()
         } else {
-            let blocks = state
+            state
                 .chapters
                 .get(active_chapter)
                 .map(|ch| ch.blocks.as_slice())
-                .unwrap_or(&[]);
-            let offset = state
-                .chapters
-                .iter()
-                .take(active_chapter)
-                .map(|ch| ch.blocks.len())
-                .sum();
-            (blocks, offset)
+                .unwrap_or(&[])
         };
 
     let offsets = &state.markdown_state.block_y_offsets;
@@ -82,16 +75,15 @@ pub(crate) fn build_epub_content<'a>(
             .skip(first_visible)
             .take(visible_count)
         {
-            let global_index = chapter_offset + i;
             let block_ctx = RenderContext {
-                block_index: global_index * 1000,
+                block_index: i * 1000,
                 selection_range: state.markdown_state.selection_range,
                 drag_active: state.markdown_state.is_dragging_selection
                     || state.markdown_state.is_mouse_held,
                 ..*ctx
             };
             let inner = crate::features::markdown::view::render_block(
-                global_index,
+                i,
                 block,
                 &state.markdown_state,
                 &block_ctx,
@@ -137,19 +129,17 @@ pub(crate) fn build_epub_content<'a>(
     } else {
         chapter_blocks
             .iter()
-            .take(VIRTUAL_THRESHOLD)
             .enumerate()
             .map(|(i, block)| {
-                let global_index = chapter_offset + i;
                 let block_ctx = RenderContext {
-                    block_index: global_index * 1000,
+                    block_index: i * 1000,
                     selection_range: state.markdown_state.selection_range,
                     drag_active: state.markdown_state.is_dragging_selection
                         || state.markdown_state.is_mouse_held,
                     ..*ctx
                 };
                 let inner = crate::features::markdown::view::render_block(
-                    global_index,
+                    i,
                     block,
                     &state.markdown_state,
                     &block_ctx,
