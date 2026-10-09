@@ -2,28 +2,21 @@ use iced::widget::{button, checkbox, container, pick_list, rule, scrollable, sli
 use iced::{Border, Color, Shadow, Theme};
 
 use crate::ui::theme::color::{AppTheme, BaseColors, primitive, roles};
+use crate::ui::theme::tokens::{elevation, radius};
 
 fn card_shadow(shadow_color: Color) -> Shadow {
-    Shadow {
-        color: shadow_color,
-        offset: iced::Vector::new(0.0, 4.0),
-        blur_radius: 16.0,
-    }
+    elevation::high(shadow_color)
 }
 
 fn subtle_shadow(shadow_color: Color) -> Shadow {
-    Shadow {
-        color: shadow_color,
-        offset: iced::Vector::new(0.0, 2.0),
-        blur_radius: 6.0,
-    }
+    elevation::low(shadow_color)
 }
 
-fn container_border(color: Color, radius: f32) -> Border {
+fn container_border(color: Color, r: f32) -> Border {
     Border {
         color,
         width: 1.0,
-        radius: radius.into(),
+        radius: r.into(),
     }
 }
 
@@ -47,7 +40,7 @@ pub fn default_card(theme: &Theme) -> container::Style {
     container::Style {
         background: Some(p.surface.into()),
         text_color: Some(p.text),
-        border: container_border(p.border, 12.0),
+        border: container_border(p.border, radius::XL),
         shadow: card_shadow(p.shadow),
         snap: false,
     }
@@ -58,7 +51,7 @@ pub fn default_raised(theme: &Theme) -> container::Style {
     container::Style {
         background: Some(p.surface_raised.into()),
         text_color: Some(p.text),
-        border: container_border(p.border, 0.0),
+        border: container_border(p.border, radius::NONE),
         shadow: subtle_shadow(p.shadow),
         snap: false,
     }
@@ -67,7 +60,7 @@ pub fn default_raised(theme: &Theme) -> container::Style {
 pub fn default_inset(theme: &Theme) -> container::Style {
     default_bg_container(
         theme,
-        container_border(BaseColors::palette(theme).border, 6.0),
+        container_border(BaseColors::palette(theme).border, radius::MD),
     )
 }
 
@@ -86,7 +79,7 @@ pub fn default_button(theme: &Theme, status: button::Status) -> button::Style {
         border: Border {
             color: border_color,
             width: 1.0,
-            radius: 8.0.into(),
+            radius: radius::LG.into(),
         },
         text_color,
         shadow: subtle_shadow(p.shadow),
@@ -131,7 +124,7 @@ pub fn default_row_button(
         Border {
             color: bc,
             width: 1.0,
-            radius: 6.0.into(),
+            radius: radius::MD.into(),
         }
     } else {
         Border::default()
@@ -190,7 +183,7 @@ pub fn default_grid_card(
         border: Border {
             color: border_color,
             width: border_width,
-            radius: 10.0.into(),
+            radius: (radius::LG + 2.0).into(),
         },
         shadow,
         snap: false,
@@ -210,7 +203,7 @@ pub fn default_button_primary(theme: &Theme, status: button::Status) -> button::
         border: Border {
             color: Color::TRANSPARENT,
             width: 0.0,
-            radius: 8.0.into(),
+            radius: radius::LG.into(),
         },
         text_color: Color::WHITE,
         shadow: subtle_shadow(p.shadow),
@@ -233,7 +226,7 @@ pub fn default_text_input(theme: &Theme, status: text_input::Status) -> text_inp
         border: Border {
             color: border_color,
             width: 1.0,
-            radius: 8.0.into(),
+            radius: radius::LG.into(),
         },
         value: p.text,
         placeholder: p.text_dim,
@@ -249,7 +242,7 @@ pub fn default_scrollable(theme: &Theme, status: scrollable::Status) -> scrollab
     let (scroller_bg, scroller_radius, rail_bg) = match status {
         scrollable::Status::Dragged { .. } => (
             role.accent_pressed,
-            3.0,
+            radius::XS + 1.0,
             Color {
                 a: 0.12,
                 ..p.border
@@ -257,7 +250,7 @@ pub fn default_scrollable(theme: &Theme, status: scrollable::Status) -> scrollab
         ),
         scrollable::Status::Hovered { .. } => (
             role.accent_hover,
-            3.0,
+            radius::XS + 1.0,
             Color {
                 a: 0.08,
                 ..p.border
@@ -268,7 +261,7 @@ pub fn default_scrollable(theme: &Theme, status: scrollable::Status) -> scrollab
                 a: 0.35,
                 ..p.text_dim
             },
-            3.0,
+            radius::XS + 1.0,
             Color::TRANSPARENT,
         ),
     };
@@ -298,7 +291,7 @@ pub fn default_scrollable(theme: &Theme, status: scrollable::Status) -> scrollab
         auto_scroll: scrollable::AutoScroll {
             background: p.surface.into(),
             border: Border {
-                radius: 4.0.into(),
+                radius: radius::SM.into(),
                 ..Border::default()
             },
             shadow: Shadow::default(),
@@ -326,7 +319,7 @@ pub fn default_slider(theme: &Theme, status: slider::Status) -> slider::Style {
             backgrounds: (role.accent.into(), rail_color.into()),
             width: 4.0,
             border: Border {
-                radius: 2.0.into(),
+                radius: radius::XS.into(),
                 ..Border::default()
             },
         },
@@ -363,7 +356,7 @@ pub fn default_checkbox(theme: &Theme, status: checkbox::Status) -> checkbox::St
         border: Border {
             color: border_color,
             width: 1.0,
-            radius: 4.0.into(),
+            radius: radius::SM.into(),
         },
         text_color: Some(p.text),
     }
@@ -382,7 +375,7 @@ pub fn default_tooltip(theme: &Theme) -> container::Style {
         border: Border {
             color: border_color,
             width: 1.0,
-            radius: 6.0.into(),
+            radius: radius::MD.into(),
         },
         shadow: subtle_shadow(p.shadow),
         snap: false,
@@ -393,7 +386,7 @@ pub fn default_rule(theme: &Theme) -> rule::Style {
     let p = BaseColors::palette(theme);
     rule::Style {
         color: p.rule,
-        radius: 0.0.into(),
+        radius: radius::NONE.into(),
         fill_mode: rule::FillMode::Full,
         snap: false,
     }
@@ -417,43 +410,33 @@ pub fn default_pick_list(theme: &Theme, status: pick_list::Status) -> pick_list:
         border: Border {
             color: border_color,
             width: 1.0,
-            radius: 8.0.into(),
+            radius: radius::LG.into(),
         },
     }
 }
 
-/// Floating pill container for the video controls overlay.
-/// Uses a dark translucent HUD glass background (rgba) with radius 16px and soft shadow.
-pub fn video_controls_pill(_theme: &Theme) -> container::Style {
+/// Floating pill container for overlays (video/image controls, toolbars).
+pub fn video_controls_pill(theme: &Theme) -> container::Style {
+    let overlay = AppTheme::from(theme).palette().overlay;
     container::Style {
-        background: Some(Color::from_rgba(0.08, 0.08, 0.10, 0.72).into()),
-        text_color: Some(Color::from_rgba(0.94, 0.94, 0.96, 1.0)),
+        background: Some(overlay.floating_bg.into()),
+        text_color: Some(overlay.floating_fg),
         border: Border {
-            color: Color::from_rgba(1.0, 1.0, 1.0, 0.12),
+            color: overlay.floating_border,
             width: 1.0,
-            radius: 16.0.into(),
+            radius: radius::XL.into(),
         },
-        shadow: Shadow {
-            color: Color::from_rgba(0.0, 0.0, 0.0, 0.25),
-            offset: iced::Vector::new(0.0, 4.0),
-            blur_radius: 12.0,
-        },
+        shadow: elevation::floating_pill(overlay.floating_shadow),
         snap: false,
     }
 }
 
-/// Circular icon button used inside the floating video controls pill.
+/// Circular icon button used inside floating overlay pills.
 pub fn video_pill_button(_theme: &Theme, status: button::Status) -> button::Style {
     let (bg, text_color) = match status {
-        button::Status::Hovered => (
-            Some(Color::from_rgba(1.0, 1.0, 1.0, 0.15).into()),
-            Color::WHITE,
-        ),
-        button::Status::Pressed => (
-            Some(Color::from_rgba(1.0, 1.0, 1.0, 0.25).into()),
-            Color::WHITE,
-        ),
-        _ => (None, Color::from_rgba(0.92, 0.92, 0.94, 1.0)),
+        button::Status::Hovered => (Some(primitive::WHITE_012.into()), primitive::WHITE),
+        button::Status::Pressed => (Some(primitive::WHITE_020.into()), primitive::WHITE),
+        _ => (None, primitive::OVERLAY_FLOATING_DARK_TEXT_DIM),
     };
 
     button::Style {
@@ -461,7 +444,7 @@ pub fn video_pill_button(_theme: &Theme, status: button::Status) -> button::Styl
         border: Border {
             color: Color::TRANSPARENT,
             width: 0.0,
-            radius: 50.0.into(),
+            radius: radius::FULL.into(),
         },
         text_color,
         shadow: Shadow::default(),
@@ -469,24 +452,21 @@ pub fn video_pill_button(_theme: &Theme, status: button::Status) -> button::Styl
     }
 }
 
-/// Sleek slider for media players on dark translucent HUD overlays.
+/// Sleek slider for media players on translucent HUD overlays.
 pub fn video_slider(theme: &Theme, status: slider::Status) -> slider::Style {
     let role = roles::palette(theme);
 
     let (handle_color, handle_radius) = match status {
-        slider::Status::Hovered | slider::Status::Dragged => (Color::WHITE, 5.5),
+        slider::Status::Hovered | slider::Status::Dragged => (primitive::WHITE, 5.5),
         _ => (role.accent, 4.5),
     };
 
     slider::Style {
         rail: slider::Rail {
-            backgrounds: (
-                role.accent.into(),
-                Color::from_rgba(1.0, 1.0, 1.0, 0.20).into(),
-            ),
+            backgrounds: (role.accent.into(), primitive::WHITE_020.into()),
             width: 3.5,
             border: Border {
-                radius: 2.0.into(),
+                radius: radius::XS.into(),
                 ..Border::default()
             },
         },
@@ -498,5 +478,27 @@ pub fn video_slider(theme: &Theme, status: slider::Status) -> slider::Style {
             border_width: 0.0,
             border_color: Color::TRANSPARENT,
         },
+    }
+}
+
+/// Helper container style for small badges (PDF page counter, format badge, etc.).
+pub fn badge_style(theme: &Theme, active: bool) -> container::Style {
+    let palette = AppTheme::from(theme).palette();
+    let (bg, text_color) = if active {
+        (palette.roles.accent, primitive::WHITE)
+    } else {
+        (palette.base.surface_raised, palette.base.text_dim)
+    };
+
+    container::Style {
+        background: Some(bg.into()),
+        text_color: Some(text_color),
+        border: Border {
+            color: palette.base.border,
+            width: 1.0,
+            radius: radius::SM.into(),
+        },
+        shadow: Shadow::default(),
+        snap: false,
     }
 }

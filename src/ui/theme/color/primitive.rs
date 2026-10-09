@@ -59,8 +59,10 @@ pub(crate) const LIGHT_SHADOW: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.08);
 
 pub(crate) const WHITE_005: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.05);
 pub(crate) const WHITE_006: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.06);
+pub(crate) const WHITE_008: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.08);
 pub(crate) const WHITE_010: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.10);
 pub(crate) const WHITE_012: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.12);
+pub(crate) const WHITE_015: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.15);
 pub(crate) const WHITE_020: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.20);
 
 pub(crate) const BLACK_005: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.05);
@@ -178,6 +180,63 @@ pub(crate) const NORD11: Color = Color::from_rgb(0.75, 0.38, 0.42); // #BF616A R
 pub(crate) const NORD13: Color = Color::from_rgb(0.92, 0.80, 0.55); // #EBCB8B Yellow
 pub(crate) const NORD14: Color = Color::from_rgb(0.64, 0.75, 0.55); // #A3BE8C Green / Success
 pub(crate) const NORD15: Color = Color::from_rgb(0.71, 0.56, 0.68); // #B48EAD Purple / Constant
+
+// ── Markdown / Toast Alerts ────────────────────────────────────────────────
+
+pub(crate) const ALERT_NOTE_FG: Color = Color::from_rgb(0.2, 0.5, 0.9);
+pub(crate) const ALERT_NOTE_BG: Color = Color::from_rgba(0.2, 0.5, 0.9, 0.08);
+
+pub(crate) const ALERT_TIP_FG: Color = Color::from_rgb(0.18, 0.68, 0.38);
+pub(crate) const ALERT_TIP_BG: Color = Color::from_rgba(0.18, 0.68, 0.38, 0.08);
+
+pub(crate) const ALERT_INFO_FG: Color = Color::from_rgb(0.58, 0.34, 0.88);
+pub(crate) const ALERT_INFO_BG: Color = Color::from_rgba(0.58, 0.34, 0.88, 0.08);
+
+pub(crate) const ALERT_WARNING_FG: Color = Color::from_rgb(0.92, 0.58, 0.12);
+pub(crate) const ALERT_WARNING_BG: Color = Color::from_rgba(0.92, 0.58, 0.12, 0.08);
+
+pub(crate) const ALERT_CAUTION_FG: Color = Color::from_rgb(0.92, 0.28, 0.28);
+pub(crate) const ALERT_CAUTION_BG: Color = Color::from_rgba(0.92, 0.28, 0.28, 0.08);
+
+// ── Code outline symbol kinds ───────────────────────────────────────────────
+
+pub(crate) const SYMBOL_FUNCTION: Color = Color::from_rgb(0.35, 0.65, 0.95);
+pub(crate) const SYMBOL_STRUCT: Color = Color::from_rgb(0.35, 0.85, 0.65);
+pub(crate) const SYMBOL_CLASS: Color = Color::from_rgb(0.95, 0.65, 0.35);
+pub(crate) const SYMBOL_ENUM: Color = Color::from_rgb(0.85, 0.45, 0.85);
+pub(crate) const SYMBOL_TRAIT: Color = Color::from_rgb(0.95, 0.85, 0.35);
+pub(crate) const SYMBOL_MODULE: Color = Color::from_rgb(0.65, 0.75, 0.85);
+pub(crate) const SYMBOL_TYPE: Color = Color::from_rgb(0.45, 0.75, 0.85);
+
+// ── Audio Vinyl player ─────────────────────────────────────────────────────
+
+pub(crate) const VINYL_DARK_BG: Color = Color::from_rgb8(24, 25, 28);
+pub(crate) const VINYL_DARK_BORDER: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.08);
+pub(crate) const VINYL_DARK_SHADOW: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.35);
+
+pub(crate) const VINYL_LIGHT_BG: Color = Color::from_rgb8(45, 48, 53);
+pub(crate) const VINYL_LIGHT_BORDER: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.12);
+pub(crate) const VINYL_LIGHT_SHADOW: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.20);
+
+// ── Floating Overlays, Controls & Selection ────────────────────────────────
+
+pub(crate) const OVERLAY_FLOATING_DARK_BG: Color = Color::from_rgba(0.08, 0.08, 0.10, 0.75);
+pub(crate) const OVERLAY_FLOATING_DARK_BORDER: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.12);
+pub(crate) const OVERLAY_FLOATING_DARK_FG: Color = Color::from_rgba(0.94, 0.94, 0.96, 1.0);
+pub(crate) const OVERLAY_FLOATING_DARK_TEXT_DIM: Color = Color::from_rgba(0.82, 0.82, 0.86, 1.0);
+pub(crate) const OVERLAY_FLOATING_DARK_TEXT_MUTED: Color = Color::from_rgba(0.55, 0.55, 0.60, 1.0);
+
+pub(crate) const OVERLAY_FLOATING_LIGHT_BG: Color = Color::from_rgba(0.98, 0.98, 1.0, 0.85);
+pub(crate) const OVERLAY_FLOATING_LIGHT_BORDER: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.10);
+pub(crate) const OVERLAY_FLOATING_LIGHT_FG: Color = Color::from_rgba(0.12, 0.13, 0.16, 1.0);
+pub(crate) const OVERLAY_FLOATING_LIGHT_TEXT_DIM: Color = Color::from_rgba(0.35, 0.38, 0.42, 1.0);
+pub(crate) const OVERLAY_FLOATING_LIGHT_TEXT_MUTED: Color = Color::from_rgba(0.50, 0.52, 0.56, 1.0);
+
+pub(crate) const OVERLAY_BACKDROP: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.50);
+
+pub(crate) const SELECTION_DARK_BG: Color = Color::from_rgba(0.2, 0.45, 0.85, 0.35);
+pub(crate) const SELECTION_LIGHT_BG: Color = Color::from_rgba(0.0, 0.45, 0.9, 0.25);
+pub(crate) const SELECTION_NORD_BG: Color = Color::from_rgba(0.53, 0.75, 0.82, 0.30);
 
 #[inline]
 pub const fn syntect_to_iced_color(c: syntect::highlighting::Color) -> Color {

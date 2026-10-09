@@ -3,23 +3,31 @@
 //! Layered design:
 //! - [`primitive`] — raw named colours, the single source of truth.
 //! - [`base`], [`roles`] — shared semantic tokens for the whole UI.
-//! - [`markdown`], [`json`], [`sidebar`] — view/component semantic tokens.
+//! - [`markdown`], [`json`], [`sidebar`], [`alerts`], [`symbols`], [`audio`], [`overlay`] — view/component semantic tokens.
 
 use crate::ui::theme::color::primitive::{
     MD_DARK_CODE_FG, MD_LIGHT_CODE_FG, syntect_to_iced_color,
 };
+pub mod alerts;
+pub mod audio;
 pub mod base;
 pub mod json;
 pub mod markdown;
+pub mod overlay;
 pub mod primitive;
 pub mod roles;
 pub mod sidebar;
+pub mod symbols;
 
+pub use alerts::{AlertColors, AlertGroup};
+pub use audio::AudioColors;
 pub use base::BaseColors;
 pub use json::JsonColors;
 pub use markdown::MarkdownColors;
+pub use overlay::OverlayColors;
 pub use roles::RoleColors;
 pub use sidebar::SidebarColors;
+pub use symbols::SymbolColors;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum AppTheme {
@@ -95,6 +103,10 @@ pub struct ColorPalette {
     pub sidebar: SidebarColors,
     pub json: JsonColors,
     pub markdown: MarkdownColors,
+    pub alerts: AlertColors,
+    pub symbols: SymbolColors,
+    pub audio: AudioColors,
+    pub overlay: OverlayColors,
 }
 
 pub static DARK_PALETTE: ColorPalette = ColorPalette {
@@ -103,6 +115,10 @@ pub static DARK_PALETTE: ColorPalette = ColorPalette {
     sidebar: SidebarColors::DARK,
     json: JsonColors::DARK,
     markdown: MarkdownColors::DARK,
+    alerts: AlertColors::DARK,
+    symbols: SymbolColors::DARK,
+    audio: AudioColors::DARK,
+    overlay: OverlayColors::DARK,
 };
 
 pub static LIGHT_PALETTE: ColorPalette = ColorPalette {
@@ -111,6 +127,10 @@ pub static LIGHT_PALETTE: ColorPalette = ColorPalette {
     sidebar: SidebarColors::LIGHT,
     json: JsonColors::LIGHT,
     markdown: MarkdownColors::LIGHT,
+    alerts: AlertColors::LIGHT,
+    symbols: SymbolColors::LIGHT,
+    audio: AudioColors::LIGHT,
+    overlay: OverlayColors::LIGHT,
 };
 
 pub static NORD_PALETTE: ColorPalette = ColorPalette {
@@ -119,4 +139,8 @@ pub static NORD_PALETTE: ColorPalette = ColorPalette {
     sidebar: SidebarColors::NORD,
     json: JsonColors::NORD,
     markdown: MarkdownColors::NORD,
+    alerts: AlertColors::NORD,
+    symbols: SymbolColors::NORD,
+    audio: AudioColors::NORD,
+    overlay: OverlayColors::NORD,
 };
