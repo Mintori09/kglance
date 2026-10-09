@@ -142,6 +142,7 @@ pub fn handle_sidebar_drag_ended(app: &mut KglanceApp) -> Task<Message> {
 }
 
 pub fn handle_mouse_pressed(app: &mut KglanceApp, _x: f32, _y: f32) -> Task<Message> {
+    app.stop_active_scroll_animations();
     app.state.pdf.auto_scroll_delta = None;
     let s = markdown::active_markdown_state_mut(app);
     s.is_mouse_held = true;
@@ -416,6 +417,30 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
                     app.state.font_size,
                     content_width,
                 );
+            } else if let Some(crate::core::PreviewData::Epub { chapters, .. }) =
+                &app.current_content
+            {
+                let content_width = app.state.epub_content_width();
+                let old_y = app.state.epub.markdown_state.scroll_y;
+                if app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
+                    crate::features::markdown::recompute_markdown_layout(
+                        &mut app.state.epub.markdown_state,
+                        &app.state.epub.continuous_blocks,
+                        app.state.font_size,
+                        content_width,
+                    );
+                } else {
+                    let active_chapter = app.state.epub.active_chapter;
+                    if let Some(chapter) = chapters.get(active_chapter) {
+                        crate::features::markdown::recompute_markdown_layout(
+                            &mut app.state.epub.markdown_state,
+                            &chapter.blocks,
+                            app.state.font_size,
+                            content_width,
+                        );
+                    }
+                }
+                app.state.epub.markdown_state.scroll_y = old_y;
             } else if matches!(
                 app.current_content,
                 Some(crate::core::PreviewData::Text { .. })
