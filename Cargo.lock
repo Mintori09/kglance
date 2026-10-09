@@ -3218,6 +3218,7 @@ dependencies = [
  "mermaid-rs-renderer",
  "mupdf",
  "notify",
+ "psd",
  "pulldown-cmark",
  "quick-xml 0.42.0",
  "rayon",
@@ -4794,6 +4795,15 @@ checksum = "4488a4a36b9a4ba6b9334a32a39971f77c1436ec82c38707bce707699cc3bbcb"
 dependencies = [
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "psd"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a25f9b8cfffd65d911baf31a033239f7a0facb755faa2481575b70db5dc9195"
+dependencies = [
+ "thiserror 1.0.69",
 ]
 
 [[package]]

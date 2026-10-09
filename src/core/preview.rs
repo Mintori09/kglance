@@ -130,8 +130,9 @@ pub fn is_slow_to_parse(path: &Path) -> bool {
         "typ" => true,
         // PDF documents
         "pdf" => true,
-        // Archives
-        "7z" | "tar" | "zip" | "gz" | "bz2" | "xz" | "tgz" | "tbz2" | "txz" | "kra" => true,
+        // Archives & Creative
+        "7z" | "tar" | "zip" | "gz" | "bz2" | "xz" | "tgz" | "tbz2" | "txz" | "kra" | "ora"
+        | "psd" => true,
         // Audio & Video
         "mp4" | "mkv" | "avi" | "mov" | "wmv" | "webm" | "mp3" | "wav" | "flac" | "ogg" | "aac"
         | "m4a" | "opus" => true,
