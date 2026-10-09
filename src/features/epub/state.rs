@@ -117,7 +117,11 @@ pub fn populate_state(
     active_chapter: usize,
     images: &HashMap<String, Vec<u8>>,
 ) {
-    let reading_mode = state.epub_reading_mode;
+    let reading_mode = state
+        .read_positions
+        .get(&state.file_name)
+        .and_then(|p| p.reading_mode)
+        .unwrap_or(state.epub_reading_mode);
     let old_sidebar = state.epub.sidebar_visible;
     let old_scroll = state.epub.scroll_y;
     let old_collapsed = std::mem::take(&mut state.epub.collapsed_chapters);

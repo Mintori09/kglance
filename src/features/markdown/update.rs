@@ -1245,24 +1245,35 @@ pub fn rescale_markdown_font(app: &mut KglanceApp, new_size: f32) -> Option<Task
             ))
         }
         Some(PreviewData::Epub { ref chapters, .. }) => {
-            let active_chapter = app.state.epub.active_chapter;
-            chapters.get(active_chapter).map(|chapter| {
+            let blocks = if app.state.epub.reading_mode
+                == crate::core::config::EpubReadingMode::Continuous
+            {
+                app.state.epub.continuous_blocks.as_slice()
+            } else {
+                let active_chapter = app.state.epub.active_chapter;
+                chapters
+                    .get(active_chapter)
+                    .map_or([].as_slice(), |c| c.blocks.as_slice())
+            };
+            if !blocks.is_empty() {
                 let epub_content_width = app.state.epub_content_width();
                 let new_scroll_y = crate::features::markdown::rescale_and_update_markdown_layout(
                     &mut app.state.epub.markdown_state,
-                    &chapter.blocks,
+                    blocks,
                     old_size,
                     new_size,
                     epub_content_width,
                 );
-                iced::widget::operation::scroll_to(
+                Some(iced::widget::operation::scroll_to(
                     "content_scroll",
                     iced::widget::operation::AbsoluteOffset {
                         x: 0.0,
                         y: new_scroll_y,
                     },
-                )
-            })
+                ))
+            } else {
+                Some(Task::none())
+            }
         }
         _ => None,
     }
@@ -1495,6 +1506,35 @@ mod tests {
         // Ctrl held down: ignores wheel scrolling
         app.ctrl_held = true;
         let _ = handle_smooth_wheel_scrolled(&mut app, delta_lines);
+    }
+
+    #[test]
+    fn test_markdown_touchpad_hold_finger_does_not_fling() {
+        use crate::app::test_util::{markdown_content, test_app};
+
+        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
+        app.state.markdown.viewport_height = 800.0;
+        app.state.markdown.total_content_height = 3000.0;
+        app.state.markdown.scroll_y = 100.0;
+
+        let delta_pixels = iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -20.0 };
+        let _ = handle_smooth_wheel_scrolled(&mut app, delta_pixels);
+        assert_eq!(app.state.markdown.scroll_y, 150.0);
+        assert_eq!(
+            app.state.markdown.scroll_controller.state(),
+            crate::core::scroll::GestureState::Dragging
+        );
+
+        // User keeps finger held on touchpad (45ms pass without new events)
+        let now = std::time::Instant::now() + std::time::Duration::from_millis(45);
+        let _ = handle_smooth_scroll_tick(&mut app, now);
+
+        assert_eq!(
+            app.state.markdown.scroll_controller.state(),
+            crate::core::scroll::GestureState::Idle
+        );
+        assert!(!app.state.markdown.scroll_controller.is_animating());
+        assert_eq!(app.state.markdown.scroll_y, 150.0);
     }
 
     #[test]

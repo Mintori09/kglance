@@ -91,13 +91,22 @@ impl super::KglanceApp {
                             )
                         }
                         Some(PreviewData::Epub { ref chapters, .. }) => {
-                            let active_chapter = self.state.epub.active_chapter;
-                            if let Some(chapter) = chapters.get(active_chapter) {
+                            let blocks = if self.state.epub.reading_mode
+                                == crate::core::config::EpubReadingMode::Continuous
+                            {
+                                self.state.epub.continuous_blocks.as_slice()
+                            } else {
+                                let active_chapter = self.state.epub.active_chapter;
+                                chapters
+                                    .get(active_chapter)
+                                    .map_or([].as_slice(), |c| c.blocks.as_slice())
+                            };
+                            if !blocks.is_empty() {
                                 let epub_content_width = self.state.epub_content_width();
                                 let new_scroll_y =
                                     crate::features::markdown::rescale_and_update_markdown_layout(
                                         &mut self.state.epub.markdown_state,
-                                        &chapter.blocks,
+                                        blocks,
                                         old_font_size,
                                         next_font_size,
                                         epub_content_width,
