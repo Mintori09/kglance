@@ -1069,6 +1069,53 @@ fn test_rescale_markdown_scroll_y() {
 }
 
 #[test]
+fn test_inlines_metrics_accuracy() {
+    use crate::features::markdown::parser::layout::inlines_metrics;
+    let inlines = vec![
+        Inline::Text("Hello ".to_string()),
+        Inline::Bold(vec![Inline::Text("world".to_string())]),
+        Inline::Text("! Multi\nline text with CJK: 漢字".to_string()),
+    ];
+    let (visual_units, lines) = inlines_metrics(&inlines);
+    assert_eq!(lines, 2);
+    assert_eq!(visual_units, 42);
+}
+
+#[test]
+fn test_fast_rescale_and_update_markdown_layout_anchoring() {
+    let doc =
+        "# Chapter 1\n\nParagraph 1\n\nParagraph 2\n\n# Chapter 2\n\nParagraph 3\n\nParagraph 4";
+    let blocks = parse_to_blocks(doc);
+    let mut state = crate::core::types::MarkdownState::default();
+    let content_width = 800.0;
+
+    crate::features::markdown::state::recompute_markdown_layout(
+        &mut state,
+        &blocks,
+        14.0,
+        content_width,
+    );
+    assert_eq!(state.block_y_offsets.len(), blocks.len());
+    let initial_ch2_y = state.block_y_offsets[3];
+    state.scroll_y = initial_ch2_y;
+
+    // Rescale font from 14.0 to 20.0
+    let new_y = crate::features::markdown::state::rescale_and_update_markdown_layout(
+        &mut state,
+        &blocks,
+        14.0,
+        20.0,
+        content_width,
+    );
+
+    // New scroll_y should equal chapter 2's new y offset
+    let new_ch2_y = state.block_y_offsets[3];
+    assert_eq!(new_y, new_ch2_y);
+    assert_eq!(state.scroll_y, new_ch2_y);
+    assert!(new_ch2_y > initial_ch2_y);
+}
+
+#[test]
 fn test_virtual_scroll_top_and_bottom_invariants() {
     use std::collections::HashMap;
     let path = "/home/mintori/Desktop/Buổi 1.md";

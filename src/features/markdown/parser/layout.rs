@@ -5,6 +5,78 @@ use super::flatten::flatten_inlines_toc;
 use super::layout_constants::{self as lc, heading_layout, scale_size};
 use crate::core::TocEntry;
 
+pub fn inlines_metrics(inlines: &[super::Inline]) -> (usize, usize) {
+    let mut visual_units = 0;
+    let mut explicit_newlines = 0;
+    count_inlines_metrics(inlines, &mut visual_units, &mut explicit_newlines);
+    (visual_units, explicit_newlines + 1)
+}
+
+fn count_inlines_metrics(
+    inlines: &[super::Inline],
+    visual_units: &mut usize,
+    explicit_newlines: &mut usize,
+) {
+    use super::Inline;
+    for inline in inlines {
+        match inline {
+            Inline::Text(t) => {
+                count_str_metrics(t, visual_units, explicit_newlines, true);
+            }
+            Inline::Bold(c) | Inline::Italic(c) | Inline::Strikethrough(c) => {
+                count_inlines_metrics(c, visual_units, explicit_newlines);
+            }
+            Inline::Code(t) => {
+                *visual_units += 2;
+                count_str_metrics(t, visual_units, explicit_newlines, false);
+            }
+            Inline::Link { text, .. } => {
+                count_inlines_metrics(text, visual_units, explicit_newlines);
+            }
+            Inline::Image { alt, .. } => {
+                count_str_metrics(alt, visual_units, explicit_newlines, false);
+            }
+            Inline::InlineMath(latex) | Inline::DisplayMath(latex) => {
+                count_str_metrics(latex, visual_units, explicit_newlines, false);
+            }
+            Inline::FootnoteReference(label) => {
+                *visual_units += 3 + label.len();
+            }
+            Inline::SoftBreak => {
+                *visual_units += 1;
+            }
+        }
+    }
+}
+
+fn count_str_metrics(
+    s: &str,
+    visual_units: &mut usize,
+    explicit_newlines: &mut usize,
+    strip_anchors: bool,
+) {
+    if strip_anchors
+        && (s.contains("<a") || s.contains("<A") || s.contains("</a") || s.contains("</A"))
+    {
+        let stripped = super::flatten::strip_anchor_tags(s);
+        count_str_metrics(&stripped, visual_units, explicit_newlines, false);
+        return;
+    }
+    for c in s.chars() {
+        if c == '\n' {
+            *explicit_newlines += 1;
+        } else if ('\u{2E80}'..='\u{9FFF}').contains(&c)
+            || ('\u{3040}'..='\u{30FF}').contains(&c)
+            || ('\u{AC00}'..='\u{D7AF}').contains(&c)
+            || ('\u{FF01}'..='\u{FF60}').contains(&c)
+        {
+            *visual_units += 2;
+        } else {
+            *visual_units += 1;
+        }
+    }
+}
+
 pub fn intrinsic_block_height(
     block: &Block,
     font_size: f32,
@@ -28,11 +100,9 @@ pub fn intrinsic_block_height(
             } else {
                 0.0
             };
-            let text = flatten_inlines_toc(content);
-            let explicit_lines = text.lines().count().max(1);
+            let (visual_units, explicit_lines) = inlines_metrics(content);
             let available_w = effective_width.max(100.0);
             let chars_per_line = (available_w / (layout.font_size * 0.50)).max(10.0) as usize;
-            let visual_units = text.chars().count();
             let wrapped_lines = (visual_units as f32 / chars_per_line as f32)
                 .ceil()
                 .max(1.0) as usize;
@@ -41,24 +111,9 @@ pub fn intrinsic_block_height(
             layout.padding_top + text_h + layout.padding_bottom + div
         }
         Block::Paragraph(inlines) => {
-            let text = flatten_inlines_toc(inlines);
-            let explicit_lines = text.lines().count().max(1);
+            let (visual_units, explicit_lines) = inlines_metrics(inlines);
             let available_w = effective_width.max(100.0);
             let chars_per_line = (available_w / (font_size * 0.50)).max(15.0) as usize;
-            let visual_units = text
-                .chars()
-                .map(|c| {
-                    if ('\u{2E80}'..='\u{9FFF}').contains(&c)
-                        || ('\u{3040}'..='\u{30FF}').contains(&c)
-                        || ('\u{AC00}'..='\u{D7AF}').contains(&c)
-                        || ('\u{FF01}'..='\u{FF60}').contains(&c)
-                    {
-                        2
-                    } else {
-                        1
-                    }
-                })
-                .sum::<usize>();
             let wrapped_lines = (visual_units as f32 / chars_per_line as f32)
                 .ceil()
                 .max(1.0) as usize;
@@ -96,7 +151,7 @@ pub fn intrinsic_block_height(
                     .headers
                     .iter()
                     .map(|cell| {
-                        let len = flatten_inlines_toc(&cell.content).chars().count();
+                        let len = inlines_metrics(&cell.content).0;
                         (len / approx_col_chars + 1) as f32
                     })
                     .fold(1.0, f32::max);
@@ -107,7 +162,7 @@ pub fn intrinsic_block_height(
                 let row_lines = row
                     .iter()
                     .map(|cell| {
-                        let len = flatten_inlines_toc(&cell.content).chars().count();
+                        let len = inlines_metrics(&cell.content).0;
                         (len / approx_col_chars + 1) as f32
                     })
                     .fold(1.0, f32::max);
@@ -134,22 +189,7 @@ pub fn intrinsic_block_height(
                     || item.is_task.is_some()
                     || item.sub_blocks.is_empty();
                 let mut item_h = if has_direct_content {
-                    let text = flatten_inlines_toc(&item.content);
-                    let explicit_lines = text.lines().count().max(1);
-                    let visual_units = text
-                        .chars()
-                        .map(|c| {
-                            if ('\u{2E80}'..='\u{9FFF}').contains(&c)
-                                || ('\u{3040}'..='\u{30FF}').contains(&c)
-                                || ('\u{AC00}'..='\u{D7AF}').contains(&c)
-                                || ('\u{FF01}'..='\u{FF60}').contains(&c)
-                            {
-                                2
-                            } else {
-                                1
-                            }
-                        })
-                        .sum::<usize>();
+                    let (visual_units, explicit_lines) = inlines_metrics(&item.content);
                     let wrapped_lines = (visual_units as f32 / chars_per_line as f32)
                         .ceil()
                         .max(1.0) as usize;
@@ -316,6 +356,23 @@ pub fn slugify(text: &str) -> String {
         slug.remove(0);
     }
     slug
+}
+
+pub fn extract_toc_from_offsets(blocks: &[Block], offsets: &[f32]) -> Vec<TocEntry> {
+    let mut toc = Vec::new();
+    for (i, block) in blocks.iter().enumerate() {
+        if let Block::Heading { level, content } = block {
+            let text = flatten_inlines_toc(content);
+            let y_offset = offsets.get(i).copied().unwrap_or(0.0) + lc::CONTENT_PADDING;
+            toc.push(TocEntry {
+                level: *level,
+                text,
+                block_index: i,
+                y_offset,
+            });
+        }
+    }
+    toc
 }
 
 pub fn extract_toc(

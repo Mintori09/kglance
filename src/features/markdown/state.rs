@@ -37,16 +37,37 @@ pub fn compute_block_layouts(
     content_width: f32,
 ) -> (Vec<BlockLayout>, Vec<f32>, f32) {
     let padding_v = lc::CONTENT_PADDING * 2.0;
-    let mut layouts = Vec::with_capacity(blocks.len());
-    let mut offsets = Vec::with_capacity(blocks.len());
-    let mut y: f32 = 0.0;
-    for (i, block) in blocks.iter().enumerate() {
-        offsets.push(y);
-        let est_h = estimated_block_height(block, font_size, i, image_sizes, content_width);
-        layouts.push(BlockLayout::new(est_h));
-        y += est_h;
+    let num_blocks = blocks.len();
+    let mut layouts = Vec::with_capacity(num_blocks);
+    let mut offsets = Vec::with_capacity(num_blocks);
+
+    if num_blocks > 1000 {
+        use rayon::prelude::*;
+        let heights: Vec<f32> = blocks
+            .par_iter()
+            .enumerate()
+            .map(|(i, block)| {
+                estimated_block_height(block, font_size, i, image_sizes, content_width)
+            })
+            .collect();
+
+        let mut y: f32 = 0.0;
+        for est_h in heights {
+            offsets.push(y);
+            layouts.push(BlockLayout::new(est_h));
+            y += est_h;
+        }
+        (layouts, offsets, y + padding_v)
+    } else {
+        let mut y: f32 = 0.0;
+        for (i, block) in blocks.iter().enumerate() {
+            offsets.push(y);
+            let est_h = estimated_block_height(block, font_size, i, image_sizes, content_width);
+            layouts.push(BlockLayout::new(est_h));
+            y += est_h;
+        }
+        (layouts, offsets, y + padding_v)
     }
-    (layouts, offsets, y + padding_v)
 }
 
 pub fn rebuild_block_offsets(layouts: &[BlockLayout], _font_size: f32) -> (Vec<f32>, f32) {
@@ -187,7 +208,15 @@ pub fn recompute_markdown_layout(
 ) {
     let (layouts, offsets, total_h) =
         compute_block_layouts(blocks, font_size, &state.cached_image_sizes, content_width);
-    state.toc = extract_toc(blocks, font_size, &state.cached_image_sizes, content_width);
+    if state.toc.is_empty() {
+        state.toc = crate::parsers::markdown::extract_toc_from_offsets(blocks, &offsets);
+    } else {
+        for entry in &mut state.toc {
+            if let Some(&y) = offsets.get(entry.block_index) {
+                entry.y_offset = lc::CONTENT_PADDING + y;
+            }
+        }
+    }
     state.block_layouts = layouts;
     state.block_y_offsets = offsets;
     state.total_content_height = total_h;
@@ -202,15 +231,59 @@ pub fn rescale_and_update_markdown_layout(
     new_size: f32,
     content_width: f32,
 ) -> f32 {
-    let new_scroll_y = crate::parsers::markdown::rescale_markdown_scroll_y(
-        blocks,
-        state.scroll_y,
-        old_size,
-        new_size,
-        &state.cached_image_sizes,
-        content_width,
-    );
+    if blocks.is_empty() {
+        return 0.0;
+    }
+
+    let (anchor_idx, progress) = if !state.block_y_offsets.is_empty()
+        && state.block_y_offsets.len() == blocks.len()
+        && state.scroll_y > 0.0
+    {
+        let idx = state
+            .block_y_offsets
+            .partition_point(|&y| y <= state.scroll_y)
+            .saturating_sub(1);
+        let old_anchor_y = state.block_y_offsets[idx];
+        let old_block_h = if idx + 1 < state.block_y_offsets.len() {
+            state.block_y_offsets[idx + 1] - old_anchor_y
+        } else {
+            state
+                .block_layouts
+                .get(idx)
+                .map_or(0.0, BlockLayout::effective_height)
+        };
+        let prog = if old_block_h > 0.0 {
+            ((state.scroll_y - old_anchor_y) / old_block_h).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        (Some(idx), prog)
+    } else {
+        (None, 0.0)
+    };
+
     recompute_markdown_layout(state, blocks, new_size, content_width);
+
+    let new_scroll_y = if let Some(idx) = anchor_idx {
+        let new_anchor_y = state.block_y_offsets.get(idx).copied().unwrap_or(0.0);
+        let new_block_h = state
+            .block_layouts
+            .get(idx)
+            .map_or(0.0, BlockLayout::effective_height);
+        (new_anchor_y + progress * new_block_h).max(0.0)
+    } else if state.scroll_y <= 0.0 {
+        0.0
+    } else {
+        crate::parsers::markdown::rescale_markdown_scroll_y(
+            blocks,
+            state.scroll_y,
+            old_size,
+            new_size,
+            &state.cached_image_sizes,
+            content_width,
+        )
+    };
+
     state.scroll_y = new_scroll_y;
     new_scroll_y
 }
