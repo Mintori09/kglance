@@ -40,31 +40,33 @@ pub fn view_typst<'a>(
             let banner = iced::widget::container(
                 iced::widget::column![
                     iced::widget::text("Typst Compilation Warning / Error:")
-                        .size(13.0)
+                        .size(crate::ui::theme::tokens::typography::BODY_MD)
                         .style(move |_: &iced::Theme| iced::widget::text::Style {
                             color: Some(roles.danger),
                         }),
                     iced::widget::text(err_msg)
-                        .size(11.0)
+                        .size(crate::ui::theme::tokens::typography::CAPTION)
                         .style(move |_: &iced::Theme| iced::widget::text::Style {
                             color: Some(base.text_dim),
                         })
                 ]
-                .spacing(4),
+                .spacing(crate::ui::theme::tokens::spacing::XS),
             )
-            .padding(8.0)
+            .padding(crate::ui::theme::tokens::spacing::S)
             .width(iced::Length::Fill)
             .style(move |_: &iced::Theme| iced::widget::container::Style {
                 background: Some(iced::Background::Color(base.surface_raised)),
                 border: iced::Border {
                     color: roles.danger,
                     width: 1.0,
-                    radius: 4.0.into(),
+                    radius: crate::ui::theme::tokens::radius::SM.into(),
                 },
                 ..Default::default()
             });
 
-            iced::widget::column![banner, editor_pane].spacing(6).into()
+            iced::widget::column![banner, editor_pane]
+                .spacing(crate::ui::theme::tokens::spacing::XS + 2.0)
+                .into()
         } else {
             editor_pane
         }

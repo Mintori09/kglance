@@ -7,6 +7,8 @@ use iced::widget::{
 use iced::{Alignment, Color, Element, Length, Padding};
 use iced_video_player::VideoPlayer;
 
+use crate::ui::theme::tokens::{elevation, radius, spacing, typography};
+
 const SEEK_STEP: f32 = 0.001;
 const SEEK_SKIP_SECONDS: f32 = 10.0;
 
@@ -19,11 +21,8 @@ static SVG_REWIND: &[u8] =
 static SVG_FAST_FORWARD: &[u8] =
     br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>"#;
 
-const STATUS_TEXT_SIZE: f32 = 14.0;
-const TIME_TEXT_SIZE: f32 = 12.0;
-
-const ICON_COLOR: Color = Color::from_rgba(0.92, 0.92, 0.95, 1.0);
-const TIME_COLOR: Color = Color::from_rgba(0.82, 0.82, 0.86, 1.0);
+const STATUS_TEXT_SIZE: f32 = typography::TITLE_SM;
+const TIME_TEXT_SIZE: f32 = typography::BODY;
 
 const PILL_MAX_WIDTH: f32 = 620.0;
 const PILL_PADDING: Padding = Padding {
@@ -33,12 +32,12 @@ const PILL_PADDING: Padding = Padding {
     left: 14.0,
 };
 const PILL_BOTTOM_MARGIN: f32 = 18.0;
-const PILL_SIDE_MARGIN: f32 = 24.0;
+const PILL_SIDE_MARGIN: f32 = spacing::XL;
 
 const BOTTOM_TRIGGER_ZONE_HEIGHT: f32 = 110.0;
 
-const CONTROLS_SPACING: f32 = 4.0;
-const ACTION_ROW_SPACING: f32 = 4.0;
+const CONTROLS_SPACING: f32 = spacing::XS;
+const ACTION_ROW_SPACING: f32 = spacing::XS;
 
 pub fn view_media<'a>(
     state: &'a MediaState,
@@ -148,32 +147,34 @@ fn render_subtitles_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
 
     let sub_box = container(
         text(sub_text.as_str())
-            .size(16.0)
+            .size(typography::TITLE)
             .align_x(iced::alignment::Horizontal::Center)
-            .style(|_theme| iced::widget::text::Style {
-                color: Some(Color::WHITE),
+            .style(|theme: &iced::Theme| {
+                let overlay = crate::ui::theme::AppTheme::from(theme).palette().overlay;
+                iced::widget::text::Style {
+                    color: Some(overlay.floating_fg),
+                }
             }),
     )
-    .style(|_theme| container::Style {
-        background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.75).into()),
-        border: iced::Border {
-            radius: 6.0.into(),
-            width: 0.0,
-            color: Color::TRANSPARENT,
-        },
-        shadow: iced::Shadow {
-            color: Color::from_rgba(0.0, 0.0, 0.0, 0.4),
-            offset: iced::Vector::new(0.0, 2.0),
-            blur_radius: 6.0,
-        },
-        snap: false,
-        ..Default::default()
+    .style(|theme: &iced::Theme| {
+        let overlay = crate::ui::theme::AppTheme::from(theme).palette().overlay;
+        container::Style {
+            background: Some(overlay.floating_bg.into()),
+            border: iced::Border {
+                radius: radius::MD.into(),
+                width: 0.0,
+                color: Color::TRANSPARENT,
+            },
+            shadow: elevation::medium(overlay.floating_shadow),
+            snap: false,
+            ..Default::default()
+        }
     })
     .padding(Padding {
-        top: 4.0,
-        right: 12.0,
-        bottom: 4.0,
-        left: 12.0,
+        top: spacing::XS,
+        right: spacing::M,
+        bottom: spacing::XS,
+        left: spacing::M,
     })
     .max_width(720.0);
 
@@ -187,9 +188,9 @@ fn render_subtitles_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
     .height(Length::Fill)
     .padding(Padding {
         top: 0.0,
-        right: 24.0,
+        right: spacing::XL,
         bottom: bottom_margin,
-        left: 24.0,
+        left: spacing::XL,
     })
     .center_x(Length::Fill)
     .into()
@@ -232,22 +233,31 @@ fn render_controls_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
     let rewind_icon = svg(svg::Handle::from_memory(SVG_REWIND))
         .width(Length::Fixed(14.0))
         .height(Length::Fixed(14.0))
-        .style(|_theme: &iced::Theme, _status| svg::Style {
-            color: Some(ICON_COLOR),
+        .style(|theme: &iced::Theme, _status| {
+            let overlay = crate::ui::theme::AppTheme::from(theme).palette().overlay;
+            svg::Style {
+                color: Some(overlay.floating_fg),
+            }
         });
 
     let play_pause_icon = svg(svg::Handle::from_memory(play_pause_svg))
-        .width(Length::Fixed(16.0))
-        .height(Length::Fixed(16.0))
-        .style(|_theme: &iced::Theme, _status| svg::Style {
-            color: Some(ICON_COLOR),
+        .width(Length::Fixed(typography::TITLE))
+        .height(Length::Fixed(typography::TITLE))
+        .style(|theme: &iced::Theme, _status| {
+            let overlay = crate::ui::theme::AppTheme::from(theme).palette().overlay;
+            svg::Style {
+                color: Some(overlay.floating_fg),
+            }
         });
 
     let fast_forward_icon = svg(svg::Handle::from_memory(SVG_FAST_FORWARD))
         .width(Length::Fixed(14.0))
         .height(Length::Fixed(14.0))
-        .style(|_theme: &iced::Theme, _status| svg::Style {
-            color: Some(ICON_COLOR),
+        .style(|theme: &iced::Theme, _status| {
+            let overlay = crate::ui::theme::AppTheme::from(theme).palette().overlay;
+            svg::Style {
+                color: Some(overlay.floating_fg),
+            }
         });
 
     let rewind_btn = button(rewind_icon)
@@ -292,23 +302,22 @@ fn render_controls_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
             "CC".to_string()
         };
 
-        let cc_color = if is_on {
-            Color::WHITE
-        } else {
-            Color::from_rgba(0.55, 0.55, 0.60, 1.0)
-        };
-
-        let cc_btn =
-            button(
-                text(label)
-                    .size(11.0)
-                    .style(move |_theme| iced::widget::text::Style {
-                        color: Some(cc_color),
-                    }),
-            )
-            .on_press(crate::app::messages::MediaMsg::CycleSubtitleTrack.into())
-            .style(video_pill_button)
-            .padding([3, 7]);
+        let cc_btn = button(text(label).size(typography::CAPTION).style(
+            move |theme: &iced::Theme| {
+                let overlay = crate::ui::theme::AppTheme::from(theme).palette().overlay;
+                let cc_color = if is_on {
+                    overlay.floating_fg
+                } else {
+                    overlay.floating_text_muted
+                };
+                iced::widget::text::Style {
+                    color: Some(cc_color),
+                }
+            },
+        ))
+        .on_press(crate::app::messages::MediaMsg::CycleSubtitleTrack.into())
+        .style(video_pill_button)
+        .padding([3, 7]);
 
         action_items.push(cc_btn.into());
     }
@@ -316,8 +325,11 @@ fn render_controls_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
     action_items.push(
         text(time_label)
             .size(TIME_TEXT_SIZE)
-            .style(|_theme| iced::widget::text::Style {
-                color: Some(TIME_COLOR),
+            .style(|theme: &iced::Theme| {
+                let overlay = crate::ui::theme::AppTheme::from(theme).palette().overlay;
+                iced::widget::text::Style {
+                    color: Some(overlay.floating_text_dim),
+                }
             })
             .into(),
     );

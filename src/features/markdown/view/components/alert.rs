@@ -9,29 +9,16 @@ use iced::font::Weight;
 use iced::widget::{column, container, row, text};
 use iced::{Color, Element, Font, Length, Padding};
 
-fn alert_colors(kind: AlertKind, _theme: AppTheme) -> (Color, Color) {
-    match kind {
-        AlertKind::Note => (
-            Color::from_rgb(0.2, 0.5, 0.9),
-            Color::from_rgba(0.2, 0.5, 0.9, 0.08),
-        ),
-        AlertKind::Tip => (
-            Color::from_rgb(0.18, 0.68, 0.38),
-            Color::from_rgba(0.18, 0.68, 0.38, 0.08),
-        ),
-        AlertKind::Important => (
-            Color::from_rgb(0.58, 0.34, 0.88),
-            Color::from_rgba(0.58, 0.34, 0.88, 0.08),
-        ),
-        AlertKind::Warning => (
-            Color::from_rgb(0.92, 0.58, 0.12),
-            Color::from_rgba(0.92, 0.58, 0.12, 0.08),
-        ),
-        AlertKind::Caution => (
-            Color::from_rgb(0.92, 0.28, 0.28),
-            Color::from_rgba(0.92, 0.28, 0.28, 0.08),
-        ),
-    }
+fn alert_colors(kind: AlertKind, theme: AppTheme) -> (Color, Color) {
+    let alerts = theme.palette().alerts;
+    let group = match kind {
+        AlertKind::Note => alerts.note,
+        AlertKind::Tip => alerts.tip,
+        AlertKind::Important => alerts.info,
+        AlertKind::Warning => alerts.warning,
+        AlertKind::Caution => alerts.caution,
+    };
+    (group.fg, group.bg)
 }
 
 fn alert_title(kind: AlertKind) -> &'static str {

@@ -112,7 +112,7 @@ fn render_highlighted_text<'a>(
                     .font(font),
             )
             .style(|_t| container::Style {
-                background: Some(Color::from_rgb8(255, 220, 80).into()),
+                background: Some(crate::ui::theme::color::primitive::MD_LIGHT_SEARCH_ACTIVE.into()),
                 ..container::Style::default()
             })
             .padding([0, 1])
