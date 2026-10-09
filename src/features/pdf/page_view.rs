@@ -302,7 +302,7 @@ where
                     handle: handle.clone(),
                     filter_method: image::FilterMethod::Linear,
                     rotation: iced::Radians(0.0),
-                    border_radius: iced::border::Radius::default(),
+                    border_radius: crate::ui::theme::tokens::radius::SM.into(),
                     opacity: 1.0,
                     snap: false,
                 },

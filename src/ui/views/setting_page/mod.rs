@@ -28,7 +28,16 @@ const FALLBACK_DEFAULT_HEIGHT: u32 = 768;
 const FALLBACK_MIN_WIDTH: u32 = 800;
 const FALLBACK_MIN_HEIGHT: u32 = 600;
 
-const AVAILABLE_THEMES: [&str; 4] = ["Auto", "Dark", "Light", "Nord"];
+const AVAILABLE_THEMES: [&str; 8] = [
+    "Dark",
+    "Light",
+    "Catppuccin Mocha",
+    "Catppuccin Latte",
+    "Tokyo Night",
+    "Gruvbox Dark",
+    "Nord",
+    "Dracula",
+];
 
 pub fn settings_page<'a>(
     theme: &Theme,
@@ -137,10 +146,15 @@ pub fn get_system_fonts() -> Vec<String> {
 fn build_theme_section<'a>(theme: &Theme, config: &'a UiConfig) -> Element<'a, Message> {
     let base_colors = BaseColors::palette(theme);
     let themes: Vec<String> = AVAILABLE_THEMES.iter().map(|&t| t.to_string()).collect();
-    let theme_picker = pick_list(themes, config.theme.clone(), |theme| {
+    let current_theme = config.theme.as_ref().map(|t| {
+        let app_theme = crate::core::config::ConfigManager::resolve_theme(t);
+        app_theme.display_name().to_string()
+    });
+
+    let theme_picker = pick_list(themes, current_theme, |theme| {
         Message::Settings(SettingsMsg::ThemeChanged(theme))
     })
-    .placeholder("System Default (Auto)")
+    .placeholder("Dark")
     .style({
         let theme = theme.clone();
         move |_, status| default_pick_list(&theme, status)

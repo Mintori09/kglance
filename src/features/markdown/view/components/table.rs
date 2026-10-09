@@ -3,7 +3,7 @@ use super::style::{
     table_separator_style,
 };
 use crate::app::Message;
-use crate::features::markdown::view::components::render_inlines;
+use crate::features::markdown::view::components::{render_inlines, render_inlines_styled};
 use crate::parsers::markdown::TableBlock;
 use crate::ui::theme::scale_size;
 use crate::ui::types::RenderContext;
@@ -35,6 +35,9 @@ pub(crate) fn render_table<'a>(
         })
         .collect();
 
+    let theme = ctx.theme;
+    let header_text_color = theme.palette().markdown.table_header_text;
+
     let header_cells: Vec<Element<'a, Message>> = table
         .headers
         .iter()
@@ -44,7 +47,13 @@ pub(crate) fn render_table<'a>(
                 block_index: ctx.block_index + i + 1,
                 ..*ctx
             };
-            let cell = render_inlines(&header.content, header_size, &cell_ctx);
+            let cell = render_inlines_styled(
+                &header.content,
+                header_size,
+                Some(iced::font::Weight::Semibold),
+                Some(header_text_color),
+                &cell_ctx,
+            );
             let width = col_widths.get(i).copied().unwrap_or(Length::FillPortion(1));
             container(cell)
                 .padding(STYLE.table.header_padding)
@@ -53,13 +62,14 @@ pub(crate) fn render_table<'a>(
         })
         .collect();
 
-    let theme = ctx.theme;
+    let has_rows = !table.rows.is_empty();
     let header_row = container(row(header_cells).spacing(0))
-        .style(move |_: &iced::Theme| table_header_style(theme));
+        .width(Length::Fill)
+        .style(move |_: &iced::Theme| table_header_style(theme, has_rows));
 
     let mut children: Vec<Element<'a, Message>> = vec![header_row.into()];
 
-    if !table.rows.is_empty() {
+    if has_rows {
         let separator = container(text(""))
             .style(move |_: &iced::Theme| table_separator_style(theme))
             .height(STYLE.general.divider_height)
@@ -68,6 +78,14 @@ pub(crate) fn render_table<'a>(
     }
 
     for (row_index, row_data) in table.rows.iter().enumerate() {
+        if row_index > 0 {
+            let separator = container(text(""))
+                .style(move |_: &iced::Theme| table_separator_style(theme))
+                .height(STYLE.general.divider_height)
+                .width(Length::Fill);
+            children.push(separator.into());
+        }
+
         let cells: Vec<Element<'a, Message>> = row_data
             .iter()
             .enumerate()
@@ -88,7 +106,8 @@ pub(crate) fn render_table<'a>(
         let row_widget = row(cells).spacing(0);
         children.push(
             container(row_widget)
-                .style(move |_: &iced::Theme| table_row_background_style(theme, row_index))
+                .width(Length::Fill)
+                .style(move |_: &iced::Theme| table_row_background_style(theme))
                 .into(),
         );
     }

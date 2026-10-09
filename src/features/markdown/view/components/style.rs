@@ -256,11 +256,26 @@ pub(super) fn divider_line_style(theme: AppTheme) -> container::Style {
     }
 }
 
-pub(super) fn table_header_style(theme: AppTheme) -> container::Style {
+pub(super) fn table_header_style(theme: AppTheme, has_rows: bool) -> container::Style {
     let mp = theme.palette().markdown;
+    let r = STYLE.table.border_radius;
+    let radius = if has_rows {
+        iced::border::Radius {
+            top_left: r,
+            top_right: r,
+            bottom_right: 0.0,
+            bottom_left: 0.0,
+        }
+    } else {
+        r.into()
+    };
     container::Style {
         background: Some(mp.table_header_bg.into()),
         text_color: Some(mp.table_header_text),
+        border: Border {
+            radius,
+            ..Default::default()
+        },
         ..Default::default()
     }
 }
@@ -273,22 +288,18 @@ pub(super) fn table_separator_style(theme: AppTheme) -> container::Style {
     }
 }
 
-pub(super) fn table_row_background_style(theme: AppTheme, row_index: usize) -> container::Style {
-    let p = theme.palette().base;
-    let bg = if row_index.is_multiple_of(2) {
-        p.surface
-    } else {
-        p.bg
-    };
+pub(super) fn table_row_background_style(_theme: AppTheme) -> container::Style {
     container::Style {
-        background: Some(bg.into()),
+        background: None,
         ..Default::default()
     }
 }
 
 pub(super) fn table_border_style(theme: AppTheme) -> container::Style {
+    let p = theme.palette().base;
     let mp = theme.palette().markdown;
     container::Style {
+        background: Some(p.surface.into()),
         border: Border {
             color: mp.table_border,
             width: 1.0,

@@ -1226,7 +1226,16 @@ pub fn rescale_markdown_font(app: &mut KglanceApp, new_size: f32) -> Option<Task
     }
     app.state.font_size = new_size;
 
-    match app.current_content {
+    let mut config = app.load_config();
+    config.ui.font_size = new_size;
+    let _ = app.save_config(&config);
+
+    app.state
+        .toasts
+        .retain(|t| !t.message.starts_with("Font Size:"));
+    let toast = app.show_toast(format!("Font Size: {:.0}px", new_size));
+
+    let scroll_task = match app.current_content {
         Some(PreviewData::Markdown { ref blocks, .. }) => {
             let content_width = app.state.markdown_content_width();
             let new_scroll_y = crate::features::markdown::rescale_and_update_markdown_layout(
@@ -1236,13 +1245,13 @@ pub fn rescale_markdown_font(app: &mut KglanceApp, new_size: f32) -> Option<Task
                 new_size,
                 content_width,
             );
-            Some(iced::widget::operation::scroll_to(
+            iced::widget::operation::scroll_to(
                 "content_scroll",
                 iced::widget::operation::AbsoluteOffset {
                     x: 0.0,
                     y: new_scroll_y,
                 },
-            ))
+            )
         }
         Some(PreviewData::Epub { .. }) => {
             let blocks = if app.state.epub.reading_mode
@@ -1266,19 +1275,21 @@ pub fn rescale_markdown_font(app: &mut KglanceApp, new_size: f32) -> Option<Task
                     new_size,
                     epub_content_width,
                 );
-                Some(iced::widget::operation::scroll_to(
+                iced::widget::operation::scroll_to(
                     "content_scroll",
                     iced::widget::operation::AbsoluteOffset {
                         x: 0.0,
                         y: new_scroll_y,
                     },
-                ))
+                )
             } else {
-                Some(Task::none())
+                Task::none()
             }
         }
-        _ => None,
-    }
+        _ => Task::none(),
+    };
+
+    Some(Task::batch([scroll_task, toast]))
 }
 
 #[cfg(test)]

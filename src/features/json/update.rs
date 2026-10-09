@@ -551,7 +551,16 @@ pub fn rescale_json_font(app: &mut KglanceApp, new_size: f32) -> Option<Task<Mes
     }
     app.state.font_size = new_size;
 
-    if app.state.json.tree_mode {
+    let mut config = app.load_config();
+    config.ui.font_size = new_size;
+    let _ = app.save_config(&config);
+
+    app.state
+        .toasts
+        .retain(|t| !t.message.starts_with("Font Size:"));
+    let toast = app.show_toast(format!("Font Size: {:.0}px", new_size));
+
+    let scroll_task = if app.state.json.tree_mode {
         let old_row_h = crate::features::json::view::tree::json_row_height(old_size);
         let new_row_h = crate::features::json::view::tree::json_row_height(new_size);
         let node_index = if old_row_h > 0.0 {
@@ -561,13 +570,13 @@ pub fn rescale_json_font(app: &mut KglanceApp, new_size: f32) -> Option<Task<Mes
         };
         let new_scroll_y = (node_index * new_row_h).max(0.0);
         app.state.json.scroll_y = new_scroll_y;
-        Some(iced::widget::operation::scroll_to(
+        iced::widget::operation::scroll_to(
             "content_scroll",
             iced::widget::operation::AbsoluteOffset {
                 x: 0.0,
                 y: new_scroll_y,
             },
-        ))
+        )
     } else {
         let win_w = app.state.current_window_size.width;
         let theme = app.state.app_theme;
@@ -581,12 +590,14 @@ pub fn rescale_json_font(app: &mut KglanceApp, new_size: f32) -> Option<Task<Mes
             theme,
         );
         app.state.json.scroll_y = new_scroll_y;
-        Some(iced::widget::operation::scroll_to(
+        iced::widget::operation::scroll_to(
             "json_raw_scroll",
             iced::widget::operation::AbsoluteOffset {
                 x: 0.0,
                 y: new_scroll_y,
             },
-        ))
-    }
+        )
+    };
+
+    Some(Task::batch([scroll_task, toast]))
 }

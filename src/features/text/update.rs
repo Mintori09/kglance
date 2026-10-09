@@ -786,6 +786,15 @@ pub fn rescale_text_font(app: &mut KglanceApp, new_size: f32) -> Option<Task<Mes
     }
     app.state.font_size = new_size;
 
+    let mut config = app.load_config();
+    config.ui.font_size = new_size;
+    let _ = app.save_config(&config);
+
+    app.state
+        .toasts
+        .retain(|t| !t.message.starts_with("Font Size:"));
+    let toast = app.show_toast(format!("Font Size: {:.0}px", new_size));
+
     let win_w = app.state.current_window_size.width;
     let theme = app.state.app_theme;
     let word_wrap = app.state.word_wrap;
@@ -797,46 +806,52 @@ pub fn rescale_text_font(app: &mut KglanceApp, new_size: f32) -> Option<Task<Mes
         win_w,
         theme,
     );
-    Some(iced::widget::operation::scroll_to(
+    let scroll_task = iced::widget::operation::scroll_to(
         "content_scroll",
         iced::widget::operation::AbsoluteOffset {
             x: 0.0,
             y: new_scroll_y,
         },
-    ))
+    );
+    Some(Task::batch([scroll_task, toast]))
 }
 
-pub fn rescale_text_state_font(
-    text_state: &mut crate::core::TextState,
-    app_font_size: &mut f32,
-    new_size: f32,
-    word_wrap: bool,
-    fallback_window_width: f32,
-    theme: crate::ui::theme::AppTheme,
-    scroll_id: &'static str,
-) -> Option<Task<Message>> {
-    let old_size = *app_font_size;
+pub fn rescale_typst_font(app: &mut KglanceApp, new_size: f32) -> Option<Task<Message>> {
+    let old_size = app.state.font_size;
     let new_size = new_size.clamp(FONT_MIN, FONT_MAX);
     if (new_size - old_size).abs() < f32::EPSILON {
         return Some(Task::none());
     }
-    *app_font_size = new_size;
+    app.state.font_size = new_size;
 
+    let mut config = app.load_config();
+    config.ui.font_size = new_size;
+    let _ = app.save_config(&config);
+
+    app.state
+        .toasts
+        .retain(|t| !t.message.starts_with("Font Size:"));
+    let toast = app.show_toast(format!("Font Size: {:.0}px", new_size));
+
+    let win_w = app.state.current_window_size.width;
+    let theme = app.state.app_theme;
+    let word_wrap = app.state.word_wrap;
     let new_scroll_y = rescale_text_geometry(
-        text_state,
+        &mut app.state.typst.source_text,
         old_size,
         new_size,
         word_wrap,
-        fallback_window_width,
+        win_w,
         theme,
     );
-    Some(iced::widget::operation::scroll_to(
-        scroll_id,
+    let scroll_task = iced::widget::operation::scroll_to(
+        "typst_source_scroll",
         iced::widget::operation::AbsoluteOffset {
             x: 0.0,
             y: new_scroll_y,
         },
-    ))
+    );
+    Some(Task::batch([scroll_task, toast]))
 }
 
 #[cfg(test)]

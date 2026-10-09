@@ -47,9 +47,9 @@ fn left_metadata_text(state: &KglanceState) -> String {
 }
 
 fn metadata_style(theme: &iced::Theme) -> iced::widget::text::Style {
-    let palette = theme.extended_palette();
+    let p = crate::ui::theme::color::BaseColors::palette(theme);
     iced::widget::text::Style {
-        color: Some(palette.background.weak.text),
+        color: Some(p.text_dim),
     }
 }
 
@@ -76,13 +76,10 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     .spacing(spacing::S)
     .align_y(Alignment::Center);
 
-    let font_badge = font_size_indicator(state);
-
     let right_row = row![
         text(right).size(typography::CAPTION).style(metadata_style),
         typst,
         info,
-        font_badge,
         setting_button(),
     ]
     .spacing(spacing::S)
@@ -179,29 +176,6 @@ fn page_indicator<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
             .style(metadata_style)
             .into(),
     )
-}
-
-fn font_size_indicator<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
-    let is_scalable = file_has_extension(state, "md")
-        || file_has_extension(state, "markdown")
-        || file_has_extension(state, "epub")
-        || state.file_type_text.contains("EPUB")
-        || file_has_extension(state, "txt")
-        || file_has_extension(state, "rs")
-        || file_has_extension(state, "py")
-        || file_has_extension(state, "json")
-        || file_has_extension(state, "typ");
-
-    if is_scalable && state.font_size > 0.0 {
-        Some(
-            text(format!("{:.0}px", state.font_size))
-                .size(11)
-                .style(metadata_style)
-                .into(),
-        )
-    } else {
-        None
-    }
 }
 
 fn setting_button<'a>() -> Element<'a, Message> {

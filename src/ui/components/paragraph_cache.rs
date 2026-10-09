@@ -28,12 +28,8 @@ pub fn hash_spans(spans: &[Span<'_, (), Font>]) -> u64 {
     for span in spans {
         span.text.hash(&mut hasher);
         span.font.hash(&mut hasher);
-        if let Some(color) = span.color {
-            color.into_rgba8().hash(&mut hasher);
-        }
-        if let Some(size) = span.size {
-            size.0.to_bits().hash(&mut hasher);
-        }
+        span.color.map(|c| c.into_rgba8()).hash(&mut hasher);
+        span.size.map(|s| s.0.to_bits()).hash(&mut hasher);
     }
     hasher.finish()
 }
@@ -71,5 +67,11 @@ mod tests {
 
         assert_eq!(h1, h2);
         assert_ne!(h1, h3);
+
+        let span_color1 =
+            Span::<'static, (), Font>::new("Hello World").color(iced::Color::from_rgb8(255, 0, 0));
+        let span_color2 =
+            Span::<'static, (), Font>::new("Hello World").color(iced::Color::from_rgb8(0, 255, 0));
+        assert_ne!(hash_spans(&[span_color1]), hash_spans(&[span_color2]));
     }
 }

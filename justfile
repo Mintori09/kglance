@@ -27,15 +27,21 @@ fmt-check:
     cargo fmt --all -- --check
     @echo formatting check done
 
-kglance:
-    "$CARGO_TARGET_DIR"/release/kglance
+kglance *ARGS="":
+    cargo run --bin kglance -- {{ARGS}}
 
 watch +COMMAND='test':
     cargo watch --clear --exec "{{COMMAND}}"
 
 run +arg=".":
-    cargo check --no-default-features
-    cargo run --no-default-features --bin kglance --release -- "{{arg}}"
+    cargo run --bin kglance -- --standalone "{{arg}}"
+
+dev +arg=".":
+    cargo run --bin kglance -- "{{arg}}"
+
+restart-daemon:
+    -pkill -f "kglance daemon" || true
+    cargo run --bin kglance -- daemon
 
 release:
     cargo build --release

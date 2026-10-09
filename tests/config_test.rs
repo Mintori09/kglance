@@ -5,7 +5,7 @@ use tempfile::tempdir;
 #[test]
 fn test_ui_config_default() {
     let config = UiConfig::default();
-    assert_eq!(config.theme, Some("Auto".into()));
+    assert_eq!(config.theme, Some("dark".into()));
     assert_eq!(config.font_size, 14.0);
     assert_eq!(config.font_family, None);
     assert_eq!(config.font_family_mono, None);
@@ -100,9 +100,9 @@ fn test_get_theme_auto() {
         ..Default::default()
     };
     let theme_setting = ConfigManager::get_theme_setting(&config);
-    assert_eq!(theme_setting, "auto");
+    assert_eq!(theme_setting, "dark");
     let resolved = ConfigManager::resolve_theme(&theme_setting);
-    assert!(resolved == AppTheme::Light || resolved == AppTheme::Dark);
+    assert_eq!(resolved, AppTheme::Dark);
 }
 
 #[test]
@@ -112,7 +112,7 @@ fn test_get_theme_none_falls_back_to_system() {
     assert!(config.ui.theme.is_none());
     let theme_setting = ConfigManager::get_theme_setting(&config);
     let resolved = ConfigManager::resolve_theme(&theme_setting);
-    assert!(resolved == AppTheme::Light || resolved == AppTheme::Dark);
+    assert_eq!(resolved, AppTheme::Dark);
 }
 
 #[test]

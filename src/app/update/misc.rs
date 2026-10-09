@@ -40,12 +40,34 @@ fn is_allowed_link(link: &str) -> bool {
 }
 
 pub fn handle_theme_toggled(app: &mut KglanceApp) -> Task<Message> {
-    app.state.app_theme = match app.state.app_theme {
-        crate::ui::theme::AppTheme::Dark => crate::ui::theme::AppTheme::Light,
-        crate::ui::theme::AppTheme::Light => crate::ui::theme::AppTheme::Nord,
-        _ => crate::ui::theme::AppTheme::Dark,
-    };
-    Task::none()
+    app.state.app_theme = app.state.app_theme.next_theme();
+    app.state.theme_setting = app.state.app_theme.display_name().to_string();
+    let theme = app.state.app_theme;
+    let text_scroll = app.state.text.scroll_y;
+    app.state.text.cached_tokens.clear();
+    crate::features::text::update_tokens_for_viewport(&mut app.state.text, text_scroll, theme);
+
+    let json_scroll = app.state.json.raw_text.scroll_y;
+    app.state.json.raw_text.cached_tokens.clear();
+    crate::features::text::update_tokens_for_viewport(
+        &mut app.state.json.raw_text,
+        json_scroll,
+        theme,
+    );
+
+    let typst_scroll = app.state.typst.source_text.scroll_y;
+    app.state.typst.source_text.cached_tokens.clear();
+    crate::features::text::update_tokens_for_viewport(
+        &mut app.state.typst.source_text,
+        typst_scroll,
+        theme,
+    );
+
+    let mut config = app.load_config();
+    config.ui.theme = Some(app.state.theme_setting.clone());
+    let _ = app.save_config(&config);
+
+    app.show_toast(format!("Theme: {}", theme.display_name()))
 }
 
 pub fn handle_toast_dismissed(app: &mut KglanceApp, id: u64) -> Task<Message> {
@@ -422,14 +444,34 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
 }
 
 pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32) -> Task<Message> {
+    let mut toast_task = Task::none();
     if width > 0.0 && height > 0.0 {
         let old_w = app.state.window_width;
+        let old_h = app.state.window_height;
         app.state.current_window_size.width = width;
         app.state.current_window_size.height = height;
         app.state.window_width = width;
         app.state.window_height = height;
         app.state.markdown.viewport_height = height;
         app.state.epub.markdown_state.viewport_height = height;
+
+        if old_w > 0.0
+            && old_h > 0.0
+            && ((old_w - width).abs() > 1.0 || (old_h - height).abs() > 1.0)
+        {
+            app.state.window_default_size = iced::Size::new(width, height);
+            let mut config = app.load_config();
+            config.ui.default_width = width.round() as u32;
+            config.ui.default_height = height.round() as u32;
+            let _ = app.save_config(&config);
+
+            app.state.toasts.retain(|t| !t.message.starts_with("Size:"));
+            toast_task = app.show_toast(format!(
+                "Size: {} × {}",
+                width.round() as u32,
+                height.round() as u32
+            ));
+        }
 
         if (old_w - width).abs() > 1.0 {
             if let Some(crate::core::PreviewData::Markdown { blocks, .. }) = &app.current_content {
@@ -561,7 +603,7 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
         crate::features::pdf::view::recalculate_pdf_offsets_for_width(pdf, target_display_w);
     }
 
-    Task::none()
+    toast_task
 }
 
 #[cfg(test)]

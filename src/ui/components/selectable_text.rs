@@ -135,6 +135,7 @@ struct State {
     paragraph: Option<iced::advanced::graphics::text::Paragraph>,
     last_bounds_width: f32,
     last_font_size: f32,
+    last_spans_hash: u64,
     last_size: Size,
     selection: Option<(usize, usize)>,
     is_selecting: bool,
@@ -281,37 +282,23 @@ where
         let state = tree.state.downcast_mut::<State>();
         let max_width = limits.max().width;
 
-        let mut spans_changed = false;
-        let mut total_len = 0;
-        for span in &self.spans {
-            total_len += span.text.len();
-        }
-        if total_len != state.plain_text.len() {
-            spans_changed = true;
-        } else {
-            let mut offset = 0;
-            for span in &self.spans {
-                let end = offset + span.text.len();
-                if state.plain_text.get(offset..end) != Some(&span.text) {
-                    spans_changed = true;
-                    break;
-                }
-                offset = end;
-            }
-        }
+        let spans_hash = super::paragraph_cache::hash_spans(&self.spans);
 
-        let is_cached = !spans_changed
-            && state.paragraph.is_some()
+        let is_cached = state.paragraph.is_some()
+            && state.last_spans_hash == spans_hash
             && (state.last_bounds_width - max_width).abs() < 0.1
             && (state.last_font_size - self.font_size).abs() < 0.1;
 
         let size = if is_cached {
             #[cfg(feature = "profile-telemetry")]
-            telemetry::record_layout_hit(t_start.elapsed(), self.spans.len(), total_len);
+            telemetry::record_layout_hit(
+                t_start.elapsed(),
+                self.spans.len(),
+                state.plain_text.len(),
+            );
 
             state.last_size
         } else {
-            let spans_hash = super::paragraph_cache::hash_spans(&self.spans);
             let key = super::paragraph_cache::ParagraphKey {
                 spans_hash,
                 font_size_bits: self.font_size.to_bits(),
@@ -320,12 +307,17 @@ where
 
             if let Some(cached) = super::paragraph_cache::get_cached_paragraph(&key) {
                 #[cfg(feature = "profile-telemetry")]
-                telemetry::record_layout_hit(t_start.elapsed(), self.spans.len(), total_len);
+                telemetry::record_layout_hit(
+                    t_start.elapsed(),
+                    self.spans.len(),
+                    cached.plain_text.len(),
+                );
 
                 state.paragraph = Some(cached.paragraph);
                 state.plain_text = cached.plain_text;
                 state.last_bounds_width = max_width;
                 state.last_font_size = self.font_size;
+                state.last_spans_hash = spans_hash;
                 state.last_size = cached.size;
                 cached.size
             } else {
@@ -364,13 +356,14 @@ where
                 state.paragraph = Some(p);
                 state.last_bounds_width = max_width;
                 state.last_font_size = self.font_size;
+                state.last_spans_hash = spans_hash;
                 state.last_size = p_size;
 
                 #[cfg(feature = "profile-telemetry")]
                 telemetry::record_layout_miss(
                     t_start.elapsed(),
                     self.spans.len(),
-                    total_len,
+                    state.plain_text.len(),
                     mat_count,
                 );
 

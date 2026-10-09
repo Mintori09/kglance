@@ -110,7 +110,9 @@ impl KglanceApp {
         });
 
         Task::perform(
-            tokio::time::sleep(Duration::from_secs(TOAST_DURATION_SECS)),
+            async move {
+                tokio::time::sleep(Duration::from_secs(TOAST_DURATION_SECS)).await;
+            },
             move |_| crate::app::messages::SystemMsg::ToastDismissed(toast_id).into(),
         )
     }
