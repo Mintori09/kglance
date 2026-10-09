@@ -1,3 +1,5 @@
+git_root := `git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git$||'`
+export CARGO_TARGET_DIR := env_var_or_default("CARGO_TARGET_DIR", git_root + "/target")
 export RUSTFLAGS := "-C link-arg=-fuse-ld=mold " + env_var_or_default("RUSTFLAGS", "")
 
 all: build test clippy fmt-check kglance
@@ -26,7 +28,7 @@ fmt-check:
     @echo formatting check done
 
 kglance:
-    ./target/release/kglance
+    "$CARGO_TARGET_DIR"/release/kglance
 
 watch +COMMAND='test':
     cargo watch --clear --exec "{{COMMAND}}"
