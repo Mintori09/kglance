@@ -1,5 +1,6 @@
 use crate::ui::theme::color::base::BaseColors;
 use crate::ui::theme::color::{primitive, roles};
+use crate::ui::theme::tokens::radius;
 pub use iced::widget::button::{Status, Style};
 use iced::{Background, Border, Color, Shadow, Theme};
 
@@ -17,7 +18,7 @@ pub fn breeze(theme: &Theme, status: Status) -> Style {
         background: Some(Background::Color(bg)),
         text_color,
         border: Border {
-            radius: 4.0.into(),
+            radius: radius::SM.into(),
             width: if matches!(status, Status::Disabled) {
                 0.0
             } else {
@@ -48,7 +49,7 @@ pub fn breeze_primary(theme: &Theme, status: Status) -> Style {
         background: Some(Background::Color(bg)),
         text_color,
         border: Border {
-            radius: 4.0.into(),
+            radius: radius::SM.into(),
             width: 0.0,
             color: Color::TRANSPARENT,
         },
@@ -75,7 +76,7 @@ pub fn breeze_tool(theme: &Theme, status: Status) -> Style {
         background: bg,
         text_color: p.text,
         border: Border {
-            radius: 3.0.into(),
+            radius: radius::XS.into(),
             width: 0.0,
             color: Color::TRANSPARENT,
         },
@@ -91,7 +92,7 @@ pub fn transparent(_theme: &Theme, _status: Status) -> Style {
         border: Border {
             width: 0.0,
             color: Color::TRANSPARENT,
-            radius: 0.0.into(),
+            radius: radius::NONE.into(),
         },
         shadow: Shadow::default(),
         snap: false,
@@ -105,7 +106,7 @@ pub fn breeze_close(theme: &Theme, status: Status) -> Style {
             background: None,
             text_color: p.text,
             border: Border {
-                radius: 4.0.into(),
+                radius: radius::SM.into(),
                 width: 0.0,
                 color: Color::TRANSPARENT,
             },
@@ -117,7 +118,7 @@ pub fn breeze_close(theme: &Theme, status: Status) -> Style {
             background: Some(Background::Color(primitive::DANGER)),
             text_color: Color::WHITE,
             border: Border {
-                radius: 4.0.into(),
+                radius: radius::SM.into(),
                 width: 0.0,
                 color: Color::TRANSPARENT,
             },
@@ -129,7 +130,7 @@ pub fn breeze_close(theme: &Theme, status: Status) -> Style {
             background: Some(Background::Color(primitive::DANGER_PRESSED)),
             text_color: Color::WHITE,
             border: Border {
-                radius: 4.0.into(),
+                radius: radius::SM.into(),
                 width: 0.0,
                 color: Color::TRANSPARENT,
             },
