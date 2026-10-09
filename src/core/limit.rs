@@ -17,10 +17,10 @@ pub fn preview_size_limit(ext: &str) -> u64 {
         "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "ods" | "odp"
         | "rtf" | "epub" | "djvu" | "mobi" | "azw" | "azw3" | "cbr" | "cbz" => 500 * MB,
 
-        // Images, Fonts & Design files: 100 MB
+        // Images, Fonts & Design files: 500 MB
         "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg" | "ico" | "avif" | "heic"
         | "heif" | "tiff" | "tif" | "jxl" | "apng" | "kra" | "ora" | "psd" | "xcf" | "ai"
-        | "eps" | "ttf" | "otf" | "woff" | "woff2" | "eot" => 100 * MB,
+        | "eps" | "ttf" | "otf" | "woff" | "woff2" | "eot" => 500 * MB,
 
         // Default (text, code, structured data, other): 20 MB
         _ => 20 * MB,
@@ -75,7 +75,7 @@ mod tests {
             "tiff", "tif", "jxl", "apng", "kra", "ora", "psd", "xcf", "ai", "eps", "ttf", "otf",
             "woff", "woff2", "eot",
         ] {
-            assert_eq!(preview_size_limit(ext), 100 * MB);
+            assert_eq!(preview_size_limit(ext), 500 * MB);
         }
     }
 
