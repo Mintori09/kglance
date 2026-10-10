@@ -6,7 +6,7 @@ use crate::features::text::indexer::IndexResult;
 use crate::ui::components::code_viewer::SelectionRange;
 use iced::Task;
 
-const CONTENT_SCROLL_ID: &str = "content_scroll";
+pub const CONTENT_SCROLL_ID: &str = "content_scroll";
 
 pub fn handle_selection_changed(
     app: &mut KglanceApp,
@@ -269,7 +269,11 @@ pub fn handle_search_closed(app: &mut KglanceApp) -> Task<Message> {
     app.state.text.search_query.clear();
     app.state.text.search_matches.clear();
     app.state.text.search_info.clear();
-    Task::none()
+    let y = app.state.text.scroll_y;
+    iced::widget::operation::scroll_to(
+        CONTENT_SCROLL_ID,
+        iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+    )
 }
 
 pub fn handle_wrap_toggled(app: &mut KglanceApp) -> Task<Message> {
@@ -557,7 +561,77 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
 
 pub fn handle_toggle_outline(app: &mut KglanceApp) -> Task<Message> {
     app.state.text.outline_visible = !app.state.text.outline_visible;
-    Task::none()
+
+    let win_w = if app.state.current_window_size.width > 0.0 {
+        app.state.current_window_size.width
+    } else if app.state.window_width > 0.0 {
+        app.state.window_width
+    } else {
+        1024.0
+    };
+    let sidebar_w = if app.state.text.outline_visible && app.state.text.sidebar_width > 0.0 {
+        app.state.text.sidebar_width
+    } else {
+        0.0
+    };
+    let available_w = (win_w - sidebar_w).max(200.0);
+    let wrap_mode = if app.state.text.wrap {
+        WrapMode::Word
+    } else {
+        WrapMode::None
+    };
+
+    let old_scroll_y = app.state.text.scroll_y;
+    let new_scroll_y = if app.state.text.wrap {
+        let (top_vrow, _) = app.state.text.display_map.compute_visible_range(
+            old_scroll_y,
+            app.state.text.viewport_height,
+            0,
+        );
+        let (top_line, _) = app.state.text.display_map.visual_row_to_line(top_vrow);
+        let line_top_y = app.state.text.display_map.get_line_y(top_line);
+        let offset = (old_scroll_y - line_top_y).max(0.0);
+
+        app.state.text.display_map.update_geometry(
+            &app.state.text.document,
+            available_w,
+            app.state.font_size,
+            wrap_mode,
+        );
+        app.state.text.total_content_height = app.state.text.display_map.total_content_height();
+
+        let new_line_top_y = app.state.text.display_map.get_line_y(top_line);
+        new_line_top_y + offset
+    } else {
+        app.state.text.display_map.update_geometry(
+            &app.state.text.document,
+            available_w,
+            app.state.font_size,
+            wrap_mode,
+        );
+        app.state.text.total_content_height = app.state.text.display_map.total_content_height();
+        old_scroll_y
+    };
+
+    let max_y = crate::core::scroll::max_scroll_y(
+        app.state.text.total_content_height,
+        app.state.text.viewport_height,
+    );
+    let clamped_y = new_scroll_y.clamp(0.0, max_y);
+    app.state.text.scroll_y = clamped_y;
+    app.state.text.smooth_scroll.stop(clamped_y);
+    app.state.text.scroll_controller.stop(clamped_y);
+
+    let theme = app.state.app_theme;
+    update_tokens_for_viewport(&mut app.state.text, clamped_y, theme);
+
+    iced::widget::operation::scroll_to(
+        CONTENT_SCROLL_ID,
+        iced::widget::operation::AbsoluteOffset {
+            x: 0.0,
+            y: clamped_y,
+        },
+    )
 }
 
 pub fn handle_symbol_clicked(app: &mut KglanceApp, line_number: usize) -> Task<Message> {
@@ -579,13 +653,21 @@ pub fn handle_symbol_clicked(app: &mut KglanceApp, line_number: usize) -> Task<M
 
 pub fn handle_goto_line_toggle(app: &mut KglanceApp) -> Task<Message> {
     app.state.text.goto_line_visible = !app.state.text.goto_line_visible;
+    let y = app.state.text.scroll_y;
+    let scroll_task = iced::widget::operation::scroll_to(
+        CONTENT_SCROLL_ID,
+        iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+    );
     if app.state.text.goto_line_visible {
         app.state.text.search_visible = false;
         app.state.text.goto_line_query.clear();
-        iced::widget::operation::focus(crate::ui::components::search_bar::GOTO_LINE_INPUT_ID)
+        Task::batch([
+            iced::widget::operation::focus(crate::ui::components::search_bar::GOTO_LINE_INPUT_ID),
+            scroll_task,
+        ])
     } else {
         app.state.text.goto_line_query.clear();
-        Task::none()
+        scroll_task
     }
 }
 
@@ -622,7 +704,11 @@ pub fn handle_goto_line_submitted(app: &mut KglanceApp) -> Task<Message> {
 pub fn handle_goto_line_closed(app: &mut KglanceApp) -> Task<Message> {
     app.state.text.goto_line_visible = false;
     app.state.text.goto_line_query.clear();
-    Task::none()
+    let y = app.state.text.scroll_y;
+    iced::widget::operation::scroll_to(
+        CONTENT_SCROLL_ID,
+        iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+    )
 }
 
 pub fn handle_toggle_word_wrap(app: &mut KglanceApp) -> Option<Task<Message>> {
@@ -939,5 +1025,43 @@ mod tests {
         assert!(!app.state.text.is_dragging_selection);
         assert_eq!(app.state.text.auto_scroll_delta, None);
         assert_eq!(app.state.text.drag_start, None);
+    }
+
+    #[test]
+    fn test_toggle_outline_preserves_scroll() {
+        let mut app = KglanceApp::default();
+        let content: String = (0..200)
+            .map(|i| format!("line {i} with some content\n"))
+            .collect();
+        app.state.text = create_text_state(content, "txt", 14.0, false, AppTheme::Dark, 800.0);
+        app.state.text.viewport_height = 400.0;
+        app.state.text.scroll_y = 500.0;
+
+        assert!(!app.state.text.outline_visible);
+        let _ = handle_toggle_outline(&mut app);
+        assert!(app.state.text.outline_visible);
+        assert_eq!(app.state.text.scroll_y, 500.0);
+
+        let _ = handle_toggle_outline(&mut app);
+        assert!(!app.state.text.outline_visible);
+        assert_eq!(app.state.text.scroll_y, 500.0);
+    }
+
+    #[test]
+    fn test_search_closed_preserves_scroll() {
+        let mut app = KglanceApp::default();
+        let content: String = (0..200)
+            .map(|i| format!("line {i} with some content\n"))
+            .collect();
+        app.state.text = create_text_state(content, "txt", 14.0, false, AppTheme::Dark, 800.0);
+        app.state.text.viewport_height = 400.0;
+        app.state.text.scroll_y = 750.0;
+        app.state.text.search_visible = true;
+        app.state.text.search_query = "line 10".to_string();
+
+        let _ = handle_search_closed(&mut app);
+        assert!(!app.state.text.search_visible);
+        assert!(app.state.text.search_query.is_empty());
+        assert_eq!(app.state.text.scroll_y, 750.0);
     }
 }

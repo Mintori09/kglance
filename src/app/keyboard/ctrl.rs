@@ -244,38 +244,69 @@ impl KglanceApp {
             Some(PreviewData::Json { .. }) => {
                 self.state.json.search_visible = !self.state.json.search_visible;
 
+                let y = if self.state.json.tree_mode {
+                    self.state.json.scroll_y
+                } else {
+                    self.state.json.raw_text.scroll_y
+                };
+                let scroll_task = iced::widget::operation::scroll_to(
+                    "content_scroll",
+                    iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                );
+
                 if self.state.json.search_visible {
-                    Some(iced::widget::operation::focus("json_search_input"))
+                    Some(Task::batch([
+                        iced::widget::operation::focus("json_search_input"),
+                        scroll_task,
+                    ]))
                 } else {
                     self.state.json.search_query.clear();
-                    Some(Task::none())
+                    Some(scroll_task)
                 }
             }
 
             Some(PreviewData::Text { .. }) => {
                 self.state.text.search_visible = !self.state.text.search_visible;
 
+                let y = self.state.text.scroll_y;
+                let scroll_task = iced::widget::operation::scroll_to(
+                    crate::features::text::CONTENT_SCROLL_ID,
+                    iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                );
+
                 if self.state.text.search_visible {
                     self.state.text.goto_line_visible = false;
-                    Some(iced::widget::operation::focus("txt_search_input"))
+                    Some(Task::batch([
+                        iced::widget::operation::focus("txt_search_input"),
+                        scroll_task,
+                    ]))
                 } else {
                     self.state.text.search_query.clear();
-                    Some(Task::none())
+                    Some(scroll_task)
                 }
             }
 
             Some(PreviewData::Markdown { .. }) => {
                 self.state.markdown.search_visible = !self.state.markdown.search_visible;
 
+                let y = self.state.markdown.scroll_y;
+                let scroll_task = iced::widget::operation::scroll_to(
+                    "content_scroll",
+                    iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                );
+
                 if self.state.markdown.search_visible {
-                    Some(iced::widget::operation::focus("md_search_input"))
+                    Some(Task::batch([
+                        iced::widget::operation::focus("md_search_input"),
+                        scroll_task,
+                    ]))
                 } else {
                     self.state.markdown.search_query.clear();
                     self.state.markdown.search_match_count = 0;
                     self.state.markdown.search_match_index = 0;
                     self.state.markdown.search_match_blocks.clear();
                     self.state.markdown.search_info.clear();
-                    Some(Task::none())
+                    Some(scroll_task)
                 }
             }
 
