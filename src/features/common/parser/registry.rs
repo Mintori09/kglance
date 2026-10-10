@@ -1,4 +1,5 @@
 use crate::core::limit::preview_size_limit;
+use crate::core::types::human_file_kind;
 use crate::core::utils::human_size;
 use crate::features::common::parser::traits::ParseError;
 use crate::features::common::parser::traits::{ParserRegistry, PreviewParser};
@@ -357,15 +358,18 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                     .into_iter()
                     .map(|entry| {
                         let icon = icon_for_entry(&entry.path, entry.is_dir);
+                        let kind = human_file_kind(&entry.path, entry.is_dir).to_string();
+                        let size = if entry.is_dir {
+                            "—".to_string()
+                        } else {
+                            human_size(entry.size)
+                        };
+                        let raw_size = if entry.is_dir { 0 } else { entry.size };
                         crate::core::FolderRowState {
                             name: entry.path.clone(),
-                            kind: if entry.is_dir {
-                                "Directory".to_string()
-                            } else {
-                                "File".to_string()
-                            },
-                            size: human_size(entry.size),
-                            raw_size: entry.size,
+                            kind,
+                            size,
+                            raw_size,
                             modified: entry.modified.clone(),
                             raw_modified: 0,
                             path: entry.path,
@@ -382,15 +386,18 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                     .into_iter()
                     .map(|entry| {
                         let icon = icon_for_entry(&entry.name, entry.is_dir);
+                        let kind = human_file_kind(&entry.name, entry.is_dir).to_string();
+                        let size = if entry.is_dir {
+                            "—".to_string()
+                        } else {
+                            human_size(entry.size)
+                        };
+                        let raw_size = if entry.is_dir { 0 } else { entry.size };
                         crate::core::FolderRowState {
                             name: entry.name.clone(),
-                            kind: if entry.is_dir {
-                                "Directory".to_string()
-                            } else {
-                                "File".to_string()
-                            },
-                            size: human_size(entry.size),
-                            raw_size: entry.size,
+                            kind,
+                            size,
+                            raw_size,
                             modified: entry.modified.clone(),
                             raw_modified: entry.raw_modified,
                             path: entry.name,

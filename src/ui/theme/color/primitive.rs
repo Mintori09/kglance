@@ -9,6 +9,7 @@ use iced::Color;
 // ── Neutrals ───────────────────────────────────────────────────────────────
 
 pub(crate) const WHITE: Color = Color::from_rgb(1.0, 1.0, 1.0);
+#[allow(dead_code)]
 pub(crate) const BLACK: Color = Color::from_rgb(0.0, 0.0, 0.0);
 pub(crate) const GRAY_500: Color = Color::from_rgb(0.5, 0.5, 0.5);
 
@@ -57,6 +58,7 @@ pub(crate) const LIGHT_SHADOW: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.08);
 
 // ── Overlay alphas (white-on-dark, black-on-light) ─────────────────────────
 
+pub(crate) const WHITE_002: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.02);
 pub(crate) const WHITE_005: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.05);
 pub(crate) const WHITE_006: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.06);
 pub(crate) const WHITE_008: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.08);
@@ -65,6 +67,7 @@ pub(crate) const WHITE_012: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.12);
 pub(crate) const WHITE_015: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.15);
 pub(crate) const WHITE_020: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.20);
 
+pub(crate) const BLACK_002: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.02);
 pub(crate) const BLACK_005: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.05);
 pub(crate) const BLACK_006: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.06);
 pub(crate) const BLACK_008: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.08);

@@ -10,7 +10,7 @@ pub use crate::core::scroll::SmoothScroller as SmoothScrollState;
 pub use crate::features::audio::AudioState;
 pub use crate::features::epub::{EpubChapterInfo, EpubState};
 pub use crate::features::folder::{
-    FolderRowState, FolderState, SortField, SortState, sort_folder_rows,
+    FolderRowState, FolderState, SortField, SortState, human_file_kind, sort_folder_rows,
 };
 pub use crate::features::image::ImageState;
 pub use crate::features::json::{JsonParsedCache, JsonState};
