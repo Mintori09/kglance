@@ -216,6 +216,48 @@ fn test_convert_html_table_to_markdown() {
 }
 
 #[test]
+fn test_convert_html_table_with_caption_and_p_tags() {
+    let html = r#"<table class="Basic-Table">
+<caption><p class="TT" id="tab1-2"><span class="Heavy"><span class="SANS_Futura_Std_Heavy_B_11">Table 1-2:</span></span> <span class="SANS_Futura_Std_Book_11">Common Data Types</span></p></caption>
+<thead>
+<tr>
+<th class="TCH" scope="col"><p class="TCH1"><span class="SANS_Futura_Std_Heavy_B_11">Data type</span></p></th>
+<th class="TCH" scope="col"><p class="TCH1"><span class="SANS_Futura_Std_Heavy_B_11">Examples</span></p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="TBF"><p class="TB1"><span class="SANS_Futura_Std_Book_11">Integer (int)</span></p></td>
+<td class="TBF"><p class="TB1"><span class="SANS_TheSansMonoCd_W5Regular_11">-2</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">-1</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">0</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">1</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">2</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">3</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">4</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">5</span></p></td>
+</tr>
+<tr>
+<td class="TB"><p class="TB1"><span class="SANS_Futura_Std_Book_11">Floating-point number (float)</span></p></td>
+<td class="TB"><p class="TB1"><span class="SANS_TheSansMonoCd_W5Regular_11">-1.25</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">-1.0</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">-0.5</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">0.0</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">0.5</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">1.0</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">1.25</span></p></td>
+</tr>
+<tr>
+<td class="TBL"><p class="TB1"><span class="SANS_Futura_Std_Book_11">String (str)</span></p></td>
+<td class="TBL"><p class="TB1"><span class="SANS_TheSansMonoCd_W5Regular_11">'a'</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">'aa'</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">'aaa'</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">'Hello!'</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">'11 cats'</span><span class="SANS_Futura_Std_Book_11">,</span> <span class="SANS_TheSansMonoCd_W5Regular_11">'5'</span></p></td>
+</tr>
+</tbody>
+</table>"#;
+    let md = convert_html_to_markdown(html);
+    assert!(md.contains("| Data type | Examples |"));
+    assert!(md.contains("| --- | --- |"));
+    assert!(md.contains("| Integer (int) | -2, -1, 0, 1, 2, 3, 4, 5 |"));
+
+    let blocks = crate::parsers::markdown::parse_to_blocks(&md);
+    let table_block = blocks.iter().find(|b| matches!(b, Block::Table(_)));
+    assert!(
+        table_block.is_some(),
+        "Table must be parsed into Block::Table"
+    );
+    if let Some(Block::Table(tbl)) = table_block {
+        assert_eq!(tbl.headers.len(), 2);
+        assert_eq!(tbl.rows.len(), 3);
+    }
+}
+
+#[test]
 fn test_convert_html_codeblock_to_markdown() {
     let html = r#"
         <pre><code class="language-rust">fn main() {

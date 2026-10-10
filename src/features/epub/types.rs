@@ -31,6 +31,18 @@ pub struct EpubState {
     pub markdown_state: MarkdownState,
 }
 
+impl EpubState {
+    pub fn active_blocks(&self) -> &[Block] {
+        if self.reading_mode == EpubReadingMode::Continuous {
+            self.continuous_blocks.as_slice()
+        } else {
+            self.chapters
+                .get(self.active_chapter)
+                .map_or([].as_slice(), |c| c.blocks.as_slice())
+        }
+    }
+}
+
 impl Default for EpubState {
     fn default() -> Self {
         Self {
