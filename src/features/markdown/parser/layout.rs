@@ -441,6 +441,36 @@ pub fn rescale_markdown_scroll_y(
     new_y.max(0.0)
 }
 
+pub fn calculate_column_weights(
+    headers: &[super::TableCell],
+    rows: &[Vec<super::TableCell>],
+) -> Vec<u16> {
+    let n = headers.len();
+    if n == 0 {
+        return vec![];
+    }
+
+    let mut max_lens = vec![0usize; n];
+    for (i, header) in headers.iter().enumerate() {
+        max_lens[i] = super::flatten::flatten_inlines(&header.content).len();
+    }
+    for row in rows {
+        for (i, cell) in row.iter().enumerate().take(n) {
+            max_lens[i] = max_lens[i].max(super::flatten::flatten_inlines(&cell.content).len());
+        }
+    }
+
+    let total: usize = max_lens.iter().sum();
+    if total == 0 {
+        return vec![1; n];
+    }
+
+    max_lens
+        .iter()
+        .map(|&length| ((length as f32 / total as f32) * 100.0).max(10.0) as u16)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
