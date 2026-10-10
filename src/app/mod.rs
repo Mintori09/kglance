@@ -157,6 +157,9 @@ impl KglanceApp {
         state.json.tree_mode = config.ui.json_tree_view;
         state.apply_scroll_config(&config.scroll);
 
+        // Pre-warm system fonts cache in background to avoid blocking first UI render of settings
+        std::thread::spawn(crate::ui::views::setting_page::get_system_fonts);
+
         if !initial_paths.is_empty() {
             state.playlist = initial_paths.to_vec();
             state.current_index = 0;

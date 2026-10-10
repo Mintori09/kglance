@@ -9,9 +9,7 @@ use crate::core::config::{CacheConfig, ScrollConfigOptions, UiConfig};
 use crate::ui::theme::color::BaseColors;
 use crate::ui::theme::font::get_main_font;
 use crate::ui::theme::tokens::spacing;
-use crate::ui::theme::{
-    default_button, default_button_primary, default_card, default_inset, default_row_button,
-};
+use crate::ui::theme::{default_button, default_card, default_inset, default_row_button};
 
 pub mod appearance;
 pub mod cache_scroll;
@@ -49,7 +47,7 @@ pub fn settings_page<'a>(
     ]
     .align_y(Alignment::Center);
 
-    // Segmented Tabs: [ 🎨 Appearance ] [ 🪟 Window ] [ 📑 Previews ] [ ⚡ Cache & Scroll ]
+    // Segmented Tabs: [ Appearance ] [ Window ] [ Previews ] [ Cache & Scroll ]
     let tab_button = |label: &'static str, tab: SettingTab| {
         let is_selected = active_tab == tab;
         button(
@@ -69,10 +67,10 @@ pub fn settings_page<'a>(
 
     let segmented_tabs = container(
         row![
-            tab_button("🎨 Appearance", SettingTab::Appearance),
-            tab_button("🪟 Window", SettingTab::Window),
-            tab_button("📑 Previews", SettingTab::Previews),
-            tab_button("⚡ Cache & Scroll", SettingTab::CacheScroll),
+            tab_button("Appearance", SettingTab::Appearance),
+            tab_button("Window", SettingTab::Window),
+            tab_button("Previews", SettingTab::Previews),
+            tab_button("Cache & Scroll", SettingTab::CacheScroll),
         ]
         .spacing(spacing::XXS)
         .padding(spacing::XXS)
@@ -94,17 +92,13 @@ pub fn settings_page<'a>(
 
     let scrollable_content = iced::widget::scrollable(tab_content).height(iced::Length::Fill);
 
-    // Footer: Reset to Defaults + Done
+    // Footer: Reset to Defaults
     let footer_row = row![
-        button(text("↺ Reset to Defaults").size(11).font(main_font))
+        button(text("Reset to Defaults").size(11).font(main_font))
             .on_press(Message::Settings(SettingsMsg::ResetToDefaults))
             .style(default_button)
             .padding([spacing::XS, spacing::M]),
         iced::widget::Space::new().width(iced::Length::Fill),
-        button(text("Done").size(12).font(main_font))
-            .on_press(NavigationMsg::ToggleSettingsClicked.into())
-            .style(default_button_primary)
-            .padding([spacing::XS, spacing::XL]),
     ]
     .align_y(Alignment::Center);
 
