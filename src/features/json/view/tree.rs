@@ -151,6 +151,7 @@ fn render_highlighted_text<'a>(
 pub struct TreeNodeOptions<'a> {
     pub theme: AppTheme,
     pub font_size: f32,
+    pub font: iced::Font,
     pub is_expanded: bool,
     pub is_active: bool,
     pub search_query: &'a str,
@@ -172,7 +173,7 @@ pub fn render_tree_node<'a>(
         .color(dim_color(options.theme))
         .font(iced::Font {
             weight: iced::font::Weight::Bold,
-            ..iced::Font::MONOSPACE
+            ..options.font
         });
 
     let mut row_items: Vec<Element<'a, Message>> = Vec::new();
@@ -192,7 +193,7 @@ pub fn render_tree_node<'a>(
             } else {
                 iced::font::Weight::Medium
             },
-            ..iced::Font::MONOSPACE
+            ..options.font
         };
 
         row_items.push(render_highlighted_text(
@@ -219,14 +220,14 @@ pub fn render_tree_node<'a>(
             options.search_query,
             val_color,
             options.font_size,
-            iced::Font::MONOSPACE,
+            options.font,
         ));
     } else {
         row_items.push(
             text(&node.value_preview)
                 .size(options.font_size * 0.9)
                 .color(dim_color(options.theme))
-                .font(iced::Font::MONOSPACE)
+                .font(options.font)
                 .into(),
         );
     }
@@ -281,9 +282,11 @@ pub fn render_tree<'a>(
     state: &'a JsonState,
     theme: AppTheme,
     font_size: f32,
+    font_family_mono: Option<&str>,
 ) -> Element<'a, Message> {
     let indices = visible_node_indices(state);
     let total_visible_nodes = indices.len();
+    let mono_font = crate::ui::theme::font::get_code_font(font_family_mono);
 
     let search_q = if state.search_visible {
         state.search_query.as_str()
@@ -328,6 +331,7 @@ pub fn render_tree<'a>(
             TreeNodeOptions {
                 theme,
                 font_size,
+                font: mono_font,
                 is_expanded: expanded,
                 is_active,
                 search_query: search_q,

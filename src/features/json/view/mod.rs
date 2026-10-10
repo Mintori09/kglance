@@ -31,10 +31,11 @@ pub fn view_json<'a>(
     state: &'a JsonState,
     font_size: f32,
     theme: AppTheme,
+    font_family: Option<&str>,
     font_family_mono: Option<&str>,
     word_wrap: bool,
 ) -> Element<'a, Message> {
-    let header = build_header(state, theme);
+    let header = build_header(state, theme, font_family);
     let search_bar = build_search_bar(state);
     let breadcrumbs = build_breadcrumbs(state, theme, font_size);
     let content = build_content(state, theme, font_size, font_family_mono, word_wrap);
@@ -55,7 +56,12 @@ pub fn view_json<'a>(
     column(layout).height(Length::Fill).into()
 }
 
-fn build_header<'a>(state: &'a JsonState, theme: AppTheme) -> Element<'a, Message> {
+fn build_header<'a>(
+    state: &'a JsonState,
+    theme: AppTheme,
+    font_family: Option<&str>,
+) -> Element<'a, Message> {
+    let main_font = crate::ui::theme::font::get_main_font(font_family);
     let status_text = if state.has_parse_error {
         "⚠ JSON Parse Error — showing raw"
     } else {
@@ -65,6 +71,7 @@ fn build_header<'a>(state: &'a JsonState, theme: AppTheme) -> Element<'a, Messag
     let mut header_items: Vec<Element<'a, Message>> = vec![
         text(status_text)
             .size(STATUS_TEXT_SIZE)
+            .font(main_font)
             .color(error_color(theme))
             .into(),
         Space::new().width(Length::Fill).into(),
@@ -77,7 +84,7 @@ fn build_header<'a>(state: &'a JsonState, theme: AppTheme) -> Element<'a, Messag
         header_items.push(build_format_button(state.raw_pretty));
     }
 
-    header_items.push(build_mode_toggle_button(state.tree_mode));
+    header_items.push(build_mode_toggle_button(state.tree_mode, font_family));
 
     let header_padding = Padding {
         left: spacing::S,
@@ -96,12 +103,15 @@ fn build_header<'a>(state: &'a JsonState, theme: AppTheme) -> Element<'a, Messag
     .into()
 }
 
-fn build_mode_toggle_button<'a>(is_tree_mode: bool) -> Element<'a, Message> {
+fn build_mode_toggle_button<'a>(
+    is_tree_mode: bool,
+    font_family: Option<&str>,
+) -> Element<'a, Message> {
     let label = if is_tree_mode { "Raw" } else { "Tree" };
 
     let button_font = Font {
         weight: Weight::Bold,
-        ..Font::DEFAULT
+        ..crate::ui::theme::font::get_main_font(font_family)
     };
 
     button(text(label).size(BUTTON_TEXT_SIZE).font(button_font))
@@ -188,7 +198,7 @@ fn build_content<'a>(
     word_wrap: bool,
 ) -> Element<'a, Message> {
     if state.tree_mode {
-        let view_content = render_tree(state, theme, font_size);
+        let view_content = render_tree(state, theme, font_size, font_family_mono);
         scroll_pane(CONTENT_SCROLL_ID, view_content)
             .container_padding(CONTENT_CONTAINER_PADDING)
             .filter_wheel(true)

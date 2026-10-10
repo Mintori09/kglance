@@ -61,26 +61,33 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         return container(text("")).padding(0).into();
     }
 
-    let counter = playlist_position_button(state);
-    let page_counter = page_indicator(state);
-    let toc_btn = toc_toggle_button(state);
-    let typst = typst_toggle_button(state);
-    let info = image_info_button(state);
+    let main_font = crate::ui::theme::font::get_main_font(state.font_family.as_deref());
+    let counter = playlist_position_button(state, main_font);
+    let page_counter = page_indicator(state, main_font);
+    let toc_btn = toc_toggle_button(state, main_font);
+    let typst = typst_toggle_button(state, main_font);
+    let info = image_info_button(state, main_font);
 
     let left_row = row![
         counter,
         page_counter,
         toc_btn,
-        text(left).size(typography::CAPTION).style(metadata_style),
+        text(left)
+            .size(typography::CAPTION)
+            .font(main_font)
+            .style(metadata_style),
     ]
     .spacing(spacing::S)
     .align_y(Alignment::Center);
 
     let right_row = row![
-        text(right).size(typography::CAPTION).style(metadata_style),
+        text(right)
+            .size(typography::CAPTION)
+            .font(main_font)
+            .style(metadata_style),
         typst,
         info,
-        setting_button(),
+        setting_button(main_font),
     ]
     .spacing(spacing::S)
     .align_y(Alignment::Center);
@@ -95,7 +102,7 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     .into()
 }
 
-fn toc_toggle_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
+fn toc_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Element<'a, Message>> {
     let is_markdown = file_has_extension(state, "md") || file_has_extension(state, "markdown");
     if is_markdown && !state.markdown.toc.is_empty() {
         let style = if state.markdown.toc_visible {
@@ -104,7 +111,7 @@ fn toc_toggle_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
             iced::widget::button::secondary
         };
         Some(
-            button(text("📑 Outline").size(typography::CAPTION))
+            button(text("📑 Outline").size(typography::CAPTION).font(font))
                 .on_press(crate::app::messages::MarkdownMsg::TocToggled.into())
                 .style(style)
                 .padding([2, 6])
@@ -119,7 +126,7 @@ fn toc_toggle_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
             iced::widget::button::secondary
         };
         Some(
-            button(text("📑 Chapters").size(typography::CAPTION))
+            button(text("📑 Chapters").size(typography::CAPTION).font(font))
                 .on_press(crate::app::messages::EpubMsg::SidebarToggled.into())
                 .style(style)
                 .padding([2, 6])
@@ -130,7 +137,10 @@ fn toc_toggle_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
     }
 }
 
-fn playlist_position_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
+fn playlist_position_button<'a>(
+    state: &KglanceState,
+    font: iced::Font,
+) -> Option<Element<'a, Message>> {
     (state.playlist.len() > 1).then(|| {
         button(
             text(format!(
@@ -138,7 +148,8 @@ fn playlist_position_button<'a>(state: &KglanceState) -> Option<Element<'a, Mess
                 state.current_index + 1,
                 state.playlist.len()
             ))
-            .size(11),
+            .size(11)
+            .font(font),
         )
         .on_press(crate::app::messages::NavigationMsg::ToggleViewMode.into())
         .style(iced::widget::button::secondary)
@@ -153,7 +164,7 @@ fn file_has_extension(state: &KglanceState, extension: &str) -> bool {
         .is_some_and(|ext| ext.eq_ignore_ascii_case(extension))
 }
 
-fn page_indicator<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
+fn page_indicator<'a>(state: &KglanceState, font: iced::Font) -> Option<Element<'a, Message>> {
     let is_paged = file_has_extension(state, "pdf")
         || state.file_type_text.contains("PDF")
         || file_has_extension(state, "typ")
@@ -173,20 +184,26 @@ fn page_indicator<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
     Some(
         text(format!("[ {page} / {total} ]"))
             .size(11)
+            .font(font)
             .style(metadata_style)
             .into(),
     )
 }
 
-fn setting_button<'a>() -> Element<'a, Message> {
-    iced::widget::button(text("⚙").size(typography::ICON_MD).style(metadata_style))
-        .on_press(crate::app::messages::NavigationMsg::ToggleSettingsClicked.into())
-        .style(iced::widget::button::secondary)
-        .padding([2, 6])
-        .into()
+fn setting_button<'a>(font: iced::Font) -> Element<'a, Message> {
+    iced::widget::button(
+        text("⚙")
+            .size(typography::ICON_MD)
+            .font(font)
+            .style(metadata_style),
+    )
+    .on_press(crate::app::messages::NavigationMsg::ToggleSettingsClicked.into())
+    .style(iced::widget::button::secondary)
+    .padding([2, 6])
+    .into()
 }
 
-fn image_info_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
+fn image_info_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Element<'a, Message>> {
     if !state.image.exif_content.is_empty() {
         let style = if state.image.show_info {
             iced::widget::button::primary
@@ -194,7 +211,7 @@ fn image_info_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
             iced::widget::button::secondary
         };
         Some(
-            iced::widget::button(text("ℹ").size(typography::ICON_MD))
+            iced::widget::button(text("ℹ").size(typography::ICON_MD).font(font))
                 .on_press(crate::app::messages::ImageMsg::ToggleInfo.into())
                 .style(style)
                 .padding([2, 6])
@@ -205,7 +222,7 @@ fn image_info_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
     }
 }
 
-fn typst_toggle_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>> {
+fn typst_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Element<'a, Message>> {
     if state.file_name.to_lowercase().ends_with(".typ") {
         let label = if state.typst.show_source {
             "👁 Rendered"
@@ -213,11 +230,16 @@ fn typst_toggle_button<'a>(state: &KglanceState) -> Option<Element<'a, Message>>
             "</> Source"
         };
         Some(
-            iced::widget::button(text(label).size(typography::CAPTION).style(metadata_style))
-                .on_press(crate::app::messages::TypstMsg::ToggleSource.into())
-                .style(iced::widget::button::secondary)
-                .padding([2, 8])
-                .into(),
+            iced::widget::button(
+                text(label)
+                    .size(typography::CAPTION)
+                    .font(font)
+                    .style(metadata_style),
+            )
+            .on_press(crate::app::messages::TypstMsg::ToggleSource.into())
+            .style(iced::widget::button::secondary)
+            .padding([2, 8])
+            .into(),
         )
     } else {
         None
@@ -229,11 +251,12 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         return Element::from(container(text("")).padding(0));
     }
 
+    let main_font = crate::ui::theme::font::get_main_font(state.font_family.as_deref());
     let items: Vec<Element<'a, Message>> = state
         .toasts
         .iter()
         .map(|t| {
-            container(text(&t.message).size(typography::BODY_MD))
+            container(text(&t.message).size(typography::BODY_MD).font(main_font))
                 .padding(Padding {
                     top: 6.0,
                     right: 16.0,
@@ -311,30 +334,28 @@ pub fn view_window<'a>(
     let mut stack = Stack::new().push(base).push(toast_layer);
 
     if show_settings_modal {
-        let dummy_config: &'static crate::core::config::UiConfig =
-            Box::leak(Box::new(crate::core::config::UiConfig {
-                theme: Some(state.theme_setting.clone()),
-                font_size: state.font_size,
-                font_family: state.font_family.clone(),
-                font_family_mono: state.font_family_mono.clone(),
-                epub_font_family: state.epub_font_family.clone(),
-                epub_reading_mode: state.epub_reading_mode,
-                max_text_width: state.max_text_width,
-                default_width: state.window_default_size.width as u32,
-                default_height: state.window_default_size.height as u32,
-                min_width: state.window_min_size.width as u32,
-                min_height: state.window_min_size.height as u32,
-                prefer_mermaid_cli: state.prefer_mermaid_cli,
-                word_wrap: state.word_wrap,
-                json_tree_view: state.json_tree_view,
-            }));
+        let ui_config = crate::core::config::UiConfig {
+            theme: Some(state.theme_setting.clone()),
+            font_size: state.font_size,
+            font_family: state.font_family.clone(),
+            font_family_mono: state.font_family_mono.clone(),
+            epub_font_family: state.epub_font_family.clone(),
+            epub_reading_mode: state.epub_reading_mode,
+            max_text_width: state.max_text_width,
+            default_width: state.window_default_size.width as u32,
+            default_height: state.window_default_size.height as u32,
+            min_width: state.window_min_size.width as u32,
+            min_height: state.window_min_size.height as u32,
+            prefer_mermaid_cli: state.prefer_mermaid_cli,
+            word_wrap: state.word_wrap,
+            json_tree_view: state.json_tree_view,
+        };
 
-        let static_fonts: &'static [String] =
-            Box::leak(crate::ui::views::setting_page::get_system_fonts().into_boxed_slice());
+        let static_fonts = crate::ui::views::setting_page::get_system_fonts();
         let theme = iced::Theme::from(state.app_theme);
 
         let settings_content =
-            crate::ui::views::setting_page::settings_page(&theme, dummy_config, static_fonts);
+            crate::ui::views::setting_page::settings_page(&theme, &ui_config, static_fonts);
 
         let modal_box = container(iced::widget::scrollable(settings_content))
             .max_width(550.0)

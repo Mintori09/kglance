@@ -228,7 +228,13 @@ fn build_content_area<'a>(
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
     if state.toc_visible && !state.toc.is_empty() {
-        let sidebar = render_toc_sidebar(&state.toc, state, state.scroll_y, ctx.theme);
+        let sidebar = render_toc_sidebar(
+            &state.toc,
+            state,
+            state.scroll_y,
+            ctx.theme,
+            ctx.font_family,
+        );
         let drag_handle = drag_handle(
             state.sidebar_resizing,
             ctx.theme,

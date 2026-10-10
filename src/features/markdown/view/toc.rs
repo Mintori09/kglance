@@ -13,7 +13,9 @@ pub fn render_toc_sidebar<'a>(
     state: &'a MarkdownState,
     scroll_y: f32,
     theme: AppTheme,
+    font_family: Option<&str>,
 ) -> Element<'a, Message> {
+    let main_font = crate::ui::theme::font::get_main_font(font_family);
     let active_block_index = find_active_block_index(toc, scroll_y);
     let visible_entries = filter_visible_entries(toc, state);
 
@@ -33,6 +35,7 @@ pub fn render_toc_sidebar<'a>(
                 is_collapsed,
                 has_hierarchy,
                 theme,
+                main_font,
             )
         })
         .collect();
@@ -108,6 +111,7 @@ fn render_toc_entry<'a>(
     is_collapsed: bool,
     has_subheadings: bool,
     theme: AppTheme,
+    main_font: iced::Font,
 ) -> Element<'a, Message> {
     let indent_amount = if has_subheadings {
         (entry.level as f32 - 1.0) * STYLE.toc.indent_per_level
@@ -115,7 +119,9 @@ fn render_toc_entry<'a>(
         0.0
     };
 
-    let heading_label = text(&entry.text).size(STYLE.toc.entry_font_size);
+    let heading_label = text(&entry.text)
+        .size(STYLE.toc.entry_font_size)
+        .font(main_font);
     let heading_button = button(heading_label)
         .on_press(crate::app::messages::MarkdownMsg::TocHeadingClicked(entry.block_index).into())
         .width(Length::Fill)

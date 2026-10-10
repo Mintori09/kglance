@@ -70,16 +70,22 @@ pub fn estimate_row_height(row_data: &[String], columns: &[ColumnMeta]) -> f32 {
     (max_lines as f32 * LINE_HEIGHT + CELL_PADDING_Y).clamp(MIN_ROW_HEIGHT, 500.0)
 }
 
-pub fn view_spreadsheet<'a>(state: &'a SpreadsheetState, theme: AppTheme) -> Element<'a, Message> {
+pub fn view_spreadsheet<'a>(
+    state: &'a SpreadsheetState,
+    theme: AppTheme,
+    font_family: Option<&str>,
+) -> Element<'a, Message> {
+    let main_font = crate::ui::theme::font::get_main_font(font_family);
     let active_sheet = state.sheets.get(state.active_sheet);
 
     let content_body = match active_sheet {
-        Some(sheet) => render_spreadsheet_body(state, sheet, theme),
-        None => render_empty_state("No spreadsheet data loaded", theme),
+        Some(sheet) => render_spreadsheet_body(state, sheet, theme, main_font),
+        None => render_empty_state("No spreadsheet data loaded", theme, main_font),
     };
 
     if state.sheets.len() > 1 {
-        let bottom_bar = render_bottom_sheet_bar(&state.sheets, state.active_sheet, theme);
+        let bottom_bar =
+            render_bottom_sheet_bar(&state.sheets, state.active_sheet, theme, main_font);
         column![content_body, bottom_bar].into()
     } else {
         content_body
@@ -90,6 +96,7 @@ fn render_bottom_sheet_bar<'a>(
     sheets: &'a [SheetInfo],
     active_sheet_index: usize,
     theme: AppTheme,
+    main_font: iced::Font,
 ) -> Element<'a, Message> {
     if sheets.len() <= 1 {
         return container(row![]).height(Length::Shrink).into();
@@ -104,6 +111,7 @@ fn render_bottom_sheet_bar<'a>(
         let tab_button = button(
             text(&sheet.name)
                 .size(TAB_TEXT_SIZE)
+                .font(main_font)
                 .align_x(alignment::Horizontal::Center),
         )
         .on_press(crate::app::messages::SpreadsheetMsg::SheetTabClicked(index).into())
@@ -135,9 +143,10 @@ fn render_spreadsheet_body<'a>(
     state: &'a SpreadsheetState,
     sheet: &'a SheetInfo,
     theme: AppTheme,
+    main_font: iced::Font,
 ) -> Element<'a, Message> {
     if sheet.rows.is_empty() {
-        return render_empty_state("Sheet is empty", theme);
+        return render_empty_state("Sheet is empty", theme, main_font);
     }
 
     let mut layout = column![];
@@ -153,7 +162,7 @@ fn render_spreadsheet_body<'a>(
         );
     }
 
-    let header = render_table_header(&sheet.columns, state, theme);
+    let header = render_table_header(&sheet.columns, state, theme, main_font);
 
     if state.display_indices.is_empty() {
         layout = layout.push(header);
@@ -161,6 +170,7 @@ fn render_spreadsheet_body<'a>(
             container(
                 text("No matching rows found")
                     .size(EMPTY_STATE_TEXT_SIZE)
+                    .font(main_font)
                     .style(move |_: &Theme| text::Style {
                         color: Some(theme.palette().base.text_dim),
                     }),
@@ -171,7 +181,7 @@ fn render_spreadsheet_body<'a>(
     }
 
     let rows_effective_scroll_y = (state.scroll_y - (HEADER_HEIGHT + ROWS_LIST_SPACING)).max(0.0);
-    let rows_list = render_table_rows(state, sheet, theme, rows_effective_scroll_y);
+    let rows_list = render_table_rows(state, sheet, theme, rows_effective_scroll_y, main_font);
 
     let table_content = column![header, rows_list].spacing(ROWS_LIST_SPACING);
 
@@ -202,6 +212,7 @@ fn render_table_header<'a>(
     columns: &'a [ColumnMeta],
     state: &'a SpreadsheetState,
     theme: AppTheme,
+    main_font: iced::Font,
 ) -> Element<'a, Message> {
     let col_window =
         compute_csv_column_window(&state.prefix_widths, state.scroll_x, state.viewport_width);
@@ -213,6 +224,7 @@ fn render_table_header<'a>(
     let row_num_header = container(
         text("")
             .size(HEADER_TEXT_SIZE)
+            .font(main_font)
             .align_x(alignment::Horizontal::Center)
             .wrapping(text::Wrapping::None)
             .width(Length::Fill),
@@ -242,6 +254,7 @@ fn render_table_header<'a>(
         let header_button = button(
             text(button_label)
                 .size(HEADER_TEXT_SIZE)
+                .font(main_font)
                 .align_x(alignment::Horizontal::Center)
                 .wrapping(text::Wrapping::None)
                 .width(Length::Fill),
@@ -424,6 +437,7 @@ fn render_table_rows<'a>(
     sheet: &'a SheetInfo,
     theme: AppTheme,
     scroll_y: f32,
+    main_font: iced::Font,
 ) -> Element<'a, Message> {
     let window = compute_csv_virtual_window(&state.prefix_heights, scroll_y, state.viewport_height);
     if window.visible_end == 0 {
@@ -468,6 +482,7 @@ fn render_table_rows<'a>(
         let row_num_content = container(
             text(row_num_text)
                 .size(ROW_NUM_TEXT_SIZE)
+                .font(main_font)
                 .align_x(alignment::Horizontal::Center)
                 .wrapping(text::Wrapping::None)
                 .width(Length::Fill),
@@ -520,6 +535,7 @@ fn render_table_rows<'a>(
             let cell_content = container(
                 text(cell_text)
                     .size(CELL_TEXT_SIZE)
+                    .font(main_font)
                     .align_x(text_align)
                     .wrapping(text::Wrapping::WordOrGlyph)
                     .width(Length::Fill),
@@ -734,10 +750,15 @@ fn sheet_tab_button_style(
     }
 }
 
-fn render_empty_state<'a>(message: &'a str, theme: AppTheme) -> Element<'a, Message> {
+fn render_empty_state<'a>(
+    message: &'a str,
+    theme: AppTheme,
+    main_font: iced::Font,
+) -> Element<'a, Message> {
     container(
         text(message)
             .size(EMPTY_STATE_TEXT_SIZE)
+            .font(main_font)
             .style(move |_: &Theme| text::Style {
                 color: Some(theme.palette().base.text_dim),
             }),

@@ -597,6 +597,7 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 app.state.app_theme = crate::core::config::ConfigManager::resolve_theme(&t);
                 let theme = app.state.app_theme;
                 let text_scroll = app.state.text.scroll_y;
+                app.state.text.syntax_cache.clear();
                 app.state.text.cached_tokens.clear();
                 crate::features::text::update_tokens_for_viewport(
                     &mut app.state.text,
@@ -604,6 +605,7 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                     theme,
                 );
                 let json_scroll = app.state.json.raw_text.scroll_y;
+                app.state.json.raw_text.syntax_cache.clear();
                 app.state.json.raw_text.cached_tokens.clear();
                 crate::features::text::update_tokens_for_viewport(
                     &mut app.state.json.raw_text,
@@ -611,6 +613,7 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                     theme,
                 );
                 let typst_scroll = app.state.typst.source_text.scroll_y;
+                app.state.typst.source_text.syntax_cache.clear();
                 app.state.typst.source_text.cached_tokens.clear();
                 crate::features::text::update_tokens_for_viewport(
                     &mut app.state.typst.source_text,
@@ -699,6 +702,19 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::SettingsMsg::FontFamilySelected(f) => {
                 app.state.font_family = Some(f.clone());
+                if let Some(crate::core::PreviewData::Markdown { blocks, .. }) =
+                    &app.current_content
+                {
+                    let content_width = app.state.markdown_content_width();
+                    let s = app.state.font_size;
+                    crate::features::markdown::rescale_and_update_markdown_layout(
+                        &mut app.state.markdown,
+                        blocks,
+                        s,
+                        s,
+                        content_width,
+                    );
+                }
                 let mut config = app.load_config();
                 config.ui.font_family = Some(f);
                 let _ = app.save_config(&config);
@@ -706,6 +722,36 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::SettingsMsg::FontFamilyMonoSelected(f) => {
                 app.state.font_family_mono = Some(f.clone());
+                let old_size = app.state.font_size;
+                let s = app.state.font_size;
+                let win_w = app.state.current_window_size.width;
+                let theme = app.state.app_theme;
+                let word_wrap = app.state.word_wrap;
+
+                crate::features::text::rescale_text_geometry(
+                    &mut app.state.text,
+                    old_size,
+                    s,
+                    word_wrap,
+                    win_w,
+                    theme,
+                );
+                crate::features::text::rescale_text_geometry(
+                    &mut app.state.json.raw_text,
+                    old_size,
+                    s,
+                    word_wrap,
+                    win_w,
+                    theme,
+                );
+                crate::features::text::rescale_text_geometry(
+                    &mut app.state.typst.source_text,
+                    old_size,
+                    s,
+                    word_wrap,
+                    win_w,
+                    theme,
+                );
                 let mut config = app.load_config();
                 config.ui.font_family_mono = Some(f);
                 let _ = app.save_config(&config);
@@ -713,6 +759,34 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::SettingsMsg::EpubFontFamilySelected(f) => {
                 app.state.epub_font_family = Some(f.clone());
+                if matches!(
+                    app.current_content,
+                    Some(crate::core::PreviewData::Epub { .. })
+                ) {
+                    let content_width = app.state.epub_content_width();
+                    let blocks = if app.state.epub.reading_mode
+                        == crate::core::config::EpubReadingMode::Continuous
+                    {
+                        app.state.epub.continuous_blocks.as_slice()
+                    } else {
+                        let active_chapter = app.state.epub.active_chapter;
+                        app.state
+                            .epub
+                            .chapters
+                            .get(active_chapter)
+                            .map_or([].as_slice(), |c| c.blocks.as_slice())
+                    };
+                    if !blocks.is_empty() {
+                        let s = app.state.font_size;
+                        crate::features::markdown::rescale_and_update_markdown_layout(
+                            &mut app.state.epub.markdown_state,
+                            blocks,
+                            s,
+                            s,
+                            content_width,
+                        );
+                    }
+                }
                 let mut config = app.load_config();
                 config.ui.epub_font_family = Some(f);
                 let _ = app.save_config(&config);

@@ -369,13 +369,13 @@ fn test_bottom_sheet_tab_switching() {
 
     // Verify multi-sheet view rendering compiles and produces elements
     {
-        let _element_multi = view_spreadsheet(&app.state.spreadsheet, AppTheme::Dark);
+        let _element_multi = view_spreadsheet(&app.state.spreadsheet, AppTheme::Dark, None);
     }
 
     // Verify single-sheet view rendering without tabs
     populate_state(&mut app.state, &[sheet1], 0);
     assert_eq!(app.state.spreadsheet.sheets.len(), 1);
-    let _element_single = view_spreadsheet(&app.state.spreadsheet, AppTheme::Dark);
+    let _element_single = view_spreadsheet(&app.state.spreadsheet, AppTheme::Dark, None);
 }
 
 #[test]

@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use iced::font::Weight;
 use iced::widget::{button, column, container, row, scrollable, svg, text};
 use iced::{Alignment, Border, Color, Element, Font, Length, Shadow, Theme, alignment};
 
@@ -11,16 +10,6 @@ use crate::ui::theme::color::primitive;
 use crate::ui::theme::{default_row_button, default_scrollable, icon_theme};
 
 use crate::ui::theme::tokens::{spacing, tables};
-
-const FONT_WEIGHT_BOLD: Font = Font {
-    weight: Weight::Bold,
-    ..Font::DEFAULT
-};
-
-const FONT_WEIGHT_MEDIUM: Font = Font {
-    weight: Weight::Medium,
-    ..Font::DEFAULT
-};
 
 const COLUMN_PORTION_NAME: u16 = 65;
 const COLUMN_PORTION_KIND: u16 = 10;
@@ -63,13 +52,22 @@ const HEADER_ROW_PADDING: u16 = spacing::XS as u16;
 const ROW_CONTENT_PADDING: [u16; 2] = [spacing::XS as u16, spacing::S as u16];
 
 use crate::ui::theme::AppTheme;
+use crate::ui::theme::font::{get_main_font, get_main_font_bold, get_main_font_medium};
 
-pub fn view_folder<'a>(state: &'a FolderState, theme: AppTheme) -> Element<'a, Message> {
+pub fn view_folder<'a>(
+    state: &'a FolderState,
+    theme: AppTheme,
+    font_family: Option<&str>,
+) -> Element<'a, Message> {
     let (text_color, dim_color, sub_dim_color) = resolve_theme_colors(theme);
+    let main_font = get_main_font(font_family);
+    let main_font_bold = get_main_font_bold(font_family);
+    let main_font_medium = get_main_font_medium(font_family);
 
-    let summary_block = create_summary_block(state, dim_color, sub_dim_color);
-    let folder_header = create_folder_header(&state.sort_state);
-    let rows_list = create_folder_rows(state, text_color, dim_color);
+    let summary_block =
+        create_summary_block(state, dim_color, sub_dim_color, main_font, main_font_bold);
+    let folder_header = create_folder_header(&state.sort_state, main_font_medium);
+    let rows_list = create_folder_rows(state, text_color, dim_color, main_font);
 
     column![
         summary_block,
@@ -104,6 +102,8 @@ fn create_summary_block<'a>(
     state: &'a FolderState,
     dim_color: Color,
     sub_dim_color: Color,
+    main_font: Font,
+    main_font_bold: Font,
 ) -> Element<'a, Message> {
     let folder_name = Path::new(&state.folder_path)
         .file_name()
@@ -127,7 +127,10 @@ fn create_summary_block<'a>(
                 .height(SUMMARY_ICON_SIZE)
                 .into()
         } else {
-            text(DEFAULT_FOLDER_EMOJI).size(SUMMARY_ICON_SIZE).into()
+            text(DEFAULT_FOLDER_EMOJI)
+                .size(SUMMARY_ICON_SIZE)
+                .font(main_font)
+                .into()
         };
 
     column![
@@ -135,31 +138,57 @@ fn create_summary_block<'a>(
             folder_icon,
             text(folder_name)
                 .size(SUMMARY_FOLDER_NAME_SIZE)
-                .font(FONT_WEIGHT_BOLD),
+                .font(main_font_bold),
         ]
         .spacing(SUMMARY_TITLE_SPACING)
         .align_y(Alignment::Center),
         text(&state.folder_path)
             .size(SUMMARY_PATH_SIZE)
+            .font(main_font)
             .color(sub_dim_color),
-        text(stats_text).size(SUMMARY_STATS_SIZE).color(dim_color),
+        text(stats_text)
+            .size(SUMMARY_STATS_SIZE)
+            .font(main_font)
+            .color(dim_color),
     ]
     .spacing(SUMMARY_LAYOUT_SPACING)
     .padding(SUMMARY_PADDING)
     .into()
 }
 
-fn create_folder_header<'a>(sort_state: &crate::core::SortState) -> Element<'a, Message> {
+fn create_folder_header<'a>(
+    sort_state: &crate::core::SortState,
+    main_font_medium: Font,
+) -> Element<'a, Message> {
     container(
         row![
-            create_header_button(sort_state, SortField::Name, "Name", COLUMN_PORTION_NAME),
-            create_header_button(sort_state, SortField::Kind, "Kind", COLUMN_PORTION_KIND),
-            create_header_button(sort_state, SortField::Size, "Size", COLUMN_PORTION_SIZE),
+            create_header_button(
+                sort_state,
+                SortField::Name,
+                "Name",
+                COLUMN_PORTION_NAME,
+                main_font_medium
+            ),
+            create_header_button(
+                sort_state,
+                SortField::Kind,
+                "Kind",
+                COLUMN_PORTION_KIND,
+                main_font_medium
+            ),
+            create_header_button(
+                sort_state,
+                SortField::Size,
+                "Size",
+                COLUMN_PORTION_SIZE,
+                main_font_medium
+            ),
             create_header_button(
                 sort_state,
                 SortField::Modified,
                 "Modified",
-                COLUMN_PORTION_MODIFIED
+                COLUMN_PORTION_MODIFIED,
+                main_font_medium,
             ),
         ]
         .spacing(HEADER_LAYOUT_SPACING)
@@ -174,13 +203,14 @@ fn create_header_button<'a>(
     field: SortField,
     label: &str,
     width_portion: u16,
+    main_font_medium: Font,
 ) -> button::Button<'a, Message> {
     let sort_text = format_sort_label(sort_state, field, label);
 
     button(
         text(sort_text)
             .size(HEADER_TEXT_SIZE)
-            .font(FONT_WEIGHT_MEDIUM),
+            .font(main_font_medium),
     )
     .on_press(Message::SortByFieldClicked(field))
     .style(header_button_style)
@@ -233,12 +263,20 @@ fn create_folder_rows<'a>(
     state: &'a FolderState,
     text_color: Color,
     dim_color: Color,
+    main_font: Font,
 ) -> Element<'a, Message> {
     let mut rows_list = column![].spacing(ROWS_LIST_SPACING);
 
     for (row_index, row_data) in state.rows.iter().enumerate() {
         let is_selected = state.selected_index == Some(row_index);
-        let row_button = create_folder_row(row_index, row_data, is_selected, text_color, dim_color);
+        let row_button = create_folder_row(
+            row_index,
+            row_data,
+            is_selected,
+            text_color,
+            dim_color,
+            main_font,
+        );
         rows_list = rows_list.push(row_button);
     }
 
@@ -251,28 +289,35 @@ fn create_folder_row<'a>(
     is_selected: bool,
     text_color: Color,
     dim_color: Color,
+    main_font: Font,
 ) -> button::Button<'a, Message> {
     let icon_element = render_row_icon(row_data.icon);
 
     let row_content = row![
         row![
             icon_element,
-            text(&row_data.name).size(ROW_NAME_SIZE).color(text_color)
+            text(&row_data.name)
+                .size(ROW_NAME_SIZE)
+                .font(main_font)
+                .color(text_color)
         ]
         .spacing(ROW_NAME_SPACING)
         .align_y(Alignment::Center)
         .width(Length::FillPortion(COLUMN_PORTION_NAME)),
         text(&row_data.kind)
             .size(ROW_TEXT_SIZE)
+            .font(main_font)
             .color(dim_color)
             .width(Length::FillPortion(COLUMN_PORTION_KIND)),
         text(&row_data.size)
             .size(ROW_TEXT_SIZE)
+            .font(main_font)
             .color(dim_color)
             .width(Length::FillPortion(COLUMN_PORTION_SIZE))
             .align_x(alignment::Horizontal::Right),
         text(&row_data.modified)
             .size(ROW_TEXT_SIZE)
+            .font(main_font)
             .color(dim_color)
             .width(Length::FillPortion(COLUMN_PORTION_MODIFIED)),
     ]
