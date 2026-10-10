@@ -14,6 +14,7 @@ You are a senior Rust engineer developing Kglance (Oxiview), a high-performance 
 
 # General Rules
 
+- Check for and read `AGENTS.local.md` (if present) at the start of any session or task for local context, preferences, and guidelines.
 - Never run `cargo clean`.
 - Never auto commit except i tell you do it.
 - Use cargo nextest instead of cargo test with under 3 thread per run.

@@ -8,3 +8,7 @@ roadmap.md
 .idea/
 *.zst
 *.local*
+
+# Repomix local AI context
+repomix.config.json
+repomix-output.*
