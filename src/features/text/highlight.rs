@@ -1,12 +1,14 @@
 use crate::features::text::document::CodeDocument;
+use crate::features::text::syntax::{
+    find_syntax_for_extension, global_syntax_set, global_theme_set,
+};
 use crate::ui::theme::AppTheme;
 use crate::ui::theme::color::primitive::syntect_to_iced_color;
 use iced::{Color, Font};
 use lru::LruCache;
 use std::num::NonZeroUsize;
-use std::sync::OnceLock;
-use syntect::highlighting::{HighlightIterator, HighlightState, Highlighter, ThemeSet};
-use syntect::parsing::{ParseState, ScopeStack, SyntaxReference, SyntaxSet};
+use syntect::highlighting::{HighlightIterator, HighlightState, Highlighter};
+use syntect::parsing::{ParseState, ScopeStack, SyntaxReference};
 
 /// Structure representing a syntax-highlighted span.
 #[derive(Debug, Clone, PartialEq)]
@@ -29,73 +31,13 @@ pub struct SyntaxCheckpoint {
     pub highlight_state: HighlightState,
 }
 
-/// Global syntax set lazily initialized once.
-fn global_syntax_set() -> &'static SyntaxSet {
-    static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
-    SYNTAX_SET.get_or_init(SyntaxSet::load_defaults_newlines)
-}
-
-/// Global theme set lazily initialized once.
-fn global_theme_set() -> &'static ThemeSet {
-    static THEME_SET: OnceLock<ThemeSet> = OnceLock::new();
-    THEME_SET.get_or_init(|| {
-        use std::str::FromStr;
-        use syntect::highlighting::{
-            Color as SyntectColor, ScopeSelectors, StyleModifier, ThemeItem,
-        };
-
-        let mut ts = ThemeSet::load_defaults();
-        if let Ok(key_scope) = ScopeSelectors::from_str("meta.structure.dictionary.key string") {
-            for (name, theme) in ts.themes.iter_mut() {
-                if name.starts_with("base16") {
-                    let key_color = theme
-                        .scopes
-                        .iter()
-                        .find(|item| {
-                            item.scope.selectors.iter().any(|sel| {
-                                let s = format!("{sel:?}");
-                                s.contains("variable") || s.contains("entity.name")
-                            })
-                        })
-                        .and_then(|item| item.style.foreground)
-                        .unwrap_or(SyntectColor {
-                            r: 102,
-                            g: 153,
-                            b: 204,
-                            a: 255,
-                        });
-
-                    theme.scopes.push(ThemeItem {
-                        scope: key_scope.clone(),
-                        style: StyleModifier {
-                            foreground: Some(key_color),
-                            background: None,
-                            font_style: None,
-                        },
-                    });
-                }
-            }
-        }
-        ts
-    })
-}
-
-/// Finds matching syntax based on file extension.
-pub fn find_syntax_for_extension(ext: &str) -> &'static SyntaxReference {
-    let ss = global_syntax_set();
-    let clean_ext = ext.trim_start_matches('.').to_ascii_lowercase();
-
-    ss.find_syntax_by_extension(&clean_ext)
-        .or_else(|| ss.find_syntax_by_token(&clean_ext))
-        .unwrap_or_else(|| ss.find_syntax_plain_text())
-}
-
 /// Cache managing syntax highlighting tokens and checkpoints.
 pub struct SyntaxCache {
     extension: String,
     checkpoint_interval: usize,
     checkpoints: Vec<SyntaxCheckpoint>,
     token_cache: LruCache<usize, Vec<HighlightedSpan>>,
+    current_theme: Option<AppTheme>,
 }
 
 impl std::fmt::Debug for SyntaxCache {
@@ -105,6 +47,7 @@ impl std::fmt::Debug for SyntaxCache {
             .field("checkpoint_interval", &self.checkpoint_interval)
             .field("checkpoints_count", &self.checkpoints.len())
             .field("token_cache_len", &self.token_cache.len())
+            .field("current_theme", &self.current_theme)
             .finish()
     }
 }
@@ -121,6 +64,7 @@ impl Clone for SyntaxCache {
             checkpoint_interval: self.checkpoint_interval,
             checkpoints: self.checkpoints.clone(),
             token_cache: new_cache,
+            current_theme: self.current_theme,
         }
     }
 }
@@ -143,6 +87,20 @@ impl SyntaxCache {
             checkpoint_interval: checkpoint_interval.max(16),
             checkpoints: Vec::new(),
             token_cache: LruCache::new(cap),
+            current_theme: None,
+        }
+    }
+
+    /// Returns the currently active theme, if any.
+    pub fn current_theme(&self) -> Option<AppTheme> {
+        self.current_theme
+    }
+
+    /// Sets active theme, clearing caches if changed.
+    pub fn set_theme(&mut self, theme: AppTheme) {
+        if self.current_theme != Some(theme) {
+            self.current_theme = Some(theme);
+            self.clear();
         }
     }
 
@@ -172,6 +130,11 @@ impl SyntaxCache {
         let total_lines = doc.total_lines();
         if total_lines == 0 || start_line > end_line {
             return Vec::new();
+        }
+
+        if self.current_theme != Some(theme) {
+            self.current_theme = Some(theme);
+            self.clear();
         }
 
         let end_line = end_line.min(total_lines.saturating_sub(1));
@@ -275,7 +238,7 @@ impl SyntaxCache {
         doc: &CodeDocument,
         theme: AppTheme,
     ) -> &[HighlightedSpan] {
-        if !self.token_cache.contains(&line_idx) {
+        if self.current_theme != Some(theme) || !self.token_cache.contains(&line_idx) {
             let _ = self.get_or_tokenize_range(line_idx, line_idx, doc, theme);
         }
 
@@ -386,6 +349,86 @@ mod tests {
         assert_ne!(
             key_span.color, val_span.color,
             "JSON key and string value should have distinct highlight colors"
+        );
+    }
+
+    #[test]
+    fn test_typescript_highlight() {
+        let code = "interface User<T> {\n    id: string;\n    data: T;\n}\nconst user: User<number> = { id: \"123\", data: 42 };";
+        let doc = CodeDocument::new(code);
+        let mut cache = SyntaxCache::new("ts", 64);
+        let spans_line_0 = cache.get_or_tokenize_line(0, &doc, AppTheme::Dark);
+        assert!(!spans_line_0.is_empty());
+
+        let spans_line_4 = cache.get_or_tokenize_line(4, &doc, AppTheme::Dark);
+        assert!(!spans_line_4.is_empty());
+
+        let line_4 = doc.get_line(4);
+        let const_span = spans_line_4
+            .iter()
+            .find(|s| &line_4[s.start_byte..s.end_byte] == "const")
+            .expect("const keyword span found");
+        let string_span = spans_line_4
+            .iter()
+            .find(|s| &line_4[s.start_byte..s.end_byte] == "123")
+            .expect("string literal span found");
+        let num_span = spans_line_4
+            .iter()
+            .find(|s| &line_4[s.start_byte..s.end_byte] == "42")
+            .expect("numeric literal span found");
+
+        assert_ne!(
+            string_span.color, num_span.color,
+            "TypeScript string and number literals should have distinct colors"
+        );
+        assert_ne!(
+            const_span.color, string_span.color,
+            "TypeScript keyword and string literals should have distinct colors"
+        );
+    }
+
+    #[test]
+    fn test_syntax_cache_theme_invalidation() {
+        let code = "const message = \"hello\";";
+        let doc = CodeDocument::new(code);
+        let mut cache = SyntaxCache::new("ts", 64);
+
+        let spans_dracula = cache
+            .get_or_tokenize_line(0, &doc, AppTheme::Dracula)
+            .to_vec();
+        assert!(!spans_dracula.is_empty());
+
+        let spans_latte = cache
+            .get_or_tokenize_line(0, &doc, AppTheme::CatppuccinLatte)
+            .to_vec();
+        assert!(!spans_latte.is_empty());
+
+        let spans_light = cache
+            .get_or_tokenize_line(0, &doc, AppTheme::Light)
+            .to_vec();
+        assert!(!spans_light.is_empty());
+
+        // Dracula string is yellow (241, 250, 140), Latte string is green (64, 160, 43)
+        let str_dracula = spans_dracula
+            .iter()
+            .find(|s| &code[s.start_byte..s.end_byte] == "hello")
+            .unwrap();
+        let str_latte = spans_latte
+            .iter()
+            .find(|s| &code[s.start_byte..s.end_byte] == "hello")
+            .unwrap();
+        let str_light = spans_light
+            .iter()
+            .find(|s| &code[s.start_byte..s.end_byte] == "hello")
+            .unwrap();
+
+        assert_ne!(
+            str_dracula.color, str_latte.color,
+            "Theme switch must invalidate cache and change token colors"
+        );
+        assert_ne!(
+            str_latte.color, str_light.color,
+            "Latte and Light themes should have distinct colors"
         );
     }
 }

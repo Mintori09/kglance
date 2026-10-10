@@ -42,7 +42,9 @@ pub fn render_outline_sidebar<'a>(
     width: f32,
     scroll_y: f32,
     display_map: &DisplayMap,
+    font_family: Option<&str>,
 ) -> Element<'a, Message> {
+    let main_font = crate::ui::theme::font::get_main_font(font_family);
     let bg_color = theme.palette().base.bg;
     let border_color = theme.palette().base.border;
 
@@ -53,6 +55,7 @@ pub fn render_outline_sidebar<'a>(
             container(
                 text("No outline available")
                     .size(NAME_FONT_SIZE)
+                    .font(main_font)
                     .color(theme.palette().base.text_dim),
             )
             .padding(Padding {
@@ -68,7 +71,7 @@ pub fn render_outline_sidebar<'a>(
             .iter()
             .map(|sym| {
                 let is_active = active_symbol_line == Some(sym.line_number);
-                render_symbol_entry(sym, is_active, theme)
+                render_symbol_entry(sym, is_active, theme, main_font)
             })
             .collect()
     };
@@ -115,6 +118,7 @@ fn render_symbol_entry<'a>(
     sym: &'a CodeSymbol,
     is_active: bool,
     theme: AppTheme,
+    main_font: iced::Font,
 ) -> Element<'a, Message> {
     let badge_color = symbol_badge_color(sym.kind, theme);
     let line_color = theme.palette().base.text_dim;
@@ -124,6 +128,7 @@ fn render_symbol_entry<'a>(
     let badge = container(
         text(sym.kind.badge_label())
             .size(BADGE_FONT_SIZE)
+            .font(main_font)
             .color(badge_color),
     )
     .padding(Padding {
@@ -150,6 +155,7 @@ fn render_symbol_entry<'a>(
     let name_label = container(
         text(&sym.name)
             .size(NAME_FONT_SIZE)
+            .font(main_font)
             .wrapping(iced::widget::text::Wrapping::None),
     )
     .width(Length::Fill)
@@ -157,6 +163,7 @@ fn render_symbol_entry<'a>(
 
     let line_label = text(sym.line_number.to_string())
         .size(LINE_FONT_SIZE)
+        .font(main_font)
         .color(line_color);
 
     let mut row_widgets = row![].spacing(spacing::XS).align_y(Alignment::Center);
