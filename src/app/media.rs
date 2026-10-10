@@ -76,6 +76,10 @@ impl super::KglanceApp {
                     crate::features::text::update::rescale_typst_font(self, target_font_size)
                         .unwrap_or_else(Task::none)
                 }
+                Some(PreviewData::Spreadsheet { .. }) => {
+                    crate::features::sheet::update::rescale_spreadsheet_font(self, target_font_size)
+                        .unwrap_or_else(Task::none)
+                }
                 _ => Task::none(),
             }
         } else {

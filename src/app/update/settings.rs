@@ -108,6 +108,15 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                         content_width,
                     );
                 }
+            } else if matches!(
+                app.current_content,
+                Some(crate::core::PreviewData::Spreadsheet { .. })
+            ) {
+                crate::features::sheet::update::rescale_spreadsheet_geometry(
+                    &mut app.state.spreadsheet,
+                    old_size,
+                    s,
+                );
             }
 
             let mut config = app.load_config();
@@ -488,6 +497,11 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 word_wrap,
                 win_w,
                 theme,
+            );
+            crate::features::sheet::update::rescale_spreadsheet_geometry(
+                &mut app.state.spreadsheet,
+                old_size,
+                default_config.ui.font_size,
             );
 
             let _ = app.save_config(&default_config);

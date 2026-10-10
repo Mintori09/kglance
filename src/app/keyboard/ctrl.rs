@@ -25,7 +25,16 @@ impl KglanceApp {
             "t" | "T" | "\u{14}" => self.handle_toggle_theme(),
             "+" | "=" => self.handle_zoom_or_font(1.0),
             "-" => self.handle_zoom_or_font(-1.0),
-            "0" => crate::features::image::update::handle_image_reset(self),
+            "0" => {
+                if matches!(self.current_content, Some(PreviewData::Image { .. })) {
+                    crate::features::image::update::handle_image_reset(self)
+                } else {
+                    self.handle_font_shortcuts(
+                        &iced::keyboard::Key::Character("+".into()),
+                        iced::keyboard::Modifiers::SHIFT,
+                    )
+                }
+            }
             "f" | "F" | "\u{6}" => self.handle_ctrl_f(),
             "g" | "G" | "\u{7}" => self.handle_ctrl_g(),
             "e" | "E" | "\u{5}" | "i" | "I" | "\t" | "P" | "p" | "\u{10}" => {
@@ -235,6 +244,10 @@ impl KglanceApp {
                 crate::features::markdown::update::zoom_markdown_font(self, direction)
             }
 
+            Some(PreviewData::Spreadsheet { .. }) => {
+                crate::features::sheet::update::zoom_spreadsheet_font(self, direction)
+            }
+
             _ => None,
         }
     }
@@ -386,6 +399,10 @@ impl KglanceApp {
                                 self.state.current_window_size.width,
                             ))
                         }
+                    }
+
+                    Some(PreviewData::Spreadsheet { .. }) => {
+                        crate::features::sheet::update::rescale_spreadsheet_font(self, default_size)
                     }
 
                     _ => Some(Task::none()),

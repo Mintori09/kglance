@@ -10,15 +10,21 @@ use iced::alignment;
 use iced::widget::{button, column, container, mouse_area, row, text};
 use iced::{Border, Color, Element, Length, Shadow, Theme};
 
+use crate::features::sheet::font::{
+    bottom_bar_height, cell_padding_x, cell_padding_y, cell_text_size, empty_state_text_size,
+    header_height, header_text_size, line_height, min_row_height, row_num_text_size,
+    row_number_col_width, scale_col_width, scale_ratio, tab_text_size,
+};
+
 const SORT_ASCENDING_INDICATOR: &str = " ▲";
 const SORT_DESCENDING_INDICATOR: &str = " ▼";
 const SORT_NONE_INDICATOR: &str = "";
 
-const CELL_TEXT_SIZE: f32 = typography::BODY;
-const ROW_NUM_TEXT_SIZE: f32 = typography::CAPTION;
-const HEADER_TEXT_SIZE: f32 = 11.5;
-const TAB_TEXT_SIZE: f32 = typography::BODY;
-const EMPTY_STATE_TEXT_SIZE: f32 = typography::BODY_LG;
+pub const CELL_TEXT_SIZE: f32 = typography::BODY;
+pub const ROW_NUM_TEXT_SIZE: f32 = typography::CAPTION;
+pub const HEADER_TEXT_SIZE: f32 = 11.5;
+pub const TAB_TEXT_SIZE: f32 = typography::BODY;
+pub const EMPTY_STATE_TEXT_SIZE: f32 = typography::BODY_LG;
 
 pub const COL_SPACING: f32 = 0.0;
 pub const ROWS_LIST_SPACING: f32 = 0.0;
@@ -34,7 +40,13 @@ pub const CELL_PADDING_Y: f32 = 6.0;
 pub const CELL_PADDING_X: f32 = 6.0;
 
 /// Estimates row height accurately based on realistic word-wrapping and line bounds.
-pub fn estimate_row_height(row_data: &[String], columns: &[ColumnMeta]) -> f32 {
+pub fn estimate_row_height(row_data: &[String], columns: &[ColumnMeta], font_size: f32) -> f32 {
+    let min_row_h = min_row_height(font_size);
+    let line_h = line_height(font_size);
+    let pad_y = cell_padding_y(font_size);
+    let pad_x = cell_padding_x(font_size);
+    let approx_char_w = 6.8 * scale_ratio(font_size);
+
     let mut max_lines = 1;
     for (col_idx, col_meta) in columns.iter().enumerate() {
         if let Some(cell) = row_data.get(col_idx) {
@@ -42,8 +54,9 @@ pub fn estimate_row_height(row_data: &[String], columns: &[ColumnMeta]) -> f32 {
             if trimmed.is_empty() {
                 continue;
             }
-            let inner_width = (col_meta.width - (CELL_PADDING_X * 2.0)).max(30.0);
-            let chars_per_line = ((inner_width / 6.8).floor() as usize).max(1);
+            let col_w = scale_col_width(col_meta.width, font_size);
+            let inner_width = (col_w - (pad_x * 2.0)).max(30.0);
+            let chars_per_line = ((inner_width / approx_char_w).floor() as usize).max(1);
 
             let mut cell_lines = 0;
             for raw_line in trimmed.split('\n') {
@@ -67,11 +80,12 @@ pub fn estimate_row_height(row_data: &[String], columns: &[ColumnMeta]) -> f32 {
             }
         }
     }
-    (max_lines as f32 * LINE_HEIGHT + CELL_PADDING_Y).clamp(MIN_ROW_HEIGHT, 500.0)
+    (max_lines as f32 * line_h + pad_y).clamp(min_row_h, 500.0)
 }
 
 pub fn view_spreadsheet<'a>(
     state: &'a SpreadsheetState,
+    font_size: f32,
     theme: AppTheme,
     font_family: Option<&str>,
 ) -> Element<'a, Message> {
@@ -79,13 +93,18 @@ pub fn view_spreadsheet<'a>(
     let active_sheet = state.sheets.get(state.active_sheet);
 
     let content_body = match active_sheet {
-        Some(sheet) => render_spreadsheet_body(state, sheet, theme, main_font),
+        Some(sheet) => render_spreadsheet_body(state, sheet, theme, main_font, font_size),
         None => render_empty_state("No spreadsheet data loaded", theme, main_font),
     };
 
     if state.sheets.len() > 1 {
-        let bottom_bar =
-            render_bottom_sheet_bar(&state.sheets, state.active_sheet, theme, main_font);
+        let bottom_bar = render_bottom_sheet_bar(
+            &state.sheets,
+            state.active_sheet,
+            theme,
+            main_font,
+            font_size,
+        );
         column![content_body, bottom_bar].into()
     } else {
         content_body
@@ -97,6 +116,7 @@ fn render_bottom_sheet_bar<'a>(
     active_sheet_index: usize,
     theme: AppTheme,
     main_font: iced::Font,
+    font_size: f32,
 ) -> Element<'a, Message> {
     if sheets.len() <= 1 {
         return container(row![]).height(Length::Shrink).into();
@@ -110,7 +130,7 @@ fn render_bottom_sheet_bar<'a>(
         let is_active = index == active_sheet_index;
         let tab_button = button(
             text(&sheet.name)
-                .size(TAB_TEXT_SIZE)
+                .size(tab_text_size(font_size))
                 .font(main_font)
                 .align_x(alignment::Horizontal::Center),
         )
@@ -132,7 +152,7 @@ fn render_bottom_sheet_bar<'a>(
             .build(),
     )
     .width(Length::Fill)
-    .height(Length::Fixed(BOTTOM_BAR_HEIGHT))
+    .height(Length::Fixed(bottom_bar_height(font_size)))
     .padding([2, 6])
     .align_y(alignment::Vertical::Center)
     .style(move |_: &Theme| bottom_bar_style(theme))
@@ -144,6 +164,7 @@ fn render_spreadsheet_body<'a>(
     sheet: &'a SheetInfo,
     theme: AppTheme,
     main_font: iced::Font,
+    font_size: f32,
 ) -> Element<'a, Message> {
     if sheet.rows.is_empty() {
         return render_empty_state("Sheet is empty", theme, main_font);
@@ -162,14 +183,14 @@ fn render_spreadsheet_body<'a>(
         );
     }
 
-    let header = render_table_header(&sheet.columns, state, theme, main_font);
+    let header = render_table_header(&sheet.columns, state, theme, main_font, font_size);
 
     if state.display_indices.is_empty() {
         layout = layout.push(header);
         layout = layout.push(
             container(
                 text("No matching rows found")
-                    .size(EMPTY_STATE_TEXT_SIZE)
+                    .size(empty_state_text_size(font_size))
                     .font(main_font)
                     .style(move |_: &Theme| text::Style {
                         color: Some(theme.palette().base.text_dim),
@@ -180,8 +201,16 @@ fn render_spreadsheet_body<'a>(
         return layout.into();
     }
 
-    let rows_effective_scroll_y = (state.scroll_y - (HEADER_HEIGHT + ROWS_LIST_SPACING)).max(0.0);
-    let rows_list = render_table_rows(state, sheet, theme, rows_effective_scroll_y, main_font);
+    let rows_effective_scroll_y =
+        (state.scroll_y - (header_height(font_size) + ROWS_LIST_SPACING)).max(0.0);
+    let rows_list = render_table_rows(
+        state,
+        sheet,
+        theme,
+        rows_effective_scroll_y,
+        main_font,
+        font_size,
+    );
 
     let table_content = column![header, rows_list].spacing(ROWS_LIST_SPACING);
 
@@ -213,9 +242,17 @@ fn render_table_header<'a>(
     state: &'a SpreadsheetState,
     theme: AppTheme,
     main_font: iced::Font,
+    font_size: f32,
 ) -> Element<'a, Message> {
-    let col_window =
-        compute_csv_column_window(&state.prefix_widths, state.scroll_x, state.viewport_width);
+    let row_num_w = row_number_col_width(font_size);
+    let header_h = header_height(font_size);
+    let header_text_sz = header_text_size(font_size);
+    let col_window = compute_csv_column_window(
+        &state.prefix_widths,
+        state.scroll_x,
+        state.viewport_width,
+        row_num_w,
+    );
     let sort_column = state.sort_col;
     let sort_ascending = state.sort_ascending;
     let mut header_row = row![].spacing(COL_SPACING);
@@ -223,15 +260,15 @@ fn render_table_header<'a>(
     // Fixed corner cell above row numbers
     let row_num_header = container(
         text("")
-            .size(HEADER_TEXT_SIZE)
+            .size(header_text_sz)
             .font(main_font)
             .align_x(alignment::Horizontal::Center)
             .wrapping(text::Wrapping::None)
             .width(Length::Fill),
     )
     .clip(true)
-    .width(Length::Fixed(ROW_NUMBER_COL_WIDTH))
-    .height(Length::Fixed(HEADER_HEIGHT))
+    .width(Length::Fixed(row_num_w))
+    .height(Length::Fixed(header_h))
     .align_y(alignment::Vertical::Center)
     .style(move |_: &Theme| grid_header_cell_style(theme));
 
@@ -248,12 +285,14 @@ fn render_table_header<'a>(
     {
         let column_index = col_window.visible_start + col_offset;
         let indicator = get_sort_indicator(column_index, sort_column, sort_ascending);
-        let button_label = format!("{}{}", col_meta.name, indicator);
+        let name = &col_meta.name;
+        let button_label = format!("{name}{indicator}");
         let is_sorted = sort_column == Some(column_index);
+        let col_w = scale_col_width(col_meta.width, font_size);
 
         let header_button = button(
             text(button_label)
-                .size(HEADER_TEXT_SIZE)
+                .size(header_text_sz)
                 .font(main_font)
                 .align_x(alignment::Horizontal::Center)
                 .wrapping(text::Wrapping::None)
@@ -263,8 +302,8 @@ fn render_table_header<'a>(
         .style(grid_header_button_style(theme, is_sorted))
         .clip(true)
         .padding([0, 4])
-        .width(Length::Fixed(col_meta.width))
-        .height(Length::Fixed(HEADER_HEIGHT));
+        .width(Length::Fixed(col_w))
+        .height(Length::Fixed(header_h));
 
         header_row = header_row.push(header_button);
     }
@@ -274,9 +313,7 @@ fn render_table_header<'a>(
             header_row.push(iced::widget::Space::new().width(col_window.right_spacer_width));
     }
 
-    container(header_row)
-        .height(Length::Fixed(HEADER_HEIGHT))
-        .into()
+    container(header_row).height(Length::Fixed(header_h)).into()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -291,6 +328,7 @@ pub fn compute_csv_column_window(
     prefix_widths: &[f32],
     scroll_x: f32,
     viewport_width: f32,
+    row_number_col_width: f32,
 ) -> CsvColumnWindow {
     let total_cols = prefix_widths.len().saturating_sub(1);
     if total_cols == 0 {
@@ -309,7 +347,7 @@ pub fn compute_csv_column_window(
     };
 
     let total_width = *prefix_widths.last().unwrap_or(&0.0);
-    let col_scroll_x = (scroll_x - (ROW_NUMBER_COL_WIDTH + COL_SPACING))
+    let col_scroll_x = (scroll_x - (row_number_col_width + COL_SPACING))
         .max(0.0)
         .min(total_width);
 
@@ -438,13 +476,20 @@ fn render_table_rows<'a>(
     theme: AppTheme,
     scroll_y: f32,
     main_font: iced::Font,
+    font_size: f32,
 ) -> Element<'a, Message> {
     let window = compute_csv_virtual_window(&state.prefix_heights, scroll_y, state.viewport_height);
     if window.visible_end == 0 {
         return column![].into();
     }
-    let col_win =
-        compute_csv_column_window(&state.prefix_widths, state.scroll_x, state.viewport_width);
+    let row_num_w = row_number_col_width(font_size);
+    let min_row_h = min_row_height(font_size);
+    let col_win = compute_csv_column_window(
+        &state.prefix_widths,
+        state.scroll_x,
+        state.viewport_width,
+        row_num_w,
+    );
 
     let mut rows_list = column![].spacing(ROWS_LIST_SPACING);
 
@@ -463,14 +508,10 @@ fn render_table_rows<'a>(
         };
 
         let row_idx = window.visible_start + display_offset;
-        let row_h = state
-            .row_heights
-            .get(row_idx)
-            .copied()
-            .unwrap_or(MIN_ROW_HEIGHT);
+        let row_h = state.row_heights.get(row_idx).copied().unwrap_or(min_row_h);
 
         let mut row_widget = row![].spacing(COL_SPACING);
-        let is_multiline = row_h > (MIN_ROW_HEIGHT + 2.0);
+        let is_multiline = row_h > (min_row_h + 2.0);
         let is_row_selected = state.selection.is_some_and(|s| {
             let (min_r, max_r) = s.row_range();
             row_idx >= min_r && row_idx <= max_r
@@ -481,7 +522,7 @@ fn render_table_rows<'a>(
         let row_num_text = format!("{row_num}");
         let row_num_content = container(
             text(row_num_text)
-                .size(ROW_NUM_TEXT_SIZE)
+                .size(row_num_text_size(font_size))
                 .font(main_font)
                 .align_x(alignment::Horizontal::Center)
                 .wrapping(text::Wrapping::None)
@@ -497,9 +538,9 @@ fn render_table_rows<'a>(
         let row_num_container = container(row_num_content)
             .style(move |_: &Theme| grid_row_num_style(theme, is_row_selected))
             .clip(true)
-            .width(Length::Fixed(ROW_NUMBER_COL_WIDTH))
+            .width(Length::Fixed(row_num_w))
             .height(Length::Fixed(row_h))
-            .padding([CELL_PADDING_Y / 2.0, 2.0]);
+            .padding([cell_padding_y(font_size) / 2.0, 2.0]);
 
         let row_num_widget = mouse_area(row_num_container)
             .on_press(crate::app::messages::SpreadsheetMsg::RowHeaderPressed(row_idx).into())
@@ -532,9 +573,10 @@ fn render_table_rows<'a>(
                 ColumnType::Text | ColumnType::Empty => alignment::Horizontal::Left,
             };
 
+            let col_w = scale_col_width(col_meta.width, font_size);
             let cell_content = container(
                 text(cell_text)
-                    .size(CELL_TEXT_SIZE)
+                    .size(cell_text_size(font_size))
                     .font(main_font)
                     .align_x(text_align)
                     .wrapping(text::Wrapping::WordOrGlyph)
@@ -550,9 +592,9 @@ fn render_table_rows<'a>(
             let cell_container = container(cell_content)
                 .style(move |_: &Theme| grid_data_cell_style(theme, is_selected, is_primary))
                 .clip(true)
-                .width(Length::Fixed(col_meta.width))
+                .width(Length::Fixed(col_w))
                 .height(Length::Fixed(row_h))
-                .padding([CELL_PADDING_Y / 2.0, CELL_PADDING_X]);
+                .padding([cell_padding_y(font_size) / 2.0, cell_padding_x(font_size)]);
 
             let cell_widget = mouse_area(cell_container)
                 .on_press(
