@@ -90,19 +90,45 @@ impl KglanceApp {
 
         match &self.current_content {
             Some(PreviewData::Text { .. }) => {
-                if self.state.text.search_visible {
+                let had_search = self.state.text.search_visible;
+                let had_goto = self.state.text.goto_line_visible;
+                if had_search {
                     self.close_text_search();
                 }
-                if self.state.text.goto_line_visible {
+                if had_goto {
                     self.state.text.goto_line_visible = false;
                     self.state.text.goto_line_query.clear();
                 }
+                if had_search || had_goto {
+                    let y = self.state.text.scroll_y;
+                    return iced::widget::operation::scroll_to(
+                        crate::features::text::CONTENT_SCROLL_ID,
+                        iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                    );
+                }
             }
             Some(PreviewData::Json { .. }) => {
+                let had_search = self.state.json.search_visible;
                 self.close_json_search_or_editing();
+                if had_search {
+                    let y = if self.state.json.tree_mode {
+                        self.state.json.scroll_y
+                    } else {
+                        self.state.json.raw_text.scroll_y
+                    };
+                    return iced::widget::operation::scroll_to(
+                        "content_scroll",
+                        iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                    );
+                }
             }
             Some(PreviewData::Markdown { .. }) if self.state.markdown.search_visible => {
                 self.close_markdown_search();
+                let y = self.state.markdown.scroll_y;
+                return iced::widget::operation::scroll_to(
+                    "content_scroll",
+                    iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+                );
             }
             Some(PreviewData::Spreadsheet { .. }) if self.state.spreadsheet.search_visible => {
                 self.close_spreadsheet_search();

@@ -293,14 +293,21 @@ pub fn handle_raw_wheel_scrolled(
 pub fn handle_search_toggle(app: &mut KglanceApp) -> Task<Message> {
     let s = &mut app.state.json;
     s.search_visible = !s.search_visible;
+    let y = if s.tree_mode {
+        s.scroll_y
+    } else {
+        s.raw_text.scroll_y
+    };
+    let scroll_task =
+        operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y });
     if !s.search_visible {
         s.search_query.clear();
         s.search_matches.clear();
         s.search_match_index = 0;
-        Task::none()
+        scroll_task
     } else {
         recompute_search_matches(s);
-        operation::focus("json_search_input")
+        Task::batch([operation::focus("json_search_input"), scroll_task])
     }
 }
 
@@ -399,7 +406,12 @@ pub fn handle_search_closed(app: &mut KglanceApp) -> Task<Message> {
     app.state.json.search_matches.clear();
     app.state.json.search_match_index = 0;
     app.state.json.search_info.clear();
-    Task::none()
+    let y = if app.state.json.tree_mode {
+        app.state.json.scroll_y
+    } else {
+        app.state.json.raw_text.scroll_y
+    };
+    operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y })
 }
 
 pub fn handle_expand_all(app: &mut KglanceApp) -> Task<Message> {

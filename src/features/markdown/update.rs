@@ -199,15 +199,18 @@ pub fn handle_markdown_scrolled(
 pub fn handle_search_toggle(app: &mut KglanceApp) -> Task<Message> {
     let s = &mut app.state.markdown;
     s.search_visible = !s.search_visible;
+    let y = s.scroll_y;
+    let scroll_task =
+        operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y });
     if !s.search_visible {
         s.search_query.clear();
         s.search_match_count = 0;
         s.search_match_index = 0;
         s.search_match_blocks.clear();
         s.search_info.clear();
-        Task::none()
+        scroll_task
     } else {
-        operation::focus("md_search_input")
+        Task::batch([operation::focus("md_search_input"), scroll_task])
     }
 }
 
@@ -360,7 +363,8 @@ pub fn handle_search_closed(app: &mut KglanceApp) -> Task<Message> {
     s.search_match_index = 0;
     s.search_match_blocks.clear();
     s.search_info.clear();
-    Task::none()
+    let y = s.scroll_y;
+    operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y })
 }
 
 pub fn handle_selection_changed(app: &mut KglanceApp, selected: Option<String>) -> Task<Message> {
