@@ -371,12 +371,16 @@ pub fn view_window<'a>(
         let static_fonts = crate::ui::views::setting_page::get_system_fonts();
         let theme = iced::Theme::from(state.app_theme);
 
-        let settings_content =
-            crate::ui::views::setting_page::settings_page(&theme, &ui_config, static_fonts);
+        let settings_content = crate::ui::views::setting_page::settings_page(
+            &theme,
+            &ui_config,
+            &state.cache_config,
+            &state.scroll_config,
+            state.settings_tab,
+            static_fonts,
+        );
 
-        let modal_box = container(iced::widget::scrollable(settings_content))
-            .max_width(550.0)
-            .max_height(500.0);
+        let modal_box = container(settings_content).width(700.0).max_height(540.0);
 
         let backdrop = iced::widget::opaque(
             container(modal_box)

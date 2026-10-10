@@ -309,6 +309,7 @@ pub enum SystemMsg {
 
 #[derive(Debug, Clone)]
 pub enum SettingsMsg {
+    TabChanged(crate::core::SettingTab),
     ThemeChanged(String),
     FontSizeChanged(f32),
     FontFamilySelected(String),
@@ -319,8 +320,18 @@ pub enum SettingsMsg {
     DefaultHeightChanged(u32),
     MinWidthChanged(u32),
     MinHeightChanged(u32),
+    UseCurrentWindowSize,
+    SetWindowPreset { width: u32, height: u32 },
     WordWrapChanged(bool),
     JsonTreeViewChanged(bool),
+    EpubReadingModeChanged(crate::core::config::EpubReadingMode),
+    PreferMermaidCliChanged(bool),
+    MaxMemoryMbChanged(usize),
+    MaxDiskCacheMbChanged(usize),
+    SmoothScrollChanged(bool),
+    ScrollFrictionChanged(f32),
+    ScrollSpringStiffnessChanged(f32),
+    ResetToDefaults,
 }
 
 #[derive(Debug, Clone)]
