@@ -213,16 +213,18 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             Task::none()
         }
         SettingsMsg::DefaultWidthChanged(w) => {
-            app.state.window_default_size.width = w as f32;
+            let clamped_w = w.max(app.state.window_min_size.width as u32);
+            app.state.window_default_size.width = clamped_w as f32;
             let mut config = app.load_config();
-            config.ui.default_width = w;
+            config.ui.default_width = clamped_w;
             let _ = app.save_config(&config);
             Task::none()
         }
         SettingsMsg::DefaultHeightChanged(h) => {
-            app.state.window_default_size.height = h as f32;
+            let clamped_h = h.max(app.state.window_min_size.height as u32);
+            app.state.window_default_size.height = clamped_h as f32;
             let mut config = app.load_config();
-            config.ui.default_height = h;
+            config.ui.default_height = clamped_h;
             let _ = app.save_config(&config);
             Task::none()
         }
@@ -383,6 +385,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
         }
         SettingsMsg::SmoothScrollChanged(enabled) => {
             app.state.scroll_config.smooth_scroll_enabled = enabled;
+            app.state.apply_scroll_controllers();
             let mut config = app.load_config();
             config.scroll.smooth_scroll_enabled = enabled;
             let _ = app.save_config(&config);
@@ -390,6 +393,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
         }
         SettingsMsg::ScrollFrictionChanged(friction) => {
             app.state.scroll_config.friction = friction;
+            app.state.apply_scroll_controllers();
             let mut config = app.load_config();
             config.scroll.friction = friction;
             let _ = app.save_config(&config);
@@ -397,6 +401,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
         }
         SettingsMsg::ScrollSpringStiffnessChanged(stiffness) => {
             app.state.scroll_config.spring_stiffness = stiffness;
+            app.state.apply_scroll_controllers();
             let mut config = app.load_config();
             config.scroll.spring_stiffness = stiffness;
             let _ = app.save_config(&config);
@@ -404,12 +409,14 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
         }
         SettingsMsg::ResetToDefaults => {
             let default_config = crate::core::config::AppConfig::default();
+            let old_size = app.state.font_size;
             app.state.font_size = default_config.ui.font_size;
             app.state.default_font_size = default_config.ui.font_size;
             app.state.font_family = default_config.ui.font_family.clone();
             app.state.font_family_mono = default_config.ui.font_family_mono.clone();
             app.state.epub_font_family = default_config.ui.epub_font_family.clone();
             app.state.epub_reading_mode = default_config.ui.epub_reading_mode;
+            app.state.epub.reading_mode = default_config.ui.epub_reading_mode;
             app.state.max_text_width = default_config.ui.max_text_width;
             app.state.window_default_size = iced::Size::new(
                 default_config.ui.default_width as f32,
@@ -421,9 +428,11 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             );
             app.state.prefer_mermaid_cli = default_config.ui.prefer_mermaid_cli;
             app.state.word_wrap = default_config.ui.word_wrap;
+            app.state.text.wrap = default_config.ui.word_wrap;
             app.state.json_tree_view = default_config.ui.json_tree_view;
+            app.state.json.tree_mode = default_config.ui.json_tree_view;
             app.state.cache_config = default_config.cache.clone();
-            app.state.scroll_config = default_config.scroll.clone();
+            app.state.apply_scroll_config(&default_config.scroll);
             app.state.cache.set_max_bytes(
                 default_config
                     .cache
@@ -438,6 +447,40 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 .unwrap_or_else(|| "dark".into());
             app.state.theme_setting = theme_str.clone();
             app.state.app_theme = ConfigManager::resolve_theme(&theme_str);
+
+            let win_w = if app.state.current_window_size.width > 0.0 {
+                app.state.current_window_size.width
+            } else if app.state.window_width > 0.0 {
+                app.state.window_width
+            } else {
+                1024.0
+            };
+            let theme = app.state.app_theme;
+            let word_wrap = app.state.word_wrap;
+            crate::features::text::rescale_text_geometry(
+                &mut app.state.text,
+                old_size,
+                default_config.ui.font_size,
+                word_wrap,
+                win_w,
+                theme,
+            );
+            crate::features::text::rescale_text_geometry(
+                &mut app.state.json.raw_text,
+                old_size,
+                default_config.ui.font_size,
+                word_wrap,
+                win_w,
+                theme,
+            );
+            crate::features::text::rescale_text_geometry(
+                &mut app.state.typst.source_text,
+                old_size,
+                default_config.ui.font_size,
+                word_wrap,
+                win_w,
+                theme,
+            );
 
             let _ = app.save_config(&default_config);
             Task::none()

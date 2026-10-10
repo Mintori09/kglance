@@ -1,11 +1,11 @@
-use iced::widget::{column, container, pick_list, row, text};
+use iced::widget::{column, container, pick_list, row, text, toggler};
 use iced::{Alignment, Element, Font, Theme};
 
 use crate::app::messages::{Message, SettingsMsg};
 use crate::core::config::{EpubReadingMode, UiConfig};
 use crate::ui::theme::color::BaseColors;
 use crate::ui::theme::tokens::spacing;
-use crate::ui::theme::{default_card, default_checkbox, default_pick_list};
+use crate::ui::theme::{default_card, default_pick_list, default_toggler};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EpubModeDisplay {
@@ -42,7 +42,7 @@ pub fn previews_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> El
         Message::Settings(SettingsMsg::EpubReadingModeChanged(mode))
     })
     .font(main_font)
-    .width(220)
+    .width(240)
     .style({
         let theme = theme.clone();
         move |_, status| default_pick_list(&theme, status)
@@ -57,12 +57,11 @@ pub fn previews_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> El
         base_colors.text_dim,
     );
 
-    let mermaid_cb = iced::widget::checkbox(config.prefer_mermaid_cli)
-        .label("")
+    let mermaid_cb = toggler(config.prefer_mermaid_cli)
         .on_toggle(|enabled| Message::Settings(SettingsMsg::PreferMermaidCliChanged(enabled)))
         .style({
             let theme = theme_clone.clone();
-            move |_, status| default_checkbox(&theme, status)
+            move |_, status| default_toggler(&theme, status)
         });
 
     let mermaid_row = build_setting_row(
@@ -91,12 +90,11 @@ pub fn previews_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> El
     .style(default_card);
 
     // --- CARD 2: SOURCE CODE & DATA ---
-    let wrap_cb = iced::widget::checkbox(config.word_wrap)
-        .label("")
+    let wrap_cb = toggler(config.word_wrap)
         .on_toggle(|enabled| Message::Settings(SettingsMsg::WordWrapChanged(enabled)))
         .style({
             let theme = theme_clone.clone();
-            move |_, status| default_checkbox(&theme, status)
+            move |_, status| default_toggler(&theme, status)
         });
 
     let wrap_row = build_setting_row(
@@ -108,10 +106,9 @@ pub fn previews_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> El
         base_colors.text_dim,
     );
 
-    let json_cb = iced::widget::checkbox(config.json_tree_view)
-        .label("")
+    let json_cb = toggler(config.json_tree_view)
         .on_toggle(|enabled| Message::Settings(SettingsMsg::JsonTreeViewChanged(enabled)))
-        .style(move |_, status| default_checkbox(&theme_clone, status));
+        .style(move |_, status| default_toggler(&theme_clone, status));
 
     let json_row = build_setting_row(
         "JSON Tree View by Default",
@@ -166,7 +163,9 @@ fn build_setting_row<'a>(
         ]
         .spacing(spacing::XXS)
         .width(iced::Length::Fill),
-        control.into()
+        container(control)
+            .width(250.0)
+            .align_x(iced::alignment::Horizontal::Right),
     ]
     .align_y(Alignment::Center)
     .spacing(spacing::M)

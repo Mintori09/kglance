@@ -28,8 +28,8 @@ const MAX_READER_WIDTH: f32 = 1600.0;
 const READER_WIDTH_STEP: f32 = 20.0;
 const DEFAULT_MAX_READER_WIDTH: f32 = 820.0;
 
-const SLIDER_WIDTH: f32 = 180.0;
-const PICKER_WIDTH: f32 = 220.0;
+const SLIDER_WIDTH: f32 = 170.0;
+const PICKER_WIDTH: f32 = 240.0;
 
 pub fn appearance_tab<'a>(
     theme: &Theme,
@@ -57,7 +57,8 @@ pub fn appearance_tab<'a>(
         text(format!("{font_size:.1} px"))
             .size(11)
             .font(main_font)
-            .width(55)
+            .width(58.0)
+            .align_x(iced::alignment::Horizontal::Right)
             .style(move |_| iced::widget::text::Style {
                 color: Some(base_colors.text)
             }),
@@ -160,7 +161,8 @@ pub fn appearance_tab<'a>(
         text(format!("{reader_width:.0} px"))
             .size(11)
             .font(main_font)
-            .width(55)
+            .width(58.0)
+            .align_x(iced::alignment::Horizontal::Right)
             .style(move |_| iced::widget::text::Style {
                 color: Some(base_colors.text)
             }),
@@ -296,7 +298,9 @@ fn build_setting_row<'a>(
         ]
         .spacing(spacing::XXS)
         .width(iced::Length::Fill),
-        control.into()
+        container(control)
+            .width(250.0)
+            .align_x(iced::alignment::Horizontal::Right),
     ]
     .align_y(Alignment::Center)
     .spacing(spacing::M)

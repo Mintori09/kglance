@@ -5,12 +5,7 @@ use crate::app::messages::{Message, SettingsMsg};
 use crate::core::config::UiConfig;
 use crate::ui::theme::color::BaseColors;
 use crate::ui::theme::tokens::spacing;
-use crate::ui::theme::{default_button, default_card, default_text_input};
-
-const FALLBACK_DEFAULT_WIDTH: u32 = 1024;
-const FALLBACK_DEFAULT_HEIGHT: u32 = 768;
-const FALLBACK_MIN_WIDTH: u32 = 800;
-const FALLBACK_MIN_HEIGHT: u32 = 600;
+use crate::ui::theme::{default_button, default_card, default_row_button, default_text_input};
 
 pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Element<'a, Message> {
     let base_colors = BaseColors::palette(theme);
@@ -20,8 +15,6 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
         theme,
         config.default_width,
         config.default_height,
-        FALLBACK_DEFAULT_WIDTH,
-        FALLBACK_DEFAULT_HEIGHT,
         main_font,
         base_colors.text_dim,
         |w| Message::Settings(SettingsMsg::DefaultWidthChanged(w)),
@@ -38,12 +31,14 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
     );
 
     let preset_btn = |label: &'static str, w: u32, h: u32| {
+        let is_active = config.default_width == w && config.default_height == h;
+        let theme_clone = theme.clone();
         button(text(label).size(11).font(main_font))
             .on_press(Message::Settings(SettingsMsg::SetWindowPreset {
                 width: w,
                 height: h,
             }))
-            .style(default_button)
+            .style(move |_, status| default_row_button(&theme_clone, status, is_active))
             .padding([spacing::XXS, spacing::S])
     };
 
@@ -55,17 +50,10 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
     ]
     .spacing(spacing::XS);
 
-    let use_current_btn = button(
-        row![
-            text("⛶").size(12).font(main_font),
-            text("Use Current Window Size").size(11).font(main_font)
-        ]
-        .spacing(spacing::XS)
-        .align_y(Alignment::Center),
-    )
-    .on_press(Message::Settings(SettingsMsg::UseCurrentWindowSize))
-    .style(default_button)
-    .padding([spacing::XS, spacing::S]);
+    let use_current_btn = button(text("Use Current Window Size").size(11).font(main_font))
+        .on_press(Message::Settings(SettingsMsg::UseCurrentWindowSize))
+        .style(default_button)
+        .padding([spacing::XS, spacing::S]);
 
     let presets_control = column![presets_row, use_current_btn].spacing(spacing::XS);
 
@@ -99,8 +87,6 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
         theme,
         config.min_width,
         config.min_height,
-        FALLBACK_MIN_WIDTH,
-        FALLBACK_MIN_HEIGHT,
         main_font,
         base_colors.text_dim,
         |w| Message::Settings(SettingsMsg::MinWidthChanged(w)),
@@ -136,13 +122,10 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
         .into()
 }
 
-#[allow(clippy::too_many_arguments)]
 fn build_dimension_inputs<'a, FW, FH>(
     theme: &Theme,
     current_width: u32,
     current_height: u32,
-    fallback_width: u32,
-    fallback_height: u32,
     main_font: Font,
     dim_color: iced::Color,
     on_width_change: FW,
@@ -159,9 +142,9 @@ where
     let width_input = text_input("Width", &width_str)
         .font(main_font)
         .width(65)
-        .on_input(move |input| {
-            let parsed_val = input.parse::<u32>().unwrap_or(fallback_width);
-            on_width_change(parsed_val)
+        .on_input(move |input| match input.parse::<u32>() {
+            Ok(parsed_val) if parsed_val > 0 => on_width_change(parsed_val),
+            _ => Message::None,
         })
         .style(move |_, status| default_text_input(&theme_w, status));
 
@@ -169,9 +152,9 @@ where
     let height_input = text_input("Height", &height_str)
         .font(main_font)
         .width(65)
-        .on_input(move |input| {
-            let parsed_val = input.parse::<u32>().unwrap_or(fallback_height);
-            on_height_change(parsed_val)
+        .on_input(move |input| match input.parse::<u32>() {
+            Ok(parsed_val) if parsed_val > 0 => on_height_change(parsed_val),
+            _ => Message::None,
         })
         .style(move |_, status| default_text_input(&theme_h, status));
 
@@ -221,7 +204,9 @@ fn build_setting_row<'a>(
         ]
         .spacing(spacing::XXS)
         .width(iced::Length::Fill),
-        control.into()
+        container(control)
+            .width(250.0)
+            .align_x(iced::alignment::Horizontal::Right),
     ]
     .align_y(Alignment::Center)
     .spacing(spacing::M)

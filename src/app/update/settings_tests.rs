@@ -100,6 +100,8 @@ fn test_reset_to_defaults() {
     let defaults = crate::core::config::AppConfig::default();
     assert_eq!(app.state.font_size, defaults.ui.font_size);
     assert_eq!(app.state.prefer_mermaid_cli, defaults.ui.prefer_mermaid_cli);
+    assert_eq!(app.state.epub.reading_mode, defaults.ui.epub_reading_mode);
+    assert_eq!(app.state.json.tree_mode, defaults.ui.json_tree_view);
     assert_eq!(app.state.cache_config, defaults.cache);
     assert_eq!(app.state.scroll_config, defaults.scroll);
 }

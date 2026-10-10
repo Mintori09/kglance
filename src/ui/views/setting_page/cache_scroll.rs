@@ -1,11 +1,11 @@
-use iced::widget::{column, container, row, slider, text};
+use iced::widget::{column, container, row, slider, text, toggler};
 use iced::{Alignment, Element, Font, Theme};
 
 use crate::app::messages::{Message, SettingsMsg};
 use crate::core::config::{CacheConfig, ScrollConfigOptions};
 use crate::ui::theme::color::BaseColors;
 use crate::ui::theme::tokens::spacing;
-use crate::ui::theme::{default_card, default_checkbox, default_slider};
+use crate::ui::theme::{default_card, default_slider, default_toggler};
 
 const MIN_MEMORY_MB: usize = 128;
 const MAX_MEMORY_MB: usize = 2048;
@@ -23,7 +23,8 @@ const MIN_SPRING: f32 = 50.0;
 const MAX_SPRING: f32 = 400.0;
 const STEP_SPRING: f32 = 10.0;
 
-const SLIDER_WIDTH: f32 = 180.0;
+const SLIDER_WIDTH: f32 = 170.0;
+const VALUE_BADGE_WIDTH: f32 = 58.0;
 
 pub fn cache_scroll_tab<'a>(
     theme: &Theme,
@@ -51,7 +52,8 @@ pub fn cache_scroll_tab<'a>(
         text(format!("{mem_mb} MB"))
             .size(11)
             .font(main_font)
-            .width(62)
+            .width(VALUE_BADGE_WIDTH)
+            .align_x(iced::alignment::Horizontal::Right)
             .style(move |_| iced::widget::text::Style {
                 color: Some(base_colors.text)
             }),
@@ -84,7 +86,8 @@ pub fn cache_scroll_tab<'a>(
         text(format!("{disk_mb} MB"))
             .size(11)
             .font(main_font)
-            .width(62)
+            .width(VALUE_BADGE_WIDTH)
+            .align_x(iced::alignment::Horizontal::Right)
             .style(move |_| iced::widget::text::Style {
                 color: Some(base_colors.text)
             }),
@@ -118,10 +121,9 @@ pub fn cache_scroll_tab<'a>(
     .style(default_card);
 
     // --- CARD 2: SMOOTH SCROLLING PHYSICS ---
-    let smooth_cb = iced::widget::checkbox(scroll_config.smooth_scroll_enabled)
-        .label("")
+    let smooth_cb = toggler(scroll_config.smooth_scroll_enabled)
         .on_toggle(|enabled| Message::Settings(SettingsMsg::SmoothScrollChanged(enabled)))
-        .style(move |_, status| default_checkbox(&theme_clone, status));
+        .style(move |_, status| default_toggler(&theme_clone, status));
 
     let smooth_row = build_setting_row(
         "Kinetic Smooth Scrolling",
@@ -146,7 +148,8 @@ pub fn cache_scroll_tab<'a>(
         text(format!("{friction:.1}"))
             .size(11)
             .font(main_font)
-            .width(45)
+            .width(VALUE_BADGE_WIDTH)
+            .align_x(iced::alignment::Horizontal::Right)
             .style(move |_| iced::widget::text::Style {
                 color: Some(base_colors.text)
             }),
@@ -177,7 +180,8 @@ pub fn cache_scroll_tab<'a>(
         text(format!("{spring:.0}"))
             .size(11)
             .font(main_font)
-            .width(45)
+            .width(VALUE_BADGE_WIDTH)
+            .align_x(iced::alignment::Horizontal::Right)
             .style(move |_| iced::widget::text::Style {
                 color: Some(base_colors.text)
             }),
@@ -239,7 +243,9 @@ fn build_setting_row<'a>(
         ]
         .spacing(spacing::XXS)
         .width(iced::Length::Fill),
-        control.into()
+        container(control)
+            .width(250.0)
+            .align_x(iced::alignment::Horizontal::Right),
     ]
     .align_y(Alignment::Center)
     .spacing(spacing::M)
