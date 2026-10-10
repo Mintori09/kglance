@@ -1,10 +1,13 @@
 mod flatten;
 mod handle;
+mod html;
 mod layout;
 pub mod layout_constants;
 mod mermaid;
 mod types;
 
+#[cfg(test)]
+mod syntax_doc_tests;
 #[cfg(test)]
 mod tests;
 
@@ -14,8 +17,8 @@ pub use flatten::{
 };
 pub use handle::{parse_markdown, parse_to_blocks};
 pub use layout::{
-    block_margin, estimated_block_height, extract_toc, extract_toc_from_offsets,
-    intrinsic_block_height, rescale_markdown_scroll_y, slugify,
+    block_margin, calculate_column_weights, estimated_block_height, extract_toc,
+    extract_toc_from_offsets, intrinsic_block_height, rescale_markdown_scroll_y, slugify,
 };
 pub use mermaid::render_mermaid_to_png;
 pub use types::{AlertKind, Block, BlockLayout, Inline, ListItem, TableBlock, TableCell};
