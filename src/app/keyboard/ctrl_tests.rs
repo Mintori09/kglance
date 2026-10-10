@@ -18,6 +18,109 @@ fn ctrl_c_copies_epub_selection() {
 }
 
 #[test]
+fn ctrl_c_copies_epub_drag_selection_chapter_0() {
+    use crate::core::{SelectionPoint, SelectionRange};
+
+    let mut app = test_app(Some(epub_content(&[
+        "Hello World chapter 1",
+        "Second chapter content",
+    ])));
+    app.state.epub.markdown_state.selection_range = Some(SelectionRange {
+        start: SelectionPoint {
+            block: 0,
+            offset: 0,
+        },
+        end: SelectionPoint {
+            block: 0,
+            offset: 5,
+        },
+    });
+
+    let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+    let _guard = runtime.enter();
+    let task = app.handle_ctrl_copy();
+    assert!(
+        task.is_some(),
+        "handle_ctrl_copy should return Task for EPUB chapter 0 selection"
+    );
+    assert_eq!(
+        app.state.epub.markdown_state.selected_text.as_deref(),
+        Some("Hello")
+    );
+}
+
+#[test]
+fn ctrl_c_copies_epub_drag_selection_chapter_1() {
+    use crate::core::{SelectionPoint, SelectionRange};
+
+    let mut app = test_app(Some(epub_content(&[
+        "Hello World chapter 1",
+        "Second chapter content",
+    ])));
+    app.state.epub.active_chapter = 1;
+    app.state.epub.markdown_state.selection_range = Some(SelectionRange {
+        start: SelectionPoint {
+            block: 0,
+            offset: 0,
+        },
+        end: SelectionPoint {
+            block: 0,
+            offset: 6,
+        },
+    });
+
+    let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+    let _guard = runtime.enter();
+    let task = app.handle_ctrl_copy();
+    assert!(
+        task.is_some(),
+        "handle_ctrl_copy should return Task for EPUB chapter 1 selection"
+    );
+    assert_eq!(
+        app.state.epub.markdown_state.selected_text.as_deref(),
+        Some("Second")
+    );
+}
+
+#[test]
+fn ctrl_c_copies_epub_continuous_mode() {
+    use crate::core::{SelectionPoint, SelectionRange};
+
+    let mut app = test_app(Some(epub_content(&[
+        "Hello World chapter 1",
+        "Second chapter content",
+    ])));
+    app.state.epub_reading_mode = crate::core::config::EpubReadingMode::Continuous;
+    app.state.epub.reading_mode = crate::core::config::EpubReadingMode::Continuous;
+    // Re-populate continuous blocks so they exist in state
+    let (blocks, offsets) =
+        crate::features::epub::state::build_continuous_blocks(&app.state.epub.chapters);
+    app.state.epub.continuous_blocks = blocks;
+    app.state.epub.chapter_block_offsets = offsets;
+
+    // In continuous mode, block 0 is either heading or paragraph depending on title
+    app.state.epub.markdown_state.selection_range = Some(SelectionRange {
+        start: SelectionPoint {
+            block: 0,
+            offset: 0,
+        },
+        end: SelectionPoint {
+            block: 0,
+            offset: 5,
+        },
+    });
+
+    let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+    let _guard = runtime.enter();
+    let task = app.handle_ctrl_copy();
+    assert!(
+        task.is_some(),
+        "handle_ctrl_copy should return Task for EPUB continuous mode"
+    );
+    assert!(app.state.epub.markdown_state.selected_text.is_some());
+}
+
+#[test]
 fn ctrl_c_copies_markdown_selection_with_inline_math() {
     use crate::app::test_util::markdown_content;
     use crate::core::{SelectionPoint, SelectionRange};

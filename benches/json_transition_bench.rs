@@ -290,7 +290,14 @@ fn bench_render_tree(c: &mut Criterion) {
                 BenchmarkId::from_parameter(benchmark_name),
                 &state.json,
                 |b, json_state| {
-                    b.iter(|| black_box(render_tree(black_box(json_state), THEME, FONT_SIZE)))
+                    b.iter(|| {
+                        black_box(render_tree(
+                            black_box(json_state),
+                            THEME,
+                            FONT_SIZE,
+                            Some("monospace"),
+                        ))
+                    })
                 },
             );
         }
@@ -338,6 +345,7 @@ fn bench_render_tree_node(c: &mut Criterion) {
                             TreeNodeOptions {
                                 theme: THEME,
                                 font_size: FONT_SIZE,
+                                font: iced::Font::MONOSPACE,
                                 is_expanded: expanded,
                                 is_active,
                                 search_query: "",
@@ -393,6 +401,7 @@ fn bench_virtual_window(c: &mut Criterion) {
                                         TreeNodeOptions {
                                             theme: THEME,
                                             font_size: FONT_SIZE,
+                                            font: iced::Font::MONOSPACE,
                                             is_expanded: expanded,
                                             is_active,
                                             search_query: "",
@@ -472,6 +481,7 @@ fn bench_view_json(c: &mut Criterion) {
                             black_box(json_state),
                             FONT_SIZE,
                             THEME,
+                            None,
                             Some("monospace"),
                             false,
                         ))
@@ -517,6 +527,7 @@ fn bench_json_search(c: &mut Criterion) {
                             black_box(json_state),
                             FONT_SIZE,
                             THEME,
+                            None,
                             Some("monospace"),
                             false,
                         ))

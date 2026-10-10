@@ -1015,6 +1015,7 @@ impl KglanceApp {
                     &self.state.text,
                     self.state.app_theme,
                     self.state.font_size,
+                    self.state.font_family.as_deref(),
                     self.state.font_family_mono.as_deref(),
                     self.state.word_wrap,
                 ),
@@ -1061,17 +1062,21 @@ impl KglanceApp {
                     self.state.font_family_mono.as_deref(),
                     self.state.word_wrap,
                 ),
-                PreviewData::Folder { .. } => {
-                    crate::ui::views::view_folder(&self.state.folder, self.state.app_theme)
-                }
+                PreviewData::Folder { .. } => crate::ui::views::view_folder(
+                    &self.state.folder,
+                    self.state.app_theme,
+                    self.state.font_family.as_deref(),
+                ),
                 PreviewData::Spreadsheet { .. } => crate::ui::views::view_spreadsheet(
                     &self.state.spreadsheet,
                     self.state.app_theme,
+                    self.state.font_family.as_deref(),
                 ),
                 PreviewData::Json { .. } => crate::ui::views::view_json(
                     &self.state.json,
                     self.state.font_size,
                     self.state.app_theme,
+                    self.state.font_family.as_deref(),
                     self.state.font_family_mono.as_deref(),
                     self.state.word_wrap,
                 ),
