@@ -43,6 +43,7 @@ pub fn extract_symbols(content: &str, extension: &str) -> Vec<CodeSymbol> {
         }
         "go" => extract_go_symbols(content),
         "c" | "h" | "cpp" | "hpp" | "cc" | "cxx" => extract_cpp_symbols(content),
+        "toml" | "ini" | "cfg" | "conf" => extract_toml_symbols(content),
         _ => extract_generic_symbols(content),
     }
 }
@@ -496,9 +497,60 @@ fn extract_generic_symbols(content: &str) -> Vec<CodeSymbol> {
     symbols
 }
 
+fn extract_toml_symbols(content: &str) -> Vec<CodeSymbol> {
+    let mut symbols = Vec::new();
+
+    for (idx, raw_line) in content.lines().enumerate() {
+        let line = raw_line.trim();
+        let indent = calculate_indent(raw_line);
+        let line_number = idx + 1;
+
+        if line.starts_with('#') {
+            continue;
+        }
+
+        let clean_line = line.split('#').next().unwrap_or("").trim();
+
+        if clean_line.starts_with('[') && clean_line.ends_with(']') {
+            symbols.push(CodeSymbol {
+                name: clean_line.to_string(),
+                kind: SymbolKind::Module,
+                line_number,
+                indent_level: indent,
+            });
+        }
+    }
+
+    symbols
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extracts_toml_symbols() {
+        let code = r#"
+[package]
+name = "kglance"
+version = "0.4.3"
+
+[dependencies] # external crates
+syntect = "5.3.0"
+
+[[bin]]
+name = "kglance"
+path = "src/main.rs"
+"#;
+        let symbols = extract_symbols(code, "toml");
+        assert_eq!(symbols.len(), 3);
+        assert_eq!(symbols[0].name, "[package]");
+        assert_eq!(symbols[0].line_number, 2);
+        assert_eq!(symbols[1].name, "[dependencies]");
+        assert_eq!(symbols[1].line_number, 6);
+        assert_eq!(symbols[2].name, "[[bin]]");
+        assert_eq!(symbols[2].line_number, 9);
+    }
 
     #[test]
     fn extracts_rust_symbols() {

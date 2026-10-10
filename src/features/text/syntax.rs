@@ -172,12 +172,116 @@ contexts:
     - include: main
 "#;
 
+const TOML_SYNTAX_YAML: &str = r#"
+%YAML 1.2
+---
+name: TOML
+file_extensions:
+  - toml
+  - Cargo.lock
+  - Gopkg.lock
+  - Pipfile
+  - poetry.lock
+scope: source.toml
+
+contexts:
+  main:
+    # Comments
+    - match: '#.*$'
+      scope: comment.line.number-sign.toml
+
+    # Table headers: [[table.array]] or [table]
+    - match: '^\s*(\[\[)(.+?)(\]\])'
+      captures:
+        1: punctuation.definition.tag.begin.toml
+        2: entity.name.section.toml
+        3: punctuation.definition.tag.end.toml
+    - match: '^\s*(\[)(.+?)(\])'
+      captures:
+        1: punctuation.definition.tag.begin.toml
+        2: entity.name.section.toml
+        3: punctuation.definition.tag.end.toml
+
+    # Keys: key = or "key" = or 'key' =
+    - match: '([a-zA-Z0-9_.-]+)\s*(=)'
+      captures:
+        1: variable.other.property.toml
+        2: keyword.operator.assignment.toml
+
+    # Strings: Multiline or Basic
+    - match: '"""'
+      scope: punctuation.definition.string.begin.toml
+      push: ml-basic-string
+    - match: "'''"
+      scope: punctuation.definition.string.begin.toml
+      push: ml-literal-string
+    - match: '"'
+      scope: punctuation.definition.string.begin.toml
+      push: basic-string
+    - match: "'"
+      scope: punctuation.definition.string.begin.toml
+      push: literal-string
+
+    # Booleans
+    - match: '\b(true|false)\b'
+      scope: constant.language.boolean.toml
+
+    # Datetimes
+    - match: '\b\d{4}-\d{2}-\d{2}(?:[Tt ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})?)?\b'
+      scope: constant.other.datetime.toml
+
+    # Numbers: Float, Hex, Oct, Bin, Int
+    - match: '\b0[xX][0-9a-fA-F_]+\b'
+      scope: constant.numeric.hex.toml
+    - match: '\b0[oO][0-7_]+\b'
+      scope: constant.numeric.octal.toml
+    - match: '\b0[bB][01_]+\b'
+      scope: constant.numeric.binary.toml
+    - match: '[-+]?(?:0|[1-9][0-9_]*)(?:\.[0-9_]+)?(?:[eE][-+]?[0-9_]+)?\b'
+      scope: constant.numeric.decimal.toml
+
+    # Punctuation / delimiters
+    - match: '[{}\\[\\],=]'
+      scope: punctuation.terminator.toml
+
+  basic-string:
+    - meta_scope: string.quoted.double.toml
+    - match: '\\(?:[btnfru"\\/]|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8})'
+      scope: constant.character.escape.toml
+    - match: '"'
+      scope: punctuation.definition.string.end.toml
+      pop: true
+
+  literal-string:
+    - meta_scope: string.quoted.single.toml
+    - match: "'"
+      scope: punctuation.definition.string.end.toml
+      pop: true
+
+  ml-basic-string:
+    - meta_scope: string.quoted.triple.double.toml
+    - match: '\\(?:[btnfru"\\/]|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8})'
+      scope: constant.character.escape.toml
+    - match: '"""'
+      scope: punctuation.definition.string.end.toml
+      pop: true
+
+  ml-literal-string:
+    - meta_scope: string.quoted.triple.single.toml
+    - match: "'''"
+      scope: punctuation.definition.string.end.toml
+      pop: true
+"#;
+
 fn build_global_syntax_set() -> SyntaxSet {
     let mut builder = SyntaxSet::load_defaults_newlines().into_builder();
     if let Ok(ts_syntax) =
         SyntaxDefinition::load_from_str(TYPESCRIPT_SYNTAX_YAML, true, Some("TypeScript"))
     {
         builder.add(ts_syntax);
+    }
+    if let Ok(toml_syntax) = SyntaxDefinition::load_from_str(TOML_SYNTAX_YAML, true, Some("TOML")) {
+        builder.add(toml_syntax);
     }
     builder.build()
 }
@@ -215,32 +319,46 @@ fn create_custom_syntect_theme(def: &ThemePaletteDef) -> syntect::highlighting::
     let syn_color = |(r, g, b): (u8, u8, u8)| SyntectColor { r, g, b, a: 255 };
 
     let mut scopes = Vec::new();
-    let scope_mappings: [(&str, (u8, u8, u8)); 13] = [
+    let scope_mappings: [(&str, (u8, u8, u8)); 15] = [
         ("comment, punctuation.definition.comment", def.comment),
         ("string, punctuation.definition.string", def.string),
-        ("keyword.control", def.keyword),
-        ("storage.type", def.storage),
-        ("storage.modifier", def.modifier),
-        ("keyword.operator", def.operator),
-        ("entity.name.function, support.function", def.function),
         (
-            "entity.name.type, entity.name.class, support.type, support.class",
+            "keyword.control, keyword.control.flow, keyword.control.loop, keyword.control.import-export",
+            def.keyword,
+        ),
+        ("storage.type, storage.type.function", def.storage),
+        (
+            "storage.modifier, storage.modifier.async, storage.modifier.access",
+            def.modifier,
+        ),
+        (
+            "keyword.operator, keyword.operator.expression, keyword.operator.assignment",
+            def.operator,
+        ),
+        (
+            "entity.name.function, support.function, entity.name.function.decorator",
+            def.function,
+        ),
+        (
+            "entity.name.type, entity.name.class, support.type, support.class, support.type.primitive",
             def.type_name,
         ),
         (
-            "constant.numeric, constant.language, constant.character",
+            "constant.numeric, constant.language, constant.character, constant.other, constant.language.boolean",
             def.number,
         ),
         (
-            "variable.other.property, variable.other.declaration",
+            "variable.other.property, variable.other.declaration, entity.name.section, variable.other.member, variable.language",
             def.property,
         ),
         ("entity.name.tag", def.tag),
         (
-            "punctuation.terminator, punctuation.separator",
+            "punctuation.terminator, punctuation.separator, punctuation.definition.tag",
             def.punctuation,
         ),
         ("meta.structure.dictionary.key string", def.property),
+        ("entity.name.section.toml", def.type_name),
+        ("variable.other.property.toml", def.property),
     ];
 
     for (scope_str, rgb) in scope_mappings {
@@ -444,22 +562,45 @@ pub fn find_syntax_for_extension(ext: &str) -> &'static SyntaxReference {
                 "ts" | "typescript" | "mts" | "cts" | "tsx" => "ts",
                 "js" | "javascript" | "mjs" | "cjs" | "jsx" => "js",
                 "rs" | "rust" => "rs",
-                "py" | "python" | "pyw" => "py",
-                "sh" | "bash" | "zsh" | "fish" | "shell" => "sh",
+                "py" | "python" | "pyw" | "pyi" => "py",
+                "sh" | "bash" | "zsh" | "fish" | "shell" | "ksh" | "csh" | "tcsh" | "zshrc"
+                | "bashrc" | "profile" | "env" | "envrc" => "sh",
                 "yml" | "yaml" => "yaml",
-                "html" | "htm" => "html",
-                "c" | "h" => "c",
-                "cpp" | "hpp" | "cc" | "cxx" => "cpp",
-                "json" | "jsonc" => "json",
-                "md" | "markdown" => "md",
-                "toml" => "yaml",
-                "kt" | "kotlin" => "java",
-                "dockerfile" => "sh",
-                "cmake" => "make",
+                "html" | "htm" | "xhtml" | "vue" | "svelte" => "html",
+                "xml" | "svg" | "xaml" | "plist" | "ui" => "xml",
+                "css" | "scss" | "sass" | "less" => "css",
+                "c" | "h" | "ino" => "c",
+                "cpp" | "hpp" | "cc" | "hh" | "cxx" | "hxx" | "c++" | "h++" => "cpp",
+                "cs" | "csharp" => "cs",
+                "json" | "jsonc" | "json5" | "jsonl" | "ndjson" | "geojson" | "ipynb" => "json",
+                "md" | "markdown" | "mdown" | "mkdn" => "md",
+                "toml" | "cargo.lock" | "gopkg.lock" | "pipfile" | "poetry.lock" => "toml",
+                "kt" | "kts" | "kotlin" => "java",
+                "swift" => "rs",
+                "go" | "golang" => "go",
+                "sql" | "psql" | "pgsql" | "mysql" => "sql",
+                "dockerfile" | "containerfile" => "sh",
+                "cmake" | "cmakelists.txt" => "make",
+                "make" | "makefile" | "gnumakefile" | "justfile" | "just" => "make",
+                "ini" | "conf" | "config" | "cfg" | "properties" | "desktop" | "gitignore"
+                | "gitconfig" | "gitmodules" | "gitattributes" => "yaml",
+                "lua" => "lua",
+                "rb" | "ruby" | "gemfile" | "rakefile" => "ruby",
+                "php" | "phtml" => "php",
+                "r" => "r",
+                "erl" | "hrl" => "erlang",
+                "hs" | "lhs" => "haskell",
+                "scala" | "sbt" => "scala",
+                "clj" | "cljs" | "cljc" | "edn" => "clojure",
+                "nix" => "c",
+                "typ" | "typst" => "md",
+                "proto" | "protobuf" => "c",
+                "graphql" | "gql" => "json",
                 _ => return None,
             };
             ss.find_syntax_by_extension(alias)
                 .or_else(|| ss.find_syntax_by_token(alias))
+                .or_else(|| ss.find_syntax_by_name(alias))
         })
         .unwrap_or_else(|| ss.find_syntax_plain_text())
 }
@@ -512,6 +653,34 @@ mod tests {
 
         let unknown = find_syntax_for_extension("unknown_format_xyz");
         assert_eq!(unknown.name, "Plain Text");
+
+        let toml = find_syntax_for_extension("toml");
+        assert_eq!(toml.name, "TOML");
+
+        let cargo_lock = find_syntax_for_extension("Cargo.lock");
+        assert_eq!(cargo_lock.name, "TOML");
+
+        let rust = find_syntax_for_extension("rs");
+        assert_eq!(rust.name, "Rust");
+
+        let json = find_syntax_for_extension("json");
+        assert_eq!(json.name, "JSON");
+
+        let cpp = find_syntax_for_extension("cpp");
+        assert_eq!(cpp.name, "C++");
+
+        let sh = find_syntax_for_extension("sh");
+        assert!(sh.name.contains("Shell") || sh.name == "sh" || sh.name == "Bash");
+    }
+
+    #[test]
+    fn test_toml_syntax_loaded() {
+        let load_res = SyntaxDefinition::load_from_str(TOML_SYNTAX_YAML, true, Some("TOML"));
+        assert!(load_res.is_ok(), "TOML syntax YAML must be valid");
+        let ss = global_syntax_set();
+        let toml_syntax = ss.find_syntax_by_extension("toml");
+        assert!(toml_syntax.is_some());
+        assert_eq!(toml_syntax.unwrap().name, "TOML");
     }
 
     #[test]

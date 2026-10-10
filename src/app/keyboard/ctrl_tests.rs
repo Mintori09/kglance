@@ -368,7 +368,7 @@ fn wrap_toggle_recalculates_toc_line_numbers_and_symbol_positions() {
     app.state.text.total_content_height = app.state.text.display_map.total_content_height();
 
     let wrapped_line_2_y = app.state.text.display_map.get_line_y(1);
-    let line_height = app.state.font_size * 1.35;
+    let line_height = app.state.text.display_map.line_height;
     // With wrap on, line 2 Y must be > 1 * line_height because line 1 wrapped into multiple rows
     assert!(wrapped_line_2_y > line_height);
 
