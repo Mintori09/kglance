@@ -49,6 +49,15 @@ pub enum ViewMode {
     Settings,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SettingTab {
+    #[default]
+    Appearance,
+    Window,
+    Previews,
+    CacheScroll,
+}
+
 pub const GRID_ITEM_WIDTH: f32 = 150.0;
 pub const GRID_GAP: f32 = 12.0;
 pub const GRID_ROW_HEIGHT: f32 = 140.0;
@@ -131,6 +140,8 @@ pub struct KglanceState {
     pub read_positions_dirty: bool,
     pub last_navigated_at: Option<Instant>,
     pub is_rapid_navigating: bool,
+    pub cache_config: crate::core::config::CacheConfig,
+    pub settings_tab: SettingTab,
     pub scroll_config: crate::core::config::ScrollConfigOptions,
 }
 
@@ -198,6 +209,8 @@ impl Default for KglanceState {
 
             read_positions: crate::core::ReadPositions::default(),
             read_positions_dirty: false,
+            cache_config: crate::core::config::CacheConfig::default(),
+            settings_tab: SettingTab::default(),
             scroll_config: crate::core::config::ScrollConfigOptions::default(),
         }
     }

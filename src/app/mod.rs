@@ -144,6 +144,7 @@ impl KglanceApp {
             prefer_mermaid_cli: config.ui.prefer_mermaid_cli,
             word_wrap: config.ui.word_wrap,
             json_tree_view: config.ui.json_tree_view,
+            cache_config: config.cache.clone(),
 
             ..Default::default()
         };

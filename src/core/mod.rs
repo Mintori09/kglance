@@ -24,6 +24,6 @@ pub use scroll::{SmoothScrollMode, SmoothScroller, max_scroll_y};
 pub use types::{
     DirState, FolderRowState, FolderState, GridThumbnail, HistoryState, ImageState, KglanceState,
     MarkdownState, MediaState, PageCacheEntry, PdfSidebarMode, PdfState, SelectionPoint,
-    SelectionRange, SheetInfo, SortField, SortState, SpreadsheetState, TextState, ToastInfo,
-    TocEntry, TypstState, ViewMode, sort_folder_rows,
+    SelectionRange, SettingTab, SheetInfo, SortField, SortState, SpreadsheetState, TextState,
+    ToastInfo, TocEntry, TypstState, ViewMode, sort_folder_rows,
 };
