@@ -54,10 +54,6 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
         badge_font_size: 11.0,
         badge_padding: [4, 10],
     },
-    html: HtmlStyle {
-        font_size: 12.0,
-        preview_truncate: 80,
-    },
     hr: HrStyle { padding: [4, 0] },
     math: MathStyle {
         font_scale: 1.0,
@@ -90,7 +86,6 @@ pub(crate) struct MarkdownStyle {
     pub quote: QuoteStyle,
     pub image: ImageStyle,
     pub mermaid: MermaidStyle,
-    pub html: HtmlStyle,
     pub hr: HrStyle,
     pub math: MathStyle,
     pub toc: TocStyle,
@@ -164,12 +159,6 @@ pub(crate) struct MermaidStyle {
     pub image_padding: u16,
     pub badge_font_size: f32,
     pub badge_padding: [u16; 2],
-}
-
-#[derive(Clone, Copy)]
-pub(crate) struct HtmlStyle {
-    pub font_size: f32,
-    pub preview_truncate: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -351,6 +340,5 @@ mod tests {
             STYLE.list.sub_block_left_padding,
             lc::LIST_SUB_BLOCK_LEFT_PADDING
         );
-        assert_eq!(STYLE.html.font_size, lc::HTML_FONT_SIZE);
     }
 }
