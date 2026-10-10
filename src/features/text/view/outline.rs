@@ -1,13 +1,13 @@
 use iced::widget::{Space, button, column, container, row, text};
-use iced::{Alignment, Border, Color, Element, Length, Padding};
+use iced::{Alignment, Border, Element, Length, Padding};
 
 use crate::app::Message;
 use crate::features::text::display_map::DisplayMap;
-use crate::features::text::outline::{CodeSymbol, SymbolKind};
+use crate::features::text::outline::CodeSymbol;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::sidebar::sidebar_entry_style;
 use crate::ui::theme::AppTheme;
-use crate::ui::theme::tokens::{radius, spacing, typography};
+use crate::ui::theme::tokens::{spacing, typography};
 
 const OUTLINE_ITEM_SPACING: f32 = spacing::XXS;
 const OUTLINE_PADDING: Padding = Padding {
@@ -16,25 +16,9 @@ const OUTLINE_PADDING: Padding = Padding {
     bottom: 6.0,
     left: 6.0,
 };
-const BADGE_FONT_SIZE: f32 = typography::BADGE;
 const NAME_FONT_SIZE: f32 = typography::BODY;
 const LINE_FONT_SIZE: f32 = typography::CAPTION;
 const SCROLL_OFFSET_MARGIN: f32 = 40.0;
-
-fn symbol_badge_color(kind: SymbolKind, theme: AppTheme) -> Color {
-    let p = theme.palette().base;
-    let s = theme.palette().symbols;
-    match kind {
-        SymbolKind::Function => s.function,
-        SymbolKind::Struct => s.r#struct,
-        SymbolKind::Class => s.class,
-        SymbolKind::Enum => s.r#enum,
-        SymbolKind::Trait => s.r#trait,
-        SymbolKind::Module => s.module,
-        SymbolKind::Type => s.r#type,
-        SymbolKind::Const => p.text_dim,
-    }
-}
 
 pub fn render_outline_sidebar<'a>(
     symbols: &'a [CodeSymbol],
@@ -120,37 +104,8 @@ fn render_symbol_entry<'a>(
     theme: AppTheme,
     main_font: iced::Font,
 ) -> Element<'a, Message> {
-    let badge_color = symbol_badge_color(sym.kind, theme);
     let line_color = theme.palette().base.text_dim;
-
     let indent_space = (sym.indent_level as f32) * 8.0;
-
-    let badge = container(
-        text(sym.kind.badge_label())
-            .size(BADGE_FONT_SIZE)
-            .font(main_font)
-            .color(badge_color),
-    )
-    .padding(Padding {
-        top: 1.0,
-        right: 4.0,
-        bottom: 1.0,
-        left: 4.0,
-    })
-    .style(move |_| container::Style {
-        background: Some(
-            Color {
-                a: 0.12,
-                ..badge_color
-            }
-            .into(),
-        ),
-        border: Border {
-            radius: radius::XS.into(),
-            ..Default::default()
-        },
-        ..Default::default()
-    });
 
     let name_label = container(
         text(&sym.name)
@@ -172,7 +127,7 @@ fn render_symbol_entry<'a>(
         row_widgets = row_widgets.push(Space::new().width(indent_space));
     }
 
-    row_widgets = row_widgets.push(badge).push(name_label).push(line_label);
+    row_widgets = row_widgets.push(name_label).push(line_label);
 
     let line_num = sym.line_number;
 

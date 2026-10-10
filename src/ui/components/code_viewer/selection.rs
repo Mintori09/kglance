@@ -70,6 +70,10 @@ impl SelectionRange {
     }
 }
 
+pub const CODE_PADDING_TOP: f32 = 10.0;
+pub const CODE_PADDING_BOTTOM: f32 = 10.0;
+pub const CODE_PADDING_LEFT: f32 = 16.0;
+
 /// Computes the TextPosition for a point relative to the content bounds.
 pub fn hit_test_position(
     doc: &crate::features::text::CodeDocument,
@@ -80,7 +84,7 @@ pub fn hit_test_position(
 ) -> TextPosition {
     let line_h = display_map
         .map(|d| d.line_height)
-        .unwrap_or(font_size * 1.35);
+        .unwrap_or(font_size * 1.50);
     let gutter_w = if let Some(d) = display_map {
         d.gutter_width
     } else {
@@ -92,14 +96,15 @@ pub fn hit_test_position(
         .map(|d| d.char_width)
         .unwrap_or(font_size * 0.60);
 
-    let vrow = (rel_pos.y / line_h).floor() as usize;
+    let effective_y = (rel_pos.y - CODE_PADDING_TOP).max(0.0);
+    let vrow = (effective_y / line_h).floor() as usize;
     let (line_idx, sub_row_idx) = if let Some(d) = display_map {
         d.visual_row_to_line(vrow)
     } else {
         (vrow.min(doc.total_lines().saturating_sub(1)), 0)
     };
 
-    let x_in_code = (rel_pos.x - gutter_w).max(0.0);
+    let x_in_code = (rel_pos.x - gutter_w - CODE_PADDING_LEFT).max(0.0);
     let line_text = doc.get_line(line_idx);
     let max_cols = display_map
         .map(|d| d.max_cols_per_row())
@@ -155,10 +160,10 @@ mod tests {
     #[test]
     fn test_hit_test_position() {
         let doc = crate::features::text::CodeDocument::new("hello world\nsecond line\nthird line");
-        let pos = hit_test_position(&doc, None, false, 14.0, iced::Point::new(60.0, 5.0));
+        let pos = hit_test_position(&doc, None, false, 14.0, iced::Point::new(70.0, 15.0));
         assert_eq!(pos.line, 0);
 
-        let pos2 = hit_test_position(&doc, None, false, 14.0, iced::Point::new(60.0, 25.0));
+        let pos2 = hit_test_position(&doc, None, false, 14.0, iced::Point::new(70.0, 40.0));
         assert_eq!(pos2.line, 1);
     }
 }

@@ -17,7 +17,8 @@ pub struct VisualSubSlice {
     pub end_col: usize,
 }
 
-const CONTENT_PADDING_RIGHT: f32 = 24.0;
+pub const CONTENT_PADDING_LEFT: f32 = 16.0;
+pub const CONTENT_PADDING_RIGHT: f32 = 24.0;
 
 /// Maps coordinates from Logical Line to Visual Row and manages 2D bounding boxes.
 #[derive(Debug, Clone)]
@@ -42,7 +43,7 @@ impl DisplayMap {
         wrap_mode: WrapMode,
         viewport_width: f32,
     ) -> Self {
-        let line_height = font_size * 1.35;
+        let line_height = font_size * 1.50;
         let char_width = font_size * 0.60;
         let total_lines = doc.total_lines();
         let gutter_width = Self::calculate_gutter_width(doc.max_digits(), font_size);
@@ -92,10 +93,12 @@ impl DisplayMap {
             return (offsets, total_lines);
         }
 
-        let max_cols = ((viewport_width - gutter_width - CONTENT_PADDING_RIGHT).max(100.0)
-            / char_width.max(1.0))
-        .floor()
-        .max(10.0) as usize;
+        let max_cols =
+            ((viewport_width - gutter_width - CONTENT_PADDING_LEFT - CONTENT_PADDING_RIGHT)
+                .max(100.0)
+                / char_width.max(1.0))
+            .floor()
+            .max(10.0) as usize;
 
         let mut offsets = Vec::with_capacity(total_lines);
         let mut running_rows = 0;
@@ -126,7 +129,7 @@ impl DisplayMap {
 
         self.viewport_width = viewport_w;
         self.font_size = font_size;
-        self.line_height = font_size * 1.35;
+        self.line_height = font_size * 1.50;
         self.char_width = font_size * 0.60;
         self.gutter_width = Self::calculate_gutter_width(doc.max_digits(), font_size);
         self.total_lines = doc.total_lines();
@@ -148,7 +151,8 @@ impl DisplayMap {
     /// Max characters per visual row based on current viewport.
     #[inline]
     pub fn max_cols_per_row(&self) -> usize {
-        ((self.viewport_width - self.gutter_width - CONTENT_PADDING_RIGHT).max(100.0)
+        ((self.viewport_width - self.gutter_width - CONTENT_PADDING_LEFT - CONTENT_PADDING_RIGHT)
+            .max(100.0)
             / self.char_width.max(1.0))
         .floor()
         .max(10.0) as usize
@@ -233,7 +237,7 @@ impl Default for DisplayMap {
         Self {
             wrap_mode: WrapMode::None,
             font_size: 14.0,
-            line_height: 14.0 * 1.35,
+            line_height: 14.0 * 1.50,
             char_width: 14.0 * 0.60,
             viewport_width: 800.0,
             gutter_width: 44.0,
@@ -394,7 +398,7 @@ mod tests {
         let doc = CodeDocument::new("a\nb\nc\nd\ne\n");
         let map = DisplayMap::new(&doc, 20.0, WrapMode::None, 800.0);
         assert_eq!(map.y_to_line_index(0.0), 0);
-        assert_eq!(map.y_to_line_index(28.0), 1);
+        assert_eq!(map.y_to_line_index(35.0), 1);
         assert_eq!(map.y_to_line_index(1000.0), 4);
     }
 
