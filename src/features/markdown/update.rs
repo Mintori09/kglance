@@ -505,6 +505,30 @@ pub fn handle_smooth_wheel_scrolled(
     if app.ctrl_held {
         return Task::none();
     }
+    if app.shift_held {
+        let step = match delta {
+            iced::mouse::ScrollDelta::Lines { x, y } => {
+                let dy = if y.abs() > f32::EPSILON { y } else { x };
+                dy * PAGE_WIDTH_STEP
+            }
+            iced::mouse::ScrollDelta::Pixels { x, y } => {
+                let dy = if y.abs() > f32::EPSILON { y } else { x };
+                dy * 1.5
+            }
+        };
+
+        if step.abs() > f32::EPSILON {
+            let state = active_markdown_state_mut(app);
+            state.smooth_scroll.stop_in_place();
+            state.scroll_controller.stop_in_place();
+
+            if let Some(task) = zoom_markdown_page_width(app, step) {
+                return task;
+            }
+        }
+        return Task::none();
+    }
+
     let state = active_markdown_state_mut(app);
     if state.viewport_height <= 0.0 {
         return Task::none();
@@ -1235,342 +1259,92 @@ pub fn rescale_markdown_font(app: &mut KglanceApp, new_size: f32) -> Option<Task
     Some(Task::batch([scroll_task, toast]))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::core::{SelectionPoint, SelectionRange};
-    use crate::parsers::markdown::{Block, parse_to_blocks};
+pub const MIN_PAGE_WIDTH: f32 = 400.0;
+pub const MAX_PAGE_WIDTH: f32 = 2400.0;
+pub const PAGE_WIDTH_STEP: f32 = 40.0;
+pub const DEFAULT_PAGE_WIDTH: f32 = 820.0;
 
-    #[test]
-    fn test_selected_text_extraction_with_inline_math() {
-        let src = ". $\\Rightarrow$ **cấu trúc thuật toán ANN, nhu cầu can thiệp của con người thấp hơn và yêu cầu dữ liệu lớn hơn.**";
-        let blocks = parse_to_blocks(src);
-
-        let range = SelectionRange {
-            start: SelectionPoint {
-                block: 0,
-                offset: 0,
-            },
-            end: SelectionPoint {
-                block: 0,
-                offset: 500,
-            },
-        };
-
-        let selected = build_selected_text(&blocks, range);
-        assert!(selected.is_some(), "selected text should not be None");
-        let text = selected.unwrap();
-        assert_eq!(
-            text,
-            ". ⇒ cấu trúc thuật toán ANN, nhu cầu can thiệp của con người thấp hơn và yêu cầu dữ liệu lớn hơn."
-        );
-    }
-
-    #[test]
-    fn test_user_bullet_item_copy_with_inline_math() {
-        let src = "- $\\Rightarrow$ **cấu trúc thuật toán ANN, nhu cầu can thiệp của con người thấp hơn và yêu cầu dữ liệu lớn hơn.**";
-        let blocks = parse_to_blocks(src);
-        assert_eq!(blocks.len(), 1);
-        assert!(matches!(blocks[0], Block::List { .. }));
-
-        // Test clicking & selecting the list item which has block_index = 1 (since list is at base_idx 0)
-        let range = SelectionRange {
-            start: SelectionPoint {
-                block: 1,
-                offset: 0,
-            },
-            end: SelectionPoint {
-                block: 1,
-                offset: 500,
-            },
-        };
-
-        let selected = build_selected_text(&blocks, range);
-        assert!(
-            selected.is_some(),
-            "selected text should not be None for list item"
-        );
-        let text = selected.unwrap();
-        assert!(text.contains("cấu trúc thuật toán ANN"));
-    }
-
-    #[test]
-    fn test_partial_selection_phrase_thuat_toan_ann() {
-        let src = "- $\\Rightarrow$ **cấu trúc thuật toán ANN, nhu cầu can thiệp của con người thấp hơn và yêu cầu dữ liệu lớn hơn.**";
-        let blocks = parse_to_blocks(src);
-        assert_eq!(blocks.len(), 1);
-
-        let visual_text = crate::parsers::markdown::flatten_inlines_visual(
-            if let Block::List { items, .. } = &blocks[0] {
-                &items[0].content
-            } else {
-                panic!("Expected List block");
-            },
-        );
-
-        let target = "thuật toán ANN";
-        let start_offset = visual_text
-            .find(target)
-            .expect("Must find 'thuật toán ANN'");
-        let end_offset = start_offset + target.len();
-
-        let range = SelectionRange {
-            start: SelectionPoint {
-                block: 1,
-                offset: start_offset,
-            },
-            end: SelectionPoint {
-                block: 1,
-                offset: end_offset,
-            },
-        };
-
-        let selected = build_selected_text(&blocks, range);
-        assert!(
-            selected.is_some(),
-            "selected_text should not be None when partial text is selected"
-        );
-
-        let text = selected.unwrap();
-        assert_eq!(
-            text, "thuật toán ANN",
-            "Extracted text must match exactly the selected substring"
-        );
-    }
-
-    #[test]
-    fn test_nested_bullet_item_copy_with_inline_math() {
-        let src = "- Mục cha\n  - $\\Rightarrow$ **cấu trúc thuật toán ANN, nhu cầu can thiệp của con người thấp hơn và yêu cầu dữ liệu lớn hơn.**";
-        let blocks = parse_to_blocks(src);
-        assert_eq!(blocks.len(), 1);
-        assert!(matches!(blocks[0], Block::List { .. }));
-
-        // Item 0 is at block 1, its sub-list items are at block 3 (base_idx 2 + 1)
-        let range = SelectionRange {
-            start: SelectionPoint {
-                block: 3,
-                offset: 0,
-            },
-            end: SelectionPoint {
-                block: 3,
-                offset: 500,
-            },
-        };
-
-        let selected = build_selected_text(&blocks, range);
-        assert!(
-            selected.is_some(),
-            "selected text should not be None for nested list item"
-        );
-        let text = selected.unwrap();
-        assert!(text.contains("cấu trúc thuật toán ANN"));
-        assert!(text.contains("⇒"));
-    }
-
-    #[test]
-    fn test_smooth_scroll_step_and_start() {
-        let mut state = crate::core::MarkdownState {
-            total_content_height: 2000.0,
-            viewport_height: 800.0,
-            ..Default::default()
-        };
-
-        // Test start_smooth_scroll clamping
-        start_smooth_scroll(&mut state, 3000.0);
-        assert_eq!(state.smooth_scroll.target_y, 1200.0);
-        assert!(state.smooth_scroll.is_animating);
-
-        // When starting navigation to -50.0 (clamped to 0.0) with non-zero scroll_y:
-        state.scroll_y = 500.0;
-        start_smooth_scroll(&mut state, -50.0);
-        assert_eq!(state.smooth_scroll.target_y, 0.0);
-        assert!(state.smooth_scroll.is_animating);
-
-        // When target distance is below threshold, animation is skipped
-        state.scroll_y = 0.0;
-        start_smooth_scroll(&mut state, 0.0);
-        assert!(!state.smooth_scroll.is_animating);
-    }
-
-    #[test]
-    fn test_smooth_scroll_reaches_target() {
-        let mut scroller = crate::core::scroll::SmoothScroller::default();
-        let mut current: f32 = 0.0;
-        let target: f32 = 500.0;
-        let max_y: f32 = 1000.0;
-        scroller.start_navigation(current, target, max_y);
-
-        let start = std::time::Instant::now();
-        for step in 1..=50 {
-            let now = start + std::time::Duration::from_millis(step * 16);
-            if let Some(next_y) = scroller.tick(current, now, max_y) {
-                current = next_y;
-            } else {
-                break;
-            }
-        }
-        assert!(
-            (current - target).abs() < 0.1,
-            "Scroller should reach target {target}, got {current}"
-        );
-        assert!(!scroller.is_animating);
-    }
-
-    #[test]
-    fn test_handle_smooth_wheel_scrolled_lines_and_pixels() {
-        use crate::app::test_util::{markdown_content, test_app};
-
-        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
-        app.state.markdown.viewport_height = 800.0;
-        app.state.markdown.total_content_height = 3000.0;
-        app.state.markdown.scroll_y = 100.0;
-
-        // Lines: 1 notch down (-1.0) -> step = 1.0 * (800 * 0.15) = 120.0 px
-        let delta_lines = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -1.0 };
-        let _ = handle_smooth_wheel_scrolled(&mut app, delta_lines);
-        assert_eq!(app.state.markdown.smooth_scroll.target_y, 220.0);
-        assert!(app.state.markdown.smooth_scroll.is_animating);
-
-        // Pixels: trackpad touch events produce direct displacement via scroll_controller
-        let delta_pixels = iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -20.0 };
-        let _ = handle_smooth_wheel_scrolled(&mut app, delta_pixels);
-        assert_eq!(app.state.markdown.scroll_y, 150.0);
-        assert_eq!(
-            app.state.markdown.scroll_controller.state(),
-            crate::core::scroll::GestureState::Dragging
-        );
-
-        // Second fast swipe in rapid succession
-        std::thread::sleep(std::time::Duration::from_millis(15));
-        let delta_pixels_fast = iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -30.0 };
-        let _ = handle_smooth_wheel_scrolled(&mut app, delta_pixels_fast);
-        assert_eq!(app.state.markdown.scroll_y, 225.0);
-        assert_eq!(
-            app.state.markdown.scroll_controller.state(),
-            crate::core::scroll::GestureState::Dragging
-        );
-
-        // Opportunistic instant fling on zero delta
-        let delta_pixels_zero = iced::mouse::ScrollDelta::Pixels { x: 0.0, y: 0.0 };
-        let _ = handle_smooth_wheel_scrolled(&mut app, delta_pixels_zero);
-        assert!(app.state.markdown.scroll_controller.is_animating());
-        assert_eq!(
-            app.state.markdown.scroll_controller.state(),
-            crate::core::scroll::GestureState::Flinging
-        );
-
-        // Ctrl held down: ignores wheel scrolling
-        app.ctrl_held = true;
-        let _ = handle_smooth_wheel_scrolled(&mut app, delta_lines);
-    }
-
-    #[test]
-    fn test_markdown_touchpad_hold_finger_does_not_fling() {
-        use crate::app::test_util::{markdown_content, test_app};
-
-        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
-        app.state.markdown.viewport_height = 800.0;
-        app.state.markdown.total_content_height = 3000.0;
-        app.state.markdown.scroll_y = 100.0;
-
-        let delta_pixels = iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -20.0 };
-        let _ = handle_smooth_wheel_scrolled(&mut app, delta_pixels);
-        assert_eq!(app.state.markdown.scroll_y, 150.0);
-        assert_eq!(
-            app.state.markdown.scroll_controller.state(),
-            crate::core::scroll::GestureState::Dragging
-        );
-
-        // User keeps finger held on touchpad (45ms pass without new events)
-        let now = std::time::Instant::now() + std::time::Duration::from_millis(45);
-        let _ = handle_smooth_scroll_tick(&mut app, now);
-
-        assert_eq!(
-            app.state.markdown.scroll_controller.state(),
-            crate::core::scroll::GestureState::Idle
-        );
-        assert!(!app.state.markdown.scroll_controller.is_animating());
-        assert_eq!(app.state.markdown.scroll_y, 150.0);
-    }
-
-    #[test]
-    fn test_markdown_scrolled_preserves_animation_and_handles_manual_scroll() {
-        use crate::app::test_util::{markdown_content, test_app};
-
-        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
-        app.state.markdown.smooth_scroll.is_animating = true;
-        app.state.markdown.smooth_scroll.target_y = 1000.0;
-        app.state.markdown.smooth_scroll.last_applied_y = 100.0;
-        app.state.markdown.scroll_y = 100.0;
-        app.state.markdown.viewport_height = 800.0;
-        app.state.markdown.total_content_height = 3000.0;
-
-        // While animating, asynchronous on_scroll does not clobber target_y or scroll_y
-        let _ = handle_markdown_scrolled(&mut app, 250.0, 800.0, 3000.0);
-        assert_eq!(app.state.markdown.scroll_y, 100.0);
-        assert_eq!(app.state.markdown.smooth_scroll.target_y, 1000.0);
-        assert!(app.state.markdown.smooth_scroll.is_animating);
-
-        // When not animating, on_scroll (e.g. manual scrollbar drag) updates scroll_y
-        app.state.markdown.smooth_scroll.is_animating = false;
-        let _ = handle_markdown_scrolled(&mut app, 400.0, 800.0, 3000.0);
-        assert_eq!(app.state.markdown.scroll_y, 400.0);
-        assert_eq!(app.state.markdown.smooth_scroll.target_y, 400.0);
-        assert!(!app.state.markdown.smooth_scroll.is_animating);
-    }
-
-    #[test]
-    fn test_smooth_wheel_scroll_reaches_exact_bottom_without_overshoot() {
-        use crate::app::test_util::{markdown_content, test_app};
-
-        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
-        app.state.markdown.viewport_height = 800.0;
-        app.state.markdown.total_content_height = 2000.0;
-        app.state.markdown.scroll_y = 1100.0;
-
-        let max_y = crate::core::scroll::max_scroll_y(
-            app.state.markdown.total_content_height,
-            app.state.markdown.viewport_height,
-        );
-        assert_eq!(max_y, 1200.0);
-
-        // Scroll down 2 notches: 2 * (800 * 0.15) = 240px -> target = 1100 + 240 = 1340, clamped to 1200.0
-        let delta_lines = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -2.0 };
-        let _ = handle_smooth_wheel_scrolled(&mut app, delta_lines);
-        assert_eq!(app.state.markdown.smooth_scroll.target_y, 1200.0);
-
-        // Tick to completion
-        let start = std::time::Instant::now();
-        for step in 1..=30 {
-            let now = start + std::time::Duration::from_millis(step * 16);
-            let _ = handle_smooth_scroll_tick(&mut app, now);
-            if !app.state.markdown.smooth_scroll.is_animating {
-                break;
-            }
-        }
-        assert_eq!(app.state.markdown.scroll_y, 1200.0);
-        assert!(!app.state.markdown.smooth_scroll.is_animating);
-    }
-
-    #[test]
-    fn test_markdown_scrolled_does_not_corrupt_virtualized_height() {
-        use crate::app::test_util::{markdown_content, test_app};
-
-        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
-        // Simulate a virtualized document with 100 blocks
-        app.state.markdown.block_y_offsets = vec![0.0; 100];
-        app.state.markdown.viewport_height = 800.0;
-        app.state.markdown.total_content_height = 10_000.0;
-        app.state.markdown.scroll_y = 9_500.0; // Near bottom
-        app.state.markdown.smooth_scroll.is_animating = false;
-
-        // Even though scroll_y is near bottom, virtualized document must NOT clobber total_content_height
-        let _ = handle_markdown_scrolled(&mut app, 9_500.0, 800.0, 10_250.0);
-        assert_eq!(app.state.markdown.total_content_height, 10_000.0);
-
-        // For non-virtualized document (e.g. 10 blocks), total_content_height IS updated from exact bounds
-        app.state.markdown.block_y_offsets = vec![0.0; 10];
-        let _ = handle_markdown_scrolled(&mut app, 100.0, 800.0, 1_500.0);
-        assert_eq!(app.state.markdown.total_content_height, 1_500.0);
-    }
+pub fn zoom_markdown_page_width(app: &mut KglanceApp, delta: f32) -> Option<Task<Message>> {
+    let current_width = app.state.max_text_width.unwrap_or(DEFAULT_PAGE_WIDTH);
+    let target = (current_width + delta).clamp(MIN_PAGE_WIDTH, MAX_PAGE_WIDTH);
+    rescale_markdown_page_width(app, target)
 }
+
+pub fn rescale_markdown_page_width(app: &mut KglanceApp, new_width: f32) -> Option<Task<Message>> {
+    let old_width = app.state.max_text_width;
+    let clamped_width = new_width.clamp(MIN_PAGE_WIDTH, MAX_PAGE_WIDTH);
+    if let Some(old) = old_width
+        && (clamped_width - old).abs() < f32::EPSILON
+    {
+        return Some(Task::none());
+    }
+    app.state.max_text_width = Some(clamped_width);
+
+    let mut config = app.load_config();
+    config.ui.max_text_width = Some(clamped_width);
+    let _ = app.save_config(&config);
+
+    app.state
+        .toasts
+        .retain(|t| !t.message.starts_with("Page Width:"));
+    let toast = app.show_toast(format!("Page Width: {clamped_width:.0}px"));
+
+    let scroll_task = match app.current_content {
+        Some(PreviewData::Markdown { ref blocks, .. }) => {
+            let s = app.state.font_size;
+            let content_width = app.state.markdown_content_width();
+            let new_scroll_y = crate::features::markdown::rescale_and_update_markdown_layout(
+                &mut app.state.markdown,
+                blocks,
+                s,
+                s,
+                content_width,
+            );
+            iced::widget::operation::scroll_to(
+                "content_scroll",
+                iced::widget::operation::AbsoluteOffset {
+                    x: 0.0,
+                    y: new_scroll_y,
+                },
+            )
+        }
+        Some(PreviewData::Epub { .. }) => {
+            let s = app.state.font_size;
+            let epub_content_width = app.state.epub_content_width();
+            let epub = &mut app.state.epub;
+            let blocks = if epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
+                epub.continuous_blocks.as_slice()
+            } else {
+                let active_chapter = epub.active_chapter;
+                epub.chapters
+                    .get(active_chapter)
+                    .map_or([].as_slice(), |c| c.blocks.as_slice())
+            };
+            if !blocks.is_empty() {
+                let new_scroll_y = crate::features::markdown::rescale_and_update_markdown_layout(
+                    &mut epub.markdown_state,
+                    blocks,
+                    s,
+                    s,
+                    epub_content_width,
+                );
+                iced::widget::operation::scroll_to(
+                    "content_scroll",
+                    iced::widget::operation::AbsoluteOffset {
+                        x: 0.0,
+                        y: new_scroll_y,
+                    },
+                )
+            } else {
+                Task::none()
+            }
+        }
+        _ => Task::none(),
+    };
+
+    Some(Task::batch([scroll_task, toast]))
+}
+
+#[cfg(test)]
+#[path = "update_tests.rs"]
+mod tests;
