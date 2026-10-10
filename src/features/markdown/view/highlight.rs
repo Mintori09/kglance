@@ -3,19 +3,10 @@ use std::sync::{Mutex, OnceLock};
 use iced::Color;
 use lru::LruCache;
 use syntect::easy::HighlightLines;
-use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
 
-fn syntax_set() -> &'static SyntaxSet {
-    static SS: OnceLock<SyntaxSet> = OnceLock::new();
-    SS.get_or_init(SyntaxSet::load_defaults_newlines)
-}
-
-fn theme_set() -> &'static ThemeSet {
-    static TS: OnceLock<ThemeSet> = OnceLock::new();
-    TS.get_or_init(ThemeSet::load_defaults)
-}
+use crate::features::text::syntax::{global_syntax_set, global_theme_set};
 
 use crate::ui::theme::AppTheme;
 use crate::ui::theme::color::primitive::syntect_to_iced_color;
@@ -61,8 +52,8 @@ pub(crate) fn highlight_code<'a>(
             .collect();
     }
 
-    let ss = syntax_set();
-    let ts = theme_set();
+    let ss = global_syntax_set();
+    let ts = global_theme_set();
 
     let syntax = find_syntax(ss, lang.as_deref(), code);
 
@@ -133,15 +124,18 @@ pub(crate) fn find_syntax<'a>(
                 return syntax;
             }
             let fallback_alias = match token.to_lowercase().as_str() {
-                "ts" | "typescript" | "tsx" => Some("js"),
+                "ts" | "typescript" | "tsx" | "mts" | "cts" => Some("ts"),
+                "js" | "javascript" | "mjs" | "cjs" | "jsx" => Some("js"),
                 "rs" | "rust" => Some("rs"),
-                "py" | "python" | "python3" => Some("py"),
-                "sh" | "bash" | "zsh" | "shell" => Some("sh"),
+                "py" | "python" | "python3" | "pyw" => Some("py"),
+                "sh" | "bash" | "zsh" | "fish" | "shell" => Some("sh"),
                 "yml" | "yaml" => Some("yaml"),
                 _ => None,
             };
             if let Some(alias) = fallback_alias
-                && let Some(syntax) = ss.find_syntax_by_token(alias)
+                && let Some(syntax) = ss
+                    .find_syntax_by_extension(alias)
+                    .or_else(|| ss.find_syntax_by_token(alias))
             {
                 return syntax;
             }
@@ -150,14 +144,14 @@ pub(crate) fn find_syntax<'a>(
 
     if let Some(detected) = detect_code_language(code) {
         if let Some(syntax) = ss
-            .find_syntax_by_token(detected)
-            .or_else(|| ss.find_syntax_by_extension(detected))
+            .find_syntax_by_extension(detected)
+            .or_else(|| ss.find_syntax_by_token(detected))
             .or_else(|| ss.find_syntax_by_name(detected))
         {
             return syntax;
         }
-        if matches!(detected, "ts" | "typescript" | "tsx")
-            && let Some(syntax) = ss.find_syntax_by_token("js")
+        if matches!(detected, "ts" | "typescript" | "tsx" | "mts" | "cts")
+            && let Some(syntax) = ss.find_syntax_by_extension("ts")
         {
             return syntax;
         }

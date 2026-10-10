@@ -44,10 +44,12 @@ pub fn handle_theme_toggled(app: &mut KglanceApp) -> Task<Message> {
     app.state.theme_setting = app.state.app_theme.display_name().to_string();
     let theme = app.state.app_theme;
     let text_scroll = app.state.text.scroll_y;
+    app.state.text.syntax_cache.clear();
     app.state.text.cached_tokens.clear();
     crate::features::text::update_tokens_for_viewport(&mut app.state.text, text_scroll, theme);
 
     let json_scroll = app.state.json.raw_text.scroll_y;
+    app.state.json.raw_text.syntax_cache.clear();
     app.state.json.raw_text.cached_tokens.clear();
     crate::features::text::update_tokens_for_viewport(
         &mut app.state.json.raw_text,
@@ -56,6 +58,7 @@ pub fn handle_theme_toggled(app: &mut KglanceApp) -> Task<Message> {
     );
 
     let typst_scroll = app.state.typst.source_text.scroll_y;
+    app.state.typst.source_text.syntax_cache.clear();
     app.state.typst.source_text.cached_tokens.clear();
     crate::features::text::update_tokens_for_viewport(
         &mut app.state.typst.source_text,
