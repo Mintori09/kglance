@@ -14,6 +14,7 @@ pub mod markdown;
 pub mod office;
 pub mod pdf;
 pub mod psd;
+pub mod sqlite;
 pub mod svg;
 pub mod text;
 pub mod typst;
