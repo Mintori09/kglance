@@ -16,7 +16,7 @@ pub mod types;
 pub mod utils;
 
 pub use cache::{CachedContent, MemoryCache};
-pub use clipboard::copy_to_clipboard;
+pub use clipboard::{copy_image_to_clipboard, copy_to_clipboard};
 pub use mmap::MmapFile;
 pub use preview::{FilePreviewer, PreviewData, is_slow_to_parse};
 pub use read_positions::{ReadPosition, ReadPositions};

@@ -170,6 +170,18 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::ImageMsg::DoubleClick => {
                 crate::features::image::update::handle_double_click(app)
             }
+            crate::app::messages::ImageMsg::RotateRight => {
+                crate::features::image::update::handle_rotate_right(app)
+            }
+            crate::app::messages::ImageMsg::RotateLeft => {
+                crate::features::image::update::handle_rotate_left(app)
+            }
+            crate::app::messages::ImageMsg::FlipHorizontal => {
+                crate::features::image::update::handle_flip_horizontal(app)
+            }
+            crate::app::messages::ImageMsg::FlipVertical => {
+                crate::features::image::update::handle_flip_vertical(app)
+            }
             crate::app::messages::ImageMsg::Decoded {
                 load_id,
                 handle,

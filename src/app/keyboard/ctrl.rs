@@ -130,6 +130,15 @@ impl KglanceApp {
     }
 
     pub(super) fn handle_ctrl_copy(&mut self) -> Option<Task<Message>> {
+        if let Some(PreviewData::Image { data, .. }) = &self.current_content {
+            if data.is_empty() {
+                return None;
+            }
+            let copy_task = crate::core::clipboard::copy_image_to_clipboard(data);
+            let toast = self.show_toast("Copied image!");
+            return Some(Task::batch(vec![copy_task, toast]));
+        }
+
         let (text, html) = if let Some(viewer) = self.active_code_viewer() {
             (viewer.selected_text(), None)
         } else {

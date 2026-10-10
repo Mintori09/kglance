@@ -1,8 +1,12 @@
+use crate::features::image::Angle;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Camera {
     pub zoom: f32,
     pub offset_x: f32,
     pub offset_y: f32,
+    pub rotation: Angle,
+    pub flip: (bool, bool),
 }
 
 impl Default for Camera {
@@ -11,6 +15,8 @@ impl Default for Camera {
             zoom: 1.0,
             offset_x: 0.0,
             offset_y: 0.0,
+            rotation: Angle::ZERO,
+            flip: (false, false),
         }
     }
 }
