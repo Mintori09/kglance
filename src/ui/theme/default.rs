@@ -1,4 +1,6 @@
-use iced::widget::{button, checkbox, container, pick_list, rule, scrollable, slider, text_input};
+use iced::widget::{
+    button, checkbox, container, pick_list, rule, scrollable, slider, text_input, toggler,
+};
 use iced::{Border, Color, Shadow, Theme};
 
 use crate::ui::theme::color::{AppTheme, BaseColors, primitive, roles};
@@ -357,6 +359,35 @@ pub fn default_checkbox(theme: &Theme, status: checkbox::Status) -> checkbox::St
             width: 1.0,
             radius: radius::SM.into(),
         },
+        text_color: Some(p.text),
+    }
+}
+
+pub fn default_toggler(theme: &Theme, status: toggler::Status) -> toggler::Style {
+    let p = BaseColors::palette(theme);
+    let role = roles::palette(theme);
+
+    let (bg, border_color, handle_color) = match status {
+        toggler::Status::Active { is_toggled: true }
+        | toggler::Status::Disabled { is_toggled: true } => (role.accent, role.accent, p.bg),
+        toggler::Status::Hovered { is_toggled: true } => {
+            (role.accent_hover, role.accent_hover, p.bg)
+        }
+        toggler::Status::Hovered { is_toggled: false } => {
+            (p.surface_raised, p.border_focus, p.text_dim)
+        }
+        _ => (p.surface, p.border, p.text_dim),
+    };
+
+    toggler::Style {
+        background: bg.into(),
+        background_border_width: 1.0,
+        background_border_color: border_color,
+        foreground: handle_color.into(),
+        foreground_border_width: 0.0,
+        foreground_border_color: Color::TRANSPARENT,
+        border_radius: Some(radius::FULL.into()),
+        padding_ratio: 0.15,
         text_color: Some(p.text),
     }
 }

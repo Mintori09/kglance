@@ -144,6 +144,7 @@ impl KglanceApp {
             prefer_mermaid_cli: config.ui.prefer_mermaid_cli,
             word_wrap: config.ui.word_wrap,
             json_tree_view: config.ui.json_tree_view,
+            cache_config: config.cache.clone(),
 
             ..Default::default()
         };
@@ -155,6 +156,9 @@ impl KglanceApp {
         state.read_positions = read_positions;
         state.json.tree_mode = config.ui.json_tree_view;
         state.apply_scroll_config(&config.scroll);
+
+        // Pre-warm system fonts cache in background to avoid blocking first UI render of settings
+        std::thread::spawn(crate::ui::views::setting_page::get_system_fonts);
 
         if !initial_paths.is_empty() {
             state.playlist = initial_paths.to_vec();
