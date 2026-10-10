@@ -29,7 +29,13 @@ impl ImageRenderer for CanvasRenderer {
             return;
         }
 
-        let fit_scale = (bounds.width / disp_w as f32).min(bounds.height / disp_h as f32);
+        let (visual_w, visual_h) = if camera.rotation.is_perpendicular() {
+            (disp_h as f32, disp_w as f32)
+        } else {
+            (disp_w as f32, disp_h as f32)
+        };
+
+        let fit_scale = (bounds.width / visual_w).min(bounds.height / visual_h);
 
         let (effective_zoom, offset_x, offset_y) = if (camera.zoom - 1.0).abs() < f32::EPSILON
             && camera.offset_x == 0.0
@@ -43,13 +49,27 @@ impl ImageRenderer for CanvasRenderer {
         let img_w = disp_w as f32 * effective_zoom;
         let img_h = disp_h as f32 * effective_zoom;
 
-        let img_x = bounds.x + bounds.width / 2.0 + offset_x - img_w / 2.0;
-        let img_y = bounds.y + bounds.height / 2.0 + offset_y - img_h / 2.0;
+        let center_x = bounds.x + bounds.width / 2.0 + offset_x;
+        let center_y = bounds.y + bounds.height / 2.0 + offset_y;
+
+        let (img_x, draw_w) = if camera.flip.0 {
+            (center_x + img_w / 2.0, -img_w)
+        } else {
+            (center_x - img_w / 2.0, img_w)
+        };
+
+        let (img_y, draw_h) = if camera.flip.1 {
+            (center_y + img_h / 2.0, -img_h)
+        } else {
+            (center_y - img_h / 2.0, img_h)
+        };
 
         let draw_bounds = Rectangle::new(
             iced::Point::new(img_x, img_y),
-            iced::Size::new(img_w, img_h),
+            iced::Size::new(draw_w, draw_h),
         );
+
+        let rotation = iced::Radians(camera.rotation.to_radians());
 
         // 1. Draw preview_handle as persistent underlay if present.
         // In Iced's WGPU backend, image data >2MB is uploaded asynchronously on a
@@ -61,7 +81,7 @@ impl ImageRenderer for CanvasRenderer {
                 image::Image {
                     handle: preview.clone(),
                     filter_method: image::FilterMethod::Linear,
-                    rotation: iced::Radians(0.0),
+                    rotation,
                     border_radius: iced::border::Radius::default(),
                     opacity: 1.0,
                     snap: false,
@@ -81,7 +101,7 @@ impl ImageRenderer for CanvasRenderer {
                 image::Image {
                     handle: main_handle.clone(),
                     filter_method: image::FilterMethod::Linear,
-                    rotation: iced::Radians(0.0),
+                    rotation,
                     border_radius: iced::border::Radius::default(),
                     opacity: 1.0,
                     snap: false,

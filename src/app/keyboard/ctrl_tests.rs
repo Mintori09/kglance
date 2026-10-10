@@ -580,3 +580,88 @@ fn test_ctrl_t_toggles_theme_and_syncs_setting() {
     assert_eq!(app.state.app_theme, crate::ui::theme::AppTheme::Light);
     assert_eq!(app.state.theme_setting, "Light");
 }
+
+#[test]
+fn test_ctrl_c_copies_image_data() {
+    let sample_png = vec![
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F,
+        0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00,
+        0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
+        0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+    ];
+
+    let preview = crate::core::PreviewData::Image {
+        data: sample_png,
+        width: 1,
+        height: 1,
+        format_info: "Image (PNG - 1x1)".to_string(),
+        exif_content: None,
+    };
+
+    let mut app = test_app(Some(preview));
+    let task = app.handle_ctrl_copy();
+    assert!(
+        task.is_some(),
+        "handle_ctrl_copy should return Task for image preview"
+    );
+    assert_eq!(
+        app.state.toasts.last().map(|t| t.message.as_str()),
+        Some("Copied image!")
+    );
+}
+
+#[test]
+fn test_image_rotation_and_flip_shortcuts() {
+    use iced::keyboard::Modifiers;
+
+    let sample_png = vec![
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F,
+        0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00,
+        0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
+        0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+    ];
+
+    let preview = crate::core::PreviewData::Image {
+        data: sample_png,
+        width: 1,
+        height: 1,
+        format_info: "Image (PNG - 1x1)".to_string(),
+        exif_content: None,
+    };
+
+    let mut app = test_app(Some(preview));
+    assert_eq!(app.state.image.camera.rotation.to_degrees().round(), 0.0);
+    assert_eq!(app.state.image.camera.flip, (false, false));
+
+    // Press 'r' -> Rotate right 90°
+    let _ = app.handle_key_pressed(
+        iced::keyboard::Key::Character("r".into()),
+        Modifiers::empty(),
+    );
+    assert_eq!(app.state.image.camera.rotation.to_degrees().round(), 90.0);
+
+    // Press 'R' (Shift+R) -> Rotate left 90° (back to 0°)
+    let _ = app.handle_key_pressed(iced::keyboard::Key::Character("R".into()), Modifiers::SHIFT);
+    assert_eq!(app.state.image.camera.rotation.to_degrees().round(), 0.0);
+
+    // Press 'h' -> Flip horizontal
+    let _ = app.handle_key_pressed(
+        iced::keyboard::Key::Character("h".into()),
+        Modifiers::empty(),
+    );
+    assert_eq!(app.state.image.camera.flip, (true, false));
+
+    // Press 'v' -> Flip vertical
+    let _ = app.handle_key_pressed(
+        iced::keyboard::Key::Character("v".into()),
+        Modifiers::empty(),
+    );
+    assert_eq!(app.state.image.camera.flip, (true, true));
+
+    // Press '0' with Ctrl -> Reset
+    let _ = app.handle_ctrl_shortcuts(&iced::keyboard::Key::Character("0".into()), Modifiers::CTRL);
+    assert_eq!(app.state.image.camera.rotation.to_degrees().round(), 0.0);
+    assert_eq!(app.state.image.camera.flip, (false, false));
+}

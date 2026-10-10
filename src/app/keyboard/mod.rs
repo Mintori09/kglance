@@ -121,6 +121,22 @@ impl super::KglanceApp {
                 iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("i") => {
                     return self.update(crate::app::messages::ImageMsg::ToggleInfo.into());
                 }
+                iced::keyboard::Key::Character(c)
+                    if c == "r" && !self.shift_held && !modifiers.shift() =>
+                {
+                    return self.update(crate::app::messages::ImageMsg::RotateRight.into());
+                }
+                iced::keyboard::Key::Character(c)
+                    if c == "R" || (c == "r" && (self.shift_held || modifiers.shift())) =>
+                {
+                    return self.update(crate::app::messages::ImageMsg::RotateLeft.into());
+                }
+                iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("h") => {
+                    return self.update(crate::app::messages::ImageMsg::FlipHorizontal.into());
+                }
+                iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("v") => {
+                    return self.update(crate::app::messages::ImageMsg::FlipVertical.into());
+                }
                 _ => {}
             }
         }

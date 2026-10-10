@@ -447,8 +447,18 @@ pub fn handle_zoom(app: &mut KglanceApp, factor: f32, cursor: iced::Point) -> Ta
         && app.state.image.display_width > 0
         && app.state.image.display_height > 0
     {
-        let fit = (win.width / app.state.image.display_width as f32)
-            .min(canvas_height / app.state.image.display_height as f32);
+        let (vis_w, vis_h) = if camera.rotation.is_perpendicular() {
+            (
+                app.state.image.display_height as f32,
+                app.state.image.display_width as f32,
+            )
+        } else {
+            (
+                app.state.image.display_width as f32,
+                app.state.image.display_height as f32,
+            )
+        };
+        let fit = (win.width / vis_w).min(canvas_height / vis_h);
         camera.zoom = fit;
     }
 
@@ -460,6 +470,30 @@ pub fn handle_zoom(app: &mut KglanceApp, factor: f32, cursor: iced::Point) -> Ta
 pub fn handle_pan(app: &mut KglanceApp, dx: f32, dy: f32) -> Task<Message> {
     use crate::features::image::ViewerController;
     ViewerController::pan(&mut app.state.image.camera, dx, dy);
+    Task::none()
+}
+
+pub fn handle_rotate_right(app: &mut KglanceApp) -> Task<Message> {
+    use crate::features::image::ViewerController;
+    ViewerController::rotate_right(&mut app.state.image.camera);
+    Task::none()
+}
+
+pub fn handle_rotate_left(app: &mut KglanceApp) -> Task<Message> {
+    use crate::features::image::ViewerController;
+    ViewerController::rotate_left(&mut app.state.image.camera);
+    Task::none()
+}
+
+pub fn handle_flip_horizontal(app: &mut KglanceApp) -> Task<Message> {
+    use crate::features::image::ViewerController;
+    ViewerController::flip_horizontal(&mut app.state.image.camera);
+    Task::none()
+}
+
+pub fn handle_flip_vertical(app: &mut KglanceApp) -> Task<Message> {
+    use crate::features::image::ViewerController;
+    ViewerController::flip_vertical(&mut app.state.image.camera);
     Task::none()
 }
 
@@ -510,9 +544,8 @@ pub fn handle_image_reset(app: &mut KglanceApp) -> Option<Task<Message>> {
         return None;
     }
 
-    app.state.image.camera.zoom = 1.0;
-    app.state.image.camera.offset_x = 0.0;
-    app.state.image.camera.offset_y = 0.0;
+    use crate::features::image::ViewerController;
+    ViewerController::reset(&mut app.state.image.camera);
 
     Some(Task::none())
 }

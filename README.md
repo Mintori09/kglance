@@ -101,7 +101,7 @@ Kglance offers rich keyboard navigation for navigating files, zooming images, sc
 | `Enter`                                      | Open file in default desktop app / Open folder entry            | Global / Folder view             |
 | `Ctrl` + `,`                                 | Open Settings view                                              | Global                           |
 | `Ctrl` + `T`                                 | Cycle color theme (Dark → Light → Nord)                         | Global                           |
-| `Ctrl` + `C`                                 | Copy file path / Copy selected text                             | Global / Text & Documents        |
+| `Ctrl` + `C`                                 | Copy file path / Copy selected text / Copy image bitmap (PNG)   | Global / Text, Documents, Images |
 | `Ctrl` + `A`                                 | Select all text                                                 | Text, Code, Markdown, EPUB       |
 | **Navigation & Playlist**                    |                                                                 |                                  |
 | `Ctrl` + `Shift` + `←` / `Ctrl` + `PageUp`   | Previous file in directory                                      | Playlist / Global                |
@@ -129,6 +129,11 @@ Kglance offers rich keyboard navigation for navigating files, zooming images, sc
 | `=`                                          | Fit image to window                                             | Image preview                    |
 | `Shift` + `+` / `Shift` + `=`                | Reset font size to default (14px)                               | Text & Code preview              |
 | **Specific Formats**                         |                                                                 |                                  |
+| `r`                                          | Rotate image 90° clockwise                                      | Image preview                    |
+| `Shift` + `R` / `R`                          | Rotate image 90° counter-clockwise                              | Image preview                    |
+| `h`                                          | Flip image horizontally (mirror)                                | Image preview                    |
+| `v`                                          | Flip image vertically (mirror)                                  | Image preview                    |
+| `0` (or `Ctrl` + `0`)                        | Reset image zoom, pan, rotation, and flip                       | Image preview                    |
 | `Ctrl` + `W`                                 | Toggle word wrap                                                | Text, Code, JSON, Typst          |
 | `Ctrl` + `e`                                 | Expand all JSON tree nodes                                      | JSON preview                     |
 | `Ctrl` + `E` (`Shift` + `e`)                 | Collapse all JSON tree nodes                                    | JSON preview                     |
