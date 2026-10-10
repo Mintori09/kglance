@@ -665,3 +665,48 @@ fn test_image_rotation_and_flip_shortcuts() {
     assert_eq!(app.state.image.camera.rotation.to_degrees().round(), 0.0);
     assert_eq!(app.state.image.camera.flip, (false, false));
 }
+
+#[test]
+fn ctrl_plus_minus_resizes_spreadsheet_font_size() {
+    let sheet = crate::features::sheet::types::SheetInfo {
+        name: "Sheet1".to_string(),
+        headers: vec!["A".to_string()],
+        columns: vec![crate::features::sheet::types::ColumnMeta {
+            name: "A".to_string(),
+            col_type: crate::features::sheet::types::ColumnType::Text,
+            width: 100.0,
+        }],
+        rows: vec![vec!["Cell".to_string()]],
+    };
+    let mut app = test_app(Some(crate::core::PreviewData::Spreadsheet {
+        sheets: vec![sheet],
+        active_sheet: 0,
+    }));
+    let initial_size = app.state.font_size;
+    let plus_key = iced::keyboard::Key::Character("+".into());
+    let minus_key = iced::keyboard::Key::Character("-".into());
+    let modifiers = iced::keyboard::Modifiers::CTRL;
+
+    let task = app.handle_ctrl_shortcuts(&plus_key, modifiers);
+    assert!(task.is_some());
+    assert_eq!(app.state.font_size, initial_size + 1.0);
+
+    let task = app.handle_ctrl_shortcuts(&minus_key, modifiers);
+    assert!(task.is_some());
+    assert_eq!(app.state.font_size, initial_size);
+
+    // Ctrl + 0 reset
+    let _ = app.handle_ctrl_shortcuts(&plus_key, modifiers);
+    assert_eq!(app.state.font_size, initial_size + 1.0);
+    let zero_key = iced::keyboard::Key::Character("0".into());
+    let task = app.handle_ctrl_shortcuts(&zero_key, modifiers);
+    assert!(task.is_some());
+    assert_eq!(app.state.font_size, app.state.default_font_size);
+
+    // Ctrl + Mouse Wheel
+    app.ctrl_held = true;
+    let _ = app.handle_scroll_delta(0.0, 1.0);
+    assert_eq!(app.state.font_size, initial_size + 1.0);
+    let _ = app.handle_scroll_delta(0.0, -1.0);
+    assert_eq!(app.state.font_size, initial_size);
+}

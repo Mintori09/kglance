@@ -1073,6 +1073,7 @@ impl KglanceApp {
                 ),
                 PreviewData::Spreadsheet { .. } => crate::ui::views::view_spreadsheet(
                     &self.state.spreadsheet,
+                    self.state.font_size,
                     self.state.app_theme,
                     self.state.font_family.as_deref(),
                 ),

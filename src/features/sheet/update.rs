@@ -3,29 +3,31 @@ use crate::app::messages::Message;
 use crate::core::types::KglanceState;
 use crate::features::sheet::parser::try_parse_date_or_datetime;
 use crate::features::sheet::types::{ColumnMeta, ColumnType, SheetInfo};
-use crate::features::sheet::view::{
-    COL_SPACING, HEADER_HEIGHT, ROW_HEIGHT, ROW_NUMBER_COL_WIDTH, ROWS_LIST_SPACING,
-    estimate_row_height,
-};
+use crate::features::sheet::view::{COL_SPACING, ROWS_LIST_SPACING, estimate_row_height};
 use iced::Task;
+
+pub use crate::features::sheet::font::{
+    header_height, min_row_height, rescale_spreadsheet_font, rescale_spreadsheet_geometry,
+    row_number_col_width, scale_col_width, zoom_spreadsheet_font,
+};
 
 const CONTENT_SCROLL_ID: &str = "content_scroll";
 
-pub fn compute_prefix_widths(columns: &[ColumnMeta]) -> Vec<f32> {
+pub fn compute_prefix_widths(columns: &[ColumnMeta], font_size: f32) -> Vec<f32> {
     let mut prefix = Vec::with_capacity(columns.len() + 1);
     prefix.push(0.0);
     let mut acc = 0.0;
     for col in columns {
-        acc += col.width + COL_SPACING;
+        acc += scale_col_width(col.width, font_size) + COL_SPACING;
         prefix.push(acc);
     }
     prefix
 }
 
-pub fn compute_total_content_width(sheet: &SheetInfo) -> f32 {
-    let mut total = ROW_NUMBER_COL_WIDTH + COL_SPACING;
+pub fn compute_total_content_width(sheet: &SheetInfo, font_size: f32) -> f32 {
+    let mut total = row_number_col_width(font_size) + COL_SPACING;
     for col in &sheet.columns {
-        total += col.width + COL_SPACING;
+        total += scale_col_width(col.width, font_size) + COL_SPACING;
     }
     total
 }
@@ -50,16 +52,19 @@ pub fn populate_state(state: &mut KglanceState, sheets: &[SheetInfo], active_she
     state.spreadsheet.smooth_scroll_x.stop(0.0);
     state.spreadsheet.scroll_controller_x.stop(0.0);
 
+    let font_size = state.font_size;
     if let Some(sheet) = state.spreadsheet.sheets.get(active_sheet) {
         let indices = recompute_display_indices(sheet, "", None, None);
-        let (row_heights, prefix_heights, total_h) = compute_height_structures(sheet, &indices);
-        let prefix_widths = compute_prefix_widths(&sheet.columns);
+        let (row_heights, prefix_heights, total_h) =
+            compute_height_structures(sheet, &indices, font_size);
+        let prefix_widths = compute_prefix_widths(&sheet.columns, font_size);
         state.spreadsheet.display_indices = indices;
         state.spreadsheet.row_heights = row_heights;
         state.spreadsheet.prefix_heights = prefix_heights;
         state.spreadsheet.prefix_widths = prefix_widths;
-        state.spreadsheet.total_content_height = total_h + HEADER_HEIGHT + ROWS_LIST_SPACING;
-        state.spreadsheet.total_content_width = compute_total_content_width(sheet);
+        state.spreadsheet.total_content_height =
+            total_h + header_height(font_size) + ROWS_LIST_SPACING;
+        state.spreadsheet.total_content_width = compute_total_content_width(sheet, font_size);
     } else {
         state.spreadsheet.display_indices.clear();
         state.spreadsheet.row_heights.clear();
@@ -92,17 +97,19 @@ pub fn populate_state(state: &mut KglanceState, sheets: &[SheetInfo], active_she
 pub fn compute_height_structures(
     sheet: &SheetInfo,
     display_indices: &[usize],
+    font_size: f32,
 ) -> (Vec<f32>, Vec<f32>, f32) {
     let mut row_heights = Vec::with_capacity(display_indices.len());
     let mut prefix_heights = Vec::with_capacity(display_indices.len() + 1);
     prefix_heights.push(0.0);
 
+    let min_h = min_row_height(font_size);
     let mut acc = 0.0;
     for &orig_idx in display_indices {
         let h = if let Some(row_data) = sheet.rows.get(orig_idx) {
-            estimate_row_height(row_data, &sheet.columns)
+            estimate_row_height(row_data, &sheet.columns, font_size)
         } else {
-            ROW_HEIGHT
+            min_h
         };
         row_heights.push(h);
         acc += h + ROWS_LIST_SPACING;
@@ -227,17 +234,20 @@ pub fn handle_sheet_tab_clicked(app: &mut KglanceApp, index: usize) -> Task<Mess
         app.state.spreadsheet.scroll_controller_x.stop(0.0);
 
         if let Some(sheet) = app.state.spreadsheet.sheets.get(index) {
+            let font_size = app.state.font_size;
             let indices =
                 recompute_display_indices(sheet, &app.state.spreadsheet.search_query, None, None);
-            let (row_heights, prefix_heights, total_h) = compute_height_structures(sheet, &indices);
-            let prefix_widths = compute_prefix_widths(&sheet.columns);
+            let (row_heights, prefix_heights, total_h) =
+                compute_height_structures(sheet, &indices, font_size);
+            let prefix_widths = compute_prefix_widths(&sheet.columns, font_size);
             app.state.spreadsheet.display_indices = indices;
             app.state.spreadsheet.row_heights = row_heights;
             app.state.spreadsheet.prefix_heights = prefix_heights;
             app.state.spreadsheet.prefix_widths = prefix_widths;
             app.state.spreadsheet.total_content_height =
-                total_h + HEADER_HEIGHT + ROWS_LIST_SPACING;
-            app.state.spreadsheet.total_content_width = compute_total_content_width(sheet);
+                total_h + header_height(font_size) + ROWS_LIST_SPACING;
+            app.state.spreadsheet.total_content_width =
+                compute_total_content_width(sheet, font_size);
         }
     }
     Task::none()
@@ -375,20 +385,23 @@ pub fn handle_column_clicked(app: &mut KglanceApp, col: usize) -> Task<Message> 
     let sort_col = sort.sort_col;
     let sort_ascending = sort.sort_ascending;
 
+    let font_size = app.state.font_size;
     if let Some(sheet) = sort.sheets.get(active_idx) {
         let indices = recompute_display_indices(sheet, &query, sort_col, sort_ascending);
-        let (row_heights, prefix_heights, total_h) = compute_height_structures(sheet, &indices);
+        let (row_heights, prefix_heights, total_h) =
+            compute_height_structures(sheet, &indices, font_size);
         sort.display_indices = indices;
         sort.row_heights = row_heights;
         sort.prefix_heights = prefix_heights;
-        sort.total_content_height = total_h + HEADER_HEIGHT + ROWS_LIST_SPACING;
-        sort.total_content_width = compute_total_content_width(sheet);
+        sort.total_content_height = total_h + header_height(font_size) + ROWS_LIST_SPACING;
+        sort.total_content_width = compute_total_content_width(sheet, font_size);
     }
 
     Task::none()
 }
 
 pub fn handle_search_query_changed(app: &mut KglanceApp, query: String) -> Task<Message> {
+    let font_size = app.state.font_size;
     let sort = &mut app.state.spreadsheet;
     sort.search_query = query.clone();
     sort.scroll_y = 0.0;
@@ -401,18 +414,20 @@ pub fn handle_search_query_changed(app: &mut KglanceApp, query: String) -> Task<
 
     if let Some(sheet) = sort.sheets.get(active_idx) {
         let indices = recompute_display_indices(sheet, &query, sort_col, sort_ascending);
-        let (row_heights, prefix_heights, total_h) = compute_height_structures(sheet, &indices);
+        let (row_heights, prefix_heights, total_h) =
+            compute_height_structures(sheet, &indices, font_size);
         sort.display_indices = indices;
         sort.row_heights = row_heights;
         sort.prefix_heights = prefix_heights;
-        sort.total_content_height = total_h + HEADER_HEIGHT + ROWS_LIST_SPACING;
-        sort.total_content_width = compute_total_content_width(sheet);
+        sort.total_content_height = total_h + header_height(font_size) + ROWS_LIST_SPACING;
+        sort.total_content_width = compute_total_content_width(sheet, font_size);
     }
 
     Task::none()
 }
 
 pub fn handle_search_closed(app: &mut KglanceApp) -> Task<Message> {
+    let font_size = app.state.font_size;
     let sort = &mut app.state.spreadsheet;
     sort.search_visible = false;
     sort.search_query.clear();
@@ -426,12 +441,13 @@ pub fn handle_search_closed(app: &mut KglanceApp) -> Task<Message> {
 
     if let Some(sheet) = sort.sheets.get(active_idx) {
         let indices = recompute_display_indices(sheet, "", sort_col, sort_ascending);
-        let (row_heights, prefix_heights, total_h) = compute_height_structures(sheet, &indices);
+        let (row_heights, prefix_heights, total_h) =
+            compute_height_structures(sheet, &indices, font_size);
         sort.display_indices = indices;
         sort.row_heights = row_heights;
         sort.prefix_heights = prefix_heights;
-        sort.total_content_height = total_h + HEADER_HEIGHT + ROWS_LIST_SPACING;
-        sort.total_content_width = compute_total_content_width(sheet);
+        sort.total_content_height = total_h + header_height(font_size) + ROWS_LIST_SPACING;
+        sort.total_content_width = compute_total_content_width(sheet, font_size);
     }
 
     Task::none()

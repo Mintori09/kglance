@@ -13,8 +13,8 @@ use crate::features::sheet::update::{
     recompute_display_indices,
 };
 use crate::features::sheet::view::{
-    COL_SPACING, ROW_HEIGHT, ROW_STEP, ROWS_LIST_SPACING, compute_csv_column_window,
-    compute_csv_virtual_window, estimate_row_height, view_spreadsheet,
+    CELL_TEXT_SIZE, COL_SPACING, ROW_HEIGHT, ROW_NUMBER_COL_WIDTH, ROW_STEP, ROWS_LIST_SPACING,
+    compute_csv_column_window, compute_csv_virtual_window, estimate_row_height, view_spreadsheet,
 };
 use crate::ui::theme::AppTheme;
 use std::io::Write;
@@ -130,12 +130,12 @@ fn test_estimate_row_height() {
     ];
 
     let short_row = vec!["Short".to_string(), "123".to_string()];
-    let short_h = estimate_row_height(&short_row, &columns);
+    let short_h = estimate_row_height(&short_row, &columns, CELL_TEXT_SIZE);
     assert_eq!(short_h, ROW_HEIGHT);
 
     let long_text = "This is a very long paragraph inside this cell.".to_string();
     let long_row = vec!["Title".to_string(), long_text];
-    let long_h = estimate_row_height(&long_row, &columns);
+    let long_h = estimate_row_height(&long_row, &columns, CELL_TEXT_SIZE);
     assert!(long_h > ROW_HEIGHT);
     assert_eq!(long_h, 41.0);
 }
@@ -369,13 +369,23 @@ fn test_bottom_sheet_tab_switching() {
 
     // Verify multi-sheet view rendering compiles and produces elements
     {
-        let _element_multi = view_spreadsheet(&app.state.spreadsheet, AppTheme::Dark, None);
+        let _element_multi = view_spreadsheet(
+            &app.state.spreadsheet,
+            app.state.font_size,
+            AppTheme::Dark,
+            None,
+        );
     }
 
     // Verify single-sheet view rendering without tabs
     populate_state(&mut app.state, &[sheet1], 0);
     assert_eq!(app.state.spreadsheet.sheets.len(), 1);
-    let _element_single = view_spreadsheet(&app.state.spreadsheet, AppTheme::Dark, None);
+    let _element_single = view_spreadsheet(
+        &app.state.spreadsheet,
+        app.state.font_size,
+        AppTheme::Dark,
+        None,
+    );
 }
 
 #[test]
@@ -530,7 +540,7 @@ fn test_spreadsheet_smooth_scroll_and_touchpad_inertia() {
 #[test]
 fn test_compute_csv_column_window_empty() {
     let prefix = vec![0.0];
-    let win = compute_csv_column_window(&prefix, 0.0, 1000.0);
+    let win = compute_csv_column_window(&prefix, 0.0, 1000.0, ROW_NUMBER_COL_WIDTH);
     assert_eq!(win.visible_start, 0);
     assert_eq!(win.visible_end, 0);
     assert_eq!(win.left_spacer_width, 0.0);
@@ -546,11 +556,11 @@ fn test_compute_csv_column_window_invariance() {
             width: 120.0,
         })
         .collect();
-    let prefix = compute_prefix_widths(&cols);
+    let prefix = compute_prefix_widths(&cols, CELL_TEXT_SIZE);
     let total_width = *prefix.last().unwrap();
 
     for scroll_x in [0.0, 50.0, 300.0, 1500.0, 5000.0] {
-        let win = compute_csv_column_window(&prefix, scroll_x, 1000.0);
+        let win = compute_csv_column_window(&prefix, scroll_x, 1000.0, ROW_NUMBER_COL_WIDTH);
         assert!(win.visible_start <= win.visible_end);
         assert!(win.visible_end <= 50);
 
@@ -728,4 +738,84 @@ fn test_spreadsheet_drag_auto_scroll() {
     let _ = crate::app::update::misc::handle_mouse_released(&mut app);
     assert!(!app.state.spreadsheet.is_dragging);
     assert!(app.state.spreadsheet.auto_scroll_delta_y.is_none());
+}
+
+#[test]
+fn test_spreadsheet_font_scaling_and_geometry_rescale() {
+    use crate::features::sheet::font::{
+        rescale_spreadsheet_font, rescale_spreadsheet_geometry, zoom_spreadsheet_font,
+    };
+    use crate::features::text::update::{FONT_MAX, FONT_MIN};
+
+    let headers = vec!["Col1".to_string(), "Col2".to_string()];
+    let rows = vec![
+        vec!["Short".to_string(), "100".to_string()],
+        vec![
+            "A long multiline text for testing row height calculation across zooming".to_string(),
+            "200".to_string(),
+        ],
+    ];
+    let columns = vec![
+        ColumnMeta {
+            name: "Col1".to_string(),
+            col_type: ColumnType::Text,
+            width: 150.0,
+        },
+        ColumnMeta {
+            name: "Col2".to_string(),
+            col_type: ColumnType::Integer,
+            width: 100.0,
+        },
+    ];
+    let sheet = SheetInfo {
+        name: "Sheet1".to_string(),
+        headers,
+        rows,
+        columns,
+    };
+
+    let mut app = KglanceApp::default();
+    populate_state(&mut app.state, std::slice::from_ref(&sheet), 0);
+    app.current_content = Some(PreviewData::Spreadsheet {
+        sheets: vec![sheet],
+        active_sheet: 0,
+    });
+
+    let base_font = app.state.font_size;
+    let initial_h0 = app.state.spreadsheet.row_heights[0];
+    let initial_total_w = app.state.spreadsheet.total_content_width;
+    let initial_total_h = app.state.spreadsheet.total_content_height;
+
+    // Zoom in (+1.0)
+    let _ = zoom_spreadsheet_font(&mut app, 1.0);
+    assert_eq!(app.state.font_size, base_font + 1.0);
+    assert!(app.state.spreadsheet.total_content_width > initial_total_w);
+    assert!(app.state.spreadsheet.total_content_height > initial_total_h);
+
+    // Zoom out (-1.0)
+    let _ = zoom_spreadsheet_font(&mut app, -1.0);
+    assert_eq!(app.state.font_size, base_font);
+    assert_eq!(app.state.spreadsheet.row_heights[0], initial_h0);
+    assert_eq!(app.state.spreadsheet.total_content_width, initial_total_w);
+    assert_eq!(app.state.spreadsheet.total_content_height, initial_total_h);
+
+    // Clamp min and max
+    let _ = rescale_spreadsheet_font(&mut app, 2.0);
+    assert_eq!(app.state.font_size, FONT_MIN);
+
+    let _ = rescale_spreadsheet_font(&mut app, 100.0);
+    assert_eq!(app.state.font_size, FONT_MAX);
+
+    // Scroll ratio preservation during geometry rescale
+    app.state.spreadsheet.scroll_y = 100.0;
+    app.state.spreadsheet.scroll_x = 50.0;
+    rescale_spreadsheet_geometry(&mut app.state.spreadsheet, 14.0, 28.0);
+    assert_eq!(app.state.spreadsheet.scroll_y, 200.0);
+    assert_eq!(app.state.spreadsheet.scroll_x, 100.0);
+
+    // Settings font size change synchronization
+    app.state.font_size = 14.0;
+    let _ = app.update(crate::app::messages::SettingsMsg::FontSizeChanged(21.0).into());
+    assert_eq!(app.state.font_size, 21.0);
+    assert_eq!(app.state.spreadsheet.scroll_y, 200.0 * (21.0 / 14.0));
 }
