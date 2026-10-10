@@ -13,20 +13,11 @@ pub const VIRTUAL_THRESHOLD: usize = 60;
 
 pub(crate) fn build_epub_content<'a>(
     state: &'a EpubState,
-    active_chapter: usize,
+    _active_chapter: usize,
     ctx: &RenderContext<'_>,
     max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
-    let chapter_blocks: &[crate::parsers::markdown::Block] =
-        if state.reading_mode == crate::core::config::EpubReadingMode::Continuous {
-            state.continuous_blocks.as_slice()
-        } else {
-            state
-                .chapters
-                .get(active_chapter)
-                .map(|ch| ch.blocks.as_slice())
-                .unwrap_or(&[])
-        };
+    let chapter_blocks = state.active_blocks();
 
     let offsets = &state.markdown_state.block_y_offsets;
     let use_virtual =

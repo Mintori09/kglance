@@ -21,10 +21,16 @@ use crate::ui::theme::color::primitive;
 
 use crate::ui::theme::AppTheme;
 
-pub fn render_chapter_sidebar<'a>(state: &'a EpubState, theme: AppTheme) -> Element<'a, Message> {
+pub fn render_chapter_sidebar<'a>(
+    state: &'a EpubState,
+    theme: AppTheme,
+    font_family: Option<&str>,
+) -> Element<'a, Message> {
+    let main_font = crate::ui::theme::font::get_main_font(font_family);
+    let main_font_bold = crate::ui::theme::font::get_main_font_bold(font_family);
     let palette = theme.palette().base;
-    let sidebar_header = build_sidebar_header(state, palette.text);
-    let chapter_list = build_sidebar_chapter_list(state, theme);
+    let sidebar_header = build_sidebar_header(state, palette.text, main_font, main_font_bold);
+    let chapter_list = build_sidebar_chapter_list(state, theme, main_font);
 
     iced::widget::opaque(
         container(
@@ -46,13 +52,15 @@ pub fn render_chapter_sidebar<'a>(state: &'a EpubState, theme: AppTheme) -> Elem
     )
 }
 
-fn build_sidebar_header<'a>(state: &'a EpubState, text_color: Color) -> Element<'a, Message> {
+fn build_sidebar_header<'a>(
+    state: &'a EpubState,
+    text_color: Color,
+    main_font: Font,
+    main_font_bold: Font,
+) -> Element<'a, Message> {
     let title = text("Chapters")
         .size(SIDEBAR_TOGGLE_FONT_SIZE)
-        .font(Font {
-            weight: iced::font::Weight::Bold,
-            ..Font::DEFAULT
-        })
+        .font(main_font_bold)
         .color(text_color);
 
     let current_width = state.sidebar_width;
@@ -61,8 +69,8 @@ fn build_sidebar_header<'a>(state: &'a EpubState, text_color: Color) -> Element<
         row![
             title,
             iced::widget::Space::new().width(Length::Fill),
-            build_resize_button("−", current_width - SIDEBAR_RESIZE_STEP),
-            build_resize_button("+", current_width + SIDEBAR_RESIZE_STEP),
+            build_resize_button("−", current_width - SIDEBAR_RESIZE_STEP, main_font),
+            build_resize_button("+", current_width + SIDEBAR_RESIZE_STEP, main_font),
         ]
         .spacing(HEADER_SPACING)
         .align_y(iced::Alignment::Center)
@@ -74,25 +82,29 @@ fn build_sidebar_header<'a>(state: &'a EpubState, text_color: Color) -> Element<
     .into()
 }
 
-fn build_resize_button<'a>(label: &'a str, new_width: f32) -> Element<'a, Message> {
-    button(
-        text(label)
-            .size(RESIZE_BUTTON_FONT_SIZE)
-            .font(Font::DEFAULT),
-    )
-    .on_press(crate::app::messages::EpubMsg::SidebarResized(new_width).into())
-    .padding([1, 4])
-    .style(|_, _| button::Style {
-        background: None,
-        text_color: primitive::SIDEBAR_DARK_ARROW_TEXT,
-        border: Border::default(),
-        shadow: Shadow::default(),
-        snap: false,
-    })
-    .into()
+fn build_resize_button<'a>(
+    label: &'a str,
+    new_width: f32,
+    main_font: Font,
+) -> Element<'a, Message> {
+    button(text(label).size(RESIZE_BUTTON_FONT_SIZE).font(main_font))
+        .on_press(crate::app::messages::EpubMsg::SidebarResized(new_width).into())
+        .padding([1, 4])
+        .style(|_, _| button::Style {
+            background: None,
+            text_color: primitive::SIDEBAR_DARK_ARROW_TEXT,
+            border: Border::default(),
+            shadow: Shadow::default(),
+            snap: false,
+        })
+        .into()
 }
 
-fn build_sidebar_chapter_list<'a>(state: &'a EpubState, theme: AppTheme) -> Element<'a, Message> {
+fn build_sidebar_chapter_list<'a>(
+    state: &'a EpubState,
+    theme: AppTheme,
+    main_font: Font,
+) -> Element<'a, Message> {
     let palette = theme.palette().base;
     let is_light_background = palette.bg.r > 0.5;
 
@@ -130,6 +142,7 @@ fn build_sidebar_chapter_list<'a>(state: &'a EpubState, theme: AppTheme) -> Elem
             has_hierarchy,
             is_light_background,
             theme,
+            main_font,
         );
         entries.push(entry);
     }
@@ -153,6 +166,7 @@ fn build_chapter_entry<'a>(
     has_hierarchy: bool,
     is_light_background: bool,
     theme: AppTheme,
+    main_font: Font,
 ) -> Element<'a, Message> {
     let indent = if has_hierarchy {
         calculate_indent(chapter.level)
@@ -165,7 +179,7 @@ fn build_chapter_entry<'a>(
 
     let label = text(&chapter.title).size(title_font_size).font(Font {
         weight: font_weight,
-        ..Font::DEFAULT
+        ..main_font
     });
 
     let mut row_content = row![]

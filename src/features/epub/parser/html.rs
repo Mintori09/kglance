@@ -493,6 +493,13 @@ impl HtmlToMarkdownConverter {
     }
 
     fn ensure_newline(&mut self) {
+        if self.in_cell {
+            if !self.current_cell.is_empty() && !self.current_cell.ends_with(' ') {
+                self.current_cell.push(' ');
+            }
+            return;
+        }
+
         if !self.output.is_empty() && !self.output.ends_with('\n') {
             self.output.push('\n');
         }
@@ -666,14 +673,21 @@ fn clean_lang_token(token: &str) -> String {
     token.to_lowercase()
 }
 
+fn is_table_row(line: &str) -> bool {
+    let trimmed = line.trim();
+    trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() >= 2
+}
+
 fn clean_markdown_output(text: &str) -> String {
     let mut result = String::with_capacity(text.len());
     let mut in_code_fence = false;
     let mut code_fence_lines: Vec<&str> = Vec::new();
+    let mut prev_was_table_row = false;
 
     for line in text.lines() {
         let trimmed_start = line.trim_start();
         if trimmed_start.starts_with("```") {
+            prev_was_table_row = false;
             if in_code_fence {
                 code_fence_lines.push(line);
                 if !result.is_empty() {
@@ -699,11 +713,19 @@ fn clean_markdown_output(text: &str) -> String {
             code_fence_lines.push(line);
         } else {
             let trimmed = line.trim();
-            if !trimmed.is_empty() {
+            if trimmed.is_empty() {
+                prev_was_table_row = false;
+            } else {
+                let current_is_table_row = is_table_row(trimmed);
                 if !result.is_empty() {
-                    result.push_str("\n\n");
+                    if prev_was_table_row && current_is_table_row {
+                        result.push('\n');
+                    } else {
+                        result.push_str("\n\n");
+                    }
                 }
                 result.push_str(trimmed);
+                prev_was_table_row = current_is_table_row;
             }
         }
     }
