@@ -70,3 +70,30 @@ tags version:
 
     echo "Pushing tag $TAG to origin"
     git push origin "$TAG"
+
+# Worktree management
+wt-new task base="HEAD":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root="{{git_root}}"
+    wt_dir="$root/.worktrees/{{task}}"
+
+    mkdir -p "$root/.worktrees"
+    git worktree add -b "wt/{{task}}" "$wt_dir" "{{base}}"
+
+    for file in .envrc AGENTS.local.md repomix.config.json repomix-output.local.xml; do
+        if [ -f "$root/$file" ]; then
+            ln -sf "$root/$file" "$wt_dir/$file"
+        fi
+    done
+    echo "✔ Worktree ready at: $wt_dir"
+
+wt-list:
+    git worktree list
+
+wt-drop task:
+    #!/usr/bin/env bash
+    root="{{git_root}}"
+    git worktree remove "$root/.worktrees/{{task}}" --force
+    git branch -D "wt/{{task}}" || true
+    echo "✔ Worktree {{task}} removed"
