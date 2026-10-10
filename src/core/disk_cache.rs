@@ -32,26 +32,60 @@ pub struct DiskCacheIndex {
     pub total_bytes: u64,
 }
 
+fn is_dir_writable(dir: &Path) -> bool {
+    if fs::create_dir_all(dir).is_err() {
+        return false;
+    }
+    let probe = dir.join(format!(
+        ".probe_{}_{}",
+        std::process::id(),
+        current_timestamp_nanos()
+    ));
+    if fs::write(&probe, b"").is_err() {
+        return false;
+    }
+    let _ = fs::remove_file(&probe);
+    true
+}
+
 /// Return root cache directory:
-/// 1. $KGLANCE_CACHE_DIR if set and non-empty
-/// 2. $XDG_CACHE_HOME/kglance (via `dirs::cache_dir()`)
-/// 3. $HOME/.cache/kglance
-/// 4. /tmp/kglance_cache
+/// 1. $KGLANCE_CACHE_DIR if set, non-empty, and writable
+/// 2. $XDG_CACHE_HOME/kglance (via `dirs::cache_dir()`) if writable
+/// 3. $HOME/.cache/kglance if writable
+/// 4. /tmp/kglance_cache or /tmp/kglance_cache_<pid> fallback
 pub fn cache_dir() -> PathBuf {
     if let Ok(dir) = std::env::var("KGLANCE_CACHE_DIR")
         && !dir.trim().is_empty()
     {
-        return PathBuf::from(dir);
+        let path = PathBuf::from(dir);
+        if is_dir_writable(&path) {
+            return path;
+        }
     }
 
     if let Some(mut dir) = dirs::cache_dir() {
         dir.push("kglance");
-        return dir;
+        if is_dir_writable(&dir) {
+            return dir;
+        }
     }
 
-    dirs::home_dir()
-        .map(|h| h.join(".cache").join("kglance"))
-        .unwrap_or_else(|| std::env::temp_dir().join("kglance_cache"))
+    if let Some(mut dir) = dirs::home_dir() {
+        dir.push(".cache");
+        dir.push("kglance");
+        if is_dir_writable(&dir) {
+            return dir;
+        }
+    }
+
+    let temp_cache = std::env::temp_dir().join("kglance_cache");
+    if is_dir_writable(&temp_cache) {
+        return temp_cache;
+    }
+
+    let fallback = std::env::temp_dir().join(format!("kglance_cache_{}", std::process::id()));
+    let _ = fs::create_dir_all(&fallback);
+    fallback
 }
 
 fn current_timestamp_nanos() -> u128 {
