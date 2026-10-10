@@ -1,6 +1,7 @@
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
 
+use crate::features::common::parser::html::convert_html_to_markdown;
 use crate::{features::image::types::ImageRef, log_debug};
 
 use super::{AlertKind, Block, Inline, ListItem, TableBlock, TableCell};
@@ -52,6 +53,8 @@ fn split_inlines_by_display_math(inlines: Vec<Inline>) -> Vec<Block> {
     blocks
 }
 
+use super::html::{decode_entity_if_present, handle_inline_html};
+
 impl<'a> EventStream<'a> {
     fn new(content: &'a str) -> Self {
         Self {
@@ -70,15 +73,29 @@ impl<'a> EventStream<'a> {
     }
 
     fn parse_inlines(&mut self) -> Vec<Inline> {
+        self.parse_inlines_until(&[])
+    }
+
+    fn parse_inlines_until(&mut self, stop_tags: &[&str]) -> Vec<Inline> {
         let mut result = Vec::new();
         loop {
             match self.iter.peek() {
                 None => break,
                 Some(Event::End(_)) => break,
+                Some(Event::InlineHtml(t)) | Some(Event::Html(t)) => {
+                    let trimmed = t.trim();
+                    if stop_tags.iter().any(|&st| trimmed.eq_ignore_ascii_case(st)) {
+                        self.iter.next();
+                        break;
+                    }
+                }
                 _ => {}
             }
-            match self.iter.next().unwrap() {
-                Event::Text(t) => result.push(Inline::Text(t.to_string())),
+            let Some(event) = self.iter.next() else { break };
+            match event {
+                Event::Text(t) => {
+                    result.push(Inline::Text(decode_entity_if_present(&t)));
+                }
                 Event::Code(t) => result.push(Inline::Code(t.to_string())),
                 Event::SoftBreak => {
                     result.push(Inline::Text(" ".to_string()));
@@ -141,12 +158,20 @@ impl<'a> EventStream<'a> {
                     result.push(Inline::FootnoteReference(label.to_string()));
                 }
                 Event::InlineHtml(t) | Event::Html(t) => {
-                    result.push(Inline::Text(t.to_string()));
+                    self.handle_inline_html(&t, &mut result);
                 }
                 _ => {}
             }
         }
         result
+    }
+
+    fn handle_inline_html(&mut self, html: &str, result: &mut Vec<Inline>) {
+        let mut new_images = Vec::new();
+        handle_inline_html(html, result, self.parent, &mut new_images, |stop_tags| {
+            self.parse_inlines_until(stop_tags)
+        });
+        self.images.extend(new_images);
     }
 
     fn parse_blocks(&mut self) -> Vec<Block> {
@@ -159,12 +184,71 @@ impl<'a> EventStream<'a> {
                         blocks.push(Block::Table(table));
                     }
                 }
+                Some(Event::Start(Tag::HtmlBlock)) => {
+                    let mut raw_html = String::new();
+                    loop {
+                        match self.iter.peek() {
+                            Some(Event::End(TagEnd::HtmlBlock)) => {
+                                self.iter.next();
+                                break;
+                            }
+                            None => break,
+                            _ => {}
+                        }
+                        if let Some(Event::Html(t) | Event::InlineHtml(t)) = self.iter.next() {
+                            raw_html.push_str(&t);
+                        }
+                    }
+                    blocks.extend(self.parse_html_block(&raw_html));
+                }
                 Some(event) => {
                     blocks.extend(self.parse_event_blocks(event));
                 }
             }
         }
         blocks
+    }
+
+    fn parse_html_block(&mut self, raw: &str) -> Vec<Block> {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return Vec::new();
+        }
+
+        if trimmed.starts_with("<!--") && trimmed.ends_with("-->") {
+            return Vec::new();
+        }
+
+        if super::flatten::is_empty_anchor_html(trimmed) {
+            return vec![Block::Html(raw.to_string())];
+        }
+
+        if trimmed.eq_ignore_ascii_case("<hr>")
+            || trimmed.eq_ignore_ascii_case("<hr/>")
+            || trimmed.eq_ignore_ascii_case("<hr />")
+        {
+            return vec![Block::HorizontalRule];
+        }
+
+        let md = convert_html_to_markdown(raw);
+        let md_trimmed = md.trim();
+        if md_trimmed.is_empty() {
+            return Vec::new();
+        }
+
+        let mut sub_stream = if let Some(parent) = self.parent {
+            EventStream::new_with_parent(md_trimmed, parent)
+        } else {
+            EventStream::new(md_trimmed)
+        };
+        let sub_blocks = sub_stream.parse_blocks();
+        self.images.extend(sub_stream.images);
+
+        if sub_blocks.is_empty() {
+            vec![Block::Html(raw.to_string())]
+        } else {
+            sub_blocks
+        }
     }
 
     fn parse_blocks_until(&mut self, end: TagEnd) -> Vec<Block> {
@@ -286,7 +370,7 @@ impl<'a> EventStream<'a> {
                 }]
             }
             Event::Rule => vec![Block::HorizontalRule],
-            Event::Html(text) | Event::InlineHtml(text) => vec![Block::Html(text.to_string())],
+            Event::Html(text) | Event::InlineHtml(text) => self.parse_html_block(&text),
             Event::DisplayMath(t) => vec![Block::Math(t.to_string())],
             Event::InlineMath(t) => {
                 vec![Block::Paragraph(vec![Inline::InlineMath(t.to_string())])]
@@ -441,7 +525,9 @@ impl<'a> EventStream<'a> {
                         items,
                     });
                 }
-                Some(Event::Text(t)) => content.push(Inline::Text(t.to_string())),
+                Some(Event::Text(t)) => {
+                    content.push(Inline::Text(decode_entity_if_present(&t)));
+                }
                 Some(Event::Code(t)) => content.push(Inline::Code(t.to_string())),
                 Some(Event::SoftBreak) => {
                     content.push(Inline::Text(" ".to_string()));
@@ -494,6 +580,9 @@ impl<'a> EventStream<'a> {
                 Some(Event::DisplayMath(t)) => {
                     sub_blocks.push(Block::Math(t.to_string()));
                 }
+                Some(Event::InlineHtml(t)) | Some(Event::Html(t)) => {
+                    self.handle_inline_html(&t, &mut content);
+                }
                 _ => {}
             }
         }
@@ -531,7 +620,7 @@ impl<'a> EventStream<'a> {
             }
         }
 
-        let column_weights = calculate_column_weights(&headers, &rows);
+        let column_weights = super::layout::calculate_column_weights(&headers, &rows);
         Some(TableBlock {
             headers,
             rows,
@@ -558,33 +647,6 @@ impl<'a> EventStream<'a> {
         }
         cells
     }
-}
-
-pub fn calculate_column_weights(headers: &[TableCell], rows: &[Vec<TableCell>]) -> Vec<u16> {
-    let n = headers.len();
-    if n == 0 {
-        return vec![];
-    }
-
-    let mut max_lens = vec![0usize; n];
-    for (i, header) in headers.iter().enumerate() {
-        max_lens[i] = super::flatten::flatten_inlines(&header.content).len();
-    }
-    for row in rows {
-        for (i, cell) in row.iter().enumerate().take(n) {
-            max_lens[i] = max_lens[i].max(super::flatten::flatten_inlines(&cell.content).len());
-        }
-    }
-
-    let total: usize = max_lens.iter().sum();
-    if total == 0 {
-        return vec![1; n];
-    }
-
-    max_lens
-        .iter()
-        .map(|&length| ((length as f32 / total as f32) * 100.0).max(10.0) as u16)
-        .collect()
 }
 
 fn detect_and_convert_alert(mut blocks: Vec<Block>) -> Option<(AlertKind, Vec<Block>)> {
