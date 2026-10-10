@@ -31,6 +31,7 @@ fn left_metadata_text(state: &KglanceState) -> String {
     }
 
     let is_markdown = file_has_extension(state, "md") || file_has_extension(state, "markdown");
+    let is_txt = file_has_extension(state, "txt");
 
     if is_markdown && state.markdown.word_count > 0 {
         let mins = state.markdown.reading_time_mins.max(1);
@@ -38,9 +39,12 @@ fn left_metadata_text(state: &KglanceState) -> String {
             "{} words · {mins} min read",
             state.markdown.word_count
         ));
-    } else if state.text.word_count > 0 {
+    } else if is_txt && state.text.word_count > 0 {
         let mins = state.text.reading_time_mins.max(1);
         parts.push(format!("{} words · {mins} min read", state.text.word_count));
+    } else if !state.text.document.as_str().is_empty() {
+        let lines = state.text.document.total_lines();
+        parts.push(format!("{lines} lines"));
     }
 
     parts.join(" • ")
@@ -128,6 +132,19 @@ fn toc_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Eleme
         Some(
             button(text("📑 Chapters").size(typography::CAPTION).font(font))
                 .on_press(crate::app::messages::EpubMsg::SidebarToggled.into())
+                .style(style)
+                .padding([2, 6])
+                .into(),
+        )
+    } else if !state.text.symbols.is_empty() {
+        let style = if state.text.outline_visible {
+            iced::widget::button::primary
+        } else {
+            iced::widget::button::secondary
+        };
+        Some(
+            button(text("📑 Outline").size(typography::CAPTION).font(font))
+                .on_press(crate::app::messages::TextMsg::ToggleOutline.into())
                 .style(style)
                 .padding([2, 6])
                 .into(),

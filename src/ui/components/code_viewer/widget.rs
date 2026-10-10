@@ -1,7 +1,9 @@
 use crate::features::text::display_map::DisplayMap;
 use crate::features::text::document::CodeDocument;
 use crate::features::text::highlight::HighlightedSpan;
-use crate::ui::components::code_viewer::selection::{SelectionRange, TextPosition};
+use crate::ui::components::code_viewer::selection::{
+    CODE_PADDING_BOTTOM, CODE_PADDING_LEFT, CODE_PADDING_TOP, SelectionRange, TextPosition,
+};
 use crate::ui::theme::AppTheme;
 use iced::advanced::graphics::core::event::Event;
 use iced::advanced::graphics::core::layout::{self, Layout};
@@ -151,7 +153,7 @@ impl<'a, Message, Theme, Renderer> VirtualCodeViewer<'a, Message, Theme, Rendere
     fn line_height(&self) -> f32 {
         self.display_map
             .map(|d| d.line_height)
-            .unwrap_or(self.font_size * 1.35)
+            .unwrap_or(self.font_size * 1.50)
     }
 
     #[inline]
@@ -219,7 +221,10 @@ where
         limits: &layout::Limits,
     ) -> layout::Node {
         let total_rows = self.total_visual_rows();
-        let total_h = (total_rows as f32 * self.line_height()) + 40.0;
+        let total_h = (total_rows as f32 * self.line_height())
+            + CODE_PADDING_TOP
+            + CODE_PADDING_BOTTOM
+            + 20.0;
         let size = Size::new(limits.max().width, total_h);
 
         layout::Node::new(limits.resolve(Length::Fill, Length::Shrink, size))
@@ -403,7 +408,7 @@ where
         }
 
         // 1. Compute visible boundary in viewport (O(1))
-        let relative_y = (viewport.y - bounds.y).max(0.0);
+        let relative_y = (viewport.y - bounds.y - CODE_PADDING_TOP).max(0.0);
         let first_vrow = (relative_y / line_h).floor() as usize;
         let start_vrow = first_vrow.saturating_sub(4);
         let visible_count = (viewport.height / line_h).ceil() as usize;
@@ -417,6 +422,10 @@ where
         let selection_bg = self.theme.palette().overlay.selection_bg;
         let search_match_bg = self.theme.palette().markdown.search_inactive_bg;
         let active_match_bg = self.theme.palette().markdown.search_active_bg;
+        let active_line_bg = Color {
+            a: 0.04,
+            ..default_text_color
+        };
         let bold_font = Font {
             weight: iced::font::Weight::Bold,
             ..self.font
@@ -469,7 +478,7 @@ where
             .display_map
             .map(|d| d.max_cols_per_row())
             .unwrap_or(usize::MAX);
-        let code_x = bounds.x + gutter_w;
+        let code_x = bounds.x + gutter_w + CODE_PADDING_LEFT;
         let mut num_buf = [0u8; 16];
 
         for line_idx in start_line..=end_line.min(total_lines.saturating_sub(1)) {
@@ -484,6 +493,9 @@ where
             let sel_cols = self
                 .selection
                 .and_then(|sel| sel.line_col_range(line_idx, line_char_count));
+            let is_cursor_line = self
+                .selection
+                .is_some_and(|sel| sel.is_empty() && sel.start.line == line_idx);
             let sel_bytes = sel_cols.and_then(|(start_col, end_col)| {
                 if start_col < end_col {
                     let sb = char_to_byte_idx(line_text, start_col, line_char_count);
@@ -510,9 +522,27 @@ where
                     continue;
                 }
 
-                let row_y = bounds.y + (vrow as f32 * line_h);
+                let row_y = bounds.y + CODE_PADDING_TOP + (vrow as f32 * line_h);
 
-                // a. Draw Gutter (number ONLY for sub_idx == 0)
+                // a. Draw active line highlight if cursor is on this line
+                if is_cursor_line {
+                    renderer.fill_quad(
+                        renderer::Quad {
+                            bounds: Rectangle {
+                                x: bounds.x + gutter_w,
+                                y: row_y,
+                                width: (bounds.width - gutter_w).max(0.0),
+                                height: line_h,
+                            },
+                            border: Border::default(),
+                            shadow: Shadow::default(),
+                            snap: true,
+                        },
+                        Background::Color(active_line_bg),
+                    );
+                }
+
+                // b. Draw Gutter (number ONLY for sub_idx == 0)
                 if sub_idx == 0 {
                     let line_num = line_idx + 1;
                     let num_len = format_number_into_buffer(line_num, &mut num_buf);
@@ -523,7 +553,7 @@ where
                                 content: num_str.to_string(),
                                 bounds: Size::new(gutter_w, line_h),
                                 size: Pixels(self.font_size),
-                                line_height: iced::widget::text::LineHeight::Relative(1.35),
+                                line_height: iced::widget::text::LineHeight::Relative(1.50),
                                 font: self.font,
                                 align_x: iced::alignment::Horizontal::Left.into(),
                                 align_y: iced::alignment::Vertical::Top,
@@ -537,7 +567,39 @@ where
                     }
                 }
 
-                // b. Draw selection background if line intersects selection range
+                // c. Draw Indent Guides for leading whitespace
+                let leading_spaces = line_text.chars().take_while(|c| *c == ' ').count();
+                if leading_spaces >= 2 {
+                    let guide_step = if leading_spaces % 4 == 0 { 4 } else { 2 };
+                    let mut guide_col = guide_step;
+                    while guide_col <= leading_spaces {
+                        if guide_col >= sub_slice.start_col && guide_col < sub_slice.end_col {
+                            let guide_offset_chars = guide_col - sub_slice.start_col;
+                            let guide_x = code_x + (guide_offset_chars as f32 * char_w);
+                            let guide_color = Color {
+                                a: 0.12,
+                                ..gutter_color
+                            };
+                            renderer.fill_quad(
+                                renderer::Quad {
+                                    bounds: Rectangle {
+                                        x: guide_x,
+                                        y: row_y,
+                                        width: 1.0,
+                                        height: line_h,
+                                    },
+                                    border: Border::default(),
+                                    shadow: Shadow::default(),
+                                    snap: true,
+                                },
+                                Background::Color(guide_color),
+                            );
+                        }
+                        guide_col += guide_step;
+                    }
+                }
+
+                // d. Draw selection background if line intersects selection range
                 if let Some((start_col, end_col)) = sel_cols
                     && start_col < end_col
                 {
@@ -564,7 +626,7 @@ where
                     }
                 }
 
-                // c. Draw search highlight matches
+                // e. Draw search highlight matches
                 if !self.search_query.is_empty() && !self.search_matches.is_empty() {
                     let query_len = self.search_query.chars().count();
                     for (match_idx, &(m_line, m_col)) in self.search_matches.iter().enumerate() {
@@ -607,7 +669,7 @@ where
                     }
                 }
 
-                // d. Draw text spans for sub-slice
+                // f. Draw text spans for sub-slice
                 let slice_str = if sub_slice.end_byte <= line_text.len() {
                     &line_text[sub_slice.start_byte..sub_slice.end_byte]
                 } else {
@@ -639,7 +701,7 @@ where
                             content: piece_str.to_string(),
                             bounds: Size::new((bounds.width - gutter_w).max(100.0), line_h),
                             size: Pixels(self.font_size),
-                            line_height: iced::widget::text::LineHeight::Relative(1.35),
+                            line_height: iced::widget::text::LineHeight::Relative(1.50),
                             font,
                             align_x: iced::alignment::Horizontal::Left.into(),
                             align_y: iced::alignment::Vertical::Top,
