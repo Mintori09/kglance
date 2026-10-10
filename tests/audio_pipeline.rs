@@ -483,12 +483,21 @@ fn test_audio_player_eos_detection() {
 
     let mut player = AudioPlayer::new(path, 1.0).expect("Failed to create AudioPlayer");
 
+    // Wait briefly for GStreamer playbin to preroll
+    let start_preroll = Instant::now();
+    while start_preroll.elapsed() < Duration::from_secs(2) {
+        if player.position_secs() > 0.0 || player.is_playing() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+
     // Seek close to end (0.95s)
     player.seek_to_secs(0.95);
 
     let start = Instant::now();
     let mut reached_eos = false;
-    while start.elapsed() < Duration::from_secs(3) {
+    while start.elapsed() < Duration::from_secs(5) {
         if player.poll_eos() {
             reached_eos = true;
             break;

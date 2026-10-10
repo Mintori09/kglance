@@ -120,13 +120,28 @@ impl AudioPlayer {
         };
         let ns = (clamped * 1_000_000_000.0) as u64;
         let clock_time = gst::ClockTime::from_nseconds(ns);
-        let res = self
+        let mut res = self
             .pipeline
             .seek_simple(gst::SeekFlags::FLUSH | gst::SeekFlags::KEY_UNIT, clock_time);
         if res.is_err() {
-            let _ = self
+            res = self
                 .pipeline
                 .seek_simple(gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE, clock_time);
+        }
+        if res.is_err() {
+            // Pipeline might still be prerolling / transitioning state; wait briefly and retry
+            let _ = self
+                .pipeline
+                .state(Some(gst::ClockTime::from_mseconds(150)));
+            let mut retry_res = self
+                .pipeline
+                .seek_simple(gst::SeekFlags::FLUSH | gst::SeekFlags::KEY_UNIT, clock_time);
+            if retry_res.is_err() {
+                retry_res = self
+                    .pipeline
+                    .seek_simple(gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE, clock_time);
+            }
+            let _ = retry_res;
         }
         if !self.is_paused {
             let _ = self.pipeline.set_state(gst::State::Playing);
