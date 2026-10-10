@@ -247,3 +247,15 @@ fn test_prune_two_stage_orphaned_then_lru() {
     assert!(path_new.exists());
     assert!(path_extra.exists());
 }
+
+#[test]
+fn test_is_dir_writable_and_cache_dir_usable() {
+    let temp = tempdir().unwrap();
+    assert!(is_dir_writable(temp.path()));
+
+    let non_writable = temp.path().join("non_existent_nested").join("sub");
+    assert!(is_dir_writable(&non_writable));
+
+    let resolved = cache_dir();
+    assert!(is_dir_writable(&resolved));
+}
