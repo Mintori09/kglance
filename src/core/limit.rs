@@ -4,10 +4,10 @@ pub const GB: u64 = MB * 1024;
 
 pub fn preview_size_limit(ext: &str) -> u64 {
     match ext {
-        // Video & Audio: 10 GB
+        // Video, Audio & Database: 10 GB
         "mp4" | "mkv" | "avi" | "mov" | "wmv" | "webm" | "flv" | "m4v" | "ogv" | "ts" | "3gp"
         | "mp3" | "wav" | "flac" | "ogg" | "aac" | "m4a" | "opus" | "alac" | "aiff" | "wma"
-        | "mid" | "midi" => 10 * GB,
+        | "mid" | "midi" | "sqlite" | "sqlite3" | "db" | "db3" | "s3db" | "sl3" => 10 * GB,
 
         // Archives & Disk Images: 2 GB
         "zip" | "tar" | "gz" | "tgz" | "bz2" | "tbz2" | "xz" | "txz" | "7z" | "rar" | "zst"
@@ -39,10 +39,11 @@ mod tests {
     }
 
     #[test]
-    fn test_video_and_audio_limits() {
+    fn test_video_audio_and_database_limits() {
         for ext in [
             "mp4", "mkv", "avi", "mov", "wmv", "webm", "flv", "m4v", "ogv", "ts", "3gp", "mp3",
             "wav", "flac", "ogg", "aac", "m4a", "opus", "alac", "aiff", "wma", "mid", "midi",
+            "sqlite", "sqlite3", "db", "db3", "s3db", "sl3",
         ] {
             assert_eq!(preview_size_limit(ext), 10 * GB);
         }

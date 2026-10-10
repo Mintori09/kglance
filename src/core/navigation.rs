@@ -4,6 +4,7 @@ pub const SUPPORTED_EXTS: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "txt", "md", "typ", "rs", "py", "js", "ts",
     "json", "toml", "yaml", "pdf", "mp4", "mkv", "avi", "webm", "mp3", "wav", "flac", "csv", "tsv",
     "xlsx", "xls", "epub", "docx", "doc", "pptx", "ppt", "odt", "ods", "odp", "kra", "ora", "psd",
+    "sqlite", "sqlite3", "db", "db3", "s3db", "sl3",
 ];
 
 pub fn is_supported_path(path: &Path) -> bool {

@@ -443,6 +443,7 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
 
 #[cfg(test)]
 mod tests {
+    use crate::core::FilePreviewer;
     use crate::core::utils::format_timestamp;
 
     use super::*;
@@ -584,6 +585,44 @@ mod tests {
                 assert_eq!(data, vec![1, 2, 3, 4]);
             }
             other => panic!("expected PreviewData::Font, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_sqlite_parsed_to_spreadsheet_preview_data() {
+        let registry = crate::engine::build_registry();
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let db_path = temp_dir.path().join("products.sqlite");
+
+        {
+            let conn = rusqlite::Connection::open(&db_path).expect("create test db");
+            conn.execute(
+                "CREATE TABLE items (id INTEGER, name TEXT, price REAL);",
+                [],
+            )
+            .expect("create items");
+            conn.execute("INSERT INTO items VALUES (1, 'Laptop', 1299.99);", [])
+                .expect("insert item");
+        }
+
+        let preview = FilePreviewer::parse(&registry, &db_path).expect("parse via registry");
+        match preview {
+            crate::core::preview::PreviewData::Spreadsheet {
+                sheets,
+                active_sheet,
+            } => {
+                assert_eq!(active_sheet, 0);
+                assert_eq!(sheets.len(), 1);
+                assert_eq!(sheets[0].name, "items");
+                assert_eq!(sheets[0].headers, vec!["id", "name", "price"]);
+                assert_eq!(sheets[0].rows.len(), 1);
+                assert_eq!(sheets[0].rows[0], vec!["1", "Laptop", "1299.99"]);
+                assert_eq!(sheets[0].columns.len(), 3);
+                assert_eq!(sheets[0].columns[0].name, "id");
+                assert_eq!(sheets[0].columns[1].name, "name");
+                assert_eq!(sheets[0].columns[2].name, "price");
+            }
+            other => panic!("expected PreviewData::Spreadsheet, got {other:?}"),
         }
     }
 }
