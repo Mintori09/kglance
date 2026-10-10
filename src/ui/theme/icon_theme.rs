@@ -423,7 +423,7 @@ pub fn icon_for_entry(name: &str, is_dir: bool) -> &'static str {
         // =========================
         // Database
         // =========================
-        "db" | "sqlite" | "sqlite3" => "application-x-sqlite3",
+        "db" | "sqlite" | "sqlite3" | "db3" | "s3db" | "sl3" => "application-x-sqlite3",
 
         // =========================
         // Certificates
