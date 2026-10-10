@@ -82,15 +82,7 @@ impl AppTheme {
 
     #[inline]
     pub const fn syntect_theme(self) -> &'static str {
-        match self {
-            AppTheme::Dark
-            | AppTheme::TokyoNight
-            | AppTheme::GruvboxDark
-            | AppTheme::Nord
-            | AppTheme::Dracula => "base16-eighties.dark",
-            AppTheme::CatppuccinMocha => "base16-mocha.dark",
-            AppTheme::Light | AppTheme::CatppuccinLatte => "InspiredGitHub",
-        }
+        self.name()
     }
 
     #[inline]

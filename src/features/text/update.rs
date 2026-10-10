@@ -159,6 +159,11 @@ pub fn update_tokens_for_viewport(
         return;
     }
 
+    if text_state.syntax_cache.current_theme() != Some(theme) {
+        text_state.cached_tokens.clear();
+        text_state.syntax_cache.set_theme(theme);
+    }
+
     if text_state.cached_tokens_start_line == 0 && text_state.cached_tokens.len() >= total_lines {
         return;
     }

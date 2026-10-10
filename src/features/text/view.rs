@@ -21,6 +21,7 @@ pub fn view_text<'a>(
     state: &'a TextState,
     theme: crate::ui::theme::AppTheme,
     font_size: f32,
+    font_family: Option<&str>,
     font_family_mono: Option<&str>,
     word_wrap: bool,
 ) -> Element<'a, Message> {
@@ -81,6 +82,7 @@ pub fn view_text<'a>(
             state.sidebar_width,
             state.scroll_y,
             &state.display_map,
+            font_family,
         );
         let drag = crate::ui::components::sidebar::drag_handle(
             state.sidebar_resizing,
