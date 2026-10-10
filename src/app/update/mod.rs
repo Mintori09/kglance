@@ -793,10 +793,18 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 Task::none()
             }
             crate::app::messages::SettingsMsg::MaxTextWidthChanged(w) => {
-                app.state.max_text_width = w;
-                let mut config = app.load_config();
-                config.ui.max_text_width = w;
-                let _ = app.save_config(&config);
+                if let Some(val) = w {
+                    if let Some(task) =
+                        crate::features::markdown::update::rescale_markdown_page_width(app, val)
+                    {
+                        return task;
+                    }
+                } else {
+                    app.state.max_text_width = None;
+                    let mut config = app.load_config();
+                    config.ui.max_text_width = None;
+                    let _ = app.save_config(&config);
+                }
                 Task::none()
             }
             crate::app::messages::SettingsMsg::DefaultWidthChanged(w) => {

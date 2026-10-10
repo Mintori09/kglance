@@ -352,6 +352,18 @@ impl KglanceApp {
                 }
             }
 
+            iced::keyboard::Key::Character(c) if (c == "0" || c == ")") && modifiers.shift() => {
+                match self.current_content {
+                    Some(PreviewData::Markdown { .. } | PreviewData::Epub { .. }) => {
+                        crate::features::markdown::update::rescale_markdown_page_width(
+                            self,
+                            crate::features::markdown::update::DEFAULT_PAGE_WIDTH,
+                        )
+                    }
+                    _ => None,
+                }
+            }
+
             _ => None,
         }
     }

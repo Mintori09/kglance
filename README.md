@@ -126,8 +126,10 @@ Kglance offers rich keyboard navigation for navigating files, zooming images, sc
 | `Ctrl` + `+` / `Ctrl` + `=`                  | Zoom in / Increase font size                                    | Image, PDF, Text, Code, Markdown |
 | `Ctrl` + `-`                                 | Zoom out / Decrease font size                                   | Image, PDF, Text, Code, Markdown |
 | `Ctrl` + Scroll                              | Zoom in/out / Resize                                            | Image, PDF, Text, Code, Markdown |
+| `Shift` + Scroll                             | Adjust reading column width (widen / narrow)                    | Markdown, EPUB                   |
 | `=`                                          | Fit image to window                                             | Image preview                    |
-| `Shift` + `+` / `Shift` + `=`                | Reset font size to default (14px)                               | Text & Code preview              |
+| `Shift` + `+` / `Shift` + `=`                | Reset font size to default (14px)                               | Text, Code, Markdown, EPUB       |
+| `Shift` + `0`                                | Reset page reader width to default (820px)                       | Markdown, EPUB                   |
 | **Specific Formats**                         |                                                                 |                                  |
 | `Ctrl` + `W`                                 | Toggle word wrap                                                | Text, Code, JSON, Typst          |
 | `Ctrl` + `e`                                 | Expand all JSON tree nodes                                      | JSON preview                     |
