@@ -561,6 +561,9 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
 
 pub fn handle_toggle_outline(app: &mut KglanceApp) -> Task<Message> {
     app.state.text.outline_visible = !app.state.text.outline_visible;
+    if app.state.text.outline_visible {
+        app.state.file_tree.visible = false;
+    }
 
     let win_w = if app.state.current_window_size.width > 0.0 {
         app.state.current_window_size.width
