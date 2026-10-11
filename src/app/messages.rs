@@ -335,6 +335,14 @@ pub enum SettingsMsg {
 }
 
 #[derive(Debug, Clone)]
+pub enum FileTreeMsg {
+    Toggle,
+    ToggleFolder(std::path::PathBuf),
+    SelectFile(std::path::PathBuf),
+    CollapseAll,
+}
+
+#[derive(Debug, Clone)]
 pub enum Message {
     None,
     // Action & System
@@ -354,6 +362,7 @@ pub enum Message {
     Epub(EpubMsg),
     Json(JsonMsg),
     Settings(SettingsMsg),
+    FileTree(FileTreeMsg),
 
     // Layout / Global Events
     SmoothScrollTick(std::time::Instant),
@@ -444,5 +453,10 @@ impl From<JsonMsg> for Message {
 impl From<SettingsMsg> for Message {
     fn from(m: SettingsMsg) -> Self {
         Message::Settings(m)
+    }
+}
+impl From<FileTreeMsg> for Message {
+    fn from(m: FileTreeMsg) -> Self {
+        Message::FileTree(m)
     }
 }

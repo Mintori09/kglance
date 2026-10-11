@@ -6,6 +6,7 @@ use std::sync::Mutex;
 static ICON_CACHE: Mutex<Option<HashMap<String, svg::Handle>>> = Mutex::new(None);
 
 const CATEGORIES: &[&str] = &[
+    "actions",
     "mimetypes",
     "apps",
     "places",
@@ -167,6 +168,11 @@ fn resolve_icon_path(icon_name: &str) -> Option<PathBuf> {
         "text-x-rust" => Some("text-rust"),
         "application-toml" => Some("text-x-toml"),
         "text-x-toml" => Some("application-toml"),
+        "folder-open" => Some("inode-directory"),
+        "folder" => Some("inode-directory"),
+        "view-sidetree" => Some("view-list-tree"),
+        "view-list-tree" => Some("view-sidetree"),
+        "collapse-all" => Some("sidebar-collapse"),
         _ => None,
     } {
         return try_find(alt);
