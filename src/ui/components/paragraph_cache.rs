@@ -18,6 +18,7 @@ pub struct ParagraphKey {
 pub struct CachedParagraph {
     pub paragraph: Paragraph,
     pub plain_text: String,
+    pub line_offsets: Vec<usize>,
     pub size: iced::Size,
 }
 

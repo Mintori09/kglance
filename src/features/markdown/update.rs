@@ -8,6 +8,54 @@ use iced::widget::operation;
 /// Tick interval for smooth scroll animation (~125fps).
 pub(crate) const SMOOTH_SCROLL_TICK_MS: u64 = 8;
 
+/// Lookahead offset in pixels for active TOC item and EPUB chapter detection.
+///
+/// Prevents jitter and activates a heading slightly before it scrolls out of view or
+/// as it approaches the top viewing zone (~2 lines of text).
+pub(crate) const HEADING_ACTIVE_DETECTION_OFFSET_Y: f32 = 50.0;
+
+/// Estimated height of an item row in the Table of Contents sidebar.
+const TOC_ROW_HEIGHT: f32 = 28.0;
+
+/// Scroll offset applied to the TOC sidebar to keep the active item vertically centered.
+const TOC_SCROLL_CENTER_OFFSET: f32 = 100.0;
+
+/// Calculates the target scroll offset in the TOC container for an active entry position.
+pub(crate) fn calculate_toc_target_scroll_y(active_pos: usize) -> f32 {
+    (active_pos as f32 * TOC_ROW_HEIGHT - TOC_SCROLL_CENTER_OFFSET).max(0.0)
+}
+
+/// Finds the index of the currently active TOC entry corresponding to `scroll_y`.
+pub(crate) fn find_active_toc_index(
+    toc: &[crate::core::types::TocEntry],
+    scroll_y: f32,
+) -> Option<usize> {
+    toc.iter()
+        .rposition(|e| e.y_offset <= scroll_y + HEADING_ACTIVE_DETECTION_OFFSET_Y)
+}
+
+fn scroll_toc_to_active(
+    toc_visible: bool,
+    toc: &[crate::core::types::TocEntry],
+    scroll_y: f32,
+) -> Task<Message> {
+    if !toc_visible || toc.is_empty() {
+        return Task::none();
+    }
+    if let Some(active_pos) = find_active_toc_index(toc, scroll_y) {
+        let target_y = calculate_toc_target_scroll_y(active_pos);
+        operation::scroll_to(
+            "toc_scroll",
+            operation::AbsoluteOffset {
+                x: 0.0,
+                y: target_y,
+            },
+        )
+    } else {
+        Task::none()
+    }
+}
+
 pub(crate) fn active_markdown_state(app: &KglanceApp) -> &crate::core::MarkdownState {
     if matches!(app.current_content, Some(PreviewData::Epub { .. })) {
         &app.state.epub.markdown_state
@@ -146,39 +194,15 @@ pub fn handle_markdown_scrolled(
         state.scroll_y = y;
 
         let toc_y = if state.toc_visible && !state.toc.is_empty() {
-            state
-                .toc
-                .iter()
-                .rposition(|e| e.y_offset <= y + 50.0)
-                .map(|active_pos| (active_pos as f32 * 28.0 - 100.0).max(0.0))
+            find_active_toc_index(&state.toc, y).map(calculate_toc_target_scroll_y)
         } else {
             None
         };
         (is_epub, toc_y)
     };
 
-    if is_epub_continuous
-        && app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous
-        && !app.state.epub.chapter_block_offsets.is_empty()
-    {
-        let offsets = &app.state.epub.markdown_state.block_y_offsets;
-        let target_y = y + 50.0;
-        let visible_block_idx = match offsets.binary_search_by(|probe| {
-            probe
-                .partial_cmp(&target_y)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        }) {
-            Ok(idx) => idx,
-            Err(idx) => idx.saturating_sub(1),
-        };
-        let chapter_offsets = &app.state.epub.chapter_block_offsets;
-        let ch_idx = chapter_offsets
-            .iter()
-            .rposition(|&offset| offset <= visible_block_idx)
-            .unwrap_or(0);
-        if ch_idx < app.state.epub.chapters.len() {
-            app.state.epub.active_chapter = ch_idx;
-        }
+    if is_epub_continuous {
+        sync_epub_active_chapter_on_scroll(app, y);
     }
 
     let toc_task = if let Some(target_y) = toc_target_y {
@@ -583,6 +607,32 @@ pub fn handle_smooth_wheel_scrolled(
     }
 }
 
+pub(crate) fn sync_epub_active_chapter_on_scroll(app: &mut KglanceApp, current_y: f32) {
+    if matches!(app.current_content, Some(PreviewData::Epub { .. }))
+        && app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous
+        && !app.state.epub.chapter_block_offsets.is_empty()
+    {
+        let offsets = &app.state.epub.markdown_state.block_y_offsets;
+        let target_y = current_y + HEADING_ACTIVE_DETECTION_OFFSET_Y;
+        let visible_block_idx = match offsets.binary_search_by(|probe| {
+            probe
+                .partial_cmp(&target_y)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }) {
+            Ok(idx) => idx,
+            Err(idx) => idx.saturating_sub(1),
+        };
+        let chapter_offsets = &app.state.epub.chapter_block_offsets;
+        let ch_idx = chapter_offsets
+            .iter()
+            .rposition(|&offset| offset <= visible_block_idx)
+            .unwrap_or(0);
+        if ch_idx < app.state.epub.chapters.len() {
+            app.state.epub.active_chapter = ch_idx;
+        }
+    }
+}
+
 pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) -> Task<Message> {
     let state = active_markdown_state_mut(app);
     let extent = crate::core::scroll::ViewportExtent {
@@ -619,25 +669,14 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             )
         };
 
-        let toc_task = if is_finished && state.toc_visible && !state.toc.is_empty() {
-            let toc = &state.toc;
-            if let Some(active_pos) = toc.iter().rposition(|e| e.y_offset <= next_y + 50.0) {
-                let target_y = (active_pos as f32 * 28.0 - 100.0).max(0.0);
-                operation::scroll_to(
-                    "toc_scroll",
-                    operation::AbsoluteOffset {
-                        x: 0.0,
-                        y: target_y,
-                    },
-                )
-            } else {
-                Task::none()
-            }
+        let toc_task = if is_finished {
+            scroll_toc_to_active(state.toc_visible, &state.toc, next_y)
         } else {
             Task::none()
         };
 
         if is_finished {
+            sync_epub_active_chapter_on_scroll(app, next_y);
             app.record_read_position();
         }
 
@@ -677,25 +716,14 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             )
         };
 
-        let toc_task = if is_finished && state.toc_visible && !state.toc.is_empty() {
-            let toc = &state.toc;
-            if let Some(active_pos) = toc.iter().rposition(|e| e.y_offset <= next_y + 50.0) {
-                let target_y = (active_pos as f32 * 28.0 - 100.0).max(0.0);
-                operation::scroll_to(
-                    "toc_scroll",
-                    operation::AbsoluteOffset {
-                        x: 0.0,
-                        y: target_y,
-                    },
-                )
-            } else {
-                Task::none()
-            }
+        let toc_task = if is_finished {
+            scroll_toc_to_active(state.toc_visible, &state.toc, next_y)
         } else {
             Task::none()
         };
 
         if is_finished {
+            sync_epub_active_chapter_on_scroll(app, next_y);
             app.record_read_position();
         }
 
@@ -823,7 +851,7 @@ fn extract_lines_from_indexed_map(
         if !first_line {
             if line.blank_before {
                 result.push_str("\n\n");
-            } else if !is_table_cell_continuation {
+            } else if !is_table_cell_continuation && !result.ends_with('\n') {
                 result.push('\n');
             }
         }
@@ -896,22 +924,18 @@ fn collect_indexed_plain_texts(
                     table_separator: None,
                 },
             );
-            let mut line_count = 0;
-            for (line_idx, line) in code.split('\n').enumerate() {
-                map.insert(
-                    base_idx + line_idx + 1,
-                    CopyLine {
-                        prefix: None,
-                        text: line.to_string(),
-                        suffix: None,
-                        blank_before: false,
-                        table_separator: None,
-                    },
-                );
-                line_count = line_idx + 1;
-            }
             map.insert(
-                base_idx + line_count + 1,
+                base_idx + 1,
+                CopyLine {
+                    prefix: None,
+                    text: code.clone(),
+                    suffix: None,
+                    blank_before: false,
+                    table_separator: None,
+                },
+            );
+            map.insert(
+                base_idx + 2,
                 CopyLine {
                     prefix: None,
                     text: "```".to_string(),

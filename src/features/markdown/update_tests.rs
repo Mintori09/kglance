@@ -489,3 +489,31 @@ fn test_epub_page_width_resize_anchoring() {
     let _ = handle_smooth_wheel_scrolled(&mut app, delta);
     assert_eq!(app.state.max_text_width, Some(840.0));
 }
+
+#[test]
+fn test_codeblock_selection_multiline() {
+    let src = "```rust\nuse iced::font::Weight;\npub enum Foo {\n    Bar,\n}\n```";
+    let blocks = parse_to_blocks(src);
+    assert_eq!(blocks.len(), 1);
+    assert!(matches!(blocks[0], Block::CodeBlock { .. }));
+
+    let code_str = "use iced::font::Weight;\npub enum Foo {\n    Bar,\n}";
+    let target = "pub enum Foo {\n    Bar,\n}";
+    let start_offset = code_str.find(target).expect("Must find target");
+    let end_offset = start_offset + target.len();
+
+    let range = SelectionRange {
+        start: SelectionPoint {
+            block: 1,
+            offset: start_offset,
+        },
+        end: SelectionPoint {
+            block: 1,
+            offset: end_offset,
+        },
+    };
+
+    let selected = build_selected_text(&blocks, range);
+    assert!(selected.is_some());
+    assert_eq!(selected.unwrap(), target);
+}
