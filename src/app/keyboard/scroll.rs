@@ -8,6 +8,40 @@ use crate::core::PreviewData;
 const CONTENT_SCROLL_ID: &str = "content_scroll";
 const SCROLL_LINE_AMOUNT: f32 = 80.0;
 
+/// Pixel margin threshold below which scroll position is considered already at the boundary.
+const SCROLL_EPSILON: f32 = 1.0;
+
+/// Default viewport height fallback if neither the scroll container nor window dimensions are reported yet.
+const DEFAULT_VIEWPORT_HEIGHT: f32 = 800.0;
+
+/// Number of viewports used as the distance threshold for the optical landing glide on `gg`/`G`.
+///
+/// At ~800px viewport, 2 viewports equals ~1600px (~75-80 text lines), matching the text
+/// viewer's virtualizer overscan buffer (`overscan = 80`) to guarantee that the landing glide
+/// runs entirely within pre-parsed/tokenized cache without mid-flight frame drops.
+const OPTICAL_WARP_VIEWPORT_FACTOR: f32 = 2.0;
+
+/// Lower clamp bound for the optical warp landing distance.
+///
+/// Guarantees that smaller or split-screen windows still provide enough runway (~1.5 viewports)
+/// for human eye perception of cubic ease-out deceleration.
+const MIN_OPTICAL_WARP_DISTANCE: f32 = 1200.0;
+
+/// Upper clamp bound for the optical warp landing distance.
+///
+/// Prevents large 4K / UHD vertical displays from exceeding the virtualizer overscan cache
+/// or creating an excessively long animation (>300ms).
+const MAX_OPTICAL_WARP_DISTANCE: f32 = 2400.0;
+
+fn calculate_optical_warp_distance(target_vh: f32, fallback_vh: f32) -> f32 {
+    let vh = if target_vh > 0.0 {
+        target_vh
+    } else {
+        fallback_vh
+    };
+    (OPTICAL_WARP_VIEWPORT_FACTOR * vh).clamp(MIN_OPTICAL_WARP_DISTANCE, MAX_OPTICAL_WARP_DISTANCE)
+}
+
 struct ActiveScrollTarget<'a> {
     smooth_scroll: &'a mut crate::core::types::SmoothScrollState,
     scroll_controller: &'a mut crate::core::scroll::ScrollController,
@@ -319,13 +353,24 @@ impl KglanceApp {
         Some(self.snap_to_top())
     }
 
+    fn fallback_viewport_height(&self) -> f32 {
+        if self.state.current_window_size.height > 0.0 {
+            self.state.current_window_size.height
+        } else if self.state.window_height > 0.0 {
+            self.state.window_height
+        } else {
+            DEFAULT_VIEWPORT_HEIGHT
+        }
+    }
+
     pub(super) fn snap_to_top(&mut self) -> Task<Message> {
         self.reset_scroll_pending();
+        let fallback_vh = self.fallback_viewport_height();
 
         if let Some(target) = self.active_scroll_target_mut() {
             let current_y = *target.scroll_y;
             target.scroll_controller.stop(current_y);
-            if current_y <= 1.0 {
+            if current_y <= SCROLL_EPSILON {
                 self.record_read_position();
                 return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 0.0 });
             }
@@ -333,12 +378,26 @@ impl KglanceApp {
                 target.total_content_height,
                 target.viewport_height,
             );
-            target.smooth_scroll.start_navigation(current_y, 0.0, max_y);
+            let warp_distance =
+                calculate_optical_warp_distance(target.viewport_height, fallback_vh);
+            let start_y = if current_y > warp_distance {
+                *target.scroll_y = warp_distance;
+                target.scroll_controller.set_position_y(warp_distance);
+                warp_distance
+            } else {
+                current_y
+            };
+            target.smooth_scroll.start_navigation(start_y, 0.0, max_y);
             if !target.smooth_scroll.is_animating {
                 let new_y = target.smooth_scroll.position_y();
                 *target.scroll_y = new_y;
                 self.record_read_position();
                 return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 0.0 });
+            }
+            if matches!(self.current_content, Some(PreviewData::Epub { .. }))
+                && self.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous
+            {
+                self.state.epub.active_chapter = 0;
             }
             return Task::none();
         }
@@ -349,6 +408,7 @@ impl KglanceApp {
 
     pub(super) fn snap_to_bottom(&mut self) -> Task<Message> {
         self.reset_scroll_pending();
+        let fallback_vh = self.fallback_viewport_height();
 
         if let Some(target) = self.active_scroll_target_mut() {
             let current_y = *target.scroll_y;
@@ -357,18 +417,31 @@ impl KglanceApp {
                 target.total_content_height,
                 target.viewport_height,
             );
-            if (max_y - current_y).abs() <= 1.0 {
+            if (max_y - current_y).abs() <= SCROLL_EPSILON {
                 self.record_read_position();
                 return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 1.0 });
             }
-            target
-                .smooth_scroll
-                .start_navigation(current_y, max_y, max_y);
+            let warp_distance =
+                calculate_optical_warp_distance(target.viewport_height, fallback_vh);
+            let start_y = if max_y - current_y > warp_distance {
+                let y = (max_y - warp_distance).max(0.0);
+                *target.scroll_y = y;
+                target.scroll_controller.set_position_y(y);
+                y
+            } else {
+                current_y
+            };
+            target.smooth_scroll.start_navigation(start_y, max_y, max_y);
             if !target.smooth_scroll.is_animating {
                 let new_y = target.smooth_scroll.position_y();
                 *target.scroll_y = new_y;
                 self.record_read_position();
                 return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 1.0 });
+            }
+            if matches!(self.current_content, Some(PreviewData::Epub { .. }))
+                && self.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous
+            {
+                self.state.epub.active_chapter = self.state.epub.chapters.len().saturating_sub(1);
             }
             return Task::none();
         }
@@ -699,6 +772,47 @@ mod tests {
         }
         let state = crate::features::markdown::update::active_markdown_state(&app);
         assert_eq!(state.scroll_y, 0.0);
+        assert!(!state.smooth_scroll.is_animating);
+    }
+
+    #[test]
+    fn test_large_file_snap_to_top_and_bottom_optical_glide() {
+        let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
+        let state = crate::features::markdown::update::active_markdown_state_mut(&mut app);
+        state.viewport_height = 800.0;
+        state.total_content_height = 200_000.0;
+        state.scroll_y = 150_000.0;
+
+        // Snap to top (gg) from 150,000px
+        let _ = app.snap_to_top();
+        let state = crate::features::markdown::update::active_markdown_state(&app);
+        assert_eq!(state.scroll_y, 1600.0);
+        assert_eq!(state.smooth_scroll.target_y(), 0.0);
+        assert!(state.smooth_scroll.is_animating);
+
+        let mut now = std::time::Instant::now();
+        for _ in 0..50 {
+            now += std::time::Duration::from_millis(16);
+            let _ = crate::features::markdown::update::handle_smooth_scroll_tick(&mut app, now);
+        }
+        let state = crate::features::markdown::update::active_markdown_state(&app);
+        assert_eq!(state.scroll_y, 0.0);
+        assert!(!state.smooth_scroll.is_animating);
+
+        // Snap to bottom (G) from 0.0
+        let _ = app.snap_to_bottom();
+        let max_scroll = 200_000.0 - 800.0;
+        let state = crate::features::markdown::update::active_markdown_state(&app);
+        assert_eq!(state.scroll_y, max_scroll - 1600.0);
+        assert_eq!(state.smooth_scroll.target_y(), max_scroll);
+        assert!(state.smooth_scroll.is_animating);
+
+        for _ in 0..50 {
+            now += std::time::Duration::from_millis(16);
+            let _ = crate::features::markdown::update::handle_smooth_scroll_tick(&mut app, now);
+        }
+        let state = crate::features::markdown::update::active_markdown_state(&app);
+        assert_eq!(state.scroll_y, max_scroll);
         assert!(!state.smooth_scroll.is_animating);
     }
 

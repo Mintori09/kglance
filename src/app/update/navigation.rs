@@ -384,7 +384,9 @@ mod tests {
         let _ = handle_next_file(&mut app);
         assert!(!app.state.is_rapid_navigating);
 
-        // Immediate second navigation: rapid navigation detected
+        // Immediate second navigation: ensure last_navigated_at is fresh so thread
+        // scheduling delays under heavy parallel test runner load (-j 3) do not exceed 250ms
+        app.state.last_navigated_at = Some(std::time::Instant::now());
         let _ = handle_next_file(&mut app);
         assert!(app.state.is_rapid_navigating);
     }

@@ -1,9 +1,11 @@
+pub mod anchor;
 pub mod parser;
 pub mod state;
 pub mod types;
 pub mod update;
 pub mod view;
 
+pub use anchor::*;
 pub use parser::*;
 pub use state::*;
 pub use types::*;
