@@ -376,6 +376,13 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             let _ = app.save_config(&config);
             Task::none()
         }
+        SettingsMsg::RubyDisplayModeChanged(mode) => {
+            app.state.ruby_display_mode = mode;
+            let mut config = app.load_config();
+            config.ui.ruby_display_mode = mode;
+            let _ = app.save_config(&config);
+            Task::none()
+        }
         SettingsMsg::PreferMermaidCliChanged(enabled) => {
             app.state.prefer_mermaid_cli = enabled;
             let mut config = app.load_config();
@@ -434,6 +441,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             app.state.epub_font_family = default_config.ui.epub_font_family.clone();
             app.state.epub_reading_mode = default_config.ui.epub_reading_mode;
             app.state.epub.reading_mode = default_config.ui.epub_reading_mode;
+            app.state.ruby_display_mode = default_config.ui.ruby_display_mode;
             app.state.max_text_width = default_config.ui.max_text_width;
             app.state.window_default_size = iced::Size::new(
                 default_config.ui.default_width as f32,

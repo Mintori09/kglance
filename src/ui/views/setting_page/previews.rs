@@ -2,7 +2,7 @@ use iced::widget::{column, container, pick_list, row, text, toggler};
 use iced::{Alignment, Element, Font, Theme};
 
 use crate::app::messages::{Message, SettingsMsg};
-use crate::core::config::{EpubReadingMode, UiConfig};
+use crate::core::config::{EpubReadingMode, RubyDisplayMode, UiConfig};
 use crate::ui::theme::color::BaseColors;
 use crate::ui::theme::tokens::spacing;
 use crate::ui::theme::{default_card, default_pick_list, default_toggler};
@@ -18,6 +18,25 @@ impl std::fmt::Display for EpubModeDisplay {
         match self {
             EpubModeDisplay::SingleChapter => write!(f, "Single Chapter (Paged)"),
             EpubModeDisplay::Continuous => write!(f, "Continuous Scroll"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RubyModeDisplay {
+    Stacked,
+    Tooltip,
+    Parentheses,
+    Hidden,
+}
+
+impl std::fmt::Display for RubyModeDisplay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RubyModeDisplay::Stacked => write!(f, "Stacked (Furigana on top)"),
+            RubyModeDisplay::Tooltip => write!(f, "Tooltip (Hover over text)"),
+            RubyModeDisplay::Parentheses => write!(f, "Parentheses (Text(Ruby))"),
+            RubyModeDisplay::Hidden => write!(f, "Hidden (Base text only)"),
         }
     }
 }
@@ -57,6 +76,45 @@ pub fn previews_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> El
         base_colors.text_dim,
     );
 
+    let current_ruby_mode = match config.ruby_display_mode {
+        RubyDisplayMode::Stacked => RubyModeDisplay::Stacked,
+        RubyDisplayMode::Tooltip => RubyModeDisplay::Tooltip,
+        RubyDisplayMode::Parentheses => RubyModeDisplay::Parentheses,
+        RubyDisplayMode::Hidden => RubyModeDisplay::Hidden,
+    };
+
+    let ruby_modes = vec![
+        RubyModeDisplay::Stacked,
+        RubyModeDisplay::Tooltip,
+        RubyModeDisplay::Parentheses,
+        RubyModeDisplay::Hidden,
+    ];
+
+    let ruby_picker = pick_list(ruby_modes, Some(current_ruby_mode), |selected| {
+        let mode = match selected {
+            RubyModeDisplay::Stacked => RubyDisplayMode::Stacked,
+            RubyModeDisplay::Tooltip => RubyDisplayMode::Tooltip,
+            RubyModeDisplay::Parentheses => RubyDisplayMode::Parentheses,
+            RubyModeDisplay::Hidden => RubyDisplayMode::Hidden,
+        };
+        Message::Settings(SettingsMsg::RubyDisplayModeChanged(mode))
+    })
+    .font(main_font)
+    .width(240)
+    .style({
+        let theme = theme.clone();
+        move |_, status| default_pick_list(&theme, status)
+    });
+
+    let ruby_row = build_setting_row(
+        "Furigana / Ruby Text",
+        "Display mode for Japanese readings and annotations (<ruby> tags)",
+        ruby_picker,
+        main_font,
+        base_colors.text,
+        base_colors.text_dim,
+    );
+
     let mermaid_cb = toggler(config.prefer_mermaid_cli)
         .on_toggle(|enabled| Message::Settings(SettingsMsg::PreferMermaidCliChanged(enabled)))
         .style({
@@ -82,6 +140,7 @@ pub fn previews_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> El
                     color: Some(base_colors.text_dim)
                 }),
             epub_row,
+            ruby_row,
             mermaid_row,
         ]
         .spacing(spacing::M),

@@ -13,7 +13,8 @@
     "max_text_width": 820.0,
     "prefer_mermaid_cli": false,
     "word_wrap": false,
-    "json_tree_view": true
+    "json_tree_view": true,
+    "ruby_display_mode": "stacked" // stacked | tooltip | parentheses | hidden
   },
   "cache": {
     "max_memory_mb": 512,
