@@ -54,6 +54,81 @@ fn test_epub_reading_mode_changed() {
 }
 
 #[test]
+fn test_epub_reading_mode_changed_with_active_content() {
+    let chapters = vec![
+        crate::core::types::EpubChapterInfo {
+            title: "Chapter 1".to_string(),
+            level: 1,
+            anchor: None,
+            file_href: "ch1.xhtml".to_string(),
+            blocks: vec![crate::parsers::markdown::Block::Paragraph(vec![
+                crate::parsers::markdown::Inline::Text("Content 1".to_string()),
+            ])],
+        },
+        crate::core::types::EpubChapterInfo {
+            title: "Chapter 2".to_string(),
+            level: 1,
+            anchor: None,
+            file_href: "ch2.xhtml".to_string(),
+            blocks: vec![crate::parsers::markdown::Block::Paragraph(vec![
+                crate::parsers::markdown::Inline::Text("Content 2".to_string()),
+            ])],
+        },
+    ];
+
+    let mut app = test_app(Some(crate::core::PreviewData::Epub {
+        title: "Test Book".to_string(),
+        author: "Author".to_string(),
+        chapters: chapters.clone(),
+        active_chapter: 0,
+        images: std::collections::HashMap::new(),
+    }));
+    app.state.epub_reading_mode = EpubReadingMode::SingleChapter;
+    crate::features::epub::state::populate_state(
+        &mut app.state,
+        "Test Book",
+        "Author",
+        &chapters,
+        0,
+        &std::collections::HashMap::new(),
+    );
+
+    // Initial SingleChapter mode: active_blocks returns chapter 0 blocks
+    assert_eq!(app.state.epub.reading_mode, EpubReadingMode::SingleChapter);
+    assert_eq!(app.state.epub.active_blocks().len(), 1);
+    assert_eq!(app.state.epub.markdown_state.block_y_offsets.len(), 1);
+    assert!(app.state.epub.continuous_blocks.is_empty());
+
+    // Switch to Continuous mode via settings message
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::EpubReadingModeChanged(EpubReadingMode::Continuous),
+    );
+
+    // Content should now be continuous with blocks generated
+    assert_eq!(app.state.epub.reading_mode, EpubReadingMode::Continuous);
+    assert!(!app.state.epub.continuous_blocks.is_empty());
+    assert_eq!(
+        app.state.epub.active_blocks().len(),
+        app.state.epub.continuous_blocks.len()
+    );
+    assert_eq!(
+        app.state.epub.markdown_state.block_y_offsets.len(),
+        app.state.epub.continuous_blocks.len()
+    );
+
+    // Switch back to SingleChapter mode
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::EpubReadingModeChanged(EpubReadingMode::SingleChapter),
+    );
+
+    assert_eq!(app.state.epub.reading_mode, EpubReadingMode::SingleChapter);
+    assert_eq!(app.state.epub.active_blocks().len(), 1);
+    assert_eq!(app.state.epub.markdown_state.block_y_offsets.len(), 1);
+}
+
+#[test]
 fn test_prefer_mermaid_cli_changed() {
     let mut app = test_app(None);
     let _ = handle_settings_message(&mut app, SettingsMsg::PreferMermaidCliChanged(true));
