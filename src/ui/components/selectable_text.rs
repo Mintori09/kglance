@@ -4,6 +4,7 @@ use iced::advanced::graphics::core::mouse::{self, click};
 use iced::advanced::graphics::core::renderer;
 use iced::advanced::graphics::core::widget::{Tree, Widget, tree};
 use iced::advanced::graphics::core::{Clipboard, Element, Shell};
+use iced::advanced::graphics::text::cosmic_text;
 use iced::advanced::text::{Paragraph, Text};
 use iced::widget::text::Span;
 use iced::{
@@ -144,6 +145,47 @@ struct State {
     drag_start: Option<usize>,
     last_click: Option<mouse::Click>,
     plain_text: String,
+    line_offsets: Vec<usize>,
+}
+
+fn compute_line_starts(buffer: &cosmic_text::Buffer) -> Vec<usize> {
+    let mut starts = Vec::with_capacity(buffer.lines.len() + 1);
+    let mut current = 0;
+    for line in &buffer.lines {
+        starts.push(current);
+        current += line.text().len() + line.ending().as_str().len();
+    }
+    starts.push(current);
+    starts
+}
+
+fn point_to_offset(
+    buffer: &cosmic_text::Buffer,
+    line_offsets: &[usize],
+    plain_text: &str,
+    bounds: Rectangle,
+    cursor_pos: Point,
+) -> usize {
+    if cursor_pos.y < bounds.y {
+        return 0;
+    }
+    if cursor_pos.y > bounds.y + bounds.height {
+        return plain_text.len();
+    }
+
+    let clamped_x = cursor_pos.x.clamp(bounds.x, bounds.x + bounds.width);
+    let rel_pos = Point::new(clamped_x - bounds.x, cursor_pos.y - bounds.y);
+
+    if let Some(cursor) = buffer.hit(rel_pos.x, rel_pos.y) {
+        let line_start = line_offsets.get(cursor.line).copied().unwrap_or(0);
+        let mut offset = (line_start + cursor.index).min(plain_text.len());
+        if cursor_pos.x < bounds.x {
+            offset = line_start;
+        }
+        char_boundary(plain_text, offset)
+    } else {
+        0
+    }
 }
 
 fn expand_to_word_bounds(text: &str, offset: usize) -> (usize, usize) {
@@ -315,6 +357,7 @@ where
 
                 state.paragraph = Some(cached.paragraph);
                 state.plain_text = cached.plain_text;
+                state.line_offsets = cached.line_offsets;
                 state.last_bounds_width = max_width;
                 state.last_font_size = self.font_size;
                 state.last_spans_hash = spans_hash;
@@ -343,17 +386,20 @@ where
 
                 let p = Renderer::Paragraph::with_spans(text_input);
                 let p_size = p.min_bounds();
+                let line_offsets = compute_line_starts(p.buffer());
 
                 super::paragraph_cache::insert_cached_paragraph(
                     key,
                     super::paragraph_cache::CachedParagraph {
                         paragraph: p.clone(),
                         plain_text: state.plain_text.clone(),
+                        line_offsets: line_offsets.clone(),
                         size: p_size,
                     },
                 );
 
                 state.paragraph = Some(p);
+                state.line_offsets = line_offsets;
                 state.last_bounds_width = max_width;
                 state.last_font_size = self.font_size;
                 state.last_spans_hash = spans_hash;
@@ -401,49 +447,55 @@ where
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
                 if let Some(cursor_pos) = cursor.position_over(bounds) {
                     state.is_mouse_held = true;
-                    let rel_pos = Point::new(cursor_pos.x - bounds.x, cursor_pos.y - bounds.y);
-                    if let Some(hit) = paragraph.hit_test(rel_pos) {
-                        let offset = hit.cursor();
-                        let new_click =
-                            mouse::Click::new(cursor_pos, mouse::Button::Left, state.last_click);
+                    if state.line_offsets.is_empty() {
+                        state.line_offsets = compute_line_starts(paragraph.buffer());
+                    }
+                    let offset = point_to_offset(
+                        paragraph.buffer(),
+                        &state.line_offsets,
+                        &state.plain_text,
+                        bounds,
+                        cursor_pos,
+                    );
+                    let new_click =
+                        mouse::Click::new(cursor_pos, mouse::Button::Left, state.last_click);
 
-                        match new_click.kind() {
-                            click::Kind::Double => {
-                                let (start, end) = expand_to_word_bounds(&state.plain_text, offset);
-                                state.selection = Some((start, end));
-                                state.is_selecting = false;
-                                if let (Some(blk), Some(on_start), Some(on_update)) =
-                                    (self.block_index, &self.on_drag_start, &self.on_drag_update)
-                                {
-                                    shell.publish(on_start(blk, start));
-                                    shell.publish(on_update(blk, end));
-                                }
-                            }
-                            click::Kind::Triple => {
-                                state.selection = Some((0, state.plain_text.len()));
-                                state.is_selecting = false;
-                                if let (Some(blk), Some(on_start), Some(on_update)) =
-                                    (self.block_index, &self.on_drag_start, &self.on_drag_update)
-                                {
-                                    shell.publish(on_start(blk, 0));
-                                    shell.publish(on_update(blk, state.plain_text.len()));
-                                }
-                            }
-                            click::Kind::Single => {
-                                state.is_selecting = true;
-                                state.drag_start = Some(offset);
-                                state.selection = Some((offset, offset));
-                                if let (Some(blk), Some(on_start)) =
-                                    (self.block_index, &self.on_drag_start)
-                                {
-                                    shell.publish(on_start(blk, offset));
-                                }
+                    match new_click.kind() {
+                        click::Kind::Double => {
+                            let (start, end) = expand_to_word_bounds(&state.plain_text, offset);
+                            state.selection = Some((start, end));
+                            state.is_selecting = false;
+                            if let (Some(blk), Some(on_start), Some(on_update)) =
+                                (self.block_index, &self.on_drag_start, &self.on_drag_update)
+                            {
+                                shell.publish(on_start(blk, start));
+                                shell.publish(on_update(blk, end));
                             }
                         }
-
-                        state.last_click = Some(new_click);
-                        shell.capture_event();
+                        click::Kind::Triple => {
+                            state.selection = Some((0, state.plain_text.len()));
+                            state.is_selecting = false;
+                            if let (Some(blk), Some(on_start), Some(on_update)) =
+                                (self.block_index, &self.on_drag_start, &self.on_drag_update)
+                            {
+                                shell.publish(on_start(blk, 0));
+                                shell.publish(on_update(blk, state.plain_text.len()));
+                            }
+                        }
+                        click::Kind::Single => {
+                            state.is_selecting = true;
+                            state.drag_start = Some(offset);
+                            state.selection = Some((offset, offset));
+                            if let (Some(blk), Some(on_start)) =
+                                (self.block_index, &self.on_drag_start)
+                            {
+                                shell.publish(on_start(blk, offset));
+                            }
+                        }
                     }
+
+                    state.last_click = Some(new_click);
+                    shell.capture_event();
                 } else {
                     state.selection = None;
                     state.is_selecting = false;
@@ -461,48 +513,45 @@ where
                         cursor_pos.y >= bounds.y && cursor_pos.y <= (bounds.y + bounds.height);
 
                     if is_over || is_in_y_range {
-                        let clamped_x = cursor_pos.x.clamp(bounds.x, bounds.x + bounds.width);
-                        let clamped_y = cursor_pos.y.clamp(bounds.y, bounds.y + bounds.height);
-                        let rel_pos = Point::new(clamped_x - bounds.x, clamped_y - bounds.y);
+                        if state.line_offsets.is_empty() {
+                            state.line_offsets = compute_line_starts(paragraph.buffer());
+                        }
+                        let offset = point_to_offset(
+                            paragraph.buffer(),
+                            &state.line_offsets,
+                            &state.plain_text,
+                            bounds,
+                            cursor_pos,
+                        );
 
-                        if let Some(hit) = paragraph.hit_test(rel_pos) {
-                            let mut offset = hit.cursor();
-                            // If cursor is to the right of the line/bounds, select to end
-                            if cursor_pos.x > bounds.x + bounds.width {
-                                offset = state.plain_text.len();
-                            } else if cursor_pos.x < bounds.x {
-                                offset = 0;
-                            }
-
-                            if state.is_selecting {
-                                if let Some(drag_start) = state.drag_start {
-                                    let start = drag_start.min(offset);
-                                    let end = drag_start.max(offset);
-                                    state.selection = Some((start, end));
-                                } else {
-                                    state.drag_start = Some(offset);
-                                    state.selection = Some((offset, offset));
-                                }
-                            } else if state.is_mouse_held
-                                || (self.drag_active && self.selection_range.is_none())
-                            {
-                                state.is_selecting = true;
+                        if state.is_selecting {
+                            if let Some(drag_start) = state.drag_start {
+                                let start = drag_start.min(offset);
+                                let end = drag_start.max(offset);
+                                state.selection = Some((start, end));
+                            } else {
                                 state.drag_start = Some(offset);
                                 state.selection = Some((offset, offset));
-                                if let (Some(blk), Some(on_start)) =
-                                    (self.block_index, &self.on_drag_start)
-                                {
-                                    shell.publish(on_start(blk, offset));
-                                }
                             }
-
-                            if let (Some(blk), Some(on_update)) =
-                                (self.block_index, &self.on_drag_update)
+                        } else if state.is_mouse_held
+                            || (self.drag_active && self.selection_range.is_none())
+                        {
+                            state.is_selecting = true;
+                            state.drag_start = Some(offset);
+                            state.selection = Some((offset, offset));
+                            if let (Some(blk), Some(on_start)) =
+                                (self.block_index, &self.on_drag_start)
                             {
-                                shell.publish(on_update(blk, offset));
+                                shell.publish(on_start(blk, offset));
                             }
-                            shell.capture_event();
                         }
+
+                        if let (Some(blk), Some(on_update)) =
+                            (self.block_index, &self.on_drag_update)
+                        {
+                            shell.publish(on_update(blk, offset));
+                        }
+                        shell.capture_event();
                     }
                 }
             }
@@ -591,25 +640,56 @@ where
             && start < end
         {
             let buffer = paragraph.buffer();
-            let text = &state.plain_text;
+            let line_offsets = if state.line_offsets.is_empty() {
+                compute_line_starts(buffer)
+            } else {
+                state.line_offsets.clone()
+            };
 
             for run in buffer.layout_runs() {
                 let line_top = bounds.y + run.line_top;
                 let line_height = run.line_height;
 
+                let line_start = line_offsets.get(run.line_i).copied().unwrap_or(0);
+                let line_text_len = run.text.len();
+                let line_end = line_start + line_text_len;
+
+                if line_start >= end || line_end <= start {
+                    if line_text_len == 0 && start <= line_start && end > line_start {
+                        renderer.fill_quad(
+                            renderer::Quad {
+                                bounds: Rectangle {
+                                    x: bounds.x,
+                                    y: line_top,
+                                    width: (self.font_size * 0.4).max(6.0),
+                                    height: line_height,
+                                },
+                                border: Border::default(),
+                                shadow: Shadow::default(),
+                                snap: false,
+                            },
+                            Background::Color(self.selection_color),
+                        );
+                    }
+                    continue;
+                }
+
+                let sel_start_in_line = start.saturating_sub(line_start).min(line_text_len);
+                let sel_end_in_line = end.saturating_sub(line_start).min(line_text_len);
+
+                if sel_start_in_line >= sel_end_in_line {
+                    continue;
+                }
+
                 let mut text_min_x: Option<f32> = None;
                 let mut text_max_x: Option<f32> = None;
 
                 for glyph in run.glyphs {
-                    if glyph.end > start && glyph.start < end {
-                        let glyph_str = text.get(glyph.start..glyph.end).unwrap_or("");
-
-                        if !glyph_str.chars().all(|c| c.is_whitespace()) {
-                            let x = bounds.x + glyph.x;
-                            let x_end = x + glyph.w;
-                            text_min_x = Some(text_min_x.map_or(x, |m: f32| m.min(x)));
-                            text_max_x = Some(text_max_x.map_or(x_end, |m: f32| m.max(x_end)));
-                        }
+                    if glyph.end > sel_start_in_line && glyph.start < sel_end_in_line {
+                        let x = bounds.x + glyph.x;
+                        let x_end = x + glyph.w;
+                        text_min_x = Some(text_min_x.map_or(x, |m: f32| m.min(x)));
+                        text_max_x = Some(text_max_x.map_or(x_end, |m: f32| m.max(x_end)));
                     }
                 }
 

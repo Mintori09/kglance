@@ -153,3 +153,44 @@ fn test_telemetry_counters() {
     telemetry::reset();
     assert_eq!(telemetry::stats(), (0, 0, 0));
 }
+
+#[test]
+fn test_multiline_selection_per_line_slices() {
+    let line0 = "use iced::font::Weight;\n";
+    let line1 = "use serde::{Deserialize, Serialize};\n";
+    let line2 = "pub enum FontWeightConfig {\n";
+    let _line3 = "    Light,\n";
+
+    let line0_len = line0.trim_end_matches(['\r', '\n']).len();
+    let line1_len = line1.trim_end_matches(['\r', '\n']).len();
+    let line2_len = line2.trim_end_matches(['\r', '\n']).len();
+
+    let line_starts = [
+        0,
+        line0.len(),
+        line0.len() + line1.len(),
+        line0.len() + line1.len() + line2.len(),
+    ];
+
+    // Select from column 4 in line 0 ("iced...") down to column 8 in line 2 ("pub enum")
+    let start: usize = 4;
+    let end: usize = line_starts[2] + 8;
+
+    // Line 0 slice:
+    let sel_l0_start = start.saturating_sub(line_starts[0]).min(line0_len);
+    let sel_l0_end = end.saturating_sub(line_starts[0]).min(line0_len);
+    assert_eq!((sel_l0_start, sel_l0_end), (4, line0_len));
+
+    // Line 1 slice (intermediate line): should be fully selected
+    let sel_l1_start = start.saturating_sub(line_starts[1]).min(line1_len);
+    let sel_l1_end = end.saturating_sub(line_starts[1]).min(line1_len);
+    assert_eq!((sel_l1_start, sel_l1_end), (0, line1_len));
+
+    // Line 2 slice (end line): should be 0..8
+    let sel_l2_start = start.saturating_sub(line_starts[2]).min(line2_len);
+    let sel_l2_end = end.saturating_sub(line_starts[2]).min(line2_len);
+    assert_eq!((sel_l2_start, sel_l2_end), (0, 8));
+
+    // Line 3 slice (after selection): line_start >= end, so not selected
+    assert!(line_starts[3] >= end);
+}
