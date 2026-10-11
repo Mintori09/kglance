@@ -640,10 +640,12 @@ where
             && start < end
         {
             let buffer = paragraph.buffer();
-            let line_offsets = if state.line_offsets.is_empty() {
-                compute_line_starts(buffer)
+            let fallback_offsets;
+            let line_offsets: &[usize] = if state.line_offsets.is_empty() {
+                fallback_offsets = compute_line_starts(buffer);
+                &fallback_offsets
             } else {
-                state.line_offsets.clone()
+                &state.line_offsets
             };
 
             for run in buffer.layout_runs() {

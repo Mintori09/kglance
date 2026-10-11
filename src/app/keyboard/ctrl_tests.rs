@@ -489,11 +489,11 @@ fn test_ctrl_held_scroll_delta_does_not_scroll_non_zoomable() {
         height: 1080,
     });
     app.ctrl_held = true;
+    let initial_font_size = app.state.font_size;
 
     // Scrolling mouse wheel while Ctrl is held on media does nothing (returns Task::none)
     let _ = app.handle_scroll_delta(0.0, 80.0);
-    assert_eq!(app.state.spreadsheet.scroll_x, 0.0);
-    assert_eq!(app.state.spreadsheet.scroll_y, 0.0);
+    assert_eq!(app.state.font_size, initial_font_size);
 }
 
 #[test]
