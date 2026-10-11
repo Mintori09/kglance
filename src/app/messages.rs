@@ -325,6 +325,7 @@ pub enum SettingsMsg {
     WordWrapChanged(bool),
     JsonTreeViewChanged(bool),
     EpubReadingModeChanged(crate::core::config::EpubReadingMode),
+    RubyDisplayModeChanged(crate::core::config::RubyDisplayMode),
     PreferMermaidCliChanged(bool),
     MaxMemoryMbChanged(usize),
     MaxDiskCacheMbChanged(usize),

@@ -84,6 +84,10 @@ fn flatten_inlines_with(inlines: &[Inline], mode: FlattenMode) -> String {
                 s.push_str(&format!("[^{label}]"));
             }
             Inline::SoftBreak => s.push(' '),
+            Inline::Ruby { text, ruby } => match mode {
+                FlattenMode::Markdown => s.push_str(&format!("<ruby>{text}<rt>{ruby}</rt></ruby>")),
+                FlattenMode::Visual | FlattenMode::Plain | FlattenMode::Toc => s.push_str(text),
+            },
         }
     }
     s

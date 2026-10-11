@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::test_util::test_app;
 use crate::core::SettingTab;
-use crate::core::config::EpubReadingMode;
+use crate::core::config::{EpubReadingMode, RubyDisplayMode};
 use iced::Size;
 
 #[test]
@@ -126,6 +126,24 @@ fn test_epub_reading_mode_changed_with_active_content() {
     assert_eq!(app.state.epub.reading_mode, EpubReadingMode::SingleChapter);
     assert_eq!(app.state.epub.active_blocks().len(), 1);
     assert_eq!(app.state.epub.markdown_state.block_y_offsets.len(), 1);
+}
+
+#[test]
+fn test_ruby_display_mode_changed() {
+    let mut app = test_app(None);
+    assert_eq!(app.state.ruby_display_mode, RubyDisplayMode::Stacked);
+
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::RubyDisplayModeChanged(RubyDisplayMode::Tooltip),
+    );
+    assert_eq!(app.state.ruby_display_mode, RubyDisplayMode::Tooltip);
+
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::RubyDisplayModeChanged(RubyDisplayMode::Parentheses),
+    );
+    assert_eq!(app.state.ruby_display_mode, RubyDisplayMode::Parentheses);
 }
 
 #[test]
