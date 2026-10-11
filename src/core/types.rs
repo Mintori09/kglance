@@ -107,6 +107,7 @@ pub struct KglanceState {
     pub markdown: MarkdownState,
     pub epub: EpubState,
     pub json: JsonState,
+    pub file_tree: crate::features::file_tree::FileTreeState,
 
     pub grid_cols: usize,
     pub window_width: f32,
@@ -184,6 +185,7 @@ impl Default for KglanceState {
             markdown: MarkdownState::default(),
             epub: EpubState::default(),
             json: JsonState::default(),
+            file_tree: crate::features::file_tree::FileTreeState::default(),
             grid_cols: 5,
             window_width: 0.0,
             window_height: 0.0,

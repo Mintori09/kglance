@@ -66,6 +66,7 @@ pub fn handle_daemon_open_with_playlist(
 ) -> Task<Message> {
     let config = app.load_config();
     app.state.apply_scroll_config(&config.scroll);
+    app.state.file_tree.update_external_path(Path::new(&path));
 
     if !playlist.is_empty() {
         app.state.playlist = playlist;
@@ -88,6 +89,8 @@ pub fn handle_daemon_update_window(
     if app.is_daemon && app.window_id.is_none() {
         return Task::none();
     }
+    app.state.file_tree.update_external_path(Path::new(&path));
+
     let current_gen = app
         .state
         .generation_id
@@ -117,6 +120,7 @@ pub fn handle_daemon_open_loading(
 ) -> Task<Message> {
     let config = app.load_config();
     app.state.apply_scroll_config(&config.scroll);
+    app.state.file_tree.update_external_path(Path::new(&path));
 
     app.current_content = None;
     app.state.reset_content_state_for_loading(path.clone());

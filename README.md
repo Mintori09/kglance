@@ -117,6 +117,7 @@ Kglance offers rich keyboard navigation for navigating files, zooming images, sc
 | `gg` / `Home` (double-tap)                   | Scroll to top                                                   | Scrollable content               |
 | `G` / `Shift` + `G` / `End`                  | Scroll to bottom                                                | Scrollable content               |
 | `gt`                                         | Toggle Table of Contents / Sidebar                              | Markdown, EPUB, PDF              |
+| `ge`                                         | Toggle File Tree sidebar (Directories & subfolders)             | Global                           |
 | `Mouse Wheel`                                | Scroll / Zoom (while holding `Ctrl`)                            | All previews                     |
 | **Search**                                   |                                                                 |                                  |
 | `Ctrl` + `F` / `/`                           | Open search bar                                                 | Text, Markdown, JSON, CSV, Grid  |
