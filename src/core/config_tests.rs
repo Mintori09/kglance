@@ -20,6 +20,7 @@ fn test_default_config_values() {
     assert!(!cfg.ui.prefer_mermaid_cli);
     assert!(!cfg.ui.word_wrap);
     assert!(cfg.ui.json_tree_view);
+    assert_eq!(cfg.ui.ruby_display_mode, RubyDisplayMode::Stacked);
 
     // Cache defaults
     assert_eq!(cfg.cache.max_memory_mb, DEFAULT_CACHE_MAX_MEMORY_MB);
@@ -102,6 +103,7 @@ fn test_load_existing_custom_config() {
             prefer_mermaid_cli: true,
             word_wrap: true,
             json_tree_view: false,
+            ruby_display_mode: RubyDisplayMode::default(),
         },
         cache: CacheConfig {
             max_memory_mb: 1024,

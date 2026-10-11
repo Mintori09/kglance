@@ -36,6 +36,7 @@ fn measure_intrinsic_block_height(
         base_weight: None,
         base_color: None,
         font_size,
+        ruby_display_mode: kglance::core::config::RubyDisplayMode::default(),
     };
 
     match block {

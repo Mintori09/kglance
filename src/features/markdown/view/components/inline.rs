@@ -5,7 +5,7 @@ use crate::parsers::markdown::{Inline, flatten_inlines};
 use crate::ui::theme::color::roles;
 use crate::ui::theme::default_tooltip;
 use crate::ui::types::RenderContext;
-use iced::widget::{button, tooltip};
+use iced::widget::{button, column, tooltip};
 use iced::{Border, Color, Element, Shadow};
 
 fn link_button_style(theme: &iced::Theme, _status: button::Status) -> button::Style {
@@ -167,8 +167,17 @@ pub fn render_inlines_styled<'a>(
         base_weight,
         base_color,
         font_size,
+        ruby_display_mode: ctx.ruby_display_mode,
     };
-    let has_special = inlines.iter().any(|i| matches!(i, Inline::Link { .. }));
+    let is_ruby_interactive = matches!(
+        ctx.ruby_display_mode,
+        crate::core::config::RubyDisplayMode::Stacked
+            | crate::core::config::RubyDisplayMode::Tooltip
+    );
+    let has_special = inlines.iter().any(|i| {
+        matches!(i, Inline::Link { .. })
+            || (is_ruby_interactive && matches!(i, Inline::Ruby { .. }))
+    });
 
     if !has_special {
         let default_text_color = base_color.unwrap_or(ctx.theme.palette().base.text);
@@ -190,9 +199,62 @@ pub fn render_inlines_styled<'a>(
 
     for i in 0..inlines.len() {
         let inline = &inlines[i];
-        let is_special = matches!(inline, Inline::Link { .. });
+        let is_link = matches!(inline, Inline::Link { .. });
+        let is_ruby = is_ruby_interactive && matches!(inline, Inline::Ruby { .. });
 
-        if !is_special {
+        if !is_link && !is_ruby {
+            continue;
+        }
+
+        if is_ruby {
+            flush_text_segment(
+                &mut elements,
+                inlines,
+                start,
+                i,
+                current_start_offset,
+                0,
+                font_size,
+                &span_ctx,
+                ctx,
+                i,
+            );
+            current_start_offset = 0;
+
+            if let Inline::Ruby { text, ruby } = inline {
+                let default_text_color = base_color.unwrap_or(ctx.theme.palette().base.text);
+                if ctx.ruby_display_mode == crate::core::config::RubyDisplayMode::Stacked {
+                    let rt_color = ctx.theme.palette().base.text_dim;
+                    let rt_size = (font_size * 0.52).max(8.0);
+                    let rt_label = iced::widget::text(ruby.clone())
+                        .size(rt_size)
+                        .color(rt_color);
+                    let base_label = iced::widget::text(text.clone())
+                        .size(font_size)
+                        .color(default_text_color);
+                    let col = column![rt_label, base_label]
+                        .align_x(iced::Alignment::Center)
+                        .spacing(0);
+                    elements.push(col.into());
+                } else if ctx.ruby_display_mode == crate::core::config::RubyDisplayMode::Tooltip {
+                    let base_span: iced::widget::text::Span<'_, ()> =
+                        iced::widget::text::Span::new(text.clone())
+                            .color(default_text_color)
+                            .underline(true);
+                    let base_label =
+                        iced::widget::text::Rich::with_spans(vec![base_span]).size(font_size);
+                    let tip_label =
+                        iced::widget::text(ruby.clone()).size(STYLE.inline.tooltip_font_size);
+                    let tip_wrapped = iced::widget::container(tip_label)
+                        .padding(STYLE.inline.tooltip_padding)
+                        .style(default_tooltip);
+                    let tip = tooltip(base_label, tip_wrapped, tooltip::Position::Top)
+                        .gap(STYLE.inline.tooltip_gap);
+                    elements.push(tip.into());
+                }
+            }
+
+            start = i + 1;
             continue;
         }
 
@@ -267,7 +329,8 @@ pub fn render_inlines_styled<'a>(
         crate::ui::theme::scale_spacing(STYLE.inline.wrap_line_spacing, font_size, 2.0);
     let mut wrap = iced_aw::Wrap::new()
         .spacing(wrap_spacing)
-        .line_spacing(wrap_line_spacing);
+        .line_spacing(wrap_line_spacing)
+        .align_items(iced::Alignment::End);
     for el in elements {
         wrap = wrap.push(el);
     }

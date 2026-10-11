@@ -17,6 +17,10 @@ fn test_ui_config_default() {
     assert_eq!(config.min_width, 800);
     assert_eq!(config.min_height, 600);
     assert!(!config.prefer_mermaid_cli);
+    assert_eq!(
+        config.ruby_display_mode,
+        kglance::core::config::RubyDisplayMode::Stacked
+    );
 }
 
 #[test]
@@ -35,6 +39,7 @@ fn test_config_serialization_round_trip() {
             font_family_mono: Some("JetBrains Mono".into()),
             epub_font_family: Some("Noto Serif".into()),
             epub_reading_mode: kglance::core::config::EpubReadingMode::Continuous,
+            ruby_display_mode: kglance::core::config::RubyDisplayMode::Tooltip,
             max_text_width: Some(720.0),
             default_width: 1024,
             default_height: 768,

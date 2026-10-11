@@ -132,6 +132,7 @@ impl KglanceApp {
             font_family_mono: config.ui.font_family_mono,
             epub_font_family: config.ui.epub_font_family,
             epub_reading_mode: config.ui.epub_reading_mode,
+            ruby_display_mode: config.ui.ruby_display_mode,
             max_text_width: config.ui.max_text_width,
             window_default_size: iced::Size::new(
                 config.ui.default_width as f32,
@@ -1031,6 +1032,7 @@ impl KglanceApp {
                     self.state.font_family.as_deref(),
                     self.state.font_family_mono.as_deref(),
                     self.state.max_text_width,
+                    self.state.ruby_display_mode,
                 ),
                 PreviewData::Image { .. } => crate::ui::views::view_image(
                     &self.state.image,
@@ -1095,6 +1097,7 @@ impl KglanceApp {
                         .or(self.state.font_family.as_deref()),
                     self.state.font_family_mono.as_deref(),
                     self.state.max_text_width,
+                    self.state.ruby_display_mode,
                 ),
                 PreviewData::Audio { .. } => crate::ui::views::view_audio(&self.state.audio),
                 PreviewData::Media {

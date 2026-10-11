@@ -138,6 +138,10 @@ pub(super) fn handle_inline_html<F>(
         || lower == "</span>"
         || lower == "</div>"
         || lower == "</p>"
+        || lower.starts_with("</ruby")
+        || lower.starts_with("</rt")
+        || lower.starts_with("</rp")
+        || lower.starts_with("</rb")
     {
         return;
     }
@@ -159,4 +163,88 @@ pub(super) fn handle_inline_html<F>(
     }
 
     result.push(Inline::Text(trimmed.to_string()));
+}
+
+pub(super) fn parse_ruby_string(raw: &str) -> Vec<Inline> {
+    let mut results = Vec::new();
+    let mut current_base = String::new();
+    let mut current_ruby = String::new();
+    let mut in_rt = false;
+    let mut in_rp = false;
+
+    let flush_pair = |base: &mut String, ruby: &mut String, res: &mut Vec<Inline>| {
+        let b_trimmed = base.trim();
+        let r_trimmed = ruby.trim();
+        if !b_trimmed.is_empty() && !r_trimmed.is_empty() {
+            res.push(Inline::Ruby {
+                text: decode_entity_if_present(b_trimmed),
+                ruby: decode_entity_if_present(r_trimmed),
+            });
+        } else if !b_trimmed.is_empty() {
+            let decoded = decode_entity_if_present(b_trimmed);
+            let mut text = String::new();
+            if base.starts_with(char::is_whitespace) {
+                text.push(' ');
+            }
+            text.push_str(&decoded);
+            if base.ends_with(char::is_whitespace) {
+                text.push(' ');
+            }
+            res.push(Inline::Text(text));
+        }
+        base.clear();
+        ruby.clear();
+    };
+
+    let mut i = 0;
+    let bytes = raw.as_bytes();
+    while i < bytes.len() {
+        if bytes[i] == b'<' {
+            if let Some(tag_end) = raw[i..].find('>') {
+                let tag = &raw[i..i + tag_end + 1];
+                let tag_lower = tag.to_ascii_lowercase();
+                if tag_lower.starts_with("<ruby") || tag_lower.starts_with("</ruby") {
+                    flush_pair(&mut current_base, &mut current_ruby, &mut results);
+                    in_rt = false;
+                    in_rp = false;
+                } else if tag_lower.starts_with("<rt") {
+                    in_rt = true;
+                    in_rp = false;
+                } else if tag_lower.starts_with("</rt") {
+                    in_rt = false;
+                } else if tag_lower.starts_with("<rp") {
+                    in_rp = true;
+                } else if tag_lower.starts_with("</rp") {
+                    in_rp = false;
+                } else if tag_lower.starts_with("<rb") {
+                    if !current_ruby.is_empty() {
+                        flush_pair(&mut current_base, &mut current_ruby, &mut results);
+                    }
+                    in_rt = false;
+                    in_rp = false;
+                }
+                i += tag_end + 1;
+                continue;
+            } else {
+                // Unterminated tag, advance
+            }
+        }
+
+        let ch = raw[i..].chars().next().unwrap_or(' ');
+        if !in_rp {
+            if in_rt {
+                current_ruby.push(ch);
+            } else {
+                if !current_ruby.is_empty() {
+                    flush_pair(&mut current_base, &mut current_ruby, &mut results);
+                }
+                current_base.push(ch);
+            }
+        }
+        i += ch.len_utf8();
+    }
+
+    flush_pair(&mut current_base, &mut current_ruby, &mut results);
+
+    results
 }
