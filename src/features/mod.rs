@@ -2,6 +2,7 @@ pub mod archive;
 pub mod audio;
 pub mod common;
 pub mod epub;
+pub mod file_tree;
 pub mod folder;
 pub mod font;
 pub mod grid;

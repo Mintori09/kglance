@@ -156,6 +156,12 @@ pub fn handle_sidebar_drag_started(app: &mut KglanceApp) -> Task<Message> {
             &mut app.state.pdf.sidebar_drag_start_width,
             app.state.pdf.sidebar_width,
         ),
+        (
+            &mut app.state.file_tree.sidebar_resizing,
+            &mut app.state.file_tree.sidebar_drag_start_x,
+            &mut app.state.file_tree.sidebar_drag_start_width,
+            app.state.file_tree.sidebar_width,
+        ),
     ] {
         start_sidebar_drag(resizing, start_x, start_w, width);
     }
@@ -170,6 +176,7 @@ pub fn handle_sidebar_drag_ended(app: &mut KglanceApp) -> Task<Message> {
         &mut app.state.epub.sidebar_resizing,
         &mut app.state.text.sidebar_resizing,
         &mut app.state.pdf.sidebar_resizing,
+        &mut app.state.file_tree.sidebar_resizing,
     ] {
         end_sidebar_drag(resizing);
     }
@@ -404,6 +411,14 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
             &mut app.state.text.sidebar_drag_start_x,
             &mut app.state.text.sidebar_drag_start_width,
             &mut app.state.text.sidebar_width,
+            DEFAULT_MIN_SIDEBAR_WIDTH,
+            DEFAULT_MAX_SIDEBAR_WIDTH,
+        ),
+        (
+            app.state.file_tree.sidebar_resizing,
+            &mut app.state.file_tree.sidebar_drag_start_x,
+            &mut app.state.file_tree.sidebar_drag_start_width,
+            &mut app.state.file_tree.sidebar_width,
             DEFAULT_MIN_SIDEBAR_WIDTH,
             DEFAULT_MAX_SIDEBAR_WIDTH,
         ),

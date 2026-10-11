@@ -541,10 +541,14 @@ pub fn handle_thumb_ready(
 }
 
 pub fn handle_sidebar_toggled(app: &mut KglanceApp) -> Task<Message> {
+    let is_now_visible = !app.state.pdf.sidebar_visible;
+    if is_now_visible {
+        app.state.file_tree.visible = false;
+    }
     let win_w = app.state.current_window_size.width;
     let pdf_state = active_pdf_state_mut(app);
     let desired_w = pdf_state.desired_width;
-    pdf_state.sidebar_visible = !pdf_state.sidebar_visible;
+    pdf_state.sidebar_visible = is_now_visible;
     let sidebar_w = if pdf_state.sidebar_visible {
         pdf_state.sidebar_width + 1.0
     } else {

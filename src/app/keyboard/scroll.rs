@@ -107,6 +107,9 @@ impl KglanceApp {
             Key::Character(character) if character == "t" && self.pending_g => {
                 self.toggle_sidebar()
             }
+            Key::Character(character) if character == "e" && self.pending_g => {
+                self.toggle_file_tree()
+            }
             _ => {
                 self.reset_scroll_pending();
                 None
@@ -198,6 +201,32 @@ impl KglanceApp {
                     viewport_height: state.viewport_height,
                 })
             }
+            _ => None,
+        }
+    }
+
+    pub(crate) fn active_scroll_y(&self) -> Option<f32> {
+        match self.current_content {
+            Some(PreviewData::Markdown { .. }) | Some(PreviewData::Epub { .. }) => {
+                Some(crate::features::markdown::update::active_markdown_state(self).scroll_y)
+            }
+            Some(PreviewData::Text { .. }) => Some(self.state.text.scroll_y),
+            Some(PreviewData::Pdf { .. }) => Some(self.state.pdf.scroll_y),
+            Some(PreviewData::Typst { .. }) => {
+                if self.state.typst.show_source || self.state.typst.error.is_some() {
+                    Some(self.state.typst.source_text.scroll_y)
+                } else {
+                    Some(self.state.pdf.scroll_y)
+                }
+            }
+            Some(PreviewData::Json { .. }) => {
+                if !self.state.json.tree_mode {
+                    Some(self.state.json.raw_text.scroll_y)
+                } else {
+                    Some(self.state.json.scroll_y)
+                }
+            }
+            Some(PreviewData::Spreadsheet { .. }) => Some(self.state.spreadsheet.scroll_y),
             _ => None,
         }
     }
@@ -452,6 +481,7 @@ impl KglanceApp {
 
     fn toggle_sidebar(&mut self) -> Option<Task<Message>> {
         self.reset_scroll_pending();
+        self.state.file_tree.visible = false;
 
         match self.current_content {
             Some(PreviewData::Markdown { .. }) => Some(Task::done(
@@ -468,6 +498,11 @@ impl KglanceApp {
             )),
             _ => None,
         }
+    }
+
+    fn toggle_file_tree(&mut self) -> Option<Task<Message>> {
+        self.reset_scroll_pending();
+        Some(Task::done(crate::app::messages::FileTreeMsg::Toggle.into()))
     }
 
     fn reset_scroll_pending(&mut self) {

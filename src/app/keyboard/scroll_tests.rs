@@ -487,3 +487,33 @@ fn test_text_gt_shortcut_toggles_outline() {
     let _ = app.update(crate::app::messages::TextMsg::ToggleOutline.into());
     assert!(app.state.text.outline_visible);
 }
+
+#[test]
+fn test_ge_shortcut_toggles_file_tree() {
+    use crate::app::test_util::text_content;
+
+    let code = "fn main() {}\n";
+    let mut app = test_app(Some(text_content(code, "rs")));
+    assert!(!app.state.file_tree.visible);
+
+    let g_key = iced::keyboard::Key::Character("g".into());
+    let e_key = iced::keyboard::Key::Character("e".into());
+    let modifiers = iced::keyboard::Modifiers::default();
+
+    let _ = app.handle_scroll_shortcuts(&g_key, modifiers);
+    assert!(app.pending_g);
+
+    let task = app.handle_scroll_shortcuts(&e_key, modifiers);
+    assert!(task.is_some());
+    assert!(!app.pending_g);
+
+    app.state.text.scroll_y = 120.0;
+    let _ = app.update(crate::app::messages::FileTreeMsg::Toggle.into());
+    assert!(app.state.file_tree.visible);
+    assert_eq!(app.state.text.scroll_y, 120.0);
+
+    // Toggle again closes it and still retains scroll_y
+    let _ = app.update(crate::app::messages::FileTreeMsg::Toggle.into());
+    assert!(!app.state.file_tree.visible);
+    assert_eq!(app.state.text.scroll_y, 120.0);
+}

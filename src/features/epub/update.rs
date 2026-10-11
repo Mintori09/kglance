@@ -7,6 +7,9 @@ use super::anchor::*;
 
 pub fn handle_sidebar_toggled(app: &mut KglanceApp) -> Task<Message> {
     app.state.epub.sidebar_visible = !app.state.epub.sidebar_visible;
+    if app.state.epub.sidebar_visible {
+        app.state.file_tree.visible = false;
+    }
 
     let content_width = app.state.epub_content_width();
     let old_y = app.state.epub.markdown_state.scroll_y;

@@ -167,6 +167,9 @@ impl KglanceApp {
             state.file_name = initial_paths[0].clone();
             state.is_loading = true;
             state.content_ready = false;
+            state
+                .file_tree
+                .update_external_path(std::path::Path::new(&initial_paths[0]));
         }
 
         let app = Self {
