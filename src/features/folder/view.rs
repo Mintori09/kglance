@@ -131,8 +131,13 @@ fn create_summary_block<'a>(
         .and_then(|name| name.to_str())
         .unwrap_or(DEFAULT_FOLDER_NAME);
 
-    let total_files = state.rows.iter().filter(|row| !row.is_dir).count();
-    let total_dirs = state.rows.iter().filter(|row| row.is_dir).count();
+    let (total_files, total_dirs) = state.rows.iter().fold((0, 0), |(files, dirs), row| {
+        if row.is_dir {
+            (files, dirs + 1)
+        } else {
+            (files + 1, dirs)
+        }
+    });
     let human_total_size = crate::parsers::human_size(state.total_size);
 
     let folder_icon: Element<'a, Message> =

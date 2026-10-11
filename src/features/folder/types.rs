@@ -95,7 +95,7 @@ pub fn human_file_kind(name: &str, is_dir: bool) -> &'static str {
         "readme" | "readme.md" => return "Markdown Document",
         ".gitignore" | ".gitattributes" | ".gitmodules" => return "Git Config",
         ".editorconfig" => return "EditorConfig",
-        ".env" | ".envrc" | ".env.local" => return "Environment Config",
+        _ if lower.starts_with(".env") => return "Environment Config",
         "justfile" => return "Justfile Script",
         _ => {}
     }

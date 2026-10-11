@@ -480,20 +480,17 @@ fn test_ctrl_held_blocks_folder_and_grid_navigation() {
 
 #[test]
 fn test_ctrl_held_scroll_delta_does_not_scroll_non_zoomable() {
-    let sheet = crate::features::sheet::types::SheetInfo {
-        name: "Sheet1".to_string(),
-        headers: vec![],
-        columns: vec![],
-        rows: vec![],
-    };
     let mut app = test_app(None);
-    app.current_content = Some(crate::core::PreviewData::Spreadsheet {
-        sheets: vec![sheet],
-        active_sheet: 0,
+    app.current_content = Some(crate::core::PreviewData::Media {
+        url: "/tmp/video.mp4".to_string(),
+        metadata: "1080p".to_string(),
+        thumbnail_or_waveform: vec![],
+        width: 1920,
+        height: 1080,
     });
     app.ctrl_held = true;
 
-    // Scrolling mouse wheel while Ctrl is held on spreadsheet does nothing (returns Task::none)
+    // Scrolling mouse wheel while Ctrl is held on media does nothing (returns Task::none)
     let _ = app.handle_scroll_delta(0.0, 80.0);
     assert_eq!(app.state.spreadsheet.scroll_x, 0.0);
     assert_eq!(app.state.spreadsheet.scroll_y, 0.0);
