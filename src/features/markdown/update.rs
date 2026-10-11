@@ -56,6 +56,9 @@ fn markdown_block_y_offset(
 
 pub fn handle_toc_toggled(app: &mut KglanceApp) -> Task<Message> {
     app.state.markdown.toc_visible = !app.state.markdown.toc_visible;
+    if app.state.markdown.toc_visible {
+        app.state.file_tree.visible = false;
+    }
     if let Some(crate::core::PreviewData::Markdown { blocks, .. }) = &app.current_content {
         let content_width = app.state.markdown_content_width();
         crate::features::markdown::recompute_markdown_layout(
