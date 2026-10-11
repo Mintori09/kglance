@@ -258,55 +258,38 @@ pub fn handle_reading_mode_changed(
         }
     };
 
-    let Some(crate::core::PreviewData::Epub {
-        title,
-        author,
-        chapters,
-        images,
-        ..
-    }) = &app.current_content
-    else {
-        return Task::none();
-    };
+    let (title_clone, author_clone, chapters_clone) = {
+        let Some(crate::core::PreviewData::Epub {
+            title,
+            author,
+            chapters,
+            ..
+        }) = &app.current_content
+        else {
+            return Task::none();
+        };
 
-    let title_clone = title.clone();
-    let author_clone = author.clone();
-    let images_clone = images.clone();
-    let chapters_clone = if app.state.epub.chapters.iter().any(|c| !c.blocks.is_empty()) {
-        app.state.epub.chapters.clone()
-    } else {
-        chapters.clone()
-    };
-
-    let path = app.state.file_name.clone();
-    if !path.is_empty() {
-        if let Some(mut pos) = app.state.read_positions.get(&path) {
-            pos.reading_mode = Some(mode);
-            app.state.read_positions.insert(path.clone(), pos);
+        let chapters_clone = if app.state.epub.chapters.iter().any(|c| !c.blocks.is_empty()) {
+            app.state.epub.chapters.clone()
         } else {
-            app.state.read_positions.insert(
-                path.clone(),
-                crate::core::ReadPosition {
-                    scroll_y: 0.0,
-                    chapter: anchor.chapter_idx,
-                    reading_mode: Some(mode),
-                },
-            );
-        }
-        app.state.read_positions_dirty = true;
-    }
+            chapters.clone()
+        };
+        (title.clone(), author.clone(), chapters_clone)
+    };
 
     // Reset scroll_y so populate_state does not reuse mismatched coordinates from previous mode
     app.state.epub.markdown_state.scroll_y = 0.0;
 
-    crate::features::epub::state::populate_state(
-        &mut app.state,
-        &title_clone,
-        &author_clone,
-        &chapters_clone,
-        anchor.chapter_idx,
-        &images_clone,
-    );
+    if let Some(crate::core::PreviewData::Epub { images, .. }) = &app.current_content {
+        crate::features::epub::state::populate_state(
+            &mut app.state,
+            &title_clone,
+            &author_clone,
+            &chapters_clone,
+            anchor.chapter_idx,
+            images,
+        );
+    }
 
     if mode == crate::core::config::EpubReadingMode::SingleChapter
         && app
