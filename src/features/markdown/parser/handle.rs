@@ -167,6 +167,52 @@ impl<'a> EventStream<'a> {
     }
 
     fn handle_inline_html(&mut self, html: &str, result: &mut Vec<Inline>) {
+        let trimmed = html.trim();
+        let lower = trimmed.to_ascii_lowercase();
+        if lower.starts_with("<ruby") {
+            if lower.contains("</ruby") {
+                result.extend(super::html::parse_ruby_string(trimmed));
+                return;
+            }
+            let mut raw_ruby = html.to_string();
+            loop {
+                match self.iter.peek() {
+                    Some(Event::InlineHtml(tag)) | Some(Event::Html(tag)) => {
+                        let tag_trimmed = tag.trim();
+                        let tag_lower = tag_trimmed.to_ascii_lowercase();
+                        if tag_lower.starts_with("</ruby") {
+                            raw_ruby.push_str(tag);
+                            self.iter.next();
+                            break;
+                        }
+                    }
+                    Some(Event::End(tag_end)) => {
+                        if matches!(
+                            tag_end,
+                            pulldown_cmark::TagEnd::Paragraph
+                                | pulldown_cmark::TagEnd::Heading(_)
+                                | pulldown_cmark::TagEnd::Item
+                                | pulldown_cmark::TagEnd::TableCell
+                                | pulldown_cmark::TagEnd::BlockQuote(_)
+                        ) {
+                            break;
+                        }
+                    }
+                    None => break,
+                    _ => {}
+                }
+                if let Some(ev) = self.iter.next() {
+                    match ev {
+                        Event::Text(txt) | Event::Code(txt) => raw_ruby.push_str(&txt),
+                        Event::InlineHtml(tag) | Event::Html(tag) => raw_ruby.push_str(&tag),
+                        _ => {}
+                    }
+                }
+            }
+            result.extend(super::html::parse_ruby_string(&raw_ruby));
+            return;
+        }
+
         let mut new_images = Vec::new();
         handle_inline_html(html, result, self.parent, &mut new_images, |stop_tags| {
             self.parse_inlines_until(stop_tags)

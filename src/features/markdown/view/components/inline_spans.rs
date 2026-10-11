@@ -25,6 +25,7 @@ pub struct SpanCtx<'a> {
     pub base_weight: Option<Weight>,
     pub base_color: Option<Color>,
     pub font_size: f32,
+    pub ruby_display_mode: crate::core::config::RubyDisplayMode,
 }
 
 #[derive(Clone, Debug)]
@@ -68,6 +69,7 @@ type SpanCacheKey = (
     Option<u16>,
     Option<u32>,
     u32,
+    u8,
 );
 
 fn span_cache() -> &'static Mutex<LruCache<SpanCacheKey, Vec<CachedSpan>>> {
@@ -132,6 +134,11 @@ fn hash_inlines_recursive(inlines: &[Inline], hasher: &mut FxHasher) {
             Inline::FootnoteReference(label) => {
                 hasher.write_u8(11);
                 hasher.write(label.as_bytes());
+            }
+            Inline::Ruby { text, ruby } => {
+                hasher.write_u8(12);
+                hasher.write(text.as_bytes());
+                hasher.write(ruby.as_bytes());
             }
         }
     }
@@ -355,6 +362,30 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                     underline: false,
                 });
             }
+            Inline::Ruby { text, ruby } => {
+                let display_str = match span_ctx.ruby_display_mode {
+                    crate::core::config::RubyDisplayMode::Parentheses => format!("{text}({ruby})"),
+                    _ => text.clone(),
+                };
+                if search_query.is_empty() {
+                    spans.push(CachedSpan {
+                        text: display_str,
+                        font: main_font,
+                        color: span_ctx.base_color,
+                        background: None,
+                        size: None,
+                        strikethrough: false,
+                        underline: false,
+                    });
+                } else {
+                    spans.extend(highlight_search_in_text(
+                        &display_str,
+                        span_ctx,
+                        main_font,
+                        span_ctx.base_color,
+                    ));
+                }
+            }
         }
     }
 
@@ -410,6 +441,7 @@ pub fn inlines_to_spans<'a>(children: &'a [Inline], span_ctx: &SpanCtx) -> Vec<S
         base_weight_val,
         base_color_val,
         font_size_bits,
+        span_ctx.ruby_display_mode as u8,
     );
 
     if let Ok(mut cache) = span_cache().lock()
@@ -450,6 +482,7 @@ mod tests {
             base_weight: None,
             base_color: None,
             font_size: 14.0,
+            ruby_display_mode: crate::core::config::RubyDisplayMode::Stacked,
         };
 
         let spans1 = inlines_to_spans(&inlines, &ctx);
@@ -480,10 +513,54 @@ mod tests {
             base_weight: None,
             base_color: None,
             font_size: 14.0,
+            ruby_display_mode: crate::core::config::RubyDisplayMode::Stacked,
         };
 
         let spans = inlines_to_spans(&inlines, &ctx);
         assert!(spans.len() >= 2);
         assert_eq!(counter.get(), 1);
+    }
+
+    #[test]
+    fn test_inlines_to_spans_ruby_display_modes() {
+        let inlines = vec![Inline::Ruby {
+            text: "漢字".to_string(),
+            ruby: "かんじ".to_string(),
+        }];
+        let counter = Cell::new(0);
+
+        // Parentheses mode
+        let ctx_paren = SpanCtx {
+            font_family: None,
+            font_family_mono: None,
+            search_query: "",
+            active_match: 0,
+            counter: &counter,
+            theme: AppTheme::Dark,
+            base_weight: None,
+            base_color: None,
+            font_size: 14.0,
+            ruby_display_mode: crate::core::config::RubyDisplayMode::Parentheses,
+        };
+        let spans_paren = inlines_to_spans(&inlines, &ctx_paren);
+        assert_eq!(spans_paren.len(), 1);
+        assert_eq!(spans_paren[0].text, "漢字(かんじ)");
+
+        // Hidden / Default fallback in spans
+        let ctx_hidden = SpanCtx {
+            font_family: None,
+            font_family_mono: None,
+            search_query: "",
+            active_match: 0,
+            counter: &counter,
+            theme: AppTheme::Dark,
+            base_weight: None,
+            base_color: None,
+            font_size: 14.0,
+            ruby_display_mode: crate::core::config::RubyDisplayMode::Hidden,
+        };
+        let spans_hidden = inlines_to_spans(&inlines, &ctx_hidden);
+        assert_eq!(spans_hidden.len(), 1);
+        assert_eq!(spans_hidden[0].text, "漢字");
     }
 }

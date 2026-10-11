@@ -13,4 +13,5 @@ pub(crate) struct RenderContext<'a> {
     pub(crate) font_size: f32,
     pub(crate) font_family: Option<&'a str>,
     pub(crate) font_family_mono: Option<&'a str>,
+    pub(crate) ruby_display_mode: crate::core::config::RubyDisplayMode,
 }

@@ -31,6 +31,11 @@ pub struct HtmlToMarkdownConverter {
     link_stack: Vec<String>,
     sub_depth: usize,
     sup_depth: usize,
+    in_ruby: bool,
+    ruby_base: String,
+    ruby_text: String,
+    in_rt: bool,
+    in_rp: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -69,6 +74,11 @@ impl HtmlToMarkdownConverter {
             link_stack: Vec::new(),
             sub_depth: 0,
             sup_depth: 0,
+            in_ruby: false,
+            ruby_base: String::new(),
+            ruby_text: String::new(),
+            in_rt: false,
+            in_rp: false,
         }
     }
 
@@ -109,8 +119,13 @@ impl HtmlToMarkdownConverter {
                         self.handle_text(&format!("&{raw};"));
                     }
                 }
-                Ok(Event::Eof) => break,
-                Err(_) => break,
+                Ok(Event::Eof) | Err(_) => {
+                    if self.in_ruby {
+                        self.in_ruby = false;
+                        self.flush_ruby_pair();
+                    }
+                    break;
+                }
                 _ => {}
             }
             buf.clear();
@@ -312,6 +327,31 @@ impl HtmlToMarkdownConverter {
                 self.append_str("^");
             }
             "hr" => self.append_str("\n\n---\n\n"),
+            "ruby" => {
+                self.in_ruby = true;
+                self.ruby_base.clear();
+                self.ruby_text.clear();
+                self.in_rt = false;
+                self.in_rp = false;
+            }
+            "rt" => {
+                if self.in_ruby {
+                    self.in_rt = true;
+                    self.in_rp = false;
+                }
+            }
+            "rp" => {
+                if self.in_ruby {
+                    self.in_rp = true;
+                }
+            }
+            "rb" => {
+                if self.in_ruby && !self.ruby_text.is_empty() {
+                    self.flush_ruby_pair();
+                }
+                self.in_rt = false;
+                self.in_rp = false;
+            }
             _ => {
                 if let Some(id) = extract_id_or_name(e) {
                     if self.output.ends_with('\n') || self.output.is_empty() {
@@ -402,12 +442,20 @@ impl HtmlToMarkdownConverter {
                 }
             }
             "th" if self.in_table => {
+                if self.in_ruby {
+                    self.in_ruby = false;
+                    self.flush_ruby_pair();
+                }
                 self.in_cell = false;
                 let cell_txt = clean_table_cell(&self.current_cell);
                 self.table_headers.push(cell_txt);
                 self.current_cell.clear();
             }
             "td" if self.in_table => {
+                if self.in_ruby {
+                    self.in_ruby = false;
+                    self.flush_ruby_pair();
+                }
                 self.in_cell = false;
                 let cell_txt = clean_table_cell(&self.current_cell);
                 self.current_row.push(cell_txt);
@@ -441,11 +489,31 @@ impl HtmlToMarkdownConverter {
                     self.append_str("^");
                 }
             }
+            "rt" => {
+                self.in_rt = false;
+            }
+            "rp" => {
+                self.in_rp = false;
+            }
+            "ruby" => {
+                if self.in_ruby {
+                    self.in_ruby = false;
+                    self.flush_ruby_pair();
+                }
+            }
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
+                if self.in_ruby {
+                    self.in_ruby = false;
+                    self.flush_ruby_pair();
+                }
                 self.ensure_newline();
                 self.append_str("\n");
             }
-            "p" | "div" | "blockquote" => {
+            "p" | "div" | "blockquote" | "section" | "article" => {
+                if self.in_ruby {
+                    self.in_ruby = false;
+                    self.flush_ruby_pair();
+                }
                 self.ensure_newline();
             }
             _ => {}
@@ -516,12 +584,43 @@ impl HtmlToMarkdownConverter {
             return;
         }
 
+        if self.in_ruby {
+            if self.in_rp {
+                return;
+            }
+            if self.in_rt {
+                self.ruby_text.push_str(text);
+                return;
+            }
+            if !self.ruby_text.is_empty() {
+                self.flush_ruby_pair();
+            }
+            self.ruby_base.push_str(text);
+            return;
+        }
+
         if self.in_cell {
             self.current_cell.push_str(text);
             return;
         }
 
         self.append_str(text);
+    }
+
+    fn flush_ruby_pair(&mut self) {
+        let base = decode_html_entities(&self.ruby_base);
+        let ruby = decode_html_entities(&self.ruby_text);
+        let base_trimmed = base.trim();
+        let ruby_trimmed = ruby.trim();
+        if !base_trimmed.is_empty() && !ruby_trimmed.is_empty() {
+            self.append_str(&format!(
+                "<ruby>{base_trimmed}<rt>{ruby_trimmed}</rt></ruby>"
+            ));
+        } else if !base_trimmed.is_empty() {
+            self.append_str(base_trimmed);
+        }
+        self.ruby_base.clear();
+        self.ruby_text.clear();
     }
 
     fn append_str(&mut self, s: &str) {

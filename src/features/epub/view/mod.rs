@@ -23,6 +23,7 @@ pub fn view_epub<'a>(
     font_family: Option<&str>,
     font_family_mono: Option<&str>,
     max_text_width: Option<f32>,
+    ruby_display_mode: crate::core::config::RubyDisplayMode,
 ) -> Element<'a, Message> {
     let active_chapter = clamp_active_chapter(state);
     let search_counter = Cell::new(0);
@@ -38,6 +39,7 @@ pub fn view_epub<'a>(
         font_size,
         font_family,
         font_family_mono,
+        ruby_display_mode,
     };
 
     let main_content = build_epub_content(state, active_chapter, &ctx, max_text_width);

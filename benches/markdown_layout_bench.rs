@@ -119,6 +119,7 @@ fn bench_markdown_view_generation(c: &mut Criterion) {
                         None,
                         None,
                         Some(800.0),
+                        kglance::core::config::RubyDisplayMode::default(),
                     );
                 })
             },
@@ -141,6 +142,7 @@ fn bench_markdown_view_generation(c: &mut Criterion) {
                         None,
                         None,
                         Some(800.0),
+                        kglance::core::config::RubyDisplayMode::default(),
                     );
                 })
             },
@@ -179,6 +181,7 @@ fn bench_markdown_scroll_simulation(c: &mut Criterion) {
                     None,
                     None,
                     Some(800.0),
+                    kglance::core::config::RubyDisplayMode::default(),
                 );
             }
         })
@@ -200,6 +203,7 @@ fn bench_markdown_scroll_simulation(c: &mut Criterion) {
                     None,
                     None,
                     Some(800.0),
+                    kglance::core::config::RubyDisplayMode::default(),
                 );
             }
         })
@@ -310,6 +314,7 @@ fn bench_heavy_glyphs_view_generation(c: &mut Criterion) {
                         None,
                         None,
                         Some(800.0),
+                        kglance::core::config::RubyDisplayMode::default(),
                     );
                 })
             },
@@ -332,6 +337,7 @@ fn bench_heavy_glyphs_view_generation(c: &mut Criterion) {
                         None,
                         None,
                         Some(800.0),
+                        kglance::core::config::RubyDisplayMode::default(),
                     );
                 })
             },
@@ -369,6 +375,7 @@ fn bench_heavy_glyphs_scroll_simulation(c: &mut Criterion) {
                     None,
                     None,
                     Some(800.0),
+                    kglance::core::config::RubyDisplayMode::default(),
                 );
             }
         })
@@ -390,6 +397,7 @@ fn bench_heavy_glyphs_scroll_simulation(c: &mut Criterion) {
                     None,
                     None,
                     Some(800.0),
+                    kglance::core::config::RubyDisplayMode::default(),
                 );
             }
         })
