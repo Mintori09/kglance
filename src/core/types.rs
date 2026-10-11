@@ -121,6 +121,7 @@ pub struct KglanceState {
     pub font_family_mono: Option<String>,
     pub epub_font_family: Option<String>,
     pub epub_reading_mode: crate::core::config::EpubReadingMode,
+    pub ruby_display_mode: crate::core::config::RubyDisplayMode,
     pub max_text_width: Option<f32>,
 
     pub window_default_size: Size,
@@ -195,6 +196,7 @@ impl Default for KglanceState {
             font_family_mono: None,
             epub_font_family: None,
             epub_reading_mode: crate::core::config::EpubReadingMode::default(),
+            ruby_display_mode: crate::core::config::RubyDisplayMode::default(),
             max_text_width: None,
             window_default_size: Size::new(1024.0, 768.0),
             window_min_size: Size::new(800.0, 600.0),

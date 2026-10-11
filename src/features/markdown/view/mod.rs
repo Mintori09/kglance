@@ -51,6 +51,7 @@ pub(crate) mod window;
 pub const VIRTUAL_THRESHOLD: usize = 60;
 const SCROLL_PANE_ID: &str = "content_scroll";
 
+#[allow(clippy::too_many_arguments)]
 pub fn view_markdown<'a>(
     blocks: &'a [Block],
     state: &'a MarkdownState,
@@ -59,6 +60,7 @@ pub fn view_markdown<'a>(
     font_family: Option<&'a str>,
     font_family_mono: Option<&'a str>,
     max_text_width: Option<f32>,
+    ruby_display_mode: crate::core::config::RubyDisplayMode,
 ) -> Element<'a, Message> {
     let search_counter = Cell::new(0);
     let ctx = RenderContext {
@@ -72,6 +74,7 @@ pub fn view_markdown<'a>(
         font_size,
         font_family,
         font_family_mono,
+        ruby_display_mode,
     };
     let scroll = build_scrollable_content(blocks, state, &ctx, max_text_width);
     let content_area = build_content_area(state, scroll, &ctx);

@@ -29,6 +29,38 @@ fn test_normalize_nfc_vietnamese_decomposed() {
 }
 
 #[test]
+fn test_convert_html_to_markdown_ruby() {
+    let html =
+        "<p><ruby>不<rt>ふ</rt></ruby><ruby>自<rt>じ</rt></ruby><ruby>由<rt>ゆう</rt></ruby>な</p>";
+    let md = convert_html_to_markdown(html);
+    assert_eq!(
+        md,
+        "<ruby>不<rt>ふ</rt></ruby><ruby>自<rt>じ</rt></ruby><ruby>由<rt>ゆう</rt></ruby>な"
+    );
+
+    let html_tabular = "<p><ruby>不<rt>ふ</rt>自<rt>じ</rt>由<rt>ゆう</rt></ruby>な</p>";
+    let md_tab = convert_html_to_markdown(html_tabular);
+    assert_eq!(
+        md_tab,
+        "<ruby>不<rt>ふ</rt></ruby><ruby>自<rt>じ</rt></ruby><ruby>由<rt>ゆう</rt></ruby>な"
+    );
+
+    let html_rp = "<p><ruby><rb>漢字</rb><rp>(</rp><rt>かんじ</rt><rp>)</rp></ruby></p>";
+    let md_rp = convert_html_to_markdown(html_rp);
+    assert_eq!(md_rp, "<ruby>漢字<rt>かんじ</rt></ruby>");
+
+    let html_table =
+        "<table><tr><th>単語</th></tr><tr><td><ruby>漢字<rt>かんじ</rt></ruby></td></tr></table>";
+    let md_table = convert_html_to_markdown(html_table);
+    assert!(md_table.contains("<ruby>漢字<rt>かんじ</rt></ruby>"));
+
+    let html_unclosed = "<p><ruby>漢字<rt>かんじ</rt></p><p>次の段落</p>";
+    let md_unclosed = convert_html_to_markdown(html_unclosed);
+    assert!(md_unclosed.contains("<ruby>漢字<rt>かんじ</rt></ruby>"));
+    assert!(md_unclosed.contains("次の段落"));
+}
+
+#[test]
 fn test_extract_ncx_navpoints() {
     let ncx_xml = r#"
         <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/">

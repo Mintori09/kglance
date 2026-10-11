@@ -19,7 +19,7 @@ impl AlertKind {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Inline {
     Text(String),
     Bold(Vec<Inline>),
@@ -32,6 +32,7 @@ pub enum Inline {
     DisplayMath(String),
     FootnoteReference(String),
     SoftBreak,
+    Ruby { text: String, ruby: String },
 }
 
 #[derive(Debug, Clone)]

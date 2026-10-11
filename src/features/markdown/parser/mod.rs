@@ -7,6 +7,8 @@ mod mermaid;
 mod types;
 
 #[cfg(test)]
+mod ruby_tests;
+#[cfg(test)]
 mod syntax_doc_tests;
 #[cfg(test)]
 mod tests;
