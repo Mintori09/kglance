@@ -66,6 +66,7 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     }
 
     let main_font = crate::ui::theme::font::get_main_font(state.font_family.as_deref());
+    let file_tree_btn = file_tree_toggle_button(state, main_font);
     let counter = playlist_position_button(state, main_font);
     let page_counter = page_indicator(state, main_font);
     let toc_btn = toc_toggle_button(state, main_font);
@@ -73,6 +74,7 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     let info = image_info_button(state, main_font);
 
     let left_row = row![
+        file_tree_btn,
         counter,
         page_counter,
         toc_btn,
@@ -104,6 +106,31 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     .width(Length::Fill)
     .style(default_raised)
     .into()
+}
+
+fn file_tree_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Element<'a, Message> {
+    let style = if state.file_tree.visible {
+        iced::widget::button::primary
+    } else {
+        iced::widget::button::secondary
+    };
+    let content: Element<'a, Message> = if let Some(svg_handle) =
+        crate::ui::theme::icon_theme::get_icon_handle("view-sidetree")
+            .or_else(|| crate::ui::theme::icon_theme::get_icon_handle("view-list-tree"))
+            .or_else(|| crate::ui::theme::icon_theme::get_icon_handle("folder"))
+    {
+        iced::widget::svg(svg_handle)
+            .width(13.0)
+            .height(13.0)
+            .into()
+    } else {
+        text("Files").size(typography::CAPTION).font(font).into()
+    };
+    button(content)
+        .on_press(crate::app::messages::FileTreeMsg::Toggle.into())
+        .style(style)
+        .padding([2, 6])
+        .into()
 }
 
 fn toc_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Element<'a, Message>> {
@@ -328,8 +355,29 @@ pub fn view_window<'a>(
         _ => preview_body,
     };
 
+    let content_with_tree = if state.file_tree.visible {
+        let tree_sidebar = crate::features::file_tree::view_file_tree(
+            &state.file_tree,
+            std::path::Path::new(&state.file_name),
+            state.app_theme,
+            state.font_family.as_deref(),
+        );
+        let drag = crate::ui::components::sidebar::drag_handle(
+            state.file_tree.sidebar_resizing,
+            state.app_theme,
+            Message::SidebarDragStarted,
+        );
+        row![tree_sidebar, drag, main_body]
+            .spacing(0)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    } else {
+        main_body
+    };
+
     let layout = column![
-        container(main_body)
+        container(content_with_tree)
             .width(Length::Fill)
             .height(Length::Fill),
         footer(state)
