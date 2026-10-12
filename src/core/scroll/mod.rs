@@ -200,8 +200,10 @@ impl ScrollController {
         self.position_y = y;
         self.target_y = y;
         self.last_applied_y = y;
-        if self.gesture.state() != GestureState::Dragging {
-            self.scroll_state = ScrollState::Idle { position: y };
+        if !self.is_animating() && self.gesture.state() == GestureState::Idle {
+            self.stop(y);
+        } else if self.gesture.state() == GestureState::Dragging {
+            self.scroll_state = ScrollState::Dragging { position: y };
         }
     }
 
@@ -520,10 +522,11 @@ impl ScrollController {
             GestureState::Flinging | GestureState::SpringBack => {
                 let (next_y, is_active) = self.physics.step(self.position_y, dt, extent);
                 self.position_y = next_y;
+                self.target_y = next_y;
+                self.last_applied_y = next_y;
                 self.velocity = self.physics.velocity;
                 if !is_active {
-                    self.gesture.set_state(GestureState::Idle);
-                    self.is_animating = false;
+                    self.stop(next_y);
                 }
                 Some(next_y)
             }
