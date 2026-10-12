@@ -189,7 +189,38 @@ pub fn handle_sidebar_drag_ended(app: &mut KglanceApp) -> Task<Message> {
     Task::none()
 }
 
-pub fn handle_mouse_pressed(app: &mut KglanceApp, _x: f32, _y: f32) -> Task<Message> {
+pub fn handle_mouse_pressed(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message> {
+    if app.state.selection_menu.is_visible() {
+        // The global subscription fires MousePressed with x=0,y=0 (no position in event).
+        // Resolve the actual click point from the last known cursor position.
+        let click_pt = if x > 0.0 || y > 0.0 {
+            Some(iced::Point::new(x, y))
+        } else {
+            // last_cursor_position is None only before the first CursorMoved, which means
+            // we have no reliable position to check bounds against — don't hide.
+            app.state.last_cursor_position
+        };
+
+        let win_w = app.state.current_window_size.width;
+        let win_h = app.state.current_window_size.height;
+        let is_inside = app.state.selection_menu.is_cursor_inside(
+            click_pt,
+            win_w,
+            win_h,
+            &app.state.selection_menu_config.custom_actions,
+        );
+
+        if is_inside {
+            // User clicked inside the selection menu toolbar or popup card.
+            // Preserve the menu and active document selection.
+            return Task::none();
+        }
+
+        if !app.state.selection_menu.is_busy() {
+            app.state.selection_menu.hide();
+        }
+    }
+
     app.stop_active_scroll_animations();
     app.state.pdf.auto_scroll_delta = None;
     let s = markdown::active_markdown_state_mut(app);
@@ -223,6 +254,8 @@ pub fn handle_mouse_released(app: &mut KglanceApp) -> Task<Message> {
 }
 
 pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message> {
+    app.state.last_cursor_position = Some(iced::Point::new(x, y));
+
     use crate::ui::components::sidebar::{
         DEFAULT_MAX_SIDEBAR_WIDTH, DEFAULT_MIN_SIDEBAR_WIDTH, PDF_MAX_SIDEBAR_WIDTH,
         PDF_MIN_SIDEBAR_WIDTH, apply_sidebar_drag,

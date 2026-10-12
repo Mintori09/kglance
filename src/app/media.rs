@@ -6,6 +6,19 @@ use crate::core::{PreviewData, ViewMode};
 
 impl super::KglanceApp {
     pub fn handle_scroll_delta(&mut self, x: f32, y: f32) -> Task<Message> {
+        let win_w = self.state.current_window_size.width;
+        let win_h = self.state.current_window_size.height;
+        if self.state.selection_menu.is_cursor_inside(
+            self.state.last_cursor_position,
+            win_w,
+            win_h,
+            &self.state.selection_menu_config.custom_actions,
+        ) {
+            return Task::none();
+        }
+        if !self.state.selection_menu.is_busy() {
+            self.state.selection_menu.hide();
+        }
         let is_mod = self.ctrl_held;
         let scroll_val = if y.abs() > f32::EPSILON {
             y
