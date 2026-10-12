@@ -4,11 +4,27 @@ use serde::{Deserialize, Serialize};
 pub struct CustomAction {
     pub name: String,
     pub command: String,
+    #[serde(default = "default_action_enabled")]
+    pub enabled: bool,
     #[serde(default)]
     pub popup: bool,
     #[serde(default)]
     pub toast: bool,
     #[serde(default)]
+    pub stream: bool,
+}
+
+fn default_action_enabled() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CustomActionEditorState {
+    pub editing_index: Option<usize>,
+    pub name: String,
+    pub command: String,
+    pub popup: bool,
+    pub toast: bool,
     pub stream: bool,
 }
 
@@ -65,11 +81,15 @@ pub const RESULT_HEIGHT: f32 = 340.0;
 pub fn estimate_toolbar_width(actions: &[CustomAction]) -> f32 {
     let base_width: f32 = 45.0 + 16.0; // Copy button text + padding
     let mut custom_width: f32 = 0.0;
+    let mut enabled_count = 0;
     for action in actions {
-        let text_w = (action.name.chars().count() as f32 * 7.5).max(40.0) + 16.0;
-        custom_width += text_w;
+        if action.enabled {
+            let text_w = (action.name.chars().count() as f32 * 7.5).max(40.0) + 16.0;
+            custom_width += text_w;
+            enabled_count += 1;
+        }
     }
-    let total_buttons = 1 + actions.len();
+    let total_buttons: usize = 1 + enabled_count;
     let total_spacing = (total_buttons.saturating_sub(1) as f32) * 4.0;
     let container_padding = 16.0;
     (base_width + custom_width + total_spacing + container_padding).max(80.0)
@@ -167,11 +187,31 @@ impl SelectionMenuState {
     }
 }
 
+pub const MAX_ENV_TEXT_BYTES: usize = 16 * 1024;
+pub const CUSTOM_ACTION_TIMEOUT_SECS: u64 = 30;
+
 pub async fn execute_custom_action(command: String, text: String) -> Result<String, String> {
+    let env_text = if text.len() > MAX_ENV_TEXT_BYTES {
+        let mut truncated = text.chars();
+        let mut byte_count = 0;
+        let mut safe = String::new();
+        for ch in truncated.by_ref() {
+            let next_len = ch.len_utf8();
+            if byte_count + next_len > MAX_ENV_TEXT_BYTES {
+                break;
+            }
+            safe.push(ch);
+            byte_count += next_len;
+        }
+        safe
+    } else {
+        text.clone()
+    };
+
     let mut child = tokio::process::Command::new("sh")
         .arg("-c")
         .arg(&command)
-        .env("KGLANCE_TEXT", &text)
+        .env("KGLANCE_TEXT", &env_text)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -185,10 +225,19 @@ pub async fn execute_custom_action(command: String, text: String) -> Result<Stri
         drop(stdin);
     }
 
-    let output = child
-        .wait_with_output()
-        .await
-        .map_err(|e| format!("Failed to execute command: {e}"))?;
+    let output = match tokio::time::timeout(
+        std::time::Duration::from_secs(CUSTOM_ACTION_TIMEOUT_SECS),
+        child.wait_with_output(),
+    )
+    .await
+    {
+        Ok(res) => res.map_err(|e| format!("Failed to execute command: {e}"))?,
+        Err(_) => {
+            return Err(format!(
+                "Command timed out after {CUSTOM_ACTION_TIMEOUT_SECS} seconds"
+            ));
+        }
+    };
 
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())

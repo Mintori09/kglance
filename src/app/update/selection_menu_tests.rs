@@ -120,6 +120,7 @@ fn test_custom_action_clicked_sets_running() {
     let action = CustomAction {
         name: "Save Note".to_string(),
         command: "cat >> notes.txt".to_string(),
+        enabled: true,
         popup: false,
         toast: true,
         stream: false,
@@ -159,6 +160,7 @@ fn test_custom_action_clicked_non_stream_popup_starts_result_loading() {
     let action = CustomAction {
         name: "Translate".to_string(),
         command: "trans -b :vi".to_string(),
+        enabled: true,
         popup: true,
         toast: false,
         stream: false,
@@ -201,6 +203,7 @@ fn test_custom_action_clicked_stream_starts_result_streaming() {
     let action = CustomAction {
         name: "AI Stream".to_string(),
         command: "ollama run llama3".to_string(),
+        enabled: true,
         popup: true,
         toast: false,
         stream: true,

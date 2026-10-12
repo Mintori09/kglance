@@ -297,7 +297,8 @@ The config file is auto-created with defaults on first run. See `data/examples/c
         "name": "Translate VI",
         "command": "trans -b :vi",
         "popup": true,
-        "toast": false
+        "toast": false,
+        "stream": false
       }
     ]
   }

@@ -332,7 +332,23 @@ pub enum SettingsMsg {
     ScrollFrictionChanged(f32),
     ScrollSpringStiffnessChanged(f32),
     SelectionMenuToggled(bool),
+    CustomAction(CustomActionEditorMsg),
     ResetToDefaults,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CustomActionEditorMsg {
+    OpenAdd,
+    OpenEdit(usize),
+    NameChanged(String),
+    CommandChanged(String),
+    PopupToggled(bool),
+    ToastToggled(bool),
+    StreamToggled(bool),
+    Save,
+    Cancel,
+    Delete(usize),
+    ToggleEnabled { index: usize, enabled: bool },
 }
 
 #[derive(Debug, Clone)]

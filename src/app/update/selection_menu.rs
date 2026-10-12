@@ -30,23 +30,23 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
                 .position()
                 .unwrap_or(iced::Point::new(100.0, 100.0));
 
+            let action_name = action.name;
+            let popup = action.popup;
+            let toast = action.toast;
+
             // If popup is requested (streaming or non-streaming), open popup card immediately with loading state
-            if action.popup {
+            if popup {
                 app.state.selection_menu = SelectionMenuState::Result {
                     pos,
-                    action_name: action.name.clone(),
+                    action_name: action_name.clone(),
                     content: String::new(),
                     blocks: Vec::new(),
                     is_streaming: true,
                 };
 
                 if action.stream {
-                    stream_custom_action(action.name, action.command, text)
+                    stream_custom_action(action_name, action.command, text)
                 } else {
-                    let action_name = action.name.clone();
-                    let popup = action.popup;
-                    let toast = action.toast;
-
                     Task::perform(
                         async move {
                             let result = execute_custom_action(action.command, text).await;
@@ -64,11 +64,8 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
                 app.state.selection_menu = SelectionMenuState::Running {
                     pos,
                     selected_text: text.clone(),
-                    action_name: action.name.clone(),
+                    action_name: action_name.clone(),
                 };
-                let action_name = action.name.clone();
-                let popup = action.popup;
-                let toast = action.toast;
 
                 Task::perform(
                     async move {
@@ -177,10 +174,26 @@ pub fn stream_custom_action(action_name: String, command: String, text: String) 
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let stream = iced::stream::channel(100, |mut output: Sender<Message>| async move {
+        let env_text = if text.len() > crate::core::selection_action::MAX_ENV_TEXT_BYTES {
+            let mut byte_count = 0;
+            let mut safe = String::new();
+            for ch in text.chars() {
+                let next_len = ch.len_utf8();
+                if byte_count + next_len > crate::core::selection_action::MAX_ENV_TEXT_BYTES {
+                    break;
+                }
+                safe.push(ch);
+                byte_count += next_len;
+            }
+            safe
+        } else {
+            text.clone()
+        };
+
         let spawn_res = tokio::process::Command::new("sh")
             .arg("-c")
             .arg(&command)
-            .env("KGLANCE_TEXT", &text)
+            .env("KGLANCE_TEXT", &env_text)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
@@ -209,24 +222,35 @@ pub fn stream_custom_action(action_name: String, command: String, text: String) 
 
         if let Some(mut stdout) = child.stdout.take() {
             let mut buf = [0u8; 1024];
-            loop {
-                match stdout.read(&mut buf).await {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        let chunk = String::from_utf8_lossy(&buf[..n]).into_owned();
-                        let _ = output
-                            .send(Message::SelectionMenu(SelectionMenuMsg::StreamChunk {
-                                action_name: action_name.clone(),
-                                chunk,
-                            }))
-                            .await;
+            let read_stream = async {
+                loop {
+                    match stdout.read(&mut buf).await {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            let chunk = String::from_utf8_lossy(&buf[..n]).into_owned();
+                            let _ = output
+                                .send(Message::SelectionMenu(SelectionMenuMsg::StreamChunk {
+                                    action_name: action_name.clone(),
+                                    chunk,
+                                }))
+                                .await;
+                        }
+                        Err(_) => break,
                     }
-                    Err(_) => break,
                 }
-            }
+            };
+
+            let _ = tokio::time::timeout(
+                std::time::Duration::from_secs(
+                    crate::core::selection_action::CUSTOM_ACTION_TIMEOUT_SECS,
+                ),
+                read_stream,
+            )
+            .await;
         }
 
-        let _ = child.wait().await;
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), child.wait()).await;
+
         let _ = output
             .send(Message::SelectionMenu(SelectionMenuMsg::StreamFinished {
                 action_name,

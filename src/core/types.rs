@@ -146,6 +146,7 @@ pub struct KglanceState {
     pub selection_menu_config: crate::core::selection_action::SelectionMenuConfig,
     pub selection_menu: crate::core::selection_action::SelectionMenuState,
     pub last_cursor_position: Option<iced::Point>,
+    pub action_editor: Option<crate::core::selection_action::CustomActionEditorState>,
 }
 
 impl Default for KglanceState {
@@ -218,6 +219,7 @@ impl Default for KglanceState {
             selection_menu_config: crate::core::selection_action::SelectionMenuConfig::default(),
             selection_menu: crate::core::selection_action::SelectionMenuState::default(),
             last_cursor_position: None,
+            action_editor: None,
         }
     }
 }
