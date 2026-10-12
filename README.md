@@ -289,6 +289,17 @@ The config file is auto-created with defaults on first run. See `data/examples/c
     "smooth_scroll_enabled": true,
     "friction": 1.8,
     "spring_stiffness": 180.0
+  },
+  "selection_menu": {
+    "enabled": true,
+    "custom_actions": [
+      {
+        "name": "Translate VI",
+        "command": "trans -b :vi",
+        "popup": true,
+        "toast": false
+      }
+    ]
   }
 }
 ```
