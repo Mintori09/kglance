@@ -223,6 +223,7 @@ where
         {
             if let Some(on_wheel) = &self.on_wheel {
                 shell.publish(on_wheel(*delta));
+                shell.request_redraw();
             }
             return;
         }
