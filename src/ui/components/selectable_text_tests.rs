@@ -210,3 +210,14 @@ fn test_word_vietnamese_and_unicode_quotes() {
     let range_kglance = expand_to_word_bounds(text, kglance_offset + 2);
     assert_eq!(substr(text, range_kglance), "Kglance");
 }
+
+#[test]
+fn test_word_fullwidth_asian_punctuation() {
+    let text = "你好，世界！";
+    let range = expand_to_word_bounds(text, 0);
+    assert_eq!(substr(text, range), "你好");
+
+    let world_offset = text.find("世界").expect("must find 世界");
+    let range_world = expand_to_word_bounds(text, world_offset);
+    assert_eq!(substr(text, range_world), "世界");
+}

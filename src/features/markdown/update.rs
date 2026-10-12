@@ -445,6 +445,7 @@ pub fn handle_selection_drag_end(app: &mut KglanceApp) -> Task<Message> {
         && (range.start.block, range.start.offset) == (range.end.block, range.end.offset)
     {
         s.selection_range = None;
+        s.selected_text = None;
     }
     update_selected_text_from_range(app);
 
