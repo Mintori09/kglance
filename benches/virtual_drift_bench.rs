@@ -22,7 +22,7 @@ fn measure_intrinsic_block_height(
     block: &Block,
     font_size: f32,
     content_width: f32,
-    image_sizes: &HashMap<usize, (u32, u32)>,
+    image_sizes: &HashMap<String, (u32, u32)>,
     block_index: usize,
 ) -> f32 {
     let span_counter = Cell::new(0);
@@ -129,7 +129,7 @@ fn measure_block_height(
     block: &Block,
     font_size: f32,
     content_width: f32,
-    image_sizes: &HashMap<usize, (u32, u32)>,
+    image_sizes: &HashMap<String, (u32, u32)>,
     block_index: usize,
 ) -> f32 {
     let margin = block_margin(block, font_size);

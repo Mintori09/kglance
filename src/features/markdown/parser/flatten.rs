@@ -65,7 +65,7 @@ fn flatten_inlines_with(inlines: &[Inline], mode: FlattenMode) -> String {
                     ));
                 }
             }
-            Inline::Image { alt, url } => match mode {
+            Inline::Image { alt, url, .. } => match mode {
                 FlattenMode::Markdown => s.push_str(&format!("![{alt}]({url})")),
                 FlattenMode::Visual => {
                     s.push('[');

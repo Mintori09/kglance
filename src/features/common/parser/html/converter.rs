@@ -312,6 +312,7 @@ impl HtmlToMarkdownConverter {
                 self.append_str("^");
             }
             "hr" => self.append_str("\n\n---\n\n"),
+            "img" => self.handle_img_tag(e),
             _ => {
                 if let Some(id) = extract_id_or_name(e) {
                     if self.output.ends_with('\n') || self.output.is_empty() {
@@ -475,23 +476,58 @@ impl HtmlToMarkdownConverter {
         match name {
             "br" => self.append_str("\n"),
             "hr" => self.append_str("\n\n---\n\n"),
-            "img" => {
-                let mut src = String::new();
-                let mut alt = "image".to_string();
-
-                for attr in e.attributes().flatten() {
-                    if attr.key.as_ref().eq_ignore_ascii_case("src") {
-                        src = attr.value.to_string();
-                    } else if attr.key.as_ref().eq_ignore_ascii_case("alt") {
-                        alt = attr.value.to_string();
-                    }
-                }
-
-                if !src.is_empty() {
-                    self.append_str(&format!("\n\n![{alt}]({src})\n\n"));
-                }
-            }
+            "img" => self.handle_img_tag(e),
             _ => {}
+        }
+    }
+
+    fn handle_img_tag(&mut self, e: &quick_xml::events::BytesStart) {
+        let mut src = String::new();
+        let mut alt = String::new();
+        let mut width: Option<u32> = None;
+        let mut height: Option<u32> = None;
+        let mut style = String::new();
+
+        for attr in e.attributes().flatten() {
+            let key = attr.key.as_ref();
+            if key.eq_ignore_ascii_case("src") {
+                src = attr.value.to_string();
+            } else if key.eq_ignore_ascii_case("alt") {
+                alt = attr.value.to_string();
+            } else if key.eq_ignore_ascii_case("width") {
+                width = parse_dimension(attr.value.as_ref());
+            } else if key.eq_ignore_ascii_case("height") {
+                height = parse_dimension(attr.value.as_ref());
+            } else if key.eq_ignore_ascii_case("style") {
+                style = attr.value.to_string();
+            }
+        }
+
+        if width.is_none() && !style.is_empty() {
+            width = extract_style_dimension(&style, "width");
+        }
+        if height.is_none() && !style.is_empty() {
+            height = extract_style_dimension(&style, "height");
+        }
+
+        if !src.is_empty() {
+            if width.is_some() || height.is_some() {
+                let w_attr = width.map(|w| format!(" width=\"{w}\"")).unwrap_or_default();
+                let h_attr = height
+                    .map(|h| format!(" height=\"{h}\""))
+                    .unwrap_or_default();
+                let alt_attr = if alt.is_empty() {
+                    String::new()
+                } else {
+                    format!(" alt=\"{alt}\"")
+                };
+                self.append_str(&format!(
+                    "\n\n<img src=\"{src}\"{alt_attr}{w_attr}{h_attr} />\n\n"
+                ));
+            } else {
+                let alt_text = if alt.is_empty() { "image" } else { &alt };
+                self.append_str(&format!("\n\n![{alt_text}]({src})\n\n"));
+            }
         }
     }
 
@@ -784,6 +820,33 @@ fn mathml_to_latex(raw: &str) -> String {
         return String::new();
     }
     trimmed.to_string()
+}
+
+fn parse_dimension(val: &str) -> Option<u32> {
+    let trimmed = val.trim();
+    let num_str = trimmed
+        .strip_suffix("px")
+        .or_else(|| trimmed.strip_suffix("pt"))
+        .unwrap_or(trimmed)
+        .trim();
+    num_str.parse::<f32>().ok().and_then(|f| {
+        if f > 0.0 && f <= 10000.0 {
+            Some(f.round() as u32)
+        } else {
+            None
+        }
+    })
+}
+
+fn extract_style_dimension(style: &str, prop: &str) -> Option<u32> {
+    for decl in style.split(';') {
+        if let Some((k, v)) = decl.split_once(':')
+            && k.trim().eq_ignore_ascii_case(prop)
+        {
+            return parse_dimension(v);
+        }
+    }
+    None
 }
 
 pub fn strip_html_tags(html: &str) -> String {
