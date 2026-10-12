@@ -51,6 +51,8 @@ pub struct ImageState {
     pub display_width: u32,
     pub display_height: u32,
     pub show_info: bool,
+    pub animated_gif: Option<Arc<crate::features::image::AnimatedGif>>,
+    pub animation_start_time: Option<std::time::Instant>,
 }
 
 impl Default for ImageState {
@@ -69,6 +71,8 @@ impl Default for ImageState {
             display_width: 0,
             display_height: 0,
             show_info: false,
+            animated_gif: None,
+            animation_start_time: None,
         }
     }
 }

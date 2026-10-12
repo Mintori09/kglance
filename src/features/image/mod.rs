@@ -1,3 +1,4 @@
+pub mod animation;
 pub mod camera;
 pub mod canvas;
 pub mod controller;
@@ -9,6 +10,7 @@ pub mod types;
 pub mod update;
 pub mod view;
 
+pub use animation::*;
 pub use camera::Camera;
 pub use canvas::ImageCanvas;
 pub use controller::{ViewerAction, ViewerController};

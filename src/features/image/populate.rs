@@ -44,29 +44,44 @@ pub fn populate_state(
         .and_then(|c| c.as_decoded_image())
         .map(|(h, w, ht)| (h.clone(), w, ht));
 
-    let (display_handle, preview_handle, load_state) = if let Some((h, cw, ch)) = cached {
-        if cw < width || ch < height {
-            // Cached entry is a downsampled preview
-            (None, Some(h), ImageLoadState::Ready)
-        } else {
-            // Cached entry is full resolution
-            (Some(h), None, ImageLoadState::Ready)
-        }
-    } else if data.len() <= 64 * 1024 {
-        // Small image (<= 64KB, e.g. tests, icons): decode synchronously in <1ms
-        if let Some((h, _, _)) = crate::features::image::decode_to_rgba_handle(data) {
-            (Some(h), None, ImageLoadState::Ready)
-        } else {
+    let (display_handle, preview_handle, load_state, animated_gif, animation_start_time) =
+        if let Some((h, cw, ch)) = cached {
+            if cw < width || ch < height {
+                // Cached entry is a downsampled preview
+                (None, Some(h), ImageLoadState::Ready, None, None)
+            } else {
+                // Cached entry is full resolution
+                (Some(h), None, ImageLoadState::Ready, None, None)
+            }
+        } else if crate::features::image::is_gif(data)
+            && let Some(anim) = crate::features::image::decode_animated_gif(data)
+            && anim.frames.len() > 1
+        {
+            let first_handle = anim.frames[0].handle.clone();
             (
-                Some(iced::widget::image::Handle::from_bytes(data.to_vec())),
+                Some(first_handle),
                 None,
                 ImageLoadState::Ready,
+                Some(std::sync::Arc::new(anim)),
+                Some(std::time::Instant::now()),
             )
-        }
-    } else {
-        // Large image: leave handle as None and let spawn_decode_task decode in background
-        (None, None, ImageLoadState::Loading)
-    };
+        } else if data.len() <= 64 * 1024 {
+            // Small image (<= 64KB, e.g. tests, icons): decode synchronously in <1ms
+            if let Some((h, _, _)) = crate::features::image::decode_to_rgba_handle(data) {
+                (Some(h), None, ImageLoadState::Ready, None, None)
+            } else {
+                (
+                    Some(iced::widget::image::Handle::from_bytes(data.to_vec())),
+                    None,
+                    ImageLoadState::Ready,
+                    None,
+                    None,
+                )
+            }
+        } else {
+            // Large image: leave handle as None and let spawn_decode_task decode in background
+            (None, None, ImageLoadState::Loading, None, None)
+        };
 
     state.image = ImageState {
         handle: display_handle.clone().or_else(|| preview_handle.clone()),
@@ -82,6 +97,8 @@ pub fn populate_state(
         display_height: height,
         camera: crate::features::image::Camera::new(),
         show_info: false,
+        animated_gif,
+        animation_start_time,
     };
 
     state.file_type_text = format_info.to_string();
