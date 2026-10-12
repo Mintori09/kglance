@@ -137,6 +137,8 @@ pub struct AppConfig {
     pub cache: CacheConfig,
     #[serde(default)]
     pub scroll: ScrollConfigOptions,
+    #[serde(default)]
+    pub selection_menu: crate::core::selection_action::SelectionMenuConfig,
 }
 
 pub struct ConfigManager;
