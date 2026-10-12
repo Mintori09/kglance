@@ -517,3 +517,67 @@ fn test_ge_shortcut_toggles_file_tree() {
     assert!(!app.state.file_tree.visible);
     assert_eq!(app.state.text.scroll_y, 120.0);
 }
+
+#[test]
+fn test_text_wheel_scroll_interrupts_active_kinetic_scroll() {
+    use crate::app::test_util::text_content;
+
+    let code = (0..500)
+        .map(|i| format!("fn line_{i}() {{ println!(\"Code Line {i}\"); }}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut app = test_app(Some(text_content(&code, "rs")));
+    app.state.text.viewport_height = 800.0;
+    app.state.text.total_content_height = 10000.0;
+    app.state.text.scroll_y = 100.0;
+
+    // 1. Start a kinetic fling
+    app.state
+        .text
+        .scroll_controller
+        .start_kinetic(100.0, 1800.0, 9200.0);
+    assert!(app.state.text.scroll_controller.is_animating());
+
+    // 2. User turns the mouse wheel (Lines)
+    let delta = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -2.0 };
+    let _ = crate::features::text::update::handle_wheel_scrolled(&mut app, delta);
+
+    // Active kinetic fling must be cancelled
+    assert!(!app.state.text.scroll_controller.is_animating());
+    assert!(app.state.text.smooth_scroll.is_animating);
+
+    // 3. Frame tick must advance smooth scroll towards wheel target, NOT kinetic position
+    let now = std::time::Instant::now();
+    let _ = crate::features::text::update::handle_smooth_scroll_tick(&mut app, now);
+    assert!(!app.state.text.scroll_controller.is_animating());
+    assert!(app.state.text.scroll_y > 100.0);
+}
+
+#[test]
+fn test_pdf_wheel_scroll_interrupts_active_kinetic_scroll() {
+    let mut app = test_app(None);
+    app.state.pdf.viewport_height = 800.0;
+    app.state.pdf.total_content_height = 8000.0;
+    app.state.pdf.scroll_y = 150.0;
+
+    // 1. Start kinetic fling
+    app.state
+        .pdf
+        .scroll_controller
+        .start_kinetic(150.0, 2000.0, 7200.0);
+    assert!(app.state.pdf.scroll_controller.is_animating());
+
+    // 2. Mouse wheel turns
+    let delta = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -2.0 };
+    let _ = crate::features::pdf::update::handle_wheel_scrolled(&mut app, delta);
+
+    // Active kinetic fling must be cancelled
+    assert!(!app.state.pdf.scroll_controller.is_animating());
+    assert!(app.state.pdf.smooth_scroll.is_animating);
+
+    // 3. Frame tick must advance smooth scroll, NOT kinetic fling
+    let now = std::time::Instant::now();
+    let _ = crate::features::pdf::update::handle_smooth_scroll_tick(&mut app, now);
+    assert!(!app.state.pdf.scroll_controller.is_animating());
+    assert!(app.state.pdf.scroll_y > 150.0);
+}

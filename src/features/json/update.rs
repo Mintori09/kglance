@@ -61,9 +61,11 @@ pub fn handle_scrolled(
         state.total_content_height = total_h;
     }
 
-    if state.smooth_scroll.is_animating
-        || state.scroll_controller.is_animating()
-        || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+    let is_interrupted = state.scroll_controller.check_interruption(y);
+    if !is_interrupted
+        && (state.smooth_scroll.is_animating
+            || state.scroll_controller.is_animating()
+            || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging)
     {
         return Task::none();
     }
@@ -100,6 +102,7 @@ pub fn handle_wheel_scrolled(
     match delta {
         iced::mouse::ScrollDelta::Lines { y, .. } => {
             if y.abs() > f32::EPSILON {
+                state.scroll_controller.stop(state.scroll_y);
                 let line_height =
                     (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION).clamp(50.0, 240.0);
                 let step = -y * line_height;
@@ -252,9 +255,11 @@ pub fn handle_raw_scrolled(
         text_state.total_content_height = text_state.display_map.total_content_height();
     }
 
-    let is_animating = text_state.smooth_scroll.is_animating
-        || text_state.scroll_controller.is_animating()
-        || text_state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging;
+    let is_interrupted = text_state.scroll_controller.check_interruption(y);
+    let is_animating = !is_interrupted
+        && (text_state.smooth_scroll.is_animating
+            || text_state.scroll_controller.is_animating()
+            || text_state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging);
     if is_animating {
         return Task::none();
     }

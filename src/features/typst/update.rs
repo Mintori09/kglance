@@ -60,9 +60,11 @@ pub fn handle_source_scrolled(
         text_state.total_content_height = total_h;
     }
 
-    let is_animating = text_state.smooth_scroll.is_animating
-        || text_state.scroll_controller.is_animating()
-        || text_state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging;
+    let is_interrupted = text_state.scroll_controller.check_interruption(y);
+    let is_animating = !is_interrupted
+        && (text_state.smooth_scroll.is_animating
+            || text_state.scroll_controller.is_animating()
+            || text_state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging);
     if is_animating {
         return Task::none();
     }

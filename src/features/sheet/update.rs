@@ -482,13 +482,18 @@ pub fn handle_spreadsheet_scrolled(
         state.total_content_height = total_h;
     }
 
-    let is_animating_y = state.smooth_scroll.is_animating()
-        || state.scroll_controller.is_animating()
-        || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging;
+    let is_interrupted_y = state.scroll_controller.check_interruption(y);
+    let is_interrupted_x = state.scroll_controller_x.check_interruption(x);
 
-    let is_animating_x = state.smooth_scroll_x.is_animating()
-        || state.scroll_controller_x.is_animating()
-        || state.scroll_controller_x.state() == crate::core::scroll::GestureState::Dragging;
+    let is_animating_y = !is_interrupted_y
+        && (state.smooth_scroll.is_animating()
+            || state.scroll_controller.is_animating()
+            || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging);
+
+    let is_animating_x = !is_interrupted_x
+        && (state.smooth_scroll_x.is_animating()
+            || state.scroll_controller_x.is_animating()
+            || state.scroll_controller_x.state() == crate::core::scroll::GestureState::Dragging);
 
     if is_animating_y || is_animating_x {
         return Task::none();
@@ -536,6 +541,8 @@ pub fn handle_wheel_scrolled(
 
     match delta {
         iced::mouse::ScrollDelta::Lines { x, y } => {
+            state.scroll_controller.stop(state.scroll_y);
+            state.scroll_controller_x.stop(state.scroll_x);
             if app.shift_held {
                 // Shift + Wheel vertical scroll -> Redirect to horizontal scroll
                 let delta_h = if y.abs() > f32::EPSILON { y } else { x };

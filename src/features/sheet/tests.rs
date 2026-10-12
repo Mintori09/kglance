@@ -538,6 +538,44 @@ fn test_spreadsheet_smooth_scroll_and_touchpad_inertia() {
 }
 
 #[test]
+fn test_sheet_wheel_scroll_interrupts_active_kinetic_scroll() {
+    let mut app = crate::app::test_util::test_app(None);
+    app.state.spreadsheet.viewport_height = 800.0;
+    app.state.spreadsheet.viewport_width = 1000.0;
+    app.state.spreadsheet.total_content_height = 6000.0;
+    app.state.spreadsheet.total_content_width = 4000.0;
+    app.state.spreadsheet.scroll_y = 100.0;
+    app.state.spreadsheet.scroll_x = 100.0;
+
+    // 1. Start kinetic fling on both axes
+    app.state
+        .spreadsheet
+        .scroll_controller
+        .start_kinetic(100.0, 1500.0, 5200.0);
+    app.state
+        .spreadsheet
+        .scroll_controller_x
+        .start_kinetic(100.0, 1200.0, 3000.0);
+    assert!(app.state.spreadsheet.scroll_controller.is_animating());
+    assert!(app.state.spreadsheet.scroll_controller_x.is_animating());
+
+    // 2. User turns the mouse wheel (Lines)
+    let delta = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -2.0 };
+    let _ = handle_wheel_scrolled(&mut app, delta);
+
+    // Active kinetic flings must be cancelled
+    assert!(!app.state.spreadsheet.scroll_controller.is_animating());
+    assert!(!app.state.spreadsheet.scroll_controller_x.is_animating());
+    assert!(app.state.spreadsheet.smooth_scroll.is_animating());
+
+    // 3. Frame tick must advance smooth scroll, NOT kinetic fling
+    let now = std::time::Instant::now();
+    let _ = handle_smooth_scroll_tick(&mut app, now);
+    assert!(!app.state.spreadsheet.scroll_controller.is_animating());
+    assert!(app.state.spreadsheet.scroll_y > 100.0);
+}
+
+#[test]
 fn test_compute_csv_column_window_empty() {
     let prefix = vec![0.0];
     let win = compute_csv_column_window(&prefix, 0.0, 1000.0, ROW_NUMBER_COL_WIDTH);
