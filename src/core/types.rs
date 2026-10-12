@@ -143,6 +143,9 @@ pub struct KglanceState {
     pub cache_config: crate::core::config::CacheConfig,
     pub settings_tab: SettingTab,
     pub scroll_config: crate::core::config::ScrollConfigOptions,
+    pub selection_menu_config: crate::core::selection_action::SelectionMenuConfig,
+    pub selection_menu: crate::core::selection_action::SelectionMenuState,
+    pub last_cursor_position: Option<iced::Point>,
 }
 
 impl Default for KglanceState {
@@ -212,12 +215,16 @@ impl Default for KglanceState {
             cache_config: crate::core::config::CacheConfig::default(),
             settings_tab: SettingTab::default(),
             scroll_config: crate::core::config::ScrollConfigOptions::default(),
+            selection_menu_config: crate::core::selection_action::SelectionMenuConfig::default(),
+            selection_menu: crate::core::selection_action::SelectionMenuState::default(),
+            last_cursor_position: None,
         }
     }
 }
 
 impl KglanceState {
     pub fn reset_content_state(&mut self) {
+        self.selection_menu.hide();
         self.file_name.clear();
         self.title_text.clear();
         self.status_text.clear();
