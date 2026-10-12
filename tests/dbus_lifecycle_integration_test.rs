@@ -1,4 +1,6 @@
-use kglance::dbus::{DaemonCommand, run_zbus, send_multiple_via_dbus, send_via_dbus};
+use kglance::dbus::{
+    DaemonCommand, is_gui_open_at, run_zbus_with_name, send_multiple_via_dbus_to, send_via_dbus_to,
+};
 use kglance::engine::build_registry;
 use std::fs::File;
 use std::io::Write;
@@ -9,19 +11,21 @@ use tempfile::tempdir;
 
 #[tokio::test]
 async fn test_dbus_full_lifecycle_ipc() {
+    let service_name = format!("org.mintori.Kglance.TestLifecycle_{}", std::process::id());
     let (tx, mut rx) = tokio::sync::mpsc::channel(100);
     let registry = Arc::new(build_registry());
     let is_gui_open = Arc::new(AtomicBool::new(false));
     let is_gui_open_clone = Arc::clone(&is_gui_open);
+    let name_clone = service_name.clone();
 
     tokio::spawn(async move {
-        let _ = run_zbus(registry, tx, is_gui_open_clone).await;
+        let _ = run_zbus_with_name(&name_clone, registry, tx, is_gui_open_clone).await;
     });
 
     // Wait for DBus daemon to register on session bus
     let start_wait = std::time::Instant::now();
     while start_wait.elapsed() < Duration::from_secs(3) {
-        if kglance::dbus::is_gui_open().is_ok() {
+        if is_gui_open_at(&service_name).is_ok() {
             break;
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -41,7 +45,7 @@ async fn test_dbus_full_lifecycle_ipc() {
         .unwrap();
 
     // 1. Send single file via DBus client
-    let res = send_via_dbus(file1.to_str().unwrap());
+    let res = send_via_dbus_to(&service_name, file1.to_str().unwrap());
     assert!(res.is_ok(), "send_via_dbus failed: {:?}", res.err());
 
     let received = tokio::time::timeout(Duration::from_secs(5), rx.recv())
@@ -64,7 +68,7 @@ async fn test_dbus_full_lifecycle_ipc() {
         file1.to_str().unwrap().to_string(),
         file2.to_str().unwrap().to_string(),
     ];
-    let res_mult = send_multiple_via_dbus(&files);
+    let res_mult = send_multiple_via_dbus_to(&service_name, &files);
     assert!(
         res_mult.is_ok(),
         "send_multiple_via_dbus failed: {:?}",
