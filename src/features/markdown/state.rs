@@ -33,7 +33,7 @@ pub fn effective_content_width(
 pub fn compute_block_layouts(
     blocks: &[Block],
     font_size: f32,
-    image_sizes: &HashMap<usize, (u32, u32)>,
+    image_sizes: &HashMap<String, (u32, u32)>,
     content_width: f32,
 ) -> (Vec<BlockLayout>, Vec<f32>, f32) {
     let padding_v = lc::CONTENT_PADDING * 2.0;
@@ -293,7 +293,7 @@ pub fn rescale_and_update_markdown_layout(
 pub fn compute_block_y_offsets(
     blocks: &[Block],
     font_size: f32,
-    image_sizes: &HashMap<usize, (u32, u32)>,
+    image_sizes: &HashMap<String, (u32, u32)>,
     content_width: f32,
 ) -> (Vec<f32>, f32) {
     let (_, offsets, total_h) =
@@ -323,6 +323,8 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
     let old_mermaid = std::mem::take(&mut state.markdown.cached_mermaid_handles);
     let old_image_h = std::mem::take(&mut state.markdown.cached_image_handles);
     let old_image_s = std::mem::take(&mut state.markdown.cached_image_sizes);
+    let old_animated_gifs = std::mem::take(&mut state.markdown.animated_gifs);
+    let old_anim_start = state.markdown.animation_start_time;
 
     let old_sidebar_w = state.markdown.sidebar_width;
     let old_gen = Arc::clone(&state.markdown.generation_id);
@@ -355,6 +357,8 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
         cached_mermaid_handles: old_mermaid,
         cached_image_handles: old_image_h,
         cached_image_sizes: old_image_s,
+        animated_gifs: old_animated_gifs,
+        animation_start_time: old_anim_start,
         word_count: words,
         char_count: chars,
         reading_time_mins: mins,

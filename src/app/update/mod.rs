@@ -204,6 +204,9 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::ImageMsg::CloseInfo => {
                 crate::features::image::update::handle_close_info(app)
             }
+            crate::app::messages::ImageMsg::AnimationTick => {
+                crate::features::image::update::handle_image_animation_tick(app)
+            }
         },
 
         Message::Text(msg) => match msg {
@@ -492,9 +495,9 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             } => handle_mermaid_rendered(app, generation_id, index, png_bytes),
             crate::app::messages::MarkdownMsg::ImageLoaded {
                 generation_id,
-                index,
-                png_bytes,
-            } => handle_markdown_image_loaded(app, generation_id, index, png_bytes),
+                path,
+                payload,
+            } => handle_markdown_image_loaded(app, generation_id, path, payload),
             crate::app::messages::MarkdownMsg::SelectionChanged(s) => {
                 crate::features::markdown::update::handle_selection_changed(app, s)
             }
@@ -524,6 +527,11 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::MarkdownMsg::TouchpadGestureEnded(event_time) => {
                 crate::features::markdown::update::handle_touchpad_gesture_ended(app, event_time)
+            }
+            crate::app::messages::MarkdownMsg::AnimationTick => {
+                crate::features::markdown::view::components::image::handle_markdown_animation_tick(
+                    app,
+                )
             }
         },
         Message::Epub(msg) => match msg {

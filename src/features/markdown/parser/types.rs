@@ -26,8 +26,16 @@ pub enum Inline {
     Italic(Vec<Inline>),
     Strikethrough(Vec<Inline>),
     Code(String),
-    Link { text: Vec<Inline>, url: String },
-    Image { alt: String, url: String },
+    Link {
+        text: Vec<Inline>,
+        url: String,
+    },
+    Image {
+        alt: String,
+        url: String,
+        width: Option<u32>,
+        height: Option<u32>,
+    },
     InlineMath(String),
     DisplayMath(String),
     FootnoteReference(String),
@@ -69,6 +77,8 @@ pub enum Block {
         alt: String,
         path: String,
         link_url: Option<String>,
+        width: Option<u32>,
+        height: Option<u32>,
     },
     List {
         ordered: bool,
@@ -120,4 +130,49 @@ impl BlockLayout {
     pub fn invalidate_measurement(&mut self) {
         self.measured_height = None;
     }
+}
+
+pub fn collect_image_paths(block: &Block, out: &mut Vec<String>) {
+    match block {
+        Block::Image { path, .. } => {
+            out.push(path.clone());
+        }
+        Block::List { items, .. } => {
+            for item in items {
+                for sub in &item.sub_blocks {
+                    collect_image_paths(sub, out);
+                }
+            }
+        }
+        Block::Quote(blocks)
+        | Block::Alert {
+            content: blocks, ..
+        }
+        | Block::FootnoteDefinition {
+            content: blocks, ..
+        } => {
+            for b in blocks {
+                collect_image_paths(b, out);
+            }
+        }
+        Block::Frontmatter(_)
+        | Block::Heading { .. }
+        | Block::Paragraph(_)
+        | Block::CodeBlock { .. }
+        | Block::Table(_)
+        | Block::Mermaid { .. }
+        | Block::HorizontalRule
+        | Block::Html(_)
+        | Block::Math(_) => {}
+    }
+}
+
+pub fn collect_all_image_paths(blocks: &[Block]) -> Vec<String> {
+    let mut paths = Vec::new();
+    for block in blocks {
+        collect_image_paths(block, &mut paths);
+    }
+    paths.sort();
+    paths.dedup();
+    paths
 }

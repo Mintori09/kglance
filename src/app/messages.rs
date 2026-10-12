@@ -50,6 +50,7 @@ pub enum ImageMsg {
         width: u32,
         height: u32,
     },
+    AnimationTick,
 }
 
 #[derive(Debug, Clone)]
@@ -195,8 +196,8 @@ pub enum MarkdownMsg {
     },
     ImageLoaded {
         generation_id: usize,
-        index: usize,
-        png_bytes: Option<Vec<u8>>,
+        path: String,
+        payload: Option<crate::features::image::DecodedImagePayload>,
     },
     SidebarResized(f32),
     SelectionChanged(Option<String>),
@@ -217,6 +218,7 @@ pub enum MarkdownMsg {
         height: f32,
     },
     TouchpadGestureEnded(std::time::Instant),
+    AnimationTick,
 }
 
 #[derive(Debug, Clone)]

@@ -628,3 +628,64 @@ fn test_epub_toc_heading_resolution() {
         "Sub-heading must be further down in blocks"
     );
 }
+
+#[test]
+fn test_epub_img_tag_with_dimensions_and_remote_url() {
+    use crate::features::markdown::parser::parse_to_blocks;
+
+    let html = r#"
+        <html xmlns="http://www.w3.org/1999/xhtml">
+        <body>
+            <p>Kanji illustration:</p>
+            <img src="https://cdn.jsdelivr.net/gh/mistval/kanji_images@master/gifs/6e29.gif" width="90" alt="温" />
+            <p>Another image:</p>
+            <img src="images/fig1.png" style="width: 150px; height: 100px" alt="Figure 1" />
+        </body>
+        </html>
+    "#;
+
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+
+    let img_blocks: Vec<&Block> = blocks
+        .iter()
+        .filter(|b| matches!(b, Block::Image { .. }))
+        .collect();
+
+    assert_eq!(img_blocks.len(), 2);
+
+    match img_blocks[0] {
+        Block::Image {
+            alt,
+            path,
+            width,
+            height,
+            ..
+        } => {
+            assert_eq!(alt, "温");
+            assert_eq!(
+                path,
+                "https://cdn.jsdelivr.net/gh/mistval/kanji_images@master/gifs/6e29.gif"
+            );
+            assert_eq!(*width, Some(90));
+            assert_eq!(*height, None);
+        }
+        _ => panic!("Expected Block::Image"),
+    }
+
+    match img_blocks[1] {
+        Block::Image {
+            alt,
+            path,
+            width,
+            height,
+            ..
+        } => {
+            assert_eq!(alt, "Figure 1");
+            assert_eq!(path, "images/fig1.png");
+            assert_eq!(*width, Some(150));
+            assert_eq!(*height, Some(100));
+        }
+        _ => panic!("Expected Block::Image"),
+    }
+}

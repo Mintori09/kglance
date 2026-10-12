@@ -462,6 +462,11 @@ impl KglanceApp {
             .markdown
             .generation_id
             .fetch_add(1, Ordering::Relaxed);
+        self.state
+            .epub
+            .markdown_state
+            .generation_id
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     fn save_current_read_position(&mut self) {
@@ -475,6 +480,7 @@ impl KglanceApp {
 
     fn prepare_file_tasks(&mut self, path: &str, content: &PreviewData) -> Vec<Task<Message>> {
         let mut tasks = self.prepare_markdown_tasks(content, path);
+        tasks.extend(self.prepare_epub_tasks(content));
 
         if let Some(task) = self.prepare_pdf_task(content, path) {
             tasks.push(task);
@@ -617,88 +623,103 @@ impl KglanceApp {
         let current_gen = self.state.markdown.generation_id.load(Ordering::Relaxed);
         if let PreviewData::Markdown { blocks, .. } = content {
             for (i, block) in blocks.iter().enumerate() {
-                match block {
-                    Block::Mermaid {
-                        lines,
-                        rendered: None,
-                    } => {
-                        log_debug!("Spawning async render for Mermaid block[{}]", i);
-                        let code = lines.join("\n");
-                        let prefer_cli = self.state.prefer_mermaid_cli;
-                        let gen_arc = Arc::clone(&self.state.markdown.generation_id);
-                        tasks.push(Task::perform(
-                            async move {
-                                if gen_arc.load(Ordering::Relaxed) != current_gen {
-                                    return crate::app::messages::MarkdownMsg::MermaidBlockRendered {
-                                        generation_id: current_gen,
-                                        index: i,
-                                        png_bytes: None,
-                                    }
-                                    .into();
-                                }
-
-                                let png = tokio::task::spawn_blocking(move || {
-                                    if gen_arc.load(Ordering::Relaxed) != current_gen {
-                                        return None;
-                                    }
-                                    crate::parsers::markdown::render_mermaid_to_png(
-                                        &code, None, prefer_cli,
-                                    )
-                                })
-                                .await
-                                .ok()
-                                .flatten();
-                                crate::app::messages::MarkdownMsg::MermaidBlockRendered {
+                if let Block::Mermaid {
+                    lines,
+                    rendered: None,
+                } = block
+                {
+                    log_debug!("Spawning async render for Mermaid block[{}]", i);
+                    let code = lines.join("\n");
+                    let prefer_cli = self.state.prefer_mermaid_cli;
+                    let gen_arc = Arc::clone(&self.state.markdown.generation_id);
+                    tasks.push(Task::perform(
+                        async move {
+                            if gen_arc.load(Ordering::Relaxed) != current_gen {
+                                return crate::app::messages::MarkdownMsg::MermaidBlockRendered {
                                     generation_id: current_gen,
                                     index: i,
-                                    png_bytes: png,
+                                    png_bytes: None,
                                 }
-                                .into()
-                            },
-                            |msg| msg,
-                        ));
-                    }
-                    Block::Image { path, .. } => {
-                        log_debug!("Spawning async load for Image block[{}]: {}", i, path);
-                        let path_str = path.clone();
-                        if crate::core::net::is_remote_url(&path_str) {
-                            tasks.push(Task::perform(
-                                async move {
-                                    let bytes =
-                                        crate::core::net::fetch_remote_image(&path_str).await;
-                                    crate::app::messages::MarkdownMsg::ImageLoaded {
-                                        generation_id: current_gen,
-                                        index: i,
-                                        png_bytes: bytes,
-                                    }
-                                    .into()
-                                },
-                                |msg| msg,
-                            ));
-                        } else {
-                            let resolved = crate::core::utils::resolve_path(&path_str, file_path);
+                                .into();
+                            }
 
-                            tasks.push(Task::perform(
-                                async move {
-                                    let bytes = tokio::task::spawn_blocking(move || {
-                                        std::fs::read(&resolved).ok()
-                                    })
-                                    .await
-                                    .ok()
-                                    .flatten();
-                                    crate::app::messages::MarkdownMsg::ImageLoaded {
-                                        generation_id: current_gen,
-                                        index: i,
-                                        png_bytes: bytes,
-                                    }
-                                    .into()
-                                },
-                                |msg| msg,
-                            ));
-                        }
-                    }
-                    _ => {}
+                            let png = tokio::task::spawn_blocking(move || {
+                                if gen_arc.load(Ordering::Relaxed) != current_gen {
+                                    return None;
+                                }
+                                crate::parsers::markdown::render_mermaid_to_png(
+                                    &code, None, prefer_cli,
+                                )
+                            })
+                            .await
+                            .ok()
+                            .flatten();
+                            crate::app::messages::MarkdownMsg::MermaidBlockRendered {
+                                generation_id: current_gen,
+                                index: i,
+                                png_bytes: png,
+                            }
+                            .into()
+                        },
+                        |msg| msg,
+                    ));
                 }
+            }
+
+            let image_paths = crate::features::markdown::parser::collect_all_image_paths(blocks);
+            let gen_arc = self.state.markdown.generation_id.clone();
+            let base_file = Some(file_path.to_string());
+            for path_str in image_paths {
+                tasks.push(crate::features::markdown::spawn_image_load_task(
+                    path_str,
+                    base_file.clone(),
+                    gen_arc.clone(),
+                    current_gen,
+                ));
+            }
+        }
+        tasks
+    }
+
+    fn prepare_epub_tasks(&self, content: &PreviewData) -> Vec<Task<Message>> {
+        let mut tasks = Vec::new();
+        let current_gen = self
+            .state
+            .epub
+            .markdown_state
+            .generation_id
+            .load(Ordering::Relaxed);
+        if let PreviewData::Epub {
+            chapters,
+            active_chapter,
+            ..
+        } = content
+        {
+            let blocks: Vec<&Block> = if self.state.epub.reading_mode
+                == crate::core::config::EpubReadingMode::Continuous
+            {
+                self.state.epub.continuous_blocks.iter().collect()
+            } else if let Some(ch) = chapters.get(*active_chapter) {
+                ch.blocks.iter().collect()
+            } else {
+                Vec::new()
+            };
+
+            let mut all_image_paths = Vec::new();
+            for block in &blocks {
+                crate::features::markdown::parser::collect_image_paths(block, &mut all_image_paths);
+            }
+            all_image_paths.sort();
+            all_image_paths.dedup();
+
+            let gen_arc = self.state.epub.markdown_state.generation_id.clone();
+            for path_str in all_image_paths {
+                tasks.push(crate::features::markdown::spawn_image_load_task(
+                    path_str,
+                    None,
+                    gen_arc.clone(),
+                    current_gen,
+                ));
             }
         }
         tasks
@@ -1270,6 +1291,29 @@ impl KglanceApp {
             Subscription::none()
         };
 
+        let is_epub = matches!(self.current_content, Some(PreviewData::Epub { .. }));
+        let has_markdown_anim = if is_epub {
+            !self.state.epub.markdown_state.animated_gifs.is_empty()
+        } else {
+            !self.state.markdown.animated_gifs.is_empty()
+        };
+
+        let gui_open = !self.is_daemon || self.is_gui_open.load(Ordering::Relaxed);
+
+        let markdown_anim_sub = if has_markdown_anim && gui_open {
+            iced::time::every(std::time::Duration::from_millis(30))
+                .map(|_| crate::app::messages::MarkdownMsg::AnimationTick.into())
+        } else {
+            Subscription::none()
+        };
+
+        let image_anim_sub = if self.state.image.animated_gif.is_some() && gui_open {
+            iced::time::every(std::time::Duration::from_millis(30))
+                .map(|_| crate::app::messages::ImageMsg::AnimationTick.into())
+        } else {
+            Subscription::none()
+        };
+
         Subscription::batch(vec![
             dbus_sub,
             event_sub,
@@ -1284,6 +1328,8 @@ impl KglanceApp {
             read_positions_sub,
             audio_tick_sub,
             spinner_sub,
+            markdown_anim_sub,
+            image_anim_sub,
         ])
     }
 

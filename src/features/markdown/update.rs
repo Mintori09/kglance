@@ -76,7 +76,7 @@ fn markdown_block_y_offset(
     blocks: &[Block],
     target_index: usize,
     font_size: f32,
-    image_sizes: &std::collections::HashMap<usize, (u32, u32)>,
+    image_sizes: &std::collections::HashMap<String, (u32, u32)>,
     content_width: f32,
 ) -> f32 {
     // This is an O(n) fallback that should never fire in practice:

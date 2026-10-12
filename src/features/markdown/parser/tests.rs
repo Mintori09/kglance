@@ -107,10 +107,14 @@ fn parses_image_block_from_markdown() {
             alt,
             path,
             link_url,
+            width,
+            height,
         } => {
             assert_eq!(alt, "alt text");
             assert_eq!(path, "path/to/image.png");
             assert_eq!(*link_url, None);
+            assert_eq!(*width, None);
+            assert_eq!(*height, None);
         }
         _ => panic!("expected Block::Image, got {:?}", blocks[0]),
     }
@@ -125,10 +129,14 @@ fn parses_image_with_remote_url() {
             alt,
             path,
             link_url,
+            width,
+            height,
         } => {
             assert_eq!(alt, "remote");
             assert_eq!(path, "https://example.com/image.png");
             assert_eq!(*link_url, None);
+            assert_eq!(*width, None);
+            assert_eq!(*height, None);
         }
         _ => panic!("expected Block::Image, got {:?}", blocks[0]),
     }
@@ -144,6 +152,7 @@ fn parses_image_wrapped_in_link() {
             alt,
             path,
             link_url,
+            ..
         } => {
             assert_eq!(alt, "");
             assert!(path.contains("d4156dcc-b807-40e7-bb9f-772755365378"));
@@ -156,6 +165,193 @@ fn parses_image_wrapped_in_link() {
             );
         }
         _ => panic!("expected Block::Image, got {:?}", blocks[0]),
+    }
+}
+
+#[test]
+fn parses_html_image_with_width_and_alt() {
+    let md = r#"<img src="https://cdn.jsdelivr.net/gh/mistval/kanji_images@master/gifs/6e29.gif" width="90" alt="温" />"#;
+    let blocks = parse_to_blocks(md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Image {
+            alt,
+            path,
+            link_url,
+            width,
+            height,
+        } => {
+            assert_eq!(alt, "温");
+            assert_eq!(
+                path,
+                "https://cdn.jsdelivr.net/gh/mistval/kanji_images@master/gifs/6e29.gif"
+            );
+            assert_eq!(*link_url, None);
+            assert_eq!(*width, Some(90));
+            assert_eq!(*height, None);
+        }
+        _ => panic!("expected Block::Image, got {:?}", blocks[0]),
+    }
+}
+
+#[test]
+fn parses_html_image_with_dimensions_and_units() {
+    let md = r#"<img src="diagram.png" width="120px" height="80px" alt="Diagram" />"#;
+    let blocks = parse_to_blocks(md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Image {
+            alt,
+            path,
+            link_url,
+            width,
+            height,
+        } => {
+            assert_eq!(alt, "Diagram");
+            assert_eq!(path, "diagram.png");
+            assert_eq!(*link_url, None);
+            assert_eq!(*width, Some(120));
+            assert_eq!(*height, Some(80));
+        }
+        _ => panic!("expected Block::Image, got {:?}", blocks[0]),
+    }
+}
+
+#[test]
+fn parses_html_image_with_style_attribute() {
+    let md = r#"<img src="styled.png" style="width: 250px; height: 150px" alt="Styled" />"#;
+    let blocks = parse_to_blocks(md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Image {
+            alt,
+            path,
+            width,
+            height,
+            ..
+        } => {
+            assert_eq!(alt, "Styled");
+            assert_eq!(path, "styled.png");
+            assert_eq!(*width, Some(250));
+            assert_eq!(*height, Some(150));
+        }
+        _ => panic!("expected Block::Image, got {:?}", blocks[0]),
+    }
+}
+
+#[test]
+fn parses_inline_html_image_in_paragraph() {
+    let md = "Prefix text <img src=\"https://example.com/icon.gif\" width=\"32\" alt=\"icon\" /> Suffix text";
+    let blocks = parse_to_blocks(md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            assert_eq!(inlines.len(), 3);
+            match &inlines[1] {
+                Inline::Image {
+                    alt,
+                    url,
+                    width,
+                    height,
+                } => {
+                    assert_eq!(alt, "icon");
+                    assert_eq!(url, "https://example.com/icon.gif");
+                    assert_eq!(*width, Some(32));
+                    assert_eq!(*height, None);
+                }
+                _ => panic!("expected Inline::Image, got {:?}", inlines[1]),
+            }
+        }
+        _ => panic!("expected Block::Paragraph, got {:?}", blocks[0]),
+    }
+}
+
+#[test]
+fn parses_obsidian_japanese_vocabulary_file_images() {
+    let content = r#"# Kanji Vocab List
+
+- **飾る (かざる)**:
+  <img src="https://cdn.jsdelivr.net/gh/mistval/kanji_images@master/gifs/98fe.gif" width="90" alt="飾" />
+  To decorate, ornament.
+
+- **遊ぶ (あそぶ)**:
+  <img src="https://cdn.jsdelivr.net/gh/mistval/kanji_images@master/gifs/904a.gif" width="90" alt="遊" />
+  To play, enjoy.
+
+- **書く (かく)**:
+  ![kanji](https://cdn.jsdelivr.net/gh/mistval/kanji_images@master/gifs/66f8.gif)
+  To write.
+"#;
+    let blocks = parse_to_blocks(content);
+    let images = collect_all_image_paths(&blocks);
+    assert_eq!(images.len(), 3, "Must find all 3 stroke order images");
+    assert!(images.iter().any(|img| img.contains("98fe.gif")));
+    assert!(images.iter().any(|img| img.contains("904a.gif")));
+    assert!(images.iter().any(|img| img.contains("66f8.gif")));
+}
+
+#[test]
+fn parses_list_item_with_html_image() {
+    let md = "- **Thứ tự nét viết**:\n  <img src=\"https://cdn.jsdelivr.net/gh/mistval/kanji_images@master/gifs/98fe.gif\" width=\"90\" alt=\"飾\" />\n";
+    let blocks = parse_to_blocks(md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::List { items, .. } => {
+            assert_eq!(items.len(), 1);
+            let item = &items[0];
+            assert_eq!(item.sub_blocks.len(), 1);
+            match &item.sub_blocks[0] {
+                Block::Image {
+                    alt,
+                    path,
+                    width,
+                    height,
+                    ..
+                } => {
+                    assert_eq!(alt, "飾");
+                    assert_eq!(
+                        path,
+                        "https://cdn.jsdelivr.net/gh/mistval/kanji_images@master/gifs/98fe.gif"
+                    );
+                    assert_eq!(*width, Some(90));
+                    assert_eq!(*height, None);
+                }
+                _ => panic!(
+                    "expected Block::Image in sub_blocks, got {:?}",
+                    item.sub_blocks[0]
+                ),
+            }
+        }
+        _ => panic!("expected Block::List, got {:?}", blocks[0]),
+    }
+
+    let all_images = collect_all_image_paths(&blocks);
+    assert_eq!(
+        all_images,
+        vec!["https://cdn.jsdelivr.net/gh/mistval/kanji_images@master/gifs/98fe.gif".to_string()]
+    );
+}
+
+#[test]
+fn parses_list_item_with_multiple_html_images() {
+    let md = "- **Thứ tự nét viết**:\n  <img src=\"https://cdn.jsdelivr.net/gh/mistval/kanji_images@master/gifs/975e.gif\" width=\"90\" alt=\"非\" /> <img src=\"https://cdn.jsdelivr.net/gh/mistval/kanji_images@master/gifs/5e38.gif\" width=\"90\" alt=\"常\" />\n";
+    let blocks = parse_to_blocks(md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::List { items, .. } => {
+            assert_eq!(items.len(), 1);
+            let item = &items[0];
+            assert_eq!(item.sub_blocks.len(), 2);
+            match &item.sub_blocks[0] {
+                Block::Image { alt, .. } => assert_eq!(alt, "非"),
+                _ => panic!("expected first Block::Image"),
+            }
+            match &item.sub_blocks[1] {
+                Block::Image { alt, .. } => assert_eq!(alt, "常"),
+                _ => panic!("expected second Block::Image"),
+            }
+        }
+        _ => panic!("expected Block::List, got {:?}", blocks[0]),
     }
 }
 

@@ -27,7 +27,13 @@ pub(crate) fn render_block<'a>(
         Block::CodeBlock { lang, code, .. } => render_code_block(lang, code, ctx),
         Block::Table(table) => render_table(table, ctx),
         Block::Mermaid { lines, rendered: _ } => render_mermaid(index, lines, state, ctx),
-        Block::Image { link_url, .. } => render_inline_image(index, link_url.as_deref(), state),
+        Block::Image {
+            path,
+            link_url,
+            width,
+            height,
+            alt: _,
+        } => render_inline_image(path, link_url.as_deref(), *width, *height, state),
         Block::List {
             ordered,
             start_number,
