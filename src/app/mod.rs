@@ -145,6 +145,7 @@ impl KglanceApp {
             word_wrap: config.ui.word_wrap,
             json_tree_view: config.ui.json_tree_view,
             cache_config: config.cache.clone(),
+            selection_menu_config: config.selection_menu.clone(),
 
             ..Default::default()
         };

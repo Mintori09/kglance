@@ -105,6 +105,12 @@ impl super::KglanceApp {
             return self.update(crate::app::messages::ImageMsg::CloseInfo.into());
         }
 
+        if self.state.selection_menu.is_visible()
+            && matches!(key, iced::keyboard::Key::Named(Named::Escape))
+        {
+            return self.update(crate::app::messages::SelectionMenuMsg::Dismiss.into());
+        }
+
         if let Some(task) = self.handle_close_shortcuts(&key) {
             return task;
         }

@@ -331,7 +331,35 @@ pub enum SettingsMsg {
     SmoothScrollChanged(bool),
     ScrollFrictionChanged(f32),
     ScrollSpringStiffnessChanged(f32),
+    SelectionMenuToggled(bool),
     ResetToDefaults,
+}
+
+#[derive(Debug, Clone)]
+pub enum SelectionMenuMsg {
+    Show {
+        pos: iced::Point,
+        text: String,
+    },
+    Dismiss,
+    CopyClicked(String),
+    CustomActionClicked {
+        action: crate::core::selection_action::CustomAction,
+        text: String,
+    },
+    ActionResult {
+        action_name: String,
+        result: Result<String, String>,
+        popup: bool,
+        toast: bool,
+    },
+    StreamChunk {
+        action_name: String,
+        chunk: String,
+    },
+    StreamFinished {
+        action_name: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -354,6 +382,7 @@ pub enum Message {
     Epub(EpubMsg),
     Json(JsonMsg),
     Settings(SettingsMsg),
+    SelectionMenu(SelectionMenuMsg),
 
     // Layout / Global Events
     SmoothScrollTick(std::time::Instant),
@@ -444,5 +473,10 @@ impl From<JsonMsg> for Message {
 impl From<SettingsMsg> for Message {
     fn from(m: SettingsMsg) -> Self {
         Message::Settings(m)
+    }
+}
+impl From<SelectionMenuMsg> for Message {
+    fn from(m: SelectionMenuMsg) -> Self {
+        Message::SelectionMenu(m)
     }
 }
