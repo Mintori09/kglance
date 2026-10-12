@@ -79,6 +79,9 @@ pub fn render_selection_menu_layer<'a>(state: &'a KglanceState) -> Option<Elemen
                     .align_y(Alignment::Center);
 
                 for action in &state.selection_menu_config.custom_actions {
+                    if !action.enabled {
+                        continue;
+                    }
                     let action_btn: Element<'a, Message> =
                         button(text(&action.name).size(typography::CAPTION).font(main_font))
                             .on_press(
@@ -222,13 +225,6 @@ pub fn render_selection_menu_layer<'a>(state: &'a KglanceState) -> Option<Elemen
         (pos.y + 16.0).clamp(44.0, (win_h - menu_h - 12.0).max(44.0))
     };
 
-    let backdrop = mouse_area(
-        container(Space::new().width(Length::Fill).height(Length::Fill))
-            .width(Length::Fill)
-            .height(Length::Fill),
-    )
-    .on_press(SelectionMenuMsg::Dismiss.into());
-
     let positioned_menu = container(content_widget)
         .padding(Padding {
             top: clamped_y,
@@ -239,9 +235,20 @@ pub fn render_selection_menu_layer<'a>(state: &'a KglanceState) -> Option<Elemen
         .width(Length::Fill)
         .height(Length::Fill);
 
-    let layer = iced::widget::Stack::new()
-        .push(backdrop)
-        .push(positioned_menu);
+    if matches!(state.selection_menu, SelectionMenuState::Result { .. }) {
+        let backdrop = mouse_area(
+            container(Space::new().width(Length::Fill).height(Length::Fill))
+                .width(Length::Fill)
+                .height(Length::Fill),
+        )
+        .on_press(SelectionMenuMsg::Dismiss.into());
 
-    Some(layer.into())
+        let layer = iced::widget::Stack::new()
+            .push(backdrop)
+            .push(positioned_menu);
+
+        Some(layer.into())
+    } else {
+        Some(positioned_menu.into())
+    }
 }

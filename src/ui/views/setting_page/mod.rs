@@ -20,17 +20,20 @@ pub use appearance::AVAILABLE_THEMES;
 
 const TITLE_FONT_SIZE: f32 = 16.0;
 
-pub fn settings_page<'a>(
-    theme: &Theme,
-    config: &UiConfig,
-    cache_config: &CacheConfig,
-    scroll_config: &ScrollConfigOptions,
-    selection_menu_enabled: bool,
-    active_tab: SettingTab,
-    available_fonts: &'a [String],
-) -> Element<'a, Message> {
-    let base_colors = BaseColors::palette(theme);
-    let main_font = get_main_font(config.font_family.as_deref());
+pub struct SettingsPageContext<'a, 'b> {
+    pub theme: &'b Theme,
+    pub config: &'b UiConfig,
+    pub cache_config: &'b CacheConfig,
+    pub scroll_config: &'b ScrollConfigOptions,
+    pub selection_menu_config: &'a crate::core::selection_action::SelectionMenuConfig,
+    pub action_editor: Option<&'a crate::core::selection_action::CustomActionEditorState>,
+    pub active_tab: SettingTab,
+    pub available_fonts: &'a [String],
+}
+
+pub fn settings_page<'a>(ctx: SettingsPageContext<'a, '_>) -> Element<'a, Message> {
+    let base_colors = BaseColors::palette(ctx.theme);
+    let main_font = get_main_font(ctx.config.font_family.as_deref());
 
     // Header: Title + Close (✕)
     let header_row = row![
@@ -50,7 +53,7 @@ pub fn settings_page<'a>(
 
     // Segmented Tabs: [ Appearance ] [ Window ] [ Previews ] [ Cache & Scroll ]
     let tab_button = |label: &'static str, tab: SettingTab| {
-        let is_selected = active_tab == tab;
+        let is_selected = ctx.active_tab == tab;
         button(
             text(label)
                 .size(12)
@@ -59,7 +62,7 @@ pub fn settings_page<'a>(
         )
         .on_press(Message::Settings(SettingsMsg::TabChanged(tab)))
         .style({
-            let theme_clone = theme.clone();
+            let theme_clone = ctx.theme.clone();
             move |_, status| default_row_button(&theme_clone, status, is_selected)
         })
         .padding([spacing::XS, spacing::M])
@@ -80,17 +83,24 @@ pub fn settings_page<'a>(
     .style(default_inset);
 
     // Active Tab Content
-    let tab_content: Element<'a, Message> = match active_tab {
+    let tab_content: Element<'a, Message> = match ctx.active_tab {
         SettingTab::Appearance => {
-            appearance::appearance_tab(theme, config, available_fonts, main_font)
+            appearance::appearance_tab(ctx.theme, ctx.config, ctx.available_fonts, main_font)
         }
-        SettingTab::Window => window::window_tab(theme, config, main_font),
-        SettingTab::Previews => {
-            previews::previews_tab(theme, config, selection_menu_enabled, main_font)
-        }
-        SettingTab::CacheScroll => {
-            cache_scroll::cache_scroll_tab(theme, cache_config, scroll_config, main_font)
-        }
+        SettingTab::Window => window::window_tab(ctx.theme, ctx.config, main_font),
+        SettingTab::Previews => previews::previews_tab(
+            ctx.theme,
+            ctx.config,
+            ctx.selection_menu_config,
+            ctx.action_editor,
+            main_font,
+        ),
+        SettingTab::CacheScroll => cache_scroll::cache_scroll_tab(
+            ctx.theme,
+            ctx.cache_config,
+            ctx.scroll_config,
+            main_font,
+        ),
     };
 
     let scrollable_content = iced::widget::scrollable(tab_content).height(iced::Length::Fill);

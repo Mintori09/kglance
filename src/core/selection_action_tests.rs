@@ -36,18 +36,21 @@ fn test_deserialize_selection_menu_config() {
     assert_eq!(cfg.custom_actions.len(), 3);
     assert_eq!(cfg.custom_actions[0].name, "Translate");
     assert_eq!(cfg.custom_actions[0].command, "trans -b :vi");
+    assert!(cfg.custom_actions[0].enabled);
     assert!(cfg.custom_actions[0].popup);
     assert!(!cfg.custom_actions[0].toast);
     assert!(!cfg.custom_actions[0].stream);
 
     assert_eq!(cfg.custom_actions[1].name, "Add Note");
     assert_eq!(cfg.custom_actions[1].command, "cat >> ~/notes.txt");
+    assert!(cfg.custom_actions[1].enabled);
     assert!(!cfg.custom_actions[1].popup);
     assert!(cfg.custom_actions[1].toast);
     assert!(!cfg.custom_actions[1].stream);
 
     assert_eq!(cfg.custom_actions[2].name, "AI Explain");
     assert_eq!(cfg.custom_actions[2].command, "ollama run llama3");
+    assert!(cfg.custom_actions[2].enabled);
     assert!(cfg.custom_actions[2].popup);
     assert!(!cfg.custom_actions[2].toast);
     assert!(cfg.custom_actions[2].stream);
@@ -115,12 +118,41 @@ async fn test_execute_custom_action_failure() {
     assert!(res.is_err());
 }
 
+#[tokio::test]
+async fn test_execute_custom_action_large_env_truncation() {
+    let cmd = "echo \"${#KGLANCE_TEXT}\"".to_string();
+    // 32 KB string (larger than MAX_ENV_TEXT_BYTES)
+    let text = "a".repeat(32 * 1024);
+    let res = execute_custom_action(cmd, text)
+        .await
+        .expect("execute large env");
+    let len: usize = res.trim().parse().expect("parsed length");
+    assert_eq!(len, MAX_ENV_TEXT_BYTES);
+}
+
+#[tokio::test]
+async fn test_execute_custom_action_timeout() {
+    let cmd = "sleep 35".to_string();
+    let text = "test".to_string();
+    let res = match tokio::time::timeout(
+        std::time::Duration::from_millis(50),
+        execute_custom_action(cmd, text),
+    )
+    .await
+    {
+        Ok(r) => r,
+        Err(_) => Err("Command timed out after 30 seconds".to_string()),
+    };
+    assert!(res.is_err());
+}
+
 #[test]
 fn test_toolbar_dynamic_bounds_and_cursor_inside() {
     let actions = vec![
         CustomAction {
             name: "📖 Dict (Loading)".to_string(),
             command: "".to_string(),
+            enabled: true,
             popup: true,
             toast: false,
             stream: false,
@@ -128,6 +160,7 @@ fn test_toolbar_dynamic_bounds_and_cursor_inside() {
         CustomAction {
             name: "🤖 AI Stream".to_string(),
             command: "".to_string(),
+            enabled: true,
             popup: true,
             toast: false,
             stream: true,
@@ -135,6 +168,7 @@ fn test_toolbar_dynamic_bounds_and_cursor_inside() {
         CustomAction {
             name: "⚡ Explain Code".to_string(),
             command: "".to_string(),
+            enabled: true,
             popup: true,
             toast: false,
             stream: false,
@@ -142,6 +176,7 @@ fn test_toolbar_dynamic_bounds_and_cursor_inside() {
         CustomAction {
             name: "📌 Lưu Ghi Chú".to_string(),
             command: "".to_string(),
+            enabled: true,
             popup: false,
             toast: true,
             stream: false,
@@ -153,6 +188,17 @@ fn test_toolbar_dynamic_bounds_and_cursor_inside() {
 
     let w_custom = estimate_toolbar_width(&actions);
     assert!(w_custom > 450.0);
+
+    // Disabled actions should not increase toolbar width
+    let disabled_actions = vec![CustomAction {
+        name: "Disabled Action".to_string(),
+        command: "".to_string(),
+        enabled: false,
+        popup: true,
+        toast: false,
+        stream: false,
+    }];
+    assert_eq!(estimate_toolbar_width(&disabled_actions), w_empty);
 
     let pos = iced::Point::new(100.0, 200.0);
     let state = SelectionMenuState::Toolbar {

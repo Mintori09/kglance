@@ -30,6 +30,7 @@
       {
         "name": "Translate VI",
         "command": "trans -b :vi",
+        "enabled": true,
         "popup": true,
         "toast": false,
         "stream": false
