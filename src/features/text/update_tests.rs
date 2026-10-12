@@ -114,3 +114,44 @@ fn test_search_closed_preserves_scroll() {
     assert!(app.state.text.search_query.is_empty());
     assert_eq!(app.state.text.scroll_y, 750.0);
 }
+
+#[test]
+fn test_text_selection_drag_ended_triggers_selection_menu() {
+    let mut app = KglanceApp::default();
+    let content = "Hello world from text selection";
+    app.state.text = create_text_state(
+        content.to_string(),
+        "txt",
+        14.0,
+        false,
+        AppTheme::Dark,
+        800.0,
+    );
+    app.state.selection_menu_config.enabled = true;
+    app.state.last_cursor_position = Some(iced::Point::new(150.0, 200.0));
+
+    assert!(matches!(
+        app.state.selection_menu,
+        crate::core::selection_action::SelectionMenuState::Hidden
+    ));
+
+    let start_pos = crate::ui::components::code_viewer::TextPosition::new(0, 6);
+    let end_pos = crate::ui::components::code_viewer::TextPosition::new(0, 11);
+    let _ = handle_selection_changed(&mut app, Some(SelectionRange::new(start_pos, end_pos)));
+
+    let _ = handle_selection_drag_ended(&mut app);
+
+    match &app.state.selection_menu {
+        crate::core::selection_action::SelectionMenuState::Toolbar { pos, selected_text } => {
+            assert_eq!(*pos, iced::Point::new(150.0, 200.0));
+            assert_eq!(selected_text, "world");
+        }
+        other => panic!("Expected Toolbar state, got {other:?}"),
+    }
+
+    let _ = handle_selection_changed(&mut app, None);
+    assert!(matches!(
+        app.state.selection_menu,
+        crate::core::selection_action::SelectionMenuState::Hidden
+    ));
+}
