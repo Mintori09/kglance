@@ -77,3 +77,32 @@ fn test_json_tree_handle_smooth_scroll_tick() {
     let _ = handle_smooth_scroll_tick(&mut app, now2);
     assert!(app.state.json.scroll_y > 100.0);
 }
+
+#[test]
+fn test_json_wheel_scroll_interrupts_active_kinetic_scroll() {
+    let mut app = create_json_test_app();
+    app.state.json.viewport_height = 800.0;
+    app.state.json.total_content_height = 5000.0;
+    app.state.json.scroll_y = 100.0;
+
+    // 1. Start kinetic fling
+    app.state
+        .json
+        .scroll_controller
+        .start_kinetic(100.0, 1500.0, 4200.0);
+    assert!(app.state.json.scroll_controller.is_animating());
+
+    // 2. User turns the mouse wheel (Lines)
+    let delta = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -2.0 };
+    let _ = handle_wheel_scrolled(&mut app, delta);
+
+    // Active kinetic fling must be cancelled
+    assert!(!app.state.json.scroll_controller.is_animating());
+    assert!(app.state.json.smooth_scroll.is_animating);
+
+    // 3. Frame tick must advance smooth scroll, NOT kinetic fling
+    let now = std::time::Instant::now();
+    let _ = handle_smooth_scroll_tick(&mut app, now);
+    assert!(!app.state.json.scroll_controller.is_animating());
+    assert!(app.state.json.scroll_y > 100.0);
+}

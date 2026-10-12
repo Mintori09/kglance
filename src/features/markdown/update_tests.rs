@@ -793,3 +793,97 @@ fn test_update_selected_text_preserves_fallback_when_range_is_none() {
         Some("fallback text")
     );
 }
+
+#[test]
+fn test_wheel_scroll_lines_interrupts_active_kinetic_scroll() {
+    use crate::app::test_util::test_app;
+
+    let mut app = test_app(None);
+    app.state.markdown.viewport_height = 800.0;
+    app.state.markdown.total_content_height = 5000.0;
+    app.state.markdown.scroll_y = 100.0;
+
+    // 1. Start a kinetic fling
+    app.state
+        .markdown
+        .scroll_controller
+        .start_kinetic(100.0, 1500.0, 4200.0);
+    assert!(app.state.markdown.scroll_controller.is_animating());
+
+    // 2. User turns the mouse wheel (Lines)
+    let delta = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -2.0 };
+    let _ = handle_smooth_wheel_scrolled(&mut app, delta);
+
+    // Active kinetic fling must be immediately cancelled
+    assert!(!app.state.markdown.scroll_controller.is_animating());
+    assert!(app.state.markdown.smooth_scroll.is_animating);
+
+    // 3. Frame tick must advance smooth scroll towards wheel target, NOT kinetic position
+    let now = std::time::Instant::now();
+    let _ = handle_smooth_scroll_tick(&mut app, now);
+    assert!(!app.state.markdown.scroll_controller.is_animating());
+    assert!(app.state.markdown.scroll_y > 100.0);
+}
+
+#[test]
+fn test_toc_heading_click_interrupts_active_kinetic_scroll() {
+    use crate::app::test_util::test_app;
+
+    let mut app = test_app(None);
+    app.state.markdown.viewport_height = 800.0;
+    app.state.markdown.total_content_height = 6000.0;
+    app.state.markdown.scroll_y = 200.0;
+    app.state.markdown.block_y_offsets = vec![0.0, 1500.0, 3000.0];
+
+    // 1. Start a kinetic fling
+    app.state
+        .markdown
+        .scroll_controller
+        .start_kinetic(200.0, 2500.0, 5200.0);
+    assert!(app.state.markdown.scroll_controller.is_animating());
+
+    // 2. User clicks a TOC heading
+    let _ = handle_toc_heading_clicked(&mut app, 1);
+
+    // Active kinetic fling must be stopped
+    assert!(!app.state.markdown.scroll_controller.is_animating());
+    assert!(app.state.markdown.smooth_scroll.is_animating);
+    assert_eq!(
+        app.state.markdown.smooth_scroll.target_y(),
+        crate::parsers::markdown::layout_constants::CONTENT_PADDING + 1500.0
+    );
+
+    // 3. Frame tick must advance towards TOC target without snapping back
+    let now = std::time::Instant::now();
+    let _ = handle_smooth_scroll_tick(&mut app, now);
+    assert!(!app.state.markdown.scroll_controller.is_animating());
+}
+
+#[test]
+fn test_handle_markdown_scrolled_interruption_stops_active_kinetic_scroll() {
+    use crate::app::test_util::test_app;
+
+    let mut app = test_app(None);
+    app.state.markdown.viewport_height = 800.0;
+    app.state.markdown.total_content_height = 6000.0;
+    app.state.markdown.scroll_y = 200.0;
+
+    // 1. Start a kinetic fling
+    app.state
+        .markdown
+        .scroll_controller
+        .start_kinetic(200.0, 2000.0, 5200.0);
+    assert!(app.state.markdown.scroll_controller.is_animating());
+
+    // 2. User drags the scrollbar to 2500.0
+    let _ = handle_markdown_scrolled(&mut app, 2500.0, 800.0, 6000.0);
+
+    // Active kinetic fling must be interrupted and stopped at 2500.0
+    assert!(!app.state.markdown.scroll_controller.is_animating());
+    assert_eq!(app.state.markdown.scroll_y, 2500.0);
+
+    // Next tick must not jump back
+    let now = std::time::Instant::now();
+    let _ = handle_smooth_scroll_tick(&mut app, now);
+    assert_eq!(app.state.markdown.scroll_y, 2500.0);
+}

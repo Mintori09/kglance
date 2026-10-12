@@ -246,6 +246,7 @@ pub fn handle_search_next(app: &mut KglanceApp) -> Task<Message> {
             text_state.total_content_height,
             text_state.viewport_height,
         );
+        text_state.scroll_controller.stop(text_state.scroll_y);
         text_state
             .smooth_scroll
             .start_navigation(text_state.scroll_y, target_y, max_y);
@@ -278,6 +279,7 @@ pub fn handle_search_prev(app: &mut KglanceApp) -> Task<Message> {
             text_state.total_content_height,
             text_state.viewport_height,
         );
+        text_state.scroll_controller.stop(text_state.scroll_y);
         text_state
             .smooth_scroll
             .start_navigation(text_state.scroll_y, target_y, max_y);
@@ -391,9 +393,11 @@ pub fn handle_text_scrolled_values(
         text_state.total_content_height = text_state.display_map.total_content_height();
     }
 
-    let is_animating = text_state.smooth_scroll.is_animating
-        || text_state.scroll_controller.is_animating()
-        || text_state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging;
+    let is_interrupted = text_state.scroll_controller.check_interruption(y);
+    let is_animating = !is_interrupted
+        && (text_state.smooth_scroll.is_animating
+            || text_state.scroll_controller.is_animating()
+            || text_state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging);
     if is_animating {
         return Task::none();
     }
@@ -439,6 +443,7 @@ pub fn handle_text_state_wheel_scrolled(
     match delta {
         iced::mouse::ScrollDelta::Lines { y, .. } => {
             if y.abs() > f32::EPSILON {
+                text_state.scroll_controller.stop(text_state.scroll_y);
                 let line_height =
                     (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION).clamp(50.0, 240.0);
                 let step = -y * line_height;

@@ -148,6 +148,7 @@ pub fn handle_toc_heading_clicked(app: &mut KglanceApp, idx: usize) -> Task<Mess
         });
     let max_y =
         crate::core::scroll::max_scroll_y(state.total_content_height, state.viewport_height);
+    state.scroll_controller.stop(state.scroll_y);
     state
         .smooth_scroll
         .start_navigation(state.scroll_y, y, max_y);
@@ -177,9 +178,11 @@ pub fn handle_markdown_scrolled(
             }
         }
 
-        if state.smooth_scroll.is_animating
-            || state.scroll_controller.is_animating()
-            || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+        let is_interrupted = state.scroll_controller.check_interruption(y);
+        if !is_interrupted
+            && (state.smooth_scroll.is_animating
+                || state.scroll_controller.is_animating()
+                || state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging)
         {
             return Task::none();
         }
@@ -337,6 +340,7 @@ pub fn handle_search_next(app: &mut KglanceApp) -> Task<Message> {
         };
         let s = &mut app.state.markdown;
         let max_y = crate::core::scroll::max_scroll_y(s.total_content_height, s.viewport_height);
+        s.scroll_controller.stop(s.scroll_y);
         s.smooth_scroll.start_navigation(s.scroll_y, y, max_y);
         return Task::none();
     }
@@ -373,6 +377,7 @@ pub fn handle_search_prev(app: &mut KglanceApp) -> Task<Message> {
         };
         let s = &mut app.state.markdown;
         let max_y = crate::core::scroll::max_scroll_y(s.total_content_height, s.viewport_height);
+        s.scroll_controller.stop(s.scroll_y);
         s.smooth_scroll.start_navigation(s.scroll_y, y, max_y);
         return Task::none();
     }
@@ -520,8 +525,11 @@ pub fn handle_auto_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
         return Task::none();
     };
 
-    let new_y = (active_markdown_state(app).scroll_y + delta).max(0.0);
-    active_markdown_state_mut(app).scroll_y = new_y;
+    let s = active_markdown_state_mut(app);
+    let new_y = (s.scroll_y + delta).max(0.0);
+    s.scroll_y = new_y;
+    s.scroll_controller.stop(new_y);
+    s.smooth_scroll.stop(new_y);
 
     let total_blocks = match &app.current_content {
         Some(PreviewData::Markdown { blocks, .. }) => blocks.len(),
@@ -555,6 +563,7 @@ pub fn handle_auto_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
 pub fn start_smooth_scroll(state: &mut crate::core::MarkdownState, target_y: f32) {
     let max_y =
         crate::core::scroll::max_scroll_y(state.total_content_height, state.viewport_height);
+    state.scroll_controller.stop(state.scroll_y);
     state
         .smooth_scroll
         .start_navigation(state.scroll_y, target_y, max_y);
@@ -615,6 +624,7 @@ pub fn handle_smooth_wheel_scrolled(
     match delta {
         iced::mouse::ScrollDelta::Lines { y, .. } => {
             if y.abs() > f32::EPSILON {
+                state.scroll_controller.stop(state.scroll_y);
                 let line_height =
                     (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION).clamp(50.0, 240.0);
                 let step = -y * line_height;

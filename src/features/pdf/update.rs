@@ -94,6 +94,7 @@ pub fn handle_wheel_scrolled(
     match delta {
         iced::mouse::ScrollDelta::Lines { y, .. } => {
             if y.abs() > f32::EPSILON {
+                pdf_state.scroll_controller.stop(pdf_state.scroll_y);
                 let line_height =
                     (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION).clamp(50.0, 240.0);
                 let step = -y * line_height;
@@ -117,7 +118,7 @@ pub fn handle_wheel_scrolled(
                         promote_window_pages(pdf_state, page_index);
                     }
                     return iced::widget::operation::scroll_to(
-                        "pdf_content_scroll",
+                        "content_scroll",
                         iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
                     );
                 }
@@ -270,9 +271,11 @@ pub fn handle_scrolled(
     let view_h = viewport.bounds().height;
 
     let pdf_state = active_pdf_state_mut(app);
-    if pdf_state.scroll_controller.is_animating()
-        || pdf_state.smooth_scroll.is_animating
-        || pdf_state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging
+    let is_interrupted = pdf_state.scroll_controller.check_interruption(y);
+    if !is_interrupted
+        && (pdf_state.scroll_controller.is_animating()
+            || pdf_state.smooth_scroll.is_animating
+            || pdf_state.scroll_controller.state() == crate::core::scroll::GestureState::Dragging)
     {
         return Task::none();
     }
@@ -504,7 +507,7 @@ pub fn handle_auto_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
     let new_y = (pdf_state.scroll_y + delta).clamp(0.0, max_y);
 
     pdf_state.scroll_y = new_y;
-    pdf_state.scroll_controller.set_position_y(new_y);
+    pdf_state.scroll_controller.stop(new_y);
     pdf_state.smooth_scroll.stop(new_y);
 
     let count = pdf_state.page_count;
@@ -697,7 +700,7 @@ fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
         crate::features::pdf::viewport::page_scroll_offset(&pdf_state.page_y_offsets, target);
 
     pdf_state.scroll_y = target_y;
-    pdf_state.scroll_controller.set_position_y(target_y);
+    pdf_state.scroll_controller.stop(target_y);
     pdf_state.smooth_scroll.stop(target_y);
 
     let main_scroll = iced::widget::operation::scroll_to(
