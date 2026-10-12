@@ -194,3 +194,19 @@ fn test_multiline_selection_per_line_slices() {
     // Line 3 slice (after selection): line_start >= end, so not selected
     assert!(line_starts[3] >= end);
 }
+
+#[test]
+fn test_word_vietnamese_and_unicode_quotes() {
+    let text = "“Xin chào” — Kglance!";
+    let chao_offset = text.find("chào").expect("must find chào");
+    let range_chao = expand_to_word_bounds(text, chao_offset + 1);
+    assert_eq!(substr(text, range_chao), "chào");
+
+    let xin_offset = text.find("Xin").expect("must find Xin");
+    let range_xin = expand_to_word_bounds(text, xin_offset);
+    assert_eq!(substr(text, range_xin), "Xin");
+
+    let kglance_offset = text.find("Kglance").expect("must find Kglance");
+    let range_kglance = expand_to_word_bounds(text, kglance_offset + 2);
+    assert_eq!(substr(text, range_kglance), "Kglance");
+}

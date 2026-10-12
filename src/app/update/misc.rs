@@ -197,44 +197,52 @@ pub fn handle_sidebar_drag_ended(app: &mut KglanceApp) -> Task<Message> {
 }
 
 pub fn handle_mouse_pressed(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message> {
-    if app.state.selection_menu.is_visible() {
-        // The global subscription fires MousePressed with x=0,y=0 (no position in event).
-        // Resolve the actual click point from the last known cursor position.
-        let click_pt = if x > 0.0 || y > 0.0 {
-            Some(iced::Point::new(x, y))
-        } else {
-            // last_cursor_position is None only before the first CursorMoved, which means
-            // we have no reliable position to check bounds against — don't hide.
-            app.state.last_cursor_position
-        };
+    let selection_started = {
+        let s = markdown::active_markdown_state_mut(app);
+        std::mem::take(&mut s.selection_started_in_press)
+    };
 
-        let win_w = app.state.current_window_size.width;
-        let win_h = app.state.current_window_size.height;
-        let is_inside = app.state.selection_menu.is_cursor_inside(
-            click_pt,
-            win_w,
-            win_h,
-            &app.state.selection_menu_config.custom_actions,
-        );
+    if !selection_started {
+        if app.state.selection_menu.is_visible() {
+            // The global subscription fires MousePressed with x=0,y=0 (no position in event).
+            // Resolve the actual click point from the last known cursor position.
+            let click_pt = if x > 0.0 || y > 0.0 {
+                Some(iced::Point::new(x, y))
+            } else {
+                // last_cursor_position is None only before the first CursorMoved, which means
+                // we have no reliable position to check bounds against — don't hide.
+                app.state.last_cursor_position
+            };
 
-        if is_inside {
-            // User clicked inside the selection menu toolbar or popup card.
-            // Preserve the menu and active document selection.
-            return Task::none();
+            let win_w = app.state.current_window_size.width;
+            let win_h = app.state.current_window_size.height;
+            let is_inside = app.state.selection_menu.is_cursor_inside(
+                click_pt,
+                win_w,
+                win_h,
+                &app.state.selection_menu_config.custom_actions,
+            );
+
+            if is_inside {
+                // User clicked inside the selection menu toolbar or popup card.
+                // Preserve the menu and active document selection.
+                return Task::none();
+            }
+
+            if !app.state.selection_menu.is_busy() {
+                app.state.selection_menu.hide();
+            }
         }
 
-        if !app.state.selection_menu.is_busy() {
-            app.state.selection_menu.hide();
-        }
+        let s = markdown::active_markdown_state_mut(app);
+        s.selection_range = None;
+        s.selected_text = None;
     }
 
     app.stop_active_scroll_animations();
     app.state.pdf.auto_scroll_delta = None;
     let s = markdown::active_markdown_state_mut(app);
-    s.is_mouse_held = true;
-    s.is_dragging_selection = false;
-    s.selection_range = None;
-    s.selected_text = None;
+    s.is_mouse_held = s.is_dragging_selection;
     s.auto_scroll_delta = None;
     s.smooth_scroll.is_animating = false;
     s.smooth_scroll.velocity = 0.0;

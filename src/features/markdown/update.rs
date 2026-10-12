@@ -404,6 +404,9 @@ pub fn handle_selection_drag_start(
     block: usize,
     offset: usize,
 ) -> Task<Message> {
+    if !app.state.selection_menu.is_busy() {
+        app.state.selection_menu.hide();
+    }
     let s = active_markdown_state_mut(app);
     let start_pt = crate::core::SelectionPoint { block, offset };
     s.selection_range = Some(crate::core::SelectionRange {
@@ -412,6 +415,7 @@ pub fn handle_selection_drag_start(
     });
     s.is_dragging_selection = true;
     s.selected_text = None;
+    s.selection_started_in_press = true;
     Task::none()
 }
 
@@ -437,6 +441,11 @@ pub fn handle_selection_drag_end(app: &mut KglanceApp) -> Task<Message> {
     let s = active_markdown_state_mut(app);
     s.is_dragging_selection = false;
     s.auto_scroll_delta = None;
+    if let Some(range) = s.selection_range
+        && (range.start.block, range.start.offset) == (range.end.block, range.end.offset)
+    {
+        s.selection_range = None;
+    }
     update_selected_text_from_range(app);
 
     // Don't overwrite the popup while a background action is loading or streaming.

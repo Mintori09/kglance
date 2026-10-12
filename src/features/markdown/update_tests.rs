@@ -517,3 +517,207 @@ fn test_codeblock_selection_multiline() {
     assert!(selected.is_some());
     assert_eq!(selected.unwrap(), target);
 }
+
+#[test]
+fn test_double_click_selection_lifecycle_not_cleared_by_mouse_pressed() {
+    use crate::app::test_util::test_app;
+
+    let mut app = test_app(None);
+    let src = "Hello world from Kglance";
+    let blocks = parse_to_blocks(src);
+    app.current_content = Some(crate::core::PreviewData::Markdown {
+        raw_text: src.to_string(),
+        blocks,
+    });
+
+    // 1. Double click triggers drag start and drag update with word bounds (e.g. "world" at 6..11)
+    let _ = handle_selection_drag_start(&mut app, 0, 6);
+    let _ = handle_selection_drag_update(&mut app, 0, 11);
+    let _ = handle_selection_drag_end(&mut app);
+
+    assert_eq!(app.state.markdown.selected_text.as_deref(), Some("world"));
+    assert_eq!(
+        app.state.markdown.selection_range,
+        Some(SelectionRange {
+            start: SelectionPoint {
+                block: 0,
+                offset: 6
+            },
+            end: SelectionPoint {
+                block: 0,
+                offset: 11
+            },
+        })
+    );
+
+    // 2. Global MousePressed subscription fires in the same click cycle.
+    // selection_started_in_press must protect the selection from being cleared.
+    let _ = crate::app::update::misc::handle_mouse_pressed(&mut app, 0.0, 0.0);
+
+    assert_eq!(app.state.markdown.selected_text.as_deref(), Some("world"));
+    assert_eq!(
+        app.state.markdown.selection_range,
+        Some(SelectionRange {
+            start: SelectionPoint {
+                block: 0,
+                offset: 6
+            },
+            end: SelectionPoint {
+                block: 0,
+                offset: 11
+            },
+        })
+    );
+}
+
+#[test]
+fn test_triple_click_paragraph_lifecycle() {
+    use crate::app::test_util::test_app;
+
+    let mut app = test_app(None);
+    let src = "Hello world from Kglance";
+    let blocks = parse_to_blocks(src);
+    let block_len = src.len();
+    app.current_content = Some(crate::core::PreviewData::Markdown {
+        raw_text: src.to_string(),
+        blocks,
+    });
+
+    // Triple click selects entire paragraph block (0..24)
+    let _ = handle_selection_drag_start(&mut app, 0, 0);
+    let _ = handle_selection_drag_update(&mut app, 0, block_len);
+    let _ = handle_selection_drag_end(&mut app);
+
+    assert_eq!(
+        app.state.markdown.selected_text.as_deref(),
+        Some("Hello world from Kglance")
+    );
+    assert_eq!(
+        app.state.markdown.selection_range,
+        Some(SelectionRange {
+            start: SelectionPoint {
+                block: 0,
+                offset: 0
+            },
+            end: SelectionPoint {
+                block: 0,
+                offset: block_len
+            },
+        })
+    );
+
+    // Global MousePressed must not clear selection
+    let _ = crate::app::update::misc::handle_mouse_pressed(&mut app, 0.0, 0.0);
+
+    assert_eq!(
+        app.state.markdown.selected_text.as_deref(),
+        Some("Hello world from Kglance")
+    );
+    assert_eq!(
+        app.state.markdown.selection_range,
+        Some(SelectionRange {
+            start: SelectionPoint {
+                block: 0,
+                offset: 0
+            },
+            end: SelectionPoint {
+                block: 0,
+                offset: block_len
+            },
+        })
+    );
+}
+
+#[test]
+fn test_mouse_pressed_outside_clears_selection() {
+    use crate::app::test_util::test_app;
+
+    let mut app = test_app(None);
+    let src = "Hello world";
+    let blocks = parse_to_blocks(src);
+    app.current_content = Some(crate::core::PreviewData::Markdown {
+        raw_text: src.to_string(),
+        blocks,
+    });
+
+    app.state.markdown.selection_range = Some(SelectionRange {
+        start: SelectionPoint {
+            block: 0,
+            offset: 0,
+        },
+        end: SelectionPoint {
+            block: 0,
+            offset: 5,
+        },
+    });
+    app.state.markdown.selected_text = Some("Hello".to_string());
+    app.state.markdown.selection_started_in_press = false;
+
+    // Mouse pressed outside text selection
+    let _ = crate::app::update::misc::handle_mouse_pressed(&mut app, 0.0, 0.0);
+
+    assert_eq!(app.state.markdown.selection_range, None);
+    assert_eq!(app.state.markdown.selected_text, None);
+}
+
+#[test]
+fn test_single_click_without_drag_clears_selection_on_end() {
+    use crate::app::test_util::test_app;
+
+    let mut app = test_app(None);
+    let src = "Hello world";
+    let blocks = parse_to_blocks(src);
+    app.current_content = Some(crate::core::PreviewData::Markdown {
+        raw_text: src.to_string(),
+        blocks,
+    });
+
+    // Single click at offset 5 without dragging: start == end
+    let _ = handle_selection_drag_start(&mut app, 0, 5);
+    let _ = handle_selection_drag_end(&mut app);
+
+    assert_eq!(app.state.markdown.selection_range, None);
+    assert_eq!(app.state.markdown.selected_text, None);
+}
+
+#[test]
+fn test_epub_double_click_selection_lifecycle() {
+    use crate::app::test_util::test_app;
+    use crate::core::types::EpubChapterInfo;
+
+    let mut app = test_app(None);
+    let src = "EPUB chapter text content";
+    let blocks = parse_to_blocks(src);
+    let chapters = vec![EpubChapterInfo {
+        title: "Chapter 1".into(),
+        level: 1,
+        anchor: None,
+        file_href: "ch1.xhtml".into(),
+        blocks,
+    }];
+    app.state.epub.chapters = chapters.clone();
+    app.state.epub.active_chapter = 0;
+    app.current_content = Some(crate::core::PreviewData::Epub {
+        title: "Test EPUB".into(),
+        author: "Author".into(),
+        chapters,
+        active_chapter: 0,
+        images: std::collections::HashMap::new(),
+    });
+
+    // Double-click word "chapter" at 5..12
+    let _ = handle_selection_drag_start(&mut app, 0, 5);
+    let _ = handle_selection_drag_update(&mut app, 0, 12);
+    let _ = handle_selection_drag_end(&mut app);
+
+    assert_eq!(
+        app.state.epub.markdown_state.selected_text.as_deref(),
+        Some("chapter")
+    );
+
+    let _ = crate::app::update::misc::handle_mouse_pressed(&mut app, 0.0, 0.0);
+    assert_eq!(
+        app.state.epub.markdown_state.selected_text.as_deref(),
+        Some("chapter")
+    );
+}

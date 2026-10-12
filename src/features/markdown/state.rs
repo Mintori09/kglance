@@ -386,6 +386,7 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
         selection_range: None,
         is_dragging_selection: false,
         is_mouse_held: false,
+        selection_started_in_press: false,
         auto_scroll_delta: None,
         drag_last_y: 0.0,
         smooth_scroll: crate::core::types::SmoothScrollState::default(),

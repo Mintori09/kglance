@@ -54,6 +54,7 @@ pub struct MarkdownState {
     pub selection_range: Option<SelectionRange>,
     pub is_dragging_selection: bool,
     pub is_mouse_held: bool,
+    pub selection_started_in_press: bool,
     pub auto_scroll_delta: Option<f32>,
     pub drag_last_y: f32,
     /// `block_layouts[i]` stores the estimated and measured height for block `i`.
@@ -107,6 +108,7 @@ impl Default for MarkdownState {
             selection_range: None,
             is_dragging_selection: false,
             is_mouse_held: false,
+            selection_started_in_press: false,
             auto_scroll_delta: None,
             drag_last_y: 0.0,
             block_layouts: Vec::new(),
