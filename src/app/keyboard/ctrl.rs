@@ -183,21 +183,17 @@ impl KglanceApp {
 
                     crate::features::markdown::update::update_selected_text_from_range(self);
 
-                    let txt = match crate::features::markdown::update::active_markdown_state(self)
+                    if crate::features::markdown::update::active_markdown_state(self)
                         .selected_text
-                        .clone()
+                        .is_none()
+                        && previous.is_some()
                     {
-                        Some(t) => Some(t),
-                        None => {
-                            if previous.is_some() {
-                                crate::features::markdown::update::active_markdown_state_mut(
-                                    self,
-                                )
-                                .selected_text = previous.clone();
-                            }
-                            previous
-                        }
-                    };
+                        crate::features::markdown::update::active_markdown_state_mut(self)
+                            .selected_text = previous;
+                    }
+                    let txt = crate::features::markdown::update::active_markdown_state(self)
+                        .selected_text
+                        .clone();
                     (txt, None)
                 }
 
