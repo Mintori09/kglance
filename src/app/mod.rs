@@ -1263,10 +1263,7 @@ impl KglanceApp {
         };
 
         let smooth_scroll_sub = if self.is_active_smooth_scrolling() {
-            iced::time::every(std::time::Duration::from_millis(
-                crate::features::markdown::update::SMOOTH_SCROLL_TICK_MS,
-            ))
-            .map(|_| crate::app::messages::Message::SmoothScrollTick(std::time::Instant::now()))
+            iced::window::frames().map(crate::app::messages::Message::SmoothScrollTick)
         } else {
             Subscription::none()
         };

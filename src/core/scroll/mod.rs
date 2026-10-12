@@ -19,7 +19,8 @@ pub use velocity::{
     WeightedRecentRegression,
 };
 
-pub const INTERACTIVE_HALF_LIFE: f32 = 0.08; // 80 ms half-life
+pub const INTERACTIVE_HALF_LIFE: f32 = 0.10; // 100 ms half-life
+pub const DEFAULT_FRAME_DT: f32 = 1.0 / 120.0; // Fallback dt before first frame duration is measured
 pub const SMOOTH_SCROLL_MAX_DT: f32 = 0.05; // 50 ms cap to avoid quantum leaps on lag
 pub const STOP_THRESHOLD: f32 = 0.5; // 0.5px threshold for stop
 pub const WHEEL_SCROLL_VIEWPORT_FRACTION: f32 = 0.15;
@@ -431,7 +432,7 @@ impl ScrollController {
         let dt = match (self.last_tick.replace(now), self.start_time) {
             (Some(last), _) => now.saturating_duration_since(last).as_secs_f32(),
             (None, Some(start)) => now.saturating_duration_since(start).as_secs_f32(),
-            (None, None) => 1.0 / 125.0,
+            (None, None) => DEFAULT_FRAME_DT,
         };
 
         match self.mode {
@@ -512,7 +513,7 @@ impl ScrollController {
 
         let dt = match self.last_tick.replace(now) {
             Some(last) => now.saturating_duration_since(last).as_secs_f32().min(0.05),
-            None => 1.0 / 120.0,
+            None => DEFAULT_FRAME_DT,
         };
 
         match self.gesture.state() {

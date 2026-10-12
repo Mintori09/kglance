@@ -5,9 +5,6 @@ use crate::parsers::markdown::Block;
 use iced::Task;
 use iced::widget::operation;
 
-/// Tick interval for smooth scroll animation (~125fps).
-pub(crate) const SMOOTH_SCROLL_TICK_MS: u64 = 8;
-
 /// Lookahead offset in pixels for active TOC item and EPUB chapter detection.
 ///
 /// Prevents jitter and activates a heading slightly before it scrolls out of view or
