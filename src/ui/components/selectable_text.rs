@@ -188,43 +188,70 @@ fn point_to_offset(
     }
 }
 
+fn is_word_delimiter(c: char) -> bool {
+    c.is_whitespace()
+        || c.is_ascii_punctuation()
+        || matches!(
+            c,
+            '“' | '”'
+                | '‘'
+                | '’'
+                | '«'
+                | '»'
+                | '—'
+                | '–'
+                | '…'
+                | '·'
+                | '•'
+                | '、'
+                | '。'
+                | '〈'
+                | '〉'
+                | '《'
+                | '》'
+                | '「'
+                | '」'
+                | '『'
+                | '』'
+                | '【'
+                | '】'
+                | '〔'
+                | '〕'
+        )
+}
+
 fn expand_to_word_bounds(text: &str, offset: usize) -> (usize, usize) {
     if text.is_empty() {
         return (0, 0);
     }
-    let offset = offset.min(text.len());
+    let offset = char_boundary(text, offset.min(text.len()));
 
     if offset < text.len() {
-        let b = text.as_bytes()[offset];
-        if b.is_ascii_whitespace() || b.is_ascii_punctuation() {
+        let ch = text[offset..].chars().next().unwrap_or(' ');
+        if is_word_delimiter(ch) {
+            return (offset, offset);
+        }
+    } else if offset == text.len() {
+        let prev_ch = text.chars().next_back().unwrap_or(' ');
+        if is_word_delimiter(prev_ch) {
             return (offset, offset);
         }
     }
-
-    if offset == text.len() {
-        let b = text.as_bytes()[offset - 1];
-        if b.is_ascii_whitespace() || b.is_ascii_punctuation() {
-            return (offset, offset);
-        }
-    }
-
-    let bytes = text.as_bytes();
 
     let mut start = offset;
-    while start > 0 {
-        let prev = start - 1;
-        if bytes[prev].is_ascii_whitespace() || bytes[prev].is_ascii_punctuation() {
+    for (idx, ch) in text[..offset].char_indices().rev() {
+        if is_word_delimiter(ch) {
             break;
         }
-        start = prev;
+        start = idx;
     }
 
     let mut end = offset;
-    while end < text.len() {
-        if bytes[end].is_ascii_whitespace() || bytes[end].is_ascii_punctuation() {
+    for (idx, ch) in text[offset..].char_indices() {
+        if is_word_delimiter(ch) {
             break;
         }
-        end += 1;
+        end = offset + idx + ch.len_utf8();
     }
 
     (start, end)
@@ -438,7 +465,11 @@ where
             return;
         };
 
-        if self.selection_range.is_none() && !state.is_selecting && !state.is_mouse_held {
+        if self.block_index.is_some()
+            && self.selection_range.is_none()
+            && !state.is_selecting
+            && !state.is_mouse_held
+        {
             state.selection = None;
             state.drag_start = None;
         }
@@ -465,21 +496,51 @@ where
                             let (start, end) = expand_to_word_bounds(&state.plain_text, offset);
                             state.selection = Some((start, end));
                             state.is_selecting = false;
+                            state.is_mouse_held = false;
                             if let (Some(blk), Some(on_start), Some(on_update)) =
                                 (self.block_index, &self.on_drag_start, &self.on_drag_update)
                             {
                                 shell.publish(on_start(blk, start));
                                 shell.publish(on_update(blk, end));
+                                if let Some(on_end) = &self.on_drag_end {
+                                    shell.publish(on_end());
+                                }
+                            } else if let Some(on_change) = &self.on_selection_change {
+                                let start = char_boundary(&state.plain_text, start);
+                                let end = char_boundary(&state.plain_text, end);
+                                let selected_str = if start < end && end <= state.plain_text.len() {
+                                    Some(state.plain_text[start..end].to_string())
+                                } else {
+                                    None
+                                };
+                                shell.publish(on_change(selected_str));
+                                if let Some(on_end) = &self.on_drag_end {
+                                    shell.publish(on_end());
+                                }
                             }
                         }
                         click::Kind::Triple => {
                             state.selection = Some((0, state.plain_text.len()));
                             state.is_selecting = false;
+                            state.is_mouse_held = false;
                             if let (Some(blk), Some(on_start), Some(on_update)) =
                                 (self.block_index, &self.on_drag_start, &self.on_drag_update)
                             {
                                 shell.publish(on_start(blk, 0));
                                 shell.publish(on_update(blk, state.plain_text.len()));
+                                if let Some(on_end) = &self.on_drag_end {
+                                    shell.publish(on_end());
+                                }
+                            } else if let Some(on_change) = &self.on_selection_change {
+                                let selected_str = if !state.plain_text.is_empty() {
+                                    Some(state.plain_text.clone())
+                                } else {
+                                    None
+                                };
+                                shell.publish(on_change(selected_str));
+                                if let Some(on_end) = &self.on_drag_end {
+                                    shell.publish(on_end());
+                                }
                             }
                         }
                         click::Kind::Single => {
@@ -533,6 +594,12 @@ where
                                 state.drag_start = Some(offset);
                                 state.selection = Some((offset, offset));
                             }
+                            if let (Some(blk), Some(on_update)) =
+                                (self.block_index, &self.on_drag_update)
+                            {
+                                shell.publish(on_update(blk, offset));
+                            }
+                            shell.capture_event();
                         } else if state.is_mouse_held
                             || (self.drag_active && self.selection_range.is_none())
                         {
@@ -544,14 +611,13 @@ where
                             {
                                 shell.publish(on_start(blk, offset));
                             }
+                            if let (Some(blk), Some(on_update)) =
+                                (self.block_index, &self.on_drag_update)
+                            {
+                                shell.publish(on_update(blk, offset));
+                            }
+                            shell.capture_event();
                         }
-
-                        if let (Some(blk), Some(on_update)) =
-                            (self.block_index, &self.on_drag_update)
-                        {
-                            shell.publish(on_update(blk, offset));
-                        }
-                        shell.capture_event();
                     }
                 }
             }
