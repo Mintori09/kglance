@@ -40,7 +40,10 @@ pub enum Inline {
     DisplayMath(String),
     FootnoteReference(String),
     SoftBreak,
-    Ruby { text: String, ruby: String },
+    Ruby {
+        text: String,
+        ruby: String,
+    },
 }
 
 #[derive(Debug, Clone)]

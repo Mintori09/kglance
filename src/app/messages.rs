@@ -334,7 +334,51 @@ pub enum SettingsMsg {
     SmoothScrollChanged(bool),
     ScrollFrictionChanged(f32),
     ScrollSpringStiffnessChanged(f32),
+    SelectionMenuToggled(bool),
+    CustomAction(CustomActionEditorMsg),
     ResetToDefaults,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CustomActionEditorMsg {
+    OpenAdd,
+    OpenEdit(usize),
+    NameChanged(String),
+    CommandChanged(String),
+    PopupToggled(bool),
+    ToastToggled(bool),
+    StreamToggled(bool),
+    Save,
+    Cancel,
+    Delete(usize),
+    ToggleEnabled { index: usize, enabled: bool },
+}
+
+#[derive(Debug, Clone)]
+pub enum SelectionMenuMsg {
+    Show {
+        pos: iced::Point,
+        text: String,
+    },
+    Dismiss,
+    CopyClicked(String),
+    CustomActionClicked {
+        action: crate::core::selection_action::CustomAction,
+        text: String,
+    },
+    ActionResult {
+        action_name: String,
+        result: Result<String, String>,
+        popup: bool,
+        toast: bool,
+    },
+    StreamChunk {
+        action_name: String,
+        chunk: String,
+    },
+    StreamFinished {
+        action_name: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -366,6 +410,7 @@ pub enum Message {
     Json(JsonMsg),
     Settings(SettingsMsg),
     FileTree(FileTreeMsg),
+    SelectionMenu(SelectionMenuMsg),
 
     // Layout / Global Events
     SmoothScrollTick(std::time::Instant),
@@ -461,5 +506,10 @@ impl From<SettingsMsg> for Message {
 impl From<FileTreeMsg> for Message {
     fn from(m: FileTreeMsg) -> Self {
         Message::FileTree(m)
+    }
+}
+impl From<SelectionMenuMsg> for Message {
+    fn from(m: SelectionMenuMsg) -> Self {
+        Message::SelectionMenu(m)
     }
 }

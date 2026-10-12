@@ -12,6 +12,9 @@ pub fn handle_selection_changed(
     app: &mut KglanceApp,
     selection: Option<SelectionRange>,
 ) -> Task<Message> {
+    if selection.is_none() && !app.state.selection_menu.is_busy() {
+        app.state.selection_menu.hide();
+    }
     app.state.text.selection = selection;
     Task::none()
 }
@@ -29,6 +32,27 @@ pub fn handle_selection_drag_ended(app: &mut KglanceApp) -> Task<Message> {
     app.state.text.is_dragging_selection = false;
     app.state.text.auto_scroll_delta = None;
     app.state.text.drag_start = None;
+
+    if app.state.selection_menu.is_busy() {
+        return Task::none();
+    }
+
+    if app.state.selection_menu_config.enabled
+        && let Some(text) = app.state.text.selected_text()
+    {
+        let trimmed = text.trim();
+        if !trimmed.is_empty() {
+            let pos = app
+                .state
+                .last_cursor_position
+                .unwrap_or(iced::Point::new(100.0, 100.0));
+            app.state.selection_menu = crate::core::selection_action::SelectionMenuState::Toolbar {
+                pos,
+                selected_text: trimmed.to_string(),
+            };
+        }
+    }
+
     Task::none()
 }
 
@@ -467,6 +491,16 @@ pub fn handle_wheel_scrolled(
     app: &mut KglanceApp,
     delta: iced::mouse::ScrollDelta,
 ) -> Task<Message> {
+    let win_w = app.state.current_window_size.width;
+    let win_h = app.state.current_window_size.height;
+    if app.state.selection_menu.is_cursor_inside(
+        app.state.last_cursor_position,
+        win_w,
+        win_h,
+        &app.state.selection_menu_config.custom_actions,
+    ) {
+        return Task::none();
+    }
     if app.ctrl_held {
         return Task::none();
     }

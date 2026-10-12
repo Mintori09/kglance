@@ -1,6 +1,7 @@
 use crate::app::KglanceApp;
-use crate::app::messages::{Message, SettingsMsg};
+use crate::app::messages::{CustomActionEditorMsg, Message, SettingsMsg};
 use crate::core::config::ConfigManager;
+use crate::core::selection_action::{CustomAction, CustomActionEditorState};
 use iced::Task;
 
 pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<Message> {
@@ -430,8 +431,126 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             let _ = app.save_config(&config);
             Task::none()
         }
+        SettingsMsg::SelectionMenuToggled(enabled) => {
+            app.state.selection_menu_config.enabled = enabled;
+            let mut config = app.load_config();
+            config.selection_menu.enabled = enabled;
+            let _ = app.save_config(&config);
+            Task::none()
+        }
+        SettingsMsg::CustomAction(action_msg) => {
+            match action_msg {
+                CustomActionEditorMsg::OpenAdd => {
+                    app.state.action_editor = Some(CustomActionEditorState {
+                        editing_index: None,
+                        name: String::new(),
+                        command: String::new(),
+                        popup: true,
+                        toast: false,
+                        stream: false,
+                    });
+                }
+                CustomActionEditorMsg::OpenEdit(idx) => {
+                    if let Some(action) = app.state.selection_menu_config.custom_actions.get(idx) {
+                        app.state.action_editor = Some(CustomActionEditorState {
+                            editing_index: Some(idx),
+                            name: action.name.clone(),
+                            command: action.command.clone(),
+                            popup: action.popup,
+                            toast: action.toast,
+                            stream: action.stream,
+                        });
+                    }
+                }
+                CustomActionEditorMsg::Cancel => {
+                    app.state.action_editor = None;
+                }
+                CustomActionEditorMsg::NameChanged(name) => {
+                    if let Some(editor) = &mut app.state.action_editor {
+                        editor.name = name;
+                    }
+                }
+                CustomActionEditorMsg::CommandChanged(command) => {
+                    if let Some(editor) = &mut app.state.action_editor {
+                        editor.command = command;
+                    }
+                }
+                CustomActionEditorMsg::PopupToggled(popup) => {
+                    if let Some(editor) = &mut app.state.action_editor {
+                        editor.popup = popup;
+                    }
+                }
+                CustomActionEditorMsg::ToastToggled(toast) => {
+                    if let Some(editor) = &mut app.state.action_editor {
+                        editor.toast = toast;
+                    }
+                }
+                CustomActionEditorMsg::StreamToggled(stream) => {
+                    if let Some(editor) = &mut app.state.action_editor {
+                        editor.stream = stream;
+                    }
+                }
+                CustomActionEditorMsg::Save => {
+                    if let Some(editor) = app.state.action_editor.take() {
+                        let name = editor.name.trim().to_string();
+                        let command = editor.command.trim().to_string();
+                        if !name.is_empty() && !command.is_empty() {
+                            let action = CustomAction {
+                                name,
+                                command,
+                                enabled: true,
+                                popup: editor.popup,
+                                toast: editor.toast,
+                                stream: editor.stream,
+                            };
+                            if let Some(idx) = editor.editing_index {
+                                if idx < app.state.selection_menu_config.custom_actions.len() {
+                                    app.state.selection_menu_config.custom_actions[idx] = action;
+                                }
+                            } else {
+                                app.state.selection_menu_config.custom_actions.push(action);
+                            }
+                            let mut config = app.load_config();
+                            config.selection_menu = app.state.selection_menu_config.clone();
+                            let _ = app.save_config(&config);
+                        }
+                    }
+                }
+                CustomActionEditorMsg::Delete(idx) => {
+                    if idx < app.state.selection_menu_config.custom_actions.len() {
+                        app.state.selection_menu_config.custom_actions.remove(idx);
+                        if app
+                            .state
+                            .action_editor
+                            .as_ref()
+                            .is_some_and(|editor| editor.editing_index == Some(idx))
+                        {
+                            app.state.action_editor = None;
+                        }
+                        let mut config = app.load_config();
+                        config.selection_menu = app.state.selection_menu_config.clone();
+                        let _ = app.save_config(&config);
+                    }
+                }
+                CustomActionEditorMsg::ToggleEnabled { index, enabled } => {
+                    if let Some(action) = app
+                        .state
+                        .selection_menu_config
+                        .custom_actions
+                        .get_mut(index)
+                    {
+                        action.enabled = enabled;
+                        let mut config = app.load_config();
+                        config.selection_menu = app.state.selection_menu_config.clone();
+                        let _ = app.save_config(&config);
+                    }
+                }
+            }
+            Task::none()
+        }
         SettingsMsg::ResetToDefaults => {
             let default_config = crate::core::config::AppConfig::default();
+            app.state.selection_menu_config = default_config.selection_menu.clone();
             let old_size = app.state.font_size;
             app.state.font_size = default_config.ui.font_size;
             app.state.default_font_size = default_config.ui.font_size;

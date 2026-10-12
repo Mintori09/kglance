@@ -1,11 +1,15 @@
-use iced::widget::{column, container, pick_list, row, text, toggler};
+use iced::widget::{button, column, container, pick_list, row, text, text_input, toggler};
 use iced::{Alignment, Element, Font, Theme};
 
-use crate::app::messages::{Message, SettingsMsg};
+use crate::app::messages::{CustomActionEditorMsg, Message, SettingsMsg};
 use crate::core::config::{EpubReadingMode, RubyDisplayMode, UiConfig};
+use crate::core::selection_action::{CustomActionEditorState, SelectionMenuConfig};
 use crate::ui::theme::color::BaseColors;
 use crate::ui::theme::tokens::spacing;
-use crate::ui::theme::{default_card, default_pick_list, default_toggler};
+use crate::ui::theme::{
+    default_button, default_card, default_inset, default_pick_list, default_text_input,
+    default_toggler,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EpubModeDisplay {
@@ -41,11 +45,17 @@ impl std::fmt::Display for RubyModeDisplay {
     }
 }
 
-pub fn previews_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Element<'a, Message> {
+pub fn previews_tab<'a>(
+    theme: &Theme,
+    config: &UiConfig,
+    selection_menu_config: &'a SelectionMenuConfig,
+    action_editor: Option<&'a CustomActionEditorState>,
+    main_font: Font,
+) -> Element<'a, Message> {
     let base_colors = BaseColors::palette(theme);
     let theme_clone = theme.clone();
 
-    // --- CARD 1: DOCUMENTS & BOOKS ---
+    // --- CARD 1: DOCUMENTS & E-BOOKS ---
     let current_mode = match config.epub_reading_mode {
         EpubReadingMode::SingleChapter => EpubModeDisplay::SingleChapter,
         EpubReadingMode::Continuous => EpubModeDisplay::Continuous,
@@ -148,7 +158,286 @@ pub fn previews_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> El
     .padding(spacing::M)
     .style(default_card);
 
-    // --- CARD 2: SOURCE CODE & DATA ---
+    // --- CARD 2: SELECTION & QUICK ACTIONS ---
+    let selection_menu_cb = toggler(selection_menu_config.enabled)
+        .on_toggle(|enabled| Message::Settings(SettingsMsg::SelectionMenuToggled(enabled)))
+        .style({
+            let theme = theme_clone.clone();
+            move |_, status| default_toggler(&theme, status)
+        });
+
+    let selection_menu_row = build_setting_row(
+        "Selection Context Menu",
+        "Show floating quick actions (copy, search, translate, custom scripts) on text selection",
+        selection_menu_cb,
+        main_font,
+        base_colors.text,
+        base_colors.text_dim,
+    );
+
+    let mut selection_card_items: Vec<Element<'a, Message>> = vec![
+        text("SELECTION & QUICK ACTIONS")
+            .size(11)
+            .font(main_font)
+            .style(move |_| iced::widget::text::Style {
+                color: Some(base_colors.text_dim),
+            })
+            .into(),
+        selection_menu_row,
+    ];
+
+    if selection_menu_config.enabled {
+        let mut actions_column = column![].spacing(spacing::S);
+
+        if selection_menu_config.custom_actions.is_empty() {
+            actions_column = actions_column.push(
+                text("No custom actions configured.")
+                    .size(12)
+                    .font(main_font)
+                    .style(move |_| iced::widget::text::Style {
+                        color: Some(base_colors.text_dim),
+                    }),
+            );
+        } else {
+            for (i, action) in selection_menu_config.custom_actions.iter().enumerate() {
+                let action_enabled = action.enabled;
+                let toggle_btn = toggler(action_enabled)
+                    .on_toggle(move |enabled| {
+                        Message::Settings(SettingsMsg::CustomAction(
+                            CustomActionEditorMsg::ToggleEnabled { index: i, enabled },
+                        ))
+                    })
+                    .style({
+                        let theme = theme_clone.clone();
+                        move |_, status| default_toggler(&theme, status)
+                    });
+
+                let mut badges = Vec::new();
+                if action.popup {
+                    badges.push("Popup");
+                }
+                if action.stream {
+                    badges.push("Stream");
+                }
+                if action.toast {
+                    badges.push("Toast");
+                }
+                let badge_str = if badges.is_empty() {
+                    String::new()
+                } else {
+                    format!(" [{}]", badges.join(", "))
+                };
+
+                let name_label = row![
+                    text(&action.name).size(13).font(main_font).style(move |_| {
+                        iced::widget::text::Style {
+                            color: Some(base_colors.text),
+                        }
+                    }),
+                    text(badge_str).size(11).font(main_font).style(move |_| {
+                        iced::widget::text::Style {
+                            color: Some(base_colors.text_dim),
+                        }
+                    }),
+                ]
+                .spacing(spacing::XS)
+                .align_y(Alignment::Center);
+
+                let cmd_label = text(&action.command)
+                    .size(11)
+                    .font(main_font)
+                    .style(move |_| iced::widget::text::Style {
+                        color: Some(base_colors.text_dim),
+                    });
+
+                let info_col = column![name_label, cmd_label]
+                    .spacing(spacing::XXS)
+                    .width(iced::Length::Fill);
+
+                let edit_btn = button(text("Edit").size(11).font(main_font))
+                    .on_press(Message::Settings(SettingsMsg::CustomAction(
+                        CustomActionEditorMsg::OpenEdit(i),
+                    )))
+                    .style(default_button)
+                    .padding([spacing::XXS, spacing::S]);
+
+                let delete_btn = button(text("✕").size(11).font(main_font))
+                    .on_press(Message::Settings(SettingsMsg::CustomAction(
+                        CustomActionEditorMsg::Delete(i),
+                    )))
+                    .style(default_button)
+                    .padding([spacing::XXS, spacing::XS]);
+
+                let action_row = row![toggle_btn, info_col, edit_btn, delete_btn]
+                    .spacing(spacing::S)
+                    .align_y(Alignment::Center);
+
+                actions_column = actions_column.push(action_row);
+            }
+        }
+
+        // Form editor if active
+        if let Some(editor) = action_editor {
+            let form_title = if editor.editing_index.is_some() {
+                "Edit Custom Action"
+            } else {
+                "New Custom Action"
+            };
+
+            let theme_input_name = theme.clone();
+            let name_input = text_input("Action Name (e.g. Translate VI)", &editor.name)
+                .font(main_font)
+                .padding([spacing::XXS, spacing::XS])
+                .on_input(|s| {
+                    Message::Settings(SettingsMsg::CustomAction(
+                        CustomActionEditorMsg::NameChanged(s),
+                    ))
+                })
+                .style(move |_, status| default_text_input(&theme_input_name, status));
+
+            let theme_input_cmd = theme.clone();
+            let cmd_input = text_input("Shell Command (e.g. trans -b :vi)", &editor.command)
+                .font(main_font)
+                .padding([spacing::XXS, spacing::XS])
+                .on_input(|s| {
+                    Message::Settings(SettingsMsg::CustomAction(
+                        CustomActionEditorMsg::CommandChanged(s),
+                    ))
+                })
+                .style(move |_, status| default_text_input(&theme_input_cmd, status));
+
+            let popup_toggle = toggler(editor.popup)
+                .on_toggle(|b| {
+                    Message::Settings(SettingsMsg::CustomAction(
+                        CustomActionEditorMsg::PopupToggled(b),
+                    ))
+                })
+                .style({
+                    let theme = theme_clone.clone();
+                    move |_, status| default_toggler(&theme, status)
+                });
+            let popup_opt = row![
+                popup_toggle,
+                text("Popup Card").size(11).font(main_font).style(move |_| {
+                    iced::widget::text::Style {
+                        color: Some(base_colors.text),
+                    }
+                })
+            ]
+            .spacing(spacing::XS)
+            .align_y(Alignment::Center);
+
+            let stream_toggle = toggler(editor.stream)
+                .on_toggle(|b| {
+                    Message::Settings(SettingsMsg::CustomAction(
+                        CustomActionEditorMsg::StreamToggled(b),
+                    ))
+                })
+                .style({
+                    let theme = theme_clone.clone();
+                    move |_, status| default_toggler(&theme, status)
+                });
+            let stream_opt = row![
+                stream_toggle,
+                text("Streaming").size(11).font(main_font).style(move |_| {
+                    iced::widget::text::Style {
+                        color: Some(base_colors.text),
+                    }
+                })
+            ]
+            .spacing(spacing::XS)
+            .align_y(Alignment::Center);
+
+            let toast_toggle = toggler(editor.toast)
+                .on_toggle(|b| {
+                    Message::Settings(SettingsMsg::CustomAction(
+                        CustomActionEditorMsg::ToastToggled(b),
+                    ))
+                })
+                .style({
+                    let theme = theme_clone.clone();
+                    move |_, status| default_toggler(&theme, status)
+                });
+            let toast_opt = row![
+                toast_toggle,
+                text("Toast Notification")
+                    .size(11)
+                    .font(main_font)
+                    .style(move |_| iced::widget::text::Style {
+                        color: Some(base_colors.text)
+                    })
+            ]
+            .spacing(spacing::XS)
+            .align_y(Alignment::Center);
+
+            let options_row = row![popup_opt, stream_opt, toast_opt]
+                .spacing(spacing::M)
+                .align_y(Alignment::Center);
+
+            let cancel_btn = button(text("Cancel").size(11).font(main_font))
+                .on_press(Message::Settings(SettingsMsg::CustomAction(
+                    CustomActionEditorMsg::Cancel,
+                )))
+                .style(default_button)
+                .padding([spacing::XXS, spacing::M]);
+
+            let save_btn = button(text("Save Action").size(11).font(main_font))
+                .on_press(Message::Settings(SettingsMsg::CustomAction(
+                    CustomActionEditorMsg::Save,
+                )))
+                .style(default_button)
+                .padding([spacing::XXS, spacing::M]);
+
+            let form_box = container(
+                column![
+                    text(form_title)
+                        .size(12)
+                        .font(main_font)
+                        .style(move |_| iced::widget::text::Style {
+                            color: Some(base_colors.text),
+                        }),
+                    name_input,
+                    cmd_input,
+                    text("Selected text is passed via standard input and $KGLANCE_TEXT environment variable.")
+                        .size(10)
+                        .font(main_font)
+                        .style(move |_| iced::widget::text::Style {
+                            color: Some(base_colors.text_dim),
+                        }),
+                    options_row,
+                    row![
+                        iced::widget::Space::new().width(iced::Length::Fill),
+                        cancel_btn,
+                        save_btn,
+                    ]
+                    .spacing(spacing::S)
+                    .align_y(Alignment::Center),
+                ]
+                .spacing(spacing::S),
+            )
+            .padding(spacing::M)
+            .style(default_inset);
+
+            actions_column = actions_column.push(form_box);
+        } else {
+            let add_btn = button(text("+ Add Custom Action").size(11).font(main_font))
+                .on_press(Message::Settings(SettingsMsg::CustomAction(
+                    CustomActionEditorMsg::OpenAdd,
+                )))
+                .style(default_button)
+                .padding([spacing::XXS, spacing::M]);
+
+            actions_column = actions_column.push(add_btn);
+        }
+
+        selection_card_items.push(actions_column.into());
+    }
+
+    let selection_card = container(column(selection_card_items).spacing(spacing::M))
+        .padding(spacing::M)
+        .style(default_card);
+
+    // --- CARD 3: SOURCE CODE & DATA ---
     let wrap_cb = toggler(config.word_wrap)
         .on_toggle(|enabled| Message::Settings(SettingsMsg::WordWrapChanged(enabled)))
         .style({
@@ -194,7 +483,9 @@ pub fn previews_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> El
     .padding(spacing::M)
     .style(default_card);
 
-    column![doc_card, code_card].spacing(spacing::M).into()
+    column![doc_card, selection_card, code_card]
+        .spacing(spacing::M)
+        .into()
 }
 
 fn build_setting_row<'a>(

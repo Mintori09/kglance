@@ -396,7 +396,15 @@ pub fn view_window<'a>(
         .align_y(Alignment::End)
         .align_x(iced::alignment::Horizontal::Center);
 
-    let mut stack = Stack::new().push(base).push(toast_layer);
+    let mut stack = Stack::new().push(base);
+
+    if let Some(selection_layer) =
+        crate::ui::components::selection_menu::render_selection_menu_layer(state)
+    {
+        stack = stack.push(selection_layer);
+    }
+
+    stack = stack.push(toast_layer);
 
     if show_settings_modal {
         let ui_config = crate::core::config::UiConfig {
@@ -421,12 +429,16 @@ pub fn view_window<'a>(
         let theme = iced::Theme::from(state.app_theme);
 
         let settings_content = crate::ui::views::setting_page::settings_page(
-            &theme,
-            &ui_config,
-            &state.cache_config,
-            &state.scroll_config,
-            state.settings_tab,
-            static_fonts,
+            crate::ui::views::setting_page::SettingsPageContext {
+                theme: &theme,
+                config: &ui_config,
+                cache_config: &state.cache_config,
+                scroll_config: &state.scroll_config,
+                selection_menu_config: &state.selection_menu_config,
+                action_editor: state.action_editor.as_ref(),
+                active_tab: state.settings_tab,
+                available_fonts: static_fonts,
+            },
         );
 
         let modal_box = container(settings_content).width(700.0).max_height(540.0);

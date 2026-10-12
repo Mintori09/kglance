@@ -33,6 +33,10 @@ fn test_default_config_values() {
         crate::core::scroll::KINETIC_FRICTION_COEFFICIENT
     );
     assert_eq!(cfg.scroll.spring_stiffness, 180.0);
+
+    // Selection menu defaults
+    assert!(cfg.selection_menu.enabled);
+    assert!(cfg.selection_menu.custom_actions.is_empty());
 }
 
 #[test]
@@ -114,6 +118,7 @@ fn test_load_existing_custom_config() {
             friction: 2.5,
             spring_stiffness: 200.0,
         },
+        selection_menu: Default::default(),
     };
 
     assert_eq!(loaded, expected);

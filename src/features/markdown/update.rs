@@ -438,10 +438,34 @@ pub fn handle_selection_drag_end(app: &mut KglanceApp) -> Task<Message> {
     s.is_dragging_selection = false;
     s.auto_scroll_delta = None;
     update_selected_text_from_range(app);
+
+    // Don't overwrite the popup while a background action is loading or streaming.
+    if app.state.selection_menu.is_busy() {
+        return Task::none();
+    }
+
+    if app.state.selection_menu_config.enabled
+        && let Some(text) = active_markdown_state(app).selected_text.as_deref()
+    {
+        let trimmed = text.trim();
+        if !trimmed.is_empty() {
+            let pos = app
+                .state
+                .last_cursor_position
+                .unwrap_or(iced::Point::new(100.0, 100.0));
+            app.state.selection_menu = crate::core::selection_action::SelectionMenuState::Toolbar {
+                pos,
+                selected_text: trimmed.to_string(),
+            };
+        }
+    }
     Task::none()
 }
 
 pub fn handle_selection_clear(app: &mut KglanceApp) -> Task<Message> {
+    if !app.state.selection_menu.is_busy() {
+        app.state.selection_menu.hide();
+    }
     let s = active_markdown_state_mut(app);
     s.selection_range = None;
     s.is_dragging_selection = false;
@@ -533,6 +557,16 @@ pub fn handle_smooth_wheel_scrolled(
     app: &mut KglanceApp,
     delta: iced::mouse::ScrollDelta,
 ) -> Task<Message> {
+    let win_w = app.state.current_window_size.width;
+    let win_h = app.state.current_window_size.height;
+    if app.state.selection_menu.is_cursor_inside(
+        app.state.last_cursor_position,
+        win_w,
+        win_h,
+        &app.state.selection_menu_config.custom_actions,
+    ) {
+        return Task::none();
+    }
     if app.ctrl_held {
         return Task::none();
     }
