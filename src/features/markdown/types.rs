@@ -29,8 +29,10 @@ pub struct SelectionRange {
 #[derive(Debug, Clone)]
 pub struct MarkdownState {
     pub cached_mermaid_handles: HashMap<usize, image::Handle>,
-    pub cached_image_handles: HashMap<usize, image::Handle>,
-    pub cached_image_sizes: HashMap<usize, (u32, u32)>,
+    pub cached_image_handles: HashMap<String, image::Handle>,
+    pub cached_image_sizes: HashMap<String, (u32, u32)>,
+    pub animated_gifs: HashMap<String, Arc<crate::features::image::AnimatedGif>>,
+    pub animation_start_time: Option<std::time::Instant>,
     pub toc: Vec<TocEntry>,
     pub toc_visible: bool,
     pub sidebar_width: f32,
@@ -82,6 +84,8 @@ impl Default for MarkdownState {
             cached_mermaid_handles: HashMap::new(),
             cached_image_handles: HashMap::new(),
             cached_image_sizes: HashMap::new(),
+            animated_gifs: HashMap::new(),
+            animation_start_time: None,
             toc: Vec::new(),
             toc_visible: false,
             sidebar_width: 250.0,

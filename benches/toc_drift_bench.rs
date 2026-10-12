@@ -25,7 +25,7 @@ fn measure_intrinsic_block_height(
     block: &Block,
     font_size: f32,
     content_width: f32,
-    image_sizes: &HashMap<usize, (u32, u32)>,
+    image_sizes: &HashMap<String, (u32, u32)>,
     block_index: usize,
 ) -> f32 {
     let span_counter = Cell::new(0);
@@ -133,7 +133,7 @@ fn measure_block_height(
     block: &Block,
     font_size: f32,
     content_width: f32,
-    image_sizes: &HashMap<usize, (u32, u32)>,
+    image_sizes: &HashMap<String, (u32, u32)>,
     block_index: usize,
 ) -> f32 {
     let margin = block_margin(block, font_size);
@@ -165,7 +165,7 @@ fn analyze_blocks_toc_drift(
     blocks: &[Block],
     font_size: f32,
     width: f32,
-    image_sizes: &HashMap<usize, (u32, u32)>,
+    image_sizes: &HashMap<String, (u32, u32)>,
 ) -> (TocDriftResult, Vec<TocHeadingDetail>) {
     let toc_entries = extract_toc(blocks, font_size, image_sizes, width);
     let mut real_positions = Vec::with_capacity(blocks.len());

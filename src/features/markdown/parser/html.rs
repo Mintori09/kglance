@@ -4,22 +4,74 @@ use crate::features::common::parser::html::decode_html_entities;
 use crate::features::image::types::ImageRef;
 use crate::parsers::markdown::Inline;
 
-pub(super) fn extract_html_attribute(tag: &str, attr: &str) -> Option<String> {
+pub(crate) fn extract_html_attribute(tag: &str, attr: &str) -> Option<String> {
     let lower_tag = tag.to_ascii_lowercase();
-    let lower_attr = format!("{attr}=");
-    let pos = lower_tag.find(&lower_attr)?;
-    let remainder = &tag[pos + lower_attr.len()..];
-    let quote_char = remainder.chars().next()?;
-    if quote_char == '"' || quote_char == '\'' {
-        let after_quote = &remainder[1..];
-        let end_pos = after_quote.find(quote_char)?;
-        Some(after_quote[..end_pos].to_string())
-    } else {
-        let end_pos = remainder
-            .find(|c: char| c.is_whitespace() || c == '>' || c == '/')
-            .unwrap_or(remainder.len());
-        Some(remainder[..end_pos].to_string())
+    let lower_attr = attr.to_ascii_lowercase();
+    let mut search_start = 0;
+    while let Some(attr_idx) = lower_tag[search_start..].find(&lower_attr) {
+        let abs_idx = search_start + attr_idx;
+        let valid_prefix = abs_idx == 0
+            || lower_tag.as_bytes()[abs_idx - 1].is_ascii_whitespace()
+            || lower_tag.as_bytes()[abs_idx - 1] == b'<'
+            || lower_tag.as_bytes()[abs_idx - 1] == b'/';
+        if !valid_prefix {
+            search_start = abs_idx + lower_attr.len();
+            continue;
+        }
+
+        let after_attr = &lower_tag[abs_idx + lower_attr.len()..];
+        let trimmed_after = after_attr.trim_start();
+        if !trimmed_after.starts_with('=') {
+            search_start = abs_idx + lower_attr.len();
+            continue;
+        }
+
+        let eq_idx_in_remainder = after_attr.find('=')?;
+        let val_slice_lower = &after_attr[eq_idx_in_remainder + 1..];
+        let leading_spaces = val_slice_lower.len() - val_slice_lower.trim_start().len();
+
+        let val_start_abs = abs_idx + lower_attr.len() + eq_idx_in_remainder + 1 + leading_spaces;
+        let remainder = &tag[val_start_abs..];
+        let quote_char = remainder.chars().next()?;
+        if quote_char == '"' || quote_char == '\'' {
+            let after_quote = &remainder[1..];
+            let end_pos = after_quote.find(quote_char)?;
+            return Some(after_quote[..end_pos].to_string());
+        } else {
+            let end_pos = remainder
+                .find(|c: char| c.is_whitespace() || c == '>' || c == '/')
+                .unwrap_or(remainder.len());
+            return Some(remainder[..end_pos].to_string());
+        }
     }
+    None
+}
+
+pub(crate) fn parse_dimension_str(val: &str) -> Option<u32> {
+    let trimmed = val.trim();
+    let num_str = trimmed
+        .strip_suffix("px")
+        .or_else(|| trimmed.strip_suffix("pt"))
+        .unwrap_or(trimmed)
+        .trim();
+    num_str.parse::<f32>().ok().and_then(|f| {
+        if f > 0.0 && f <= 10000.0 {
+            Some(f.round() as u32)
+        } else {
+            None
+        }
+    })
+}
+
+pub(crate) fn extract_css_property(style: &str, prop: &str) -> Option<String> {
+    for decl in style.split(';') {
+        if let Some((k, v)) = decl.split_once(':')
+            && k.trim().eq_ignore_ascii_case(prop)
+        {
+            return Some(v.trim().to_string());
+        }
+    }
+    None
 }
 
 pub(super) fn decode_entity_if_present(s: &str) -> String {
@@ -108,19 +160,48 @@ pub(super) fn handle_inline_html<F>(
     if lower.starts_with("<img") {
         let src = extract_html_attribute(trimmed, "src").unwrap_or_default();
         let alt = extract_html_attribute(trimmed, "alt").unwrap_or_default();
+        let width = extract_html_attribute(trimmed, "width")
+            .as_deref()
+            .and_then(parse_dimension_str)
+            .or_else(|| {
+                extract_html_attribute(trimmed, "style")
+                    .as_deref()
+                    .and_then(|s| extract_css_property(s, "width"))
+                    .as_deref()
+                    .and_then(parse_dimension_str)
+            });
+        let height = extract_html_attribute(trimmed, "height")
+            .as_deref()
+            .and_then(parse_dimension_str)
+            .or_else(|| {
+                extract_html_attribute(trimmed, "style")
+                    .as_deref()
+                    .and_then(|s| extract_css_property(s, "height"))
+                    .as_deref()
+                    .and_then(parse_dimension_str)
+            });
+
         if !src.is_empty() {
-            if let Some(parent) = parent {
-                let resolved = if src.starts_with('/') {
-                    src.clone()
-                } else {
-                    parent.join(&src).to_string_lossy().to_string()
-                };
-                images.push(ImageRef {
-                    alt_text: alt.clone(),
-                    path: resolved,
-                });
-            }
-            result.push(Inline::Image { alt, url: src });
+            let is_remote = crate::core::net::is_remote_url(&src);
+            let resolved = if is_remote || src.starts_with('/') {
+                src.clone()
+            } else if let Some(parent) = parent {
+                parent.join(&src).to_string_lossy().to_string()
+            } else {
+                src.clone()
+            };
+
+            images.push(ImageRef {
+                alt_text: alt.clone(),
+                path: resolved.clone(),
+            });
+
+            result.push(Inline::Image {
+                alt,
+                url: resolved,
+                width,
+                height,
+            });
         }
         return;
     }

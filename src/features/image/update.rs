@@ -528,6 +528,28 @@ pub fn handle_close_info(app: &mut KglanceApp) -> Task<Message> {
     Task::none()
 }
 
+pub fn handle_image_animation_tick(app: &mut KglanceApp) -> Task<Message> {
+    if let Some(ref anim) = app.state.image.animated_gif
+        && let Some(start_time) = app.state.image.animation_start_time
+    {
+        let elapsed_ms = std::time::Instant::now()
+            .saturating_duration_since(start_time)
+            .as_millis() as u64;
+        let current_handle = anim.current_frame(elapsed_ms);
+        if app
+            .state
+            .image
+            .display_handle
+            .as_ref()
+            .map(iced::widget::image::Handle::id)
+            != Some(current_handle.id())
+        {
+            app.state.image.display_handle = Some(current_handle.clone());
+        }
+    }
+    Task::none()
+}
+
 pub fn handle_video_thumbnail_loaded(app: &mut KglanceApp, data: Vec<u8>) -> Task<Message> {
     if let Some(PreviewData::Media {
         ref mut thumbnail_or_waveform,

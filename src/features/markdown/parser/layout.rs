@@ -83,8 +83,8 @@ fn count_str_metrics(
 pub fn intrinsic_block_height(
     block: &Block,
     font_size: f32,
-    block_index: usize,
-    image_sizes: &HashMap<usize, (u32, u32)>,
+    _block_index: usize,
+    image_sizes: &HashMap<String, (u32, u32)>,
     content_width: f32,
 ) -> f32 {
     let scale = |s: f32| scale_size(s, font_size);
@@ -206,7 +206,7 @@ pub fn intrinsic_block_height(
                     item_h += intrinsic_block_height(
                         sb,
                         font_size,
-                        block_index,
+                        _block_index,
                         image_sizes,
                         available_w,
                     ) + lc::LIST_ITEM_PADDING * 2.0;
@@ -222,7 +222,7 @@ pub fn intrinsic_block_height(
             let inner_w = (effective_width - 24.0).max(100.0);
             let h: f32 = b
                 .iter()
-                .map(|b| intrinsic_block_height(b, font_size, block_index, image_sizes, inner_w))
+                .map(|b| intrinsic_block_height(b, font_size, _block_index, image_sizes, inner_w))
                 .sum();
             let spacing = if b.len() > 1 {
                 (b.len() - 1) as f32 * lc::SECTION_SPACING
@@ -236,7 +236,7 @@ pub fn intrinsic_block_height(
             let inner_w = (effective_width - 32.0).max(100.0);
             let h: f32 = content
                 .iter()
-                .map(|b| intrinsic_block_height(b, font_size, block_index, image_sizes, inner_w))
+                .map(|b| intrinsic_block_height(b, font_size, _block_index, image_sizes, inner_w))
                 .sum();
             let spacing = if content.len() > 1 {
                 (content.len() - 1) as f32 * lc::SECTION_SPACING
@@ -250,7 +250,7 @@ pub fn intrinsic_block_height(
             let h: f32 = content
                 .iter()
                 .map(|b| {
-                    intrinsic_block_height(b, font_size, block_index, image_sizes, effective_width)
+                    intrinsic_block_height(b, font_size, _block_index, image_sizes, effective_width)
                 })
                 .sum();
             h + 8.0
@@ -264,17 +264,38 @@ pub fn intrinsic_block_height(
             let pad_v = (lc::HR_PADDING_V * 2) as f32;
             lc::DIVIDER_HEIGHT + pad_v
         }
-        Block::Image { .. } => {
+        Block::Image {
+            path,
+            width,
+            height,
+            ..
+        } => {
             let max_w = lc::IMAGE_MAX_WIDTH;
             let pad_v = (lc::IMAGE_PADDING_V * 2) as f32;
-            if let Some(&(w, h)) = image_sizes.get(&block_index) {
-                let display_w = if w as f32 > max_w { max_w } else { w as f32 };
-                let display_h = if w > 0 {
+            if let Some(&(w, h)) = image_sizes.get(path) {
+                let eff_target_w = width.map(|val| val as f32).unwrap_or(w as f32);
+                let display_w = if eff_target_w > max_w {
+                    max_w
+                } else {
+                    eff_target_w
+                };
+                let display_h = if let Some(explicit_h) = height {
+                    *explicit_h as f32
+                } else if w > 0 {
                     (h as f32 * display_w) / (w as f32)
                 } else {
                     0.0
                 };
                 display_h + pad_v
+            } else if let Some(explicit_h) = height {
+                *explicit_h as f32 + pad_v
+            } else if let Some(explicit_w) = width {
+                let display_w = if *explicit_w as f32 > max_w {
+                    max_w
+                } else {
+                    *explicit_w as f32
+                };
+                display_w + pad_v
             } else {
                 0.0
             }
@@ -301,7 +322,7 @@ pub fn estimated_block_height(
     block: &Block,
     font_size: f32,
     block_index: usize,
-    image_sizes: &HashMap<usize, (u32, u32)>,
+    image_sizes: &HashMap<String, (u32, u32)>,
     content_width: f32,
 ) -> f32 {
     let margin = block_margin(block, font_size);
@@ -381,7 +402,7 @@ pub fn extract_toc_from_offsets(blocks: &[Block], offsets: &[f32]) -> Vec<TocEnt
 pub fn extract_toc(
     blocks: &[Block],
     font_size: f32,
-    image_sizes: &HashMap<usize, (u32, u32)>,
+    image_sizes: &HashMap<String, (u32, u32)>,
     content_width: f32,
 ) -> Vec<TocEntry> {
     let mut toc = Vec::new();
@@ -406,7 +427,7 @@ pub fn rescale_markdown_scroll_y(
     old_scroll_y: f32,
     old_font_size: f32,
     new_font_size: f32,
-    image_sizes: &HashMap<usize, (u32, u32)>,
+    image_sizes: &HashMap<String, (u32, u32)>,
     content_width: f32,
 ) -> f32 {
     if blocks.is_empty() || old_scroll_y <= 0.0 {

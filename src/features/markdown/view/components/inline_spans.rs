@@ -118,10 +118,21 @@ fn hash_inlines_recursive(inlines: &[Inline], hasher: &mut FxHasher) {
             Inline::SoftBreak => {
                 hasher.write_u8(7);
             }
-            Inline::Image { alt, url } => {
+            Inline::Image {
+                alt,
+                url,
+                width,
+                height,
+            } => {
                 hasher.write_u8(8);
                 hasher.write(alt.as_bytes());
                 hasher.write(url.as_bytes());
+                if let Some(w) = width {
+                    hasher.write_u32(*w);
+                }
+                if let Some(h) = height {
+                    hasher.write_u32(*h);
+                }
             }
             Inline::InlineMath(m) => {
                 hasher.write_u8(9);

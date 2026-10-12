@@ -16,21 +16,25 @@ fn split_inlines_by_display_math(inlines: Vec<Inline>) -> Vec<Block> {
     let mut blocks = Vec::new();
     let mut current = Vec::new();
 
+    let flush_current = |current: &mut Vec<Inline>, blocks: &mut Vec<Block>| {
+        if !current.is_empty() {
+            let has_text = current.iter().any(|i| match i {
+                Inline::Text(t) => !t.trim().is_empty(),
+                Inline::SoftBreak => false,
+                _ => true,
+            });
+            if has_text {
+                blocks.push(Block::Paragraph(std::mem::take(current)));
+            } else {
+                current.clear();
+            }
+        }
+    };
+
     for inline in inlines {
         match inline {
             Inline::DisplayMath(latex) => {
-                if !current.is_empty() {
-                    let has_text = current.iter().any(|i| match i {
-                        Inline::Text(t) => !t.trim().is_empty(),
-                        Inline::SoftBreak => false,
-                        _ => true,
-                    });
-                    if has_text {
-                        blocks.push(Block::Paragraph(std::mem::take(&mut current)));
-                    } else {
-                        current.clear();
-                    }
-                }
+                flush_current(&mut current, &mut blocks);
                 blocks.push(Block::Math(latex));
             }
             _ => {
@@ -39,16 +43,77 @@ fn split_inlines_by_display_math(inlines: Vec<Inline>) -> Vec<Block> {
         }
     }
 
-    if !current.is_empty() {
-        let has_text = current.iter().any(|i| match i {
-            Inline::Text(t) => !t.trim().is_empty(),
-            Inline::SoftBreak => false,
-            _ => true,
-        });
-        if has_text {
-            blocks.push(Block::Paragraph(current));
+    flush_current(&mut current, &mut blocks);
+    blocks
+}
+
+fn split_inlines(inlines: Vec<Inline>) -> Vec<Block> {
+    let mut blocks = Vec::new();
+    let mut current = Vec::new();
+
+    let flush_current = |current: &mut Vec<Inline>, blocks: &mut Vec<Block>| {
+        if !current.is_empty() {
+            let has_text = current.iter().any(|i| match i {
+                Inline::Text(t) => !t.trim().is_empty(),
+                Inline::SoftBreak => false,
+                _ => true,
+            });
+            if has_text {
+                blocks.push(Block::Paragraph(std::mem::take(current)));
+            } else {
+                current.clear();
+            }
+        }
+    };
+
+    for inline in inlines {
+        match inline {
+            Inline::DisplayMath(latex) => {
+                flush_current(&mut current, &mut blocks);
+                blocks.push(Block::Math(latex));
+            }
+            Inline::Image {
+                alt,
+                url,
+                width,
+                height,
+            } => {
+                flush_current(&mut current, &mut blocks);
+                blocks.push(Block::Image {
+                    alt,
+                    path: url,
+                    link_url: None,
+                    width,
+                    height,
+                });
+            }
+            Inline::Link { mut text, url }
+                if text.len() == 1 && matches!(&text[0], Inline::Image { .. }) =>
+            {
+                flush_current(&mut current, &mut blocks);
+                if let Some(Inline::Image {
+                    alt,
+                    url: img_url,
+                    width,
+                    height,
+                }) = text.pop()
+                {
+                    blocks.push(Block::Image {
+                        alt,
+                        path: img_url,
+                        link_url: Some(url),
+                        width,
+                        height,
+                    });
+                }
+            }
+            _ => {
+                current.push(inline);
+            }
         }
     }
+
+    flush_current(&mut current, &mut blocks);
 
     blocks
 }
@@ -137,20 +202,26 @@ impl<'a> EventStream<'a> {
                     }
                     let _ = self.iter.next();
 
-                    if let Some(parent) = self.parent {
-                        let resolved = if url.starts_with('/') {
-                            url.clone()
-                        } else {
-                            parent.join(&url).to_string_lossy().to_string()
-                        };
-                        log_debug!("{}", resolved.to_string());
-                        self.images.push(ImageRef {
-                            alt_text: alt.clone(),
-                            path: resolved,
-                        });
-                    }
+                    let is_remote = crate::core::net::is_remote_url(&url);
+                    let resolved = if is_remote || url.starts_with('/') {
+                        url.clone()
+                    } else if let Some(parent) = self.parent {
+                        parent.join(&url).to_string_lossy().to_string()
+                    } else {
+                        url.clone()
+                    };
+                    log_debug!("{}", resolved.to_string());
+                    self.images.push(ImageRef {
+                        alt_text: alt.clone(),
+                        path: resolved.clone(),
+                    });
 
-                    result.push(Inline::Image { alt, url });
+                    result.push(Inline::Image {
+                        alt,
+                        url: resolved,
+                        width: None,
+                        height: None,
+                    });
                 }
                 Event::InlineMath(t) => result.push(Inline::InlineMath(t.to_string())),
                 Event::DisplayMath(t) => result.push(Inline::DisplayMath(t.to_string())),
@@ -276,6 +347,56 @@ impl<'a> EventStream<'a> {
             return vec![Block::HorizontalRule];
         }
 
+        let lower = trimmed.to_ascii_lowercase();
+        if lower.starts_with("<img") {
+            let src = super::html::extract_html_attribute(trimmed, "src").unwrap_or_default();
+            let alt = super::html::extract_html_attribute(trimmed, "alt").unwrap_or_default();
+            let width = super::html::extract_html_attribute(trimmed, "width")
+                .as_deref()
+                .and_then(super::html::parse_dimension_str)
+                .or_else(|| {
+                    super::html::extract_html_attribute(trimmed, "style")
+                        .as_deref()
+                        .and_then(|s| super::html::extract_css_property(s, "width"))
+                        .as_deref()
+                        .and_then(super::html::parse_dimension_str)
+                });
+            let height = super::html::extract_html_attribute(trimmed, "height")
+                .as_deref()
+                .and_then(super::html::parse_dimension_str)
+                .or_else(|| {
+                    super::html::extract_html_attribute(trimmed, "style")
+                        .as_deref()
+                        .and_then(|s| super::html::extract_css_property(s, "height"))
+                        .as_deref()
+                        .and_then(super::html::parse_dimension_str)
+                });
+
+            if !src.is_empty() {
+                let is_remote = crate::core::net::is_remote_url(&src);
+                let resolved = if is_remote || src.starts_with('/') {
+                    src.clone()
+                } else if let Some(parent) = self.parent {
+                    parent.join(&src).to_string_lossy().to_string()
+                } else {
+                    src.clone()
+                };
+
+                self.images.push(ImageRef {
+                    alt_text: alt.clone(),
+                    path: resolved.clone(),
+                });
+
+                return vec![Block::Image {
+                    alt,
+                    path: resolved,
+                    link_url: None,
+                    width,
+                    height,
+                }];
+            }
+        }
+
         let md = convert_html_to_markdown(raw);
         let md_trimmed = md.trim();
         if md_trimmed.is_empty() {
@@ -323,32 +444,23 @@ impl<'a> EventStream<'a> {
             Event::Start(Tag::Paragraph) => {
                 let content = self.parse_inlines();
                 let _ = self.iter.next();
-                if content.len() == 1 {
-                    match &content[0] {
-                        Inline::Image { alt, url } => vec![Block::Image {
-                            alt: alt.clone(),
-                            path: url.clone(),
-                            link_url: None,
-                        }],
-                        Inline::Link { text, url }
-                            if text.len() == 1 && matches!(&text[0], Inline::Image { .. }) =>
-                        {
-                            let Inline::Image { alt, url: img_url } = &text[0] else {
-                                unreachable!();
-                            };
-
-                            vec![Block::Image {
-                                alt: alt.clone(),
-                                path: img_url.clone(),
-                                link_url: Some(url.clone()),
-                            }]
-                        }
-                        _ => split_inlines_by_display_math(content),
+                let has_non_image = content.iter().any(|i| match i {
+                    Inline::Image { .. } | Inline::SoftBreak => false,
+                    Inline::Text(t) => !t.trim().is_empty(),
+                    Inline::Link { text, .. }
+                        if text.len() == 1 && matches!(&text[0], Inline::Image { .. }) =>
+                    {
+                        false
                     }
-                } else {
+                    _ => true,
+                });
+                if has_non_image {
                     split_inlines_by_display_math(content)
+                } else {
+                    split_inlines(content)
                 }
             }
+
             Event::Start(Tag::Heading { level, .. }) => {
                 let lvl = match level {
                     HeadingLevel::H1 => 1,
@@ -545,7 +657,7 @@ impl<'a> EventStream<'a> {
                 Some(Event::Start(Tag::Paragraph)) => {
                     let inlines = self.parse_inlines();
                     let _ = self.iter.next();
-                    let item_blocks = split_inlines_by_display_math(inlines);
+                    let item_blocks = split_inlines(inlines);
                     for b in item_blocks {
                         match b {
                             Block::Paragraph(p_inlines) => {
@@ -614,7 +726,24 @@ impl<'a> EventStream<'a> {
                         self.iter.next();
                     }
                     let _ = self.iter.next();
-                    content.push(Inline::Image { alt, url });
+                    let is_remote = crate::core::net::is_remote_url(&url);
+                    let resolved = if is_remote || url.starts_with('/') {
+                        url.clone()
+                    } else if let Some(parent) = self.parent {
+                        parent.join(&url).to_string_lossy().to_string()
+                    } else {
+                        url.clone()
+                    };
+                    self.images.push(ImageRef {
+                        alt_text: alt.clone(),
+                        path: resolved.clone(),
+                    });
+                    content.push(Inline::Image {
+                        alt,
+                        url: resolved,
+                        width: None,
+                        height: None,
+                    });
                 }
                 Some(Event::Start(Tag::CodeBlock(kind))) => {
                     let block = self.parse_code_block(kind);
@@ -630,6 +759,24 @@ impl<'a> EventStream<'a> {
                     self.handle_inline_html(&t, &mut content);
                 }
                 _ => {}
+            }
+        }
+        if content
+            .iter()
+            .any(|i| matches!(i, Inline::Image { .. } | Inline::DisplayMath(_)))
+        {
+            let split = split_inlines(std::mem::take(&mut content));
+            for b in split {
+                match b {
+                    Block::Paragraph(p) => {
+                        if content.is_empty() {
+                            content = p;
+                        } else {
+                            sub_blocks.push(Block::Paragraph(p));
+                        }
+                    }
+                    other => sub_blocks.push(other),
+                }
             }
         }
         ListItem {

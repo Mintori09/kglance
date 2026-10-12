@@ -52,7 +52,7 @@ fn render_list_level<'a>(
             );
         }
 
-        for sub_block in item.sub_blocks.iter() {
+        for (sb_idx, sub_block) in item.sub_blocks.iter().enumerate() {
             let sub_ctx = RenderContext {
                 block_index: current_idx,
                 ..*ctx
@@ -66,22 +66,31 @@ fn render_list_level<'a>(
                 _ => render_block(current_idx, sub_block, state, &sub_ctx),
             };
             current_idx += 10;
-            let left_padding = if has_direct_content {
-                STYLE.list.sub_block_left_padding
+            if !has_direct_content && sb_idx == 0 {
+                let prefix = create_list_prefix(ordered, start_number, index, item, ctx, level);
+                children.push(
+                    row![prefix, sub_element]
+                        .spacing(STYLE.list.item_spacing)
+                        .into(),
+                );
             } else {
-                0.0
-            };
-            children.push(
-                container(sub_element)
-                    .padding(Padding {
-                        top: STYLE.list.item_padding,
-                        right: 0.0,
-                        bottom: STYLE.list.item_padding,
-                        left: left_padding,
-                    })
-                    .width(Length::Fill)
-                    .into(),
-            );
+                let left_padding = if has_direct_content {
+                    STYLE.list.sub_block_left_padding
+                } else {
+                    0.0
+                };
+                children.push(
+                    container(sub_element)
+                        .padding(Padding {
+                            top: STYLE.list.item_padding,
+                            right: 0.0,
+                            bottom: STYLE.list.item_padding,
+                            left: left_padding,
+                        })
+                        .width(Length::Fill)
+                        .into(),
+                );
+            }
         }
 
         item_elements.push(

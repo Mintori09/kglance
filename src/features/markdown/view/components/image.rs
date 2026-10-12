@@ -1,24 +1,31 @@
 use super::style::STYLE;
 use crate::app::{KglanceApp, Message};
 use crate::core::PreviewData;
-use crate::features::image::{png_to_rgba_handle, png_to_rgba_handle_with_size};
+use crate::features::image::png_to_rgba_handle;
 use crate::features::markdown::Block;
 use crate::log_debug;
 use iced::widget::{button, column, container, image};
 use iced::{Border, Color, Element, Length, Shadow, Task};
 
 pub(crate) fn render_inline_image<'a>(
-    index: usize,
+    path: &'a str,
     link_url: Option<&'a str>,
+    explicit_width: Option<u32>,
+    explicit_height: Option<u32>,
     state: &'a crate::core::MarkdownState,
 ) -> Element<'a, Message> {
-    let Some(handle) = state.cached_image_handles.get(&index) else {
+    let Some(handle) = state.cached_image_handles.get(path) else {
         return container(column![]).into();
     };
 
-    let img = image(handle.clone()).height(Length::Shrink);
-    let img = match state.cached_image_sizes.get(&index) {
-        Some((width, _)) if *width as f32 > STYLE.image.max_width => {
+    let img = image(handle.clone());
+    let img = match explicit_height {
+        Some(h) => img.height(Length::Fixed(h as f32)),
+        None => img.height(Length::Shrink),
+    };
+    let img = match (explicit_width, state.cached_image_sizes.get(path)) {
+        (Some(w), _) => img.width(Length::Fixed(w as f32)),
+        (None, Some((width, _))) if *width as f32 > STYLE.image.max_width => {
             img.width(Length::Fixed(STYLE.image.max_width))
         }
         _ => img.width(Length::Shrink),
@@ -110,41 +117,115 @@ pub fn handle_mermaid_rendered(
 pub fn handle_markdown_image_loaded(
     app: &mut KglanceApp,
     generation_id: usize,
-    index: usize,
-    png_bytes: Option<Vec<u8>>,
+    path: String,
+    payload: Option<crate::features::image::DecodedImagePayload>,
 ) -> Task<Message> {
-    if generation_id
-        != app
-            .state
+    let is_epub = matches!(app.current_content, Some(PreviewData::Epub { .. }));
+    let target_gen = if is_epub {
+        app.state
+            .epub
+            .markdown_state
+            .generation_id
+            .load(std::sync::atomic::Ordering::Relaxed)
+    } else {
+        app.state
             .markdown
             .generation_id
             .load(std::sync::atomic::Ordering::Relaxed)
-    {
+    };
+
+    if generation_id != target_gen {
         log_debug!(
             "Discarding stale MarkdownImageLoaded[{}] (msg gen: {}, current gen: {})",
-            index,
+            path,
             generation_id,
-            app.state
-                .markdown
-                .generation_id
-                .load(std::sync::atomic::Ordering::Relaxed)
+            target_gen
         );
         return Task::none();
     }
 
     log_debug!(
-        "MarkdownImageLoaded[{}] bytes={}",
-        index,
-        if png_bytes.is_some() { "Some" } else { "None" }
+        "MarkdownImageLoaded[{}] payload={}",
+        path,
+        if payload.is_some() { "Some" } else { "None" }
     );
-    if let Some(bytes) = png_bytes {
-        if let Some((handle, w, h)) = png_to_rgba_handle_with_size(bytes) {
+    if let Some(payload) = payload {
+        let (handle, w, h, anim_opt) = (
+            payload.handle,
+            payload.width,
+            payload.height,
+            payload.animated_gif,
+        );
+
+        let size_changed = if is_epub {
+            let old_size = app
+                .state
+                .epub
+                .markdown_state
+                .cached_image_sizes
+                .get(&path)
+                .copied();
+            app.state
+                .epub
+                .markdown_state
+                .cached_image_handles
+                .insert(path.clone(), handle);
+            app.state
+                .epub
+                .markdown_state
+                .cached_image_sizes
+                .insert(path.clone(), (w, h));
+            if let Some(anim) = anim_opt {
+                app.state
+                    .epub
+                    .markdown_state
+                    .animated_gifs
+                    .insert(path.clone(), anim);
+                if app.state.epub.markdown_state.animation_start_time.is_none() {
+                    app.state.epub.markdown_state.animation_start_time =
+                        Some(std::time::Instant::now());
+                }
+            }
+            old_size != Some((w, h))
+        } else {
+            let old_size = app.state.markdown.cached_image_sizes.get(&path).copied();
             app.state
                 .markdown
                 .cached_image_handles
-                .insert(index, handle);
-            app.state.markdown.cached_image_sizes.insert(index, (w, h));
-            if let Some(PreviewData::Markdown { ref blocks, .. }) = app.current_content {
+                .insert(path.clone(), handle);
+            app.state
+                .markdown
+                .cached_image_sizes
+                .insert(path.clone(), (w, h));
+            if let Some(anim) = anim_opt {
+                app.state.markdown.animated_gifs.insert(path.clone(), anim);
+                if app.state.markdown.animation_start_time.is_none() {
+                    app.state.markdown.animation_start_time = Some(std::time::Instant::now());
+                }
+            }
+            old_size != Some((w, h))
+        };
+
+        if size_changed {
+            if is_epub {
+                let content_width = app.state.epub_content_width();
+                let font_size = app.state.font_size;
+                let epub = &mut app.state.epub;
+                let blocks =
+                    if epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
+                        epub.continuous_blocks.as_slice()
+                    } else {
+                        epub.chapters
+                            .get(epub.active_chapter)
+                            .map_or([].as_slice(), |c| c.blocks.as_slice())
+                    };
+                crate::features::markdown::recompute_markdown_layout(
+                    &mut epub.markdown_state,
+                    blocks,
+                    font_size,
+                    content_width,
+                );
+            } else if let Some(PreviewData::Markdown { ref blocks, .. }) = app.current_content {
                 let content_width = app.state.markdown_content_width();
                 crate::features::markdown::recompute_markdown_layout(
                     &mut app.state.markdown,
@@ -153,19 +234,120 @@ pub fn handle_markdown_image_loaded(
                     content_width,
                 );
             }
-            log_debug!(
-                "Inserted image handle at index {}, size={}x{}, cache size={}",
-                index,
-                w,
-                h,
-                app.state.markdown.cached_image_handles.len()
-            );
-        } else {
-            log_debug!(
-                "png_to_rgba_handle returned None for image block[{}]",
-                index
-            );
         }
+        log_debug!(
+            "Inserted image handle for path {}, size={}x{}, cache size={}",
+            path,
+            w,
+            h,
+            if is_epub {
+                app.state.epub.markdown_state.cached_image_handles.len()
+            } else {
+                app.state.markdown.cached_image_handles.len()
+            }
+        );
     }
     Task::none()
+}
+
+pub fn handle_markdown_animation_tick(app: &mut KglanceApp) -> Task<Message> {
+    let now = std::time::Instant::now();
+    let is_epub = matches!(app.current_content, Some(PreviewData::Epub { .. }));
+    let md = if is_epub {
+        &mut app.state.epub.markdown_state
+    } else {
+        &mut app.state.markdown
+    };
+
+    let Some(start_time) = md.animation_start_time else {
+        return Task::none();
+    };
+
+    if md.animated_gifs.is_empty() {
+        return Task::none();
+    }
+
+    let elapsed_ms = now.saturating_duration_since(start_time).as_millis() as u64;
+
+    for (path, anim) in &md.animated_gifs {
+        let current_handle = anim.current_frame(elapsed_ms);
+        if let Some(cached) = md.cached_image_handles.get_mut(path)
+            && cached.id() != current_handle.id()
+        {
+            *cached = current_handle.clone();
+        }
+    }
+
+    Task::none()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ::image::codecs::gif::GifEncoder;
+    use ::image::{Delay, Frame, RgbaImage};
+
+    fn create_test_gif() -> Vec<u8> {
+        let mut buf = Vec::new();
+        {
+            let mut encoder = GifEncoder::new(&mut buf);
+            let frame1 = Frame::from_parts(
+                RgbaImage::new(20, 20),
+                0,
+                0,
+                Delay::from_numer_denom_ms(50, 1),
+            );
+            let frame2 = Frame::from_parts(
+                RgbaImage::new(20, 20),
+                0,
+                0,
+                Delay::from_numer_denom_ms(50, 1),
+            );
+            encoder.encode_frame(frame1).unwrap();
+            encoder.encode_frame(frame2).unwrap();
+        }
+        buf
+    }
+
+    #[test]
+    fn test_handle_markdown_image_loaded_animated_gif() {
+        let mut app = KglanceApp {
+            current_content: Some(PreviewData::Markdown {
+                blocks: vec![],
+                raw_text: String::new(),
+            }),
+            ..Default::default()
+        };
+        let gif_bytes = create_test_gif();
+        let payload = crate::features::image::decode_image_bytes(gif_bytes);
+        let gen_id = app
+            .state
+            .markdown
+            .generation_id
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let path = "test_animation.gif".to_string();
+
+        let _ = handle_markdown_image_loaded(&mut app, gen_id, path.clone(), payload);
+
+        assert!(app.state.markdown.cached_image_handles.contains_key(&path));
+        assert_eq!(
+            app.state.markdown.cached_image_sizes.get(&path),
+            Some(&(20, 20))
+        );
+        assert!(app.state.markdown.animated_gifs.contains_key(&path));
+        assert!(app.state.markdown.animation_start_time.is_some());
+
+        let initial_handle_id = app.state.markdown.cached_image_handles[&path].id();
+
+        // Advance animation_start_time so elapsed time points to frame 1 (at 60ms)
+        app.state.markdown.animation_start_time =
+            Some(std::time::Instant::now() - std::time::Duration::from_millis(60));
+        let _ = handle_markdown_animation_tick(&mut app);
+
+        let new_handle_id = app.state.markdown.cached_image_handles[&path].id();
+        assert_ne!(
+            initial_handle_id, new_handle_id,
+            "Handle should advance to next frame on tick"
+        );
+    }
 }
