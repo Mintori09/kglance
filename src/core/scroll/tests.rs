@@ -359,3 +359,121 @@ fn test_disabled_smooth_scroll_interactive_and_navigation() {
     assert_eq!(controller.position_y(), 500.0);
     assert!(!controller.is_animating());
 }
+
+#[test]
+fn test_kinetic_fling_completion_settles_to_idle() {
+    let mut controller = ScrollController::new();
+    let extent = ViewportExtent {
+        content_height: 5000.0,
+        viewport_height: 800.0,
+    };
+    let start_time = Instant::now();
+
+    controller.start_kinetic(100.0, 500.0, 4200.0);
+    assert!(controller.is_animating());
+    assert_eq!(controller.state(), GestureState::Flinging);
+
+    // Step physics forward in time until velocity dissipates
+    for i in 1..=100 {
+        let now = start_time + Duration::from_millis(i * 50);
+        controller.update(now, extent);
+    }
+
+    assert_eq!(controller.state(), GestureState::Idle);
+    assert!(!controller.is_animating());
+    assert_eq!(controller.velocity(), 0.0);
+    assert_eq!(
+        controller.scroll_state,
+        ScrollState::Idle {
+            position: controller.position_y()
+        }
+    );
+}
+
+#[test]
+fn test_set_position_y_preserves_active_fling_for_layout_anchoring() {
+    let mut controller = ScrollController::new();
+    controller.start_kinetic(200.0, 2000.0, 5000.0);
+    assert!(controller.is_animating());
+
+    // Setting position during layout re-anchoring must update positions without killing the active fling
+    controller.set_position_y(250.0);
+    assert_eq!(controller.position_y(), 250.0);
+    assert_eq!(controller.target_y(), 250.0);
+    assert_eq!(controller.state(), GestureState::Flinging);
+    assert!(controller.is_animating());
+    assert!(controller.velocity() > 0.0);
+
+    // When idle, set_position_y settles the controller
+    controller.stop(250.0);
+    controller.set_position_y(300.0);
+    assert_eq!(controller.position_y(), 300.0);
+    assert_eq!(controller.target_y(), 300.0);
+    assert_eq!(controller.state(), GestureState::Idle);
+    assert!(!controller.is_animating());
+}
+
+#[test]
+fn test_stop_cancels_active_fling() {
+    let mut controller = ScrollController::new();
+    controller.start_kinetic(200.0, 2000.0, 5000.0);
+    assert!(controller.is_animating());
+
+    controller.stop(1500.0);
+    assert_eq!(controller.position_y(), 1500.0);
+    assert_eq!(controller.target_y(), 1500.0);
+    assert_eq!(controller.velocity(), 0.0);
+    assert_eq!(controller.state(), GestureState::Idle);
+    assert!(!controller.is_animating());
+}
+
+#[test]
+fn test_check_interruption_stops_active_fling() {
+    let mut controller = ScrollController::new();
+    let extent = ViewportExtent {
+        content_height: 5000.0,
+        viewport_height: 800.0,
+    };
+    let start_time = Instant::now();
+    controller.start_kinetic(200.0, 1000.0, 4200.0);
+
+    // Step 1 frame
+    let t1 = start_time + Duration::from_millis(16);
+    let _ = controller.update(t1, extent);
+    assert!(controller.is_animating());
+
+    // Echoed position (diff < threshold) does not interrupt
+    let current_pos = controller.position_y();
+    assert!(!controller.check_interruption(current_pos + 5.0));
+    assert!(controller.is_animating());
+
+    // External user drag (diff > threshold) interrupts and settles controller
+    assert!(controller.check_interruption(current_pos + 150.0));
+    assert!(!controller.is_animating());
+    assert_eq!(controller.position_y(), current_pos + 150.0);
+    assert_eq!(controller.state(), GestureState::Idle);
+}
+
+#[test]
+fn test_check_interruption_does_not_cancel_trackpad_dragging() {
+    let mut controller = ScrollController::new();
+    let extent = ViewportExtent {
+        content_height: 5000.0,
+        viewport_height: 800.0,
+    };
+    let now = Instant::now();
+    controller.handle_input(
+        ScrollInput::Motion {
+            delta_x: 0.0,
+            delta_y: -25.0,
+            time: now,
+        },
+        extent,
+    );
+    assert_eq!(controller.state(), GestureState::Dragging);
+    assert!(!controller.is_animating());
+
+    // Echoed scroll event with large difference must NOT interrupt active trackpad drag
+    assert!(!controller.check_interruption(100.0));
+    assert_eq!(controller.state(), GestureState::Dragging);
+}
