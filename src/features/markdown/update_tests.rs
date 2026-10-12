@@ -721,3 +721,75 @@ fn test_epub_double_click_selection_lifecycle() {
         Some("chapter")
     );
 }
+
+#[test]
+fn test_cross_block_drag_selection_lifecycle() {
+    use crate::app::test_util::test_app;
+
+    let mut app = test_app(None);
+    let src = "First paragraph block.\n\nSecond paragraph block.";
+    let blocks = parse_to_blocks(src);
+    assert_eq!(blocks.len(), 2);
+    app.current_content = Some(crate::core::PreviewData::Markdown {
+        raw_text: src.to_string(),
+        blocks,
+    });
+
+    // Start drag in block 0 at offset 6 ("paragraph")
+    let _ = handle_selection_drag_start(&mut app, 0, 6);
+    assert!(app.state.markdown.is_dragging_selection);
+
+    // Drag into block 1 (base index 1000) at offset 6 ("paragraph")
+    let _ = handle_selection_drag_update(&mut app, 1000, 6);
+    assert_eq!(
+        app.state.markdown.selection_range,
+        Some(SelectionRange {
+            start: SelectionPoint {
+                block: 0,
+                offset: 6
+            },
+            end: SelectionPoint {
+                block: 1000,
+                offset: 6
+            },
+        })
+    );
+
+    // End drag
+    let _ = handle_selection_drag_end(&mut app);
+    assert!(!app.state.markdown.is_dragging_selection);
+    assert_eq!(
+        app.state.markdown.selection_range,
+        Some(SelectionRange {
+            start: SelectionPoint {
+                block: 0,
+                offset: 6
+            },
+            end: SelectionPoint {
+                block: 1000,
+                offset: 6
+            },
+        })
+    );
+    assert!(app.state.markdown.selected_text.is_some());
+    let selected = app.state.markdown.selected_text.as_ref().unwrap();
+    assert!(selected.contains("paragraph block"));
+    assert!(selected.contains("Second"));
+}
+
+#[test]
+fn test_update_selected_text_preserves_fallback_when_range_is_none() {
+    use crate::app::test_util::test_app;
+
+    let mut app = test_app(None);
+    app.state.markdown.selected_text = Some("fallback text".to_string());
+    app.state.markdown.selection_range = None;
+
+    update_selected_text_from_range(&mut app);
+
+    // Must preserve fallback text when selection_range is None
+    assert_eq!(
+        app.state.markdown.selected_text.as_deref(),
+        Some("fallback text")
+    );
+}

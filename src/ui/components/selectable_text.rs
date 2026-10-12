@@ -217,6 +217,11 @@ fn is_word_delimiter(c: char) -> bool {
                 | '】'
                 | '〔'
                 | '〕'
+                | '，'
+                | '！'
+                | '？'
+                | '：'
+                | '；'
         )
 }
 
@@ -594,12 +599,6 @@ where
                                 state.drag_start = Some(offset);
                                 state.selection = Some((offset, offset));
                             }
-                            if let (Some(blk), Some(on_update)) =
-                                (self.block_index, &self.on_drag_update)
-                            {
-                                shell.publish(on_update(blk, offset));
-                            }
-                            shell.capture_event();
                         } else if state.is_mouse_held
                             || (self.drag_active && self.selection_range.is_none())
                         {
@@ -611,6 +610,9 @@ where
                             {
                                 shell.publish(on_start(blk, offset));
                             }
+                        }
+
+                        if state.is_selecting || self.drag_active {
                             if let (Some(blk), Some(on_update)) =
                                 (self.block_index, &self.on_drag_update)
                             {
