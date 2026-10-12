@@ -197,4 +197,109 @@ fn test_reset_to_defaults() {
     assert_eq!(app.state.json.tree_mode, defaults.ui.json_tree_view);
     assert_eq!(app.state.cache_config, defaults.cache);
     assert_eq!(app.state.scroll_config, defaults.scroll);
+    assert_eq!(app.state.selection_menu_config, defaults.selection_menu);
+}
+
+#[test]
+fn test_selection_menu_toggled() {
+    let mut app = test_app(None);
+    assert!(app.state.selection_menu_config.enabled);
+
+    let _ = handle_settings_message(&mut app, SettingsMsg::SelectionMenuToggled(false));
+    assert!(!app.state.selection_menu_config.enabled);
+
+    let _ = handle_settings_message(&mut app, SettingsMsg::SelectionMenuToggled(true));
+    assert!(app.state.selection_menu_config.enabled);
+}
+
+#[test]
+fn test_custom_action_editor_workflow() {
+    let mut app = test_app(None);
+    app.state.selection_menu_config.custom_actions.clear();
+
+    // 1. Open Add
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::CustomAction(CustomActionEditorMsg::OpenAdd),
+    );
+    assert!(app.state.action_editor.is_some());
+    let editor = app.state.action_editor.as_ref().unwrap();
+    assert_eq!(editor.editing_index, None);
+
+    // 2. Change fields
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::CustomAction(CustomActionEditorMsg::NameChanged("Translate".to_string())),
+    );
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::CustomAction(CustomActionEditorMsg::CommandChanged(
+            "trans -b :vi".to_string(),
+        )),
+    );
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::CustomAction(CustomActionEditorMsg::PopupToggled(true)),
+    );
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::CustomAction(CustomActionEditorMsg::StreamToggled(true)),
+    );
+
+    // 3. Save new action
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::CustomAction(CustomActionEditorMsg::Save),
+    );
+    assert!(app.state.action_editor.is_none());
+    assert_eq!(app.state.selection_menu_config.custom_actions.len(), 1);
+    let action = &app.state.selection_menu_config.custom_actions[0];
+    assert_eq!(action.name, "Translate");
+    assert_eq!(action.command, "trans -b :vi");
+    assert!(action.enabled);
+    assert!(action.popup);
+    assert!(action.stream);
+
+    // 4. Toggle action enabled
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::CustomAction(CustomActionEditorMsg::ToggleEnabled {
+            index: 0,
+            enabled: false,
+        }),
+    );
+    assert!(!app.state.selection_menu_config.custom_actions[0].enabled);
+
+    // 5. Open Edit
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::CustomAction(CustomActionEditorMsg::OpenEdit(0)),
+    );
+    assert_eq!(
+        app.state.action_editor.as_ref().unwrap().editing_index,
+        Some(0)
+    );
+
+    // 6. Modify name and save
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::CustomAction(CustomActionEditorMsg::NameChanged(
+            "Translate VI".to_string(),
+        )),
+    );
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::CustomAction(CustomActionEditorMsg::Save),
+    );
+    assert_eq!(
+        app.state.selection_menu_config.custom_actions[0].name,
+        "Translate VI"
+    );
+
+    // 7. Delete action
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::CustomAction(CustomActionEditorMsg::Delete(0)),
+    );
+    assert!(app.state.selection_menu_config.custom_actions.is_empty());
 }

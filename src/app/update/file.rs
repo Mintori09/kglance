@@ -67,6 +67,7 @@ pub fn handle_daemon_open_with_playlist(
     let config = app.load_config();
     app.state.apply_scroll_config(&config.scroll);
     app.state.file_tree.update_external_path(Path::new(&path));
+    app.state.selection_menu_config = config.selection_menu;
 
     if !playlist.is_empty() {
         app.state.playlist = playlist;
@@ -121,6 +122,7 @@ pub fn handle_daemon_open_loading(
     let config = app.load_config();
     app.state.apply_scroll_config(&config.scroll);
     app.state.file_tree.update_external_path(Path::new(&path));
+    app.state.selection_menu_config = config.selection_menu;
 
     app.current_content = None;
     app.state.reset_content_state_for_loading(path.clone());

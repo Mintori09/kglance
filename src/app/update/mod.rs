@@ -10,6 +10,7 @@ pub mod file_tree;
 pub mod grid;
 pub mod misc;
 pub mod navigation;
+pub mod selection_menu;
 pub mod settings;
 
 pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
@@ -615,6 +616,7 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
         },
         Message::Settings(msg) => settings::handle_settings_message(app, msg),
         Message::FileTree(msg) => file_tree::handle_file_tree_msg(app, msg),
+        Message::SelectionMenu(msg) => selection_menu::handle_selection_menu_msg(app, msg),
 
         // Global Layout / Input Events
         Message::SmoothScrollTick(now) => match app.current_content {

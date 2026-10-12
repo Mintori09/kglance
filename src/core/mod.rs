@@ -12,6 +12,7 @@ pub mod preloader;
 pub mod preview;
 pub mod read_positions;
 pub mod scroll;
+pub mod selection_action;
 pub mod types;
 pub mod utils;
 
@@ -21,6 +22,7 @@ pub use mmap::MmapFile;
 pub use preview::{FilePreviewer, PreviewData, is_slow_to_parse};
 pub use read_positions::{ReadPosition, ReadPositions};
 pub use scroll::{SmoothScrollMode, SmoothScroller, max_scroll_y};
+pub use selection_action::{CustomAction, SelectionMenuConfig, SelectionMenuState};
 pub use types::{
     DirState, FolderRowState, FolderState, GridThumbnail, HistoryState, ImageState, KglanceState,
     MarkdownState, MediaState, PageCacheEntry, PdfSidebarMode, PdfState, SelectionPoint,
