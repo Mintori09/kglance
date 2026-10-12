@@ -217,13 +217,39 @@ pub fn handle_chapter_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message>
             .stop(clamped_y);
         app.state.epub.markdown_state.smooth_scroll.stop(clamped_y);
 
-        return operation::scroll_to(
+        let scroll_task = operation::scroll_to(
             "content_scroll",
             operation::AbsoluteOffset {
                 x: 0.0,
                 y: clamped_y,
             },
         );
+
+        let mut tasks = vec![scroll_task];
+        let current_gen = app
+            .state
+            .epub
+            .markdown_state
+            .generation_id
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let mut all_image_paths = Vec::new();
+        for block in &chapter.blocks {
+            crate::features::markdown::parser::collect_image_paths(block, &mut all_image_paths);
+        }
+        all_image_paths.sort();
+        all_image_paths.dedup();
+
+        let gen_arc = app.state.epub.markdown_state.generation_id.clone();
+        for path_str in all_image_paths {
+            tasks.push(crate::features::markdown::spawn_image_load_task(
+                path_str,
+                None,
+                gen_arc.clone(),
+                current_gen,
+            ));
+        }
+
+        return Task::batch(tasks);
     }
     Task::none()
 }

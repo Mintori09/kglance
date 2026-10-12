@@ -3,6 +3,38 @@ use crate::core::types::{EpubChapterInfo, EpubState, KglanceState, MarkdownState
 use crate::parsers::markdown::Block;
 use std::collections::HashMap;
 
+fn collect_image_entries<'a>(block: &'a Block, out: &mut Vec<(&'a str, Option<u32>, Option<u32>)>) {
+    match block {
+        Block::Image {
+            path,
+            width,
+            height,
+            ..
+        } => {
+            out.push((path.as_str(), *width, *height));
+        }
+        Block::List { items, .. } => {
+            for item in items {
+                for sb in &item.sub_blocks {
+                    collect_image_entries(sb, out);
+                }
+            }
+        }
+        Block::Quote(blocks)
+        | Block::Alert {
+            content: blocks, ..
+        }
+        | Block::FootnoteDefinition {
+            content: blocks, ..
+        } => {
+            for b in blocks {
+                collect_image_entries(b, out);
+            }
+        }
+        _ => {}
+    }
+}
+
 pub fn ensure_blocks_images(
     markdown_state: &mut MarkdownState,
     blocks: &[Block],
@@ -10,27 +42,39 @@ pub fn ensure_blocks_images(
 ) {
     let mut dims_cache: HashMap<&[u8], (u32, u32)> = HashMap::new();
 
-    for (i, block) in blocks.iter().enumerate() {
-        if markdown_state.cached_image_handles.contains_key(&i) {
-            continue;
-        }
+    for block in blocks {
+        let mut entries = Vec::new();
+        collect_image_entries(block, &mut entries);
+        for (img_path, explicit_w, explicit_h) in entries {
+            if markdown_state.cached_image_handles.contains_key(img_path) {
+                continue;
+            }
 
-        if let Block::Image { path: img_path, .. } = block {
             let filename = std::path::Path::new(img_path)
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or(img_path);
             if let Some(bytes) = images.get(img_path).or_else(|| images.get(filename)) {
                 let handle = iced::widget::image::Handle::from_bytes(bytes.clone());
-                markdown_state.cached_image_handles.insert(i, handle);
-                if let Some(&dims) = dims_cache.get(bytes.as_slice()) {
-                    markdown_state.cached_image_sizes.insert(i, dims);
+                markdown_state
+                    .cached_image_handles
+                    .insert(img_path.to_string(), handle);
+                if let (Some(w), Some(h)) = (explicit_w, explicit_h) {
+                    markdown_state
+                        .cached_image_sizes
+                        .insert(img_path.to_string(), (w, h));
+                } else if let Some(&dims) = dims_cache.get(bytes.as_slice()) {
+                    markdown_state
+                        .cached_image_sizes
+                        .insert(img_path.to_string(), dims);
                 } else if let Ok(reader) =
                     image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()
                     && let Ok(dims) = reader.into_dimensions()
                 {
                     dims_cache.insert(bytes.as_slice(), dims);
-                    markdown_state.cached_image_sizes.insert(i, dims);
+                    markdown_state
+                        .cached_image_sizes
+                        .insert(img_path.to_string(), dims);
                 }
             }
         }
@@ -50,29 +94,7 @@ pub fn ensure_chapter_images(
     markdown_state.cached_image_handles.clear();
     markdown_state.cached_image_sizes.clear();
 
-    let mut dims_cache: HashMap<&[u8], (u32, u32)> = HashMap::new();
-
-    for (i, block) in chapter.blocks.iter().enumerate() {
-        if let Block::Image { path: img_path, .. } = block {
-            let filename = std::path::Path::new(img_path)
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or(img_path);
-            if let Some(bytes) = images.get(img_path).or_else(|| images.get(filename)) {
-                let handle = iced::widget::image::Handle::from_bytes(bytes.clone());
-                markdown_state.cached_image_handles.insert(i, handle);
-                if let Some(&dims) = dims_cache.get(bytes.as_slice()) {
-                    markdown_state.cached_image_sizes.insert(i, dims);
-                } else if let Ok(reader) =
-                    image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()
-                    && let Ok(dims) = reader.into_dimensions()
-                {
-                    dims_cache.insert(bytes.as_slice(), dims);
-                    markdown_state.cached_image_sizes.insert(i, dims);
-                }
-            }
-        }
-    }
+    ensure_blocks_images(markdown_state, &chapter.blocks, images);
 }
 
 pub fn build_continuous_blocks(chapters: &[EpubChapterInfo]) -> (Vec<Block>, Vec<usize>) {
@@ -271,6 +293,8 @@ mod tests {
                     path: "img_ch0.png".to_string(),
                     alt: "Image 0".to_string(),
                     link_url: None,
+                    width: None,
+                    height: None,
                 }],
             },
             EpubChapterInfo {
@@ -282,6 +306,8 @@ mod tests {
                     path: "img_ch1.png".to_string(),
                     alt: "Image 1".to_string(),
                     link_url: None,
+                    width: None,
+                    height: None,
                 }],
             },
         ];
@@ -289,13 +315,29 @@ mod tests {
         let mut markdown_state = MarkdownState::default();
         // Activate chapter 0
         ensure_chapter_images(&mut markdown_state, &chapters, 0, &images);
-        assert!(markdown_state.cached_image_handles.contains_key(&0));
-        assert!(markdown_state.cached_image_sizes.contains_key(&0));
+        assert!(
+            markdown_state
+                .cached_image_handles
+                .contains_key("img_ch0.png")
+        );
+        assert!(
+            markdown_state
+                .cached_image_sizes
+                .contains_key("img_ch0.png")
+        );
 
-        // Switch to chapter 1 (replaces cached images with chapter 1's local indices)
+        // Switch to chapter 1 (replaces cached images with chapter 1's images)
         ensure_chapter_images(&mut markdown_state, &chapters, 1, &images);
-        assert!(markdown_state.cached_image_handles.contains_key(&0));
-        assert!(markdown_state.cached_image_sizes.contains_key(&0));
+        assert!(
+            markdown_state
+                .cached_image_handles
+                .contains_key("img_ch1.png")
+        );
+        assert!(
+            markdown_state
+                .cached_image_sizes
+                .contains_key("img_ch1.png")
+        );
     }
 
     #[test]
