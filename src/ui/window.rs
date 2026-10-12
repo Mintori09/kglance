@@ -348,7 +348,15 @@ pub fn view_window<'a>(
         .align_y(Alignment::End)
         .align_x(iced::alignment::Horizontal::Center);
 
-    let mut stack = Stack::new().push(base).push(toast_layer);
+    let mut stack = Stack::new().push(base);
+
+    if let Some(selection_layer) =
+        crate::ui::components::selection_menu::render_selection_menu_layer(state)
+    {
+        stack = stack.push(selection_layer);
+    }
+
+    stack = stack.push(toast_layer);
 
     if show_settings_modal {
         let ui_config = crate::core::config::UiConfig {
@@ -376,6 +384,7 @@ pub fn view_window<'a>(
             &ui_config,
             &state.cache_config,
             &state.scroll_config,
+            state.selection_menu_config.enabled,
             state.settings_tab,
             static_fonts,
         );

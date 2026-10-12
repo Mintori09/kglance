@@ -22,11 +22,16 @@ impl std::fmt::Display for EpubModeDisplay {
     }
 }
 
-pub fn previews_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Element<'a, Message> {
+pub fn previews_tab<'a>(
+    theme: &Theme,
+    config: &UiConfig,
+    selection_menu_enabled: bool,
+    main_font: Font,
+) -> Element<'a, Message> {
     let base_colors = BaseColors::palette(theme);
     let theme_clone = theme.clone();
 
-    // --- CARD 1: DOCUMENTS & BOOKS ---
+    // --- CARD 1: DOCUMENTS & E-BOOKS ---
     let current_mode = match config.epub_reading_mode {
         EpubReadingMode::SingleChapter => EpubModeDisplay::SingleChapter,
         EpubReadingMode::Continuous => EpubModeDisplay::Continuous,
@@ -73,6 +78,22 @@ pub fn previews_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> El
         base_colors.text_dim,
     );
 
+    let selection_menu_cb = toggler(selection_menu_enabled)
+        .on_toggle(|enabled| Message::Settings(SettingsMsg::SelectionMenuToggled(enabled)))
+        .style({
+            let theme = theme_clone.clone();
+            move |_, status| default_toggler(&theme, status)
+        });
+
+    let selection_menu_row = build_setting_row(
+        "Selection Context Menu",
+        "Show floating quick actions (copy, search, translate, custom scripts) on text selection",
+        selection_menu_cb,
+        main_font,
+        base_colors.text,
+        base_colors.text_dim,
+    );
+
     let doc_card = container(
         column![
             text("DOCUMENTS & E-BOOKS")
@@ -83,6 +104,7 @@ pub fn previews_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> El
                 }),
             epub_row,
             mermaid_row,
+            selection_menu_row,
         ]
         .spacing(spacing::M),
     )
