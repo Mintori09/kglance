@@ -423,8 +423,16 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             let _ = app.save_config(&config);
             Task::none()
         }
+        SettingsMsg::SelectionMenuToggled(enabled) => {
+            app.state.selection_menu_config.enabled = enabled;
+            let mut config = app.load_config();
+            config.selection_menu.enabled = enabled;
+            let _ = app.save_config(&config);
+            Task::none()
+        }
         SettingsMsg::ResetToDefaults => {
             let default_config = crate::core::config::AppConfig::default();
+            app.state.selection_menu_config = default_config.selection_menu.clone();
             let old_size = app.state.font_size;
             app.state.font_size = default_config.ui.font_size;
             app.state.default_font_size = default_config.ui.font_size;

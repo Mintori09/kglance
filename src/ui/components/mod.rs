@@ -6,5 +6,6 @@ pub mod paragraph_cache;
 pub mod scroll_pane;
 pub mod search_bar;
 pub mod selectable_text;
+pub mod selection_menu;
 pub mod sidebar;
 pub mod spinner;

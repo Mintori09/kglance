@@ -179,4 +179,17 @@ fn test_reset_to_defaults() {
     assert_eq!(app.state.json.tree_mode, defaults.ui.json_tree_view);
     assert_eq!(app.state.cache_config, defaults.cache);
     assert_eq!(app.state.scroll_config, defaults.scroll);
+    assert_eq!(app.state.selection_menu_config, defaults.selection_menu);
+}
+
+#[test]
+fn test_selection_menu_toggled() {
+    let mut app = test_app(None);
+    assert!(app.state.selection_menu_config.enabled);
+
+    let _ = handle_settings_message(&mut app, SettingsMsg::SelectionMenuToggled(false));
+    assert!(!app.state.selection_menu_config.enabled);
+
+    let _ = handle_settings_message(&mut app, SettingsMsg::SelectionMenuToggled(true));
+    assert!(app.state.selection_menu_config.enabled);
 }

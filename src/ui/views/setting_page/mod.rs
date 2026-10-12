@@ -25,6 +25,7 @@ pub fn settings_page<'a>(
     config: &UiConfig,
     cache_config: &CacheConfig,
     scroll_config: &ScrollConfigOptions,
+    selection_menu_enabled: bool,
     active_tab: SettingTab,
     available_fonts: &'a [String],
 ) -> Element<'a, Message> {
@@ -84,7 +85,9 @@ pub fn settings_page<'a>(
             appearance::appearance_tab(theme, config, available_fonts, main_font)
         }
         SettingTab::Window => window::window_tab(theme, config, main_font),
-        SettingTab::Previews => previews::previews_tab(theme, config, main_font),
+        SettingTab::Previews => {
+            previews::previews_tab(theme, config, selection_menu_enabled, main_font)
+        }
         SettingTab::CacheScroll => {
             cache_scroll::cache_scroll_tab(theme, cache_config, scroll_config, main_font)
         }
