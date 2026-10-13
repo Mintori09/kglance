@@ -133,6 +133,35 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                     s,
                     content_width,
                 );
+            } else if app.state.epub_font_family.is_none()
+                && matches!(
+                    app.current_content,
+                    Some(crate::core::PreviewData::Epub { .. })
+                )
+            {
+                let content_width = app.state.epub_content_width();
+                let blocks = if app.state.epub.reading_mode
+                    == crate::core::config::EpubReadingMode::Continuous
+                {
+                    app.state.epub.continuous_blocks.as_slice()
+                } else {
+                    let active_chapter = app.state.epub.active_chapter;
+                    app.state
+                        .epub
+                        .chapters
+                        .get(active_chapter)
+                        .map_or([].as_slice(), |c| c.blocks.as_slice())
+                };
+                if !blocks.is_empty() {
+                    let s = app.state.font_size;
+                    crate::features::markdown::rescale_and_update_markdown_layout(
+                        &mut app.state.epub.markdown_state,
+                        blocks,
+                        s,
+                        s,
+                        content_width,
+                    );
+                }
             }
             let _ = app.save_current_config();
             Task::none()
@@ -342,6 +371,18 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
         SettingsMsg::EpubReadingModeChanged(mode) => {
             let task = crate::features::epub::update::handle_reading_mode_changed(app, mode);
             app.state.epub_reading_mode = mode;
+            if !app.state.file_name.is_empty()
+                && let Some(pos) = app.state.read_positions.get(&app.state.file_name)
+            {
+                app.state.read_positions.insert(
+                    app.state.file_name.clone(),
+                    crate::core::ReadPosition {
+                        reading_mode: Some(mode),
+                        ..pos
+                    },
+                );
+                app.state.read_positions_dirty = true;
+            }
             let _ = app.save_current_config();
             task
         }
@@ -516,6 +557,18 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             } else {
                 app.state.epub_reading_mode = default_config.ui.epub_reading_mode;
                 app.state.epub.reading_mode = default_config.ui.epub_reading_mode;
+                if !app.state.file_name.is_empty()
+                    && let Some(pos) = app.state.read_positions.get(&app.state.file_name)
+                {
+                    app.state.read_positions.insert(
+                        app.state.file_name.clone(),
+                        crate::core::ReadPosition {
+                            reading_mode: Some(default_config.ui.epub_reading_mode),
+                            ..pos
+                        },
+                    );
+                    app.state.read_positions_dirty = true;
+                }
                 Task::none()
             };
             app.state.ruby_display_mode = default_config.ui.ruby_display_mode;

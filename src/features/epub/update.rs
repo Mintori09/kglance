@@ -278,6 +278,19 @@ pub fn handle_reading_mode_changed(
     app.state.epub_reading_mode = mode;
     app.state.epub.reading_mode = mode;
 
+    if !app.state.file_name.is_empty()
+        && let Some(pos) = app.state.read_positions.get(&app.state.file_name)
+    {
+        app.state.read_positions.insert(
+            app.state.file_name.clone(),
+            crate::core::ReadPosition {
+                reading_mode: Some(mode),
+                ..pos
+            },
+        );
+        app.state.read_positions_dirty = true;
+    }
+
     let anchor = match old_mode {
         crate::core::config::EpubReadingMode::Continuous => {
             capture_continuous_anchor(&app.state.epub)

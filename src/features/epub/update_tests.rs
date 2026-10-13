@@ -876,3 +876,81 @@ fn test_reading_mode_changed_round_trip_preserves_position() {
     assert_eq!(app.state.epub.active_chapter, 1);
     assert_eq!(app.state.epub.markdown_state.scroll_y, orig_y);
 }
+
+#[test]
+fn test_reading_mode_changed_with_existing_read_positions() {
+    let chapters = vec![
+        crate::core::types::EpubChapterInfo {
+            title: "Chapter 1".to_string(),
+            level: 1,
+            anchor: None,
+            file_href: "ch1.xhtml".to_string(),
+            blocks: vec![crate::parsers::markdown::Block::Paragraph(vec![
+                crate::parsers::markdown::Inline::Text("Chapter 1 text content".to_string()),
+            ])],
+        },
+        crate::core::types::EpubChapterInfo {
+            title: "Chapter 2".to_string(),
+            level: 1,
+            anchor: None,
+            file_href: "ch2.xhtml".to_string(),
+            blocks: vec![crate::parsers::markdown::Block::Paragraph(vec![
+                crate::parsers::markdown::Inline::Text("Chapter 2 text content".to_string()),
+            ])],
+        },
+    ];
+
+    let path_str = "/fake/saved_book.epub";
+    let mut app = test_app(Some(crate::core::PreviewData::Epub {
+        title: "Test Book".to_string(),
+        author: "Author".to_string(),
+        chapters: chapters.clone(),
+        active_chapter: 0,
+        images: std::collections::HashMap::new(),
+    }));
+    app.state.file_name = path_str.to_string();
+    app.state.epub_reading_mode = crate::core::config::EpubReadingMode::SingleChapter;
+
+    // Simulate pre-existing read_positions with SingleChapter
+    app.state.read_positions.insert(
+        path_str.to_string(),
+        crate::core::ReadPosition {
+            scroll_y: 20.0,
+            chapter: 1,
+            reading_mode: Some(crate::core::config::EpubReadingMode::SingleChapter),
+        },
+    );
+
+    crate::features::epub::state::populate_state(
+        &mut app.state,
+        "Test Book",
+        "Author",
+        &chapters,
+        1,
+        &std::collections::HashMap::new(),
+    );
+    assert_eq!(
+        app.state.epub.reading_mode,
+        crate::core::config::EpubReadingMode::SingleChapter
+    );
+
+    // Now user changes reading mode to Continuous (e.g. from Settings)
+    let _ = handle_reading_mode_changed(&mut app, crate::core::config::EpubReadingMode::Continuous);
+
+    assert_eq!(
+        app.state.epub.reading_mode,
+        crate::core::config::EpubReadingMode::Continuous
+    );
+    assert_eq!(
+        app.state.epub_reading_mode,
+        crate::core::config::EpubReadingMode::Continuous
+    );
+    assert!(!app.state.epub.continuous_blocks.is_empty());
+    assert_eq!(
+        app.state
+            .read_positions
+            .get(path_str)
+            .and_then(|p| p.reading_mode),
+        Some(crate::core::config::EpubReadingMode::Continuous)
+    );
+}
