@@ -320,9 +320,9 @@ fn test_load_config_with_comments() {
 
 #[test]
 fn test_strip_json_comments() {
-    let input = "// comment 1\n{\"key\": \"val // not a comment\", // comment 2\n\"esc\": \"\\\" // not comment\"}\n";
+    let input = "// comment 1\n{\"key\": \"val // not a comment\", /* block comment */\n\"esc\": \"\\\" // not comment\"}\n";
     let stripped = strip_json_comments(input);
     assert!(!stripped.contains("comment 1"));
-    assert!(!stripped.contains("comment 2"));
+    assert!(!stripped.contains("/* block comment */"));
     assert!(stripped.contains("val // not a comment"));
 }
