@@ -335,6 +335,7 @@ fn test_stream_chunks_and_finish() {
         &mut app,
         SelectionMenuMsg::StreamFinished {
             action_name: "AI Stream".to_string(),
+            toast: false,
         },
     );
 
@@ -351,6 +352,158 @@ fn test_stream_chunks_and_finish() {
         }
         _ => panic!("Expected Result state not streaming"),
     }
+}
+
+#[test]
+fn test_stream_finished_empty_output_fallback() {
+    let mut app = test_app(None);
+    let pos = iced::Point::new(60.0, 90.0);
+    app.state.selection_menu = SelectionMenuState::Result {
+        pos,
+        action_name: "Empty Action".to_string(),
+        content: String::new(),
+        blocks: Vec::new(),
+        is_streaming: true,
+    };
+
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::StreamFinished {
+            action_name: "Empty Action".to_string(),
+            toast: false,
+        },
+    );
+
+    match &app.state.selection_menu {
+        SelectionMenuState::Result {
+            content,
+            blocks,
+            is_streaming,
+            ..
+        } => {
+            assert_eq!(content, "(No output returned)");
+            assert!(!blocks.is_empty());
+            assert!(!*is_streaming);
+        }
+        _ => panic!("Expected Result state with fallback"),
+    }
+}
+
+#[test]
+fn test_stream_failed_empty_content() {
+    let mut app = test_app(None);
+    let pos = iced::Point::new(60.0, 90.0);
+    app.state.selection_menu = SelectionMenuState::Result {
+        pos,
+        action_name: "Failed Action".to_string(),
+        content: String::new(),
+        blocks: Vec::new(),
+        is_streaming: true,
+    };
+
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::StreamFailed {
+            action_name: "Failed Action".to_string(),
+            error: "API key missing".to_string(),
+            toast: false,
+        },
+    );
+
+    match &app.state.selection_menu {
+        SelectionMenuState::Result {
+            content,
+            blocks,
+            is_streaming,
+            ..
+        } => {
+            assert_eq!(content, "**Error:** API key missing");
+            assert!(!blocks.is_empty());
+            assert!(!*is_streaming);
+        }
+        _ => panic!("Expected Result state with error"),
+    }
+}
+
+#[test]
+fn test_stream_failed_with_partial_chunks() {
+    let mut app = test_app(None);
+    let pos = iced::Point::new(60.0, 90.0);
+    app.state.selection_menu = SelectionMenuState::Result {
+        pos,
+        action_name: "Partial Action".to_string(),
+        content: String::new(),
+        blocks: Vec::new(),
+        is_streaming: true,
+    };
+
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::StreamChunk {
+            action_name: "Partial Action".to_string(),
+            chunk: "Partial output".to_string(),
+        },
+    );
+
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::StreamFailed {
+            action_name: "Partial Action".to_string(),
+            error: "Connection lost".to_string(),
+            toast: false,
+        },
+    );
+
+    match &app.state.selection_menu {
+        SelectionMenuState::Result {
+            content,
+            blocks,
+            is_streaming,
+            ..
+        } => {
+            assert_eq!(content, "Partial output\n\n**Error:** Connection lost");
+            assert!(!blocks.is_empty());
+            assert!(!*is_streaming);
+        }
+        _ => panic!("Expected Result state with partial content and error"),
+    }
+}
+
+#[test]
+fn test_stream_finished_and_failed_with_toast() {
+    let mut app = test_app(None);
+    let pos = iced::Point::new(60.0, 90.0);
+    app.state.selection_menu = SelectionMenuState::Result {
+        pos,
+        action_name: "Toast Action".to_string(),
+        content: "Done".to_string(),
+        blocks: Vec::new(),
+        is_streaming: true,
+    };
+
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::StreamFinished {
+            action_name: "Toast Action".to_string(),
+            toast: true,
+        },
+    );
+    assert_eq!(app.state.toasts.len(), 1);
+    assert_eq!(app.state.toasts[0].message, "Toast Action completed");
+
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::StreamFailed {
+            action_name: "Toast Action".to_string(),
+            error: "Bad request".to_string(),
+            toast: true,
+        },
+    );
+    assert_eq!(app.state.toasts.len(), 2);
+    assert_eq!(
+        app.state.toasts[1].message,
+        "Toast Action error: Bad request"
+    );
 }
 
 #[test]
@@ -419,4 +572,28 @@ fn test_action_result_error() {
             .message
             .contains("Failing error")
     );
+}
+
+#[test]
+fn test_split_utf8_boundary() {
+    use super::split_utf8_boundary;
+
+    // Normal ASCII
+    let (chunk, rem) = split_utf8_boundary(b"hello world");
+    assert_eq!(chunk, "hello world");
+    assert_eq!(rem, b"");
+
+    // Multi-byte UTF-8 split across boundary
+    // '€' is 3 bytes: 0xE2, 0x82, 0xAC
+    let bytes = [b'a', 0xE2, 0x82];
+    let (chunk, rem) = split_utf8_boundary(&bytes);
+    assert_eq!(chunk, "a");
+    assert_eq!(rem, &[0xE2, 0x82]);
+
+    // Combining with the remaining byte
+    let mut combined = rem.to_vec();
+    combined.push(0xAC);
+    let (chunk, rem) = split_utf8_boundary(&combined);
+    assert_eq!(chunk, "€");
+    assert_eq!(rem, b"");
 }
