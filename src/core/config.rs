@@ -291,6 +291,17 @@ pub fn strip_json_comments(input: &str) -> String {
                     break;
                 }
             }
+        } else if ch == '/' && chars.peek() == Some(&'*') {
+            chars.next();
+            while let Some(next_ch) = chars.next() {
+                if next_ch == '*' && chars.peek() == Some(&'/') {
+                    chars.next();
+                    break;
+                }
+                if next_ch == '\n' {
+                    output.push('\n');
+                }
+            }
         } else {
             output.push(ch);
         }
