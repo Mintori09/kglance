@@ -180,8 +180,7 @@ fn test_load_or_create_handles_corrupted_json() {
     assert!((config.ui.max_text_width.unwrap() - 820.0).abs() < f32::EPSILON);
 
     let content = std::fs::read_to_string(&config_path).unwrap();
-    let reparsed: AppConfig = serde_json::from_str(&content).unwrap();
-    assert_eq!(reparsed, AppConfig::default());
+    assert_eq!(content, "not valid json {");
 }
 
 #[test]

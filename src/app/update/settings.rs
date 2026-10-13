@@ -38,9 +38,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 typst_scroll,
                 theme,
             );
-            let mut config = app.load_config();
-            config.ui.theme = Some(t);
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::FontSizeChanged(s) => {
@@ -120,9 +118,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 );
             }
 
-            let mut config = app.load_config();
-            config.ui.font_size = s;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::FontFamilySelected(f) => {
@@ -138,9 +134,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                     content_width,
                 );
             }
-            let mut config = app.load_config();
-            config.ui.font_family = Some(f);
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::FontFamilyMonoSelected(f) => {
@@ -175,9 +169,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 win_w,
                 theme,
             );
-            let mut config = app.load_config();
-            config.ui.font_family_mono = Some(f);
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::EpubFontFamilySelected(f) => {
@@ -210,9 +202,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                     );
                 }
             }
-            let mut config = app.load_config();
-            config.ui.epub_font_family = Some(f);
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::MaxTextWidthChanged(w) => {
@@ -224,40 +214,30 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 }
             } else {
                 app.state.max_text_width = None;
-                let mut config = app.load_config();
-                config.ui.max_text_width = None;
-                let _ = app.save_config(&config);
+                let _ = app.save_current_config();
             }
             Task::none()
         }
         SettingsMsg::DefaultWidthChanged(w) => {
             let clamped_w = w.max(app.state.window_min_size.width as u32);
             app.state.window_default_size.width = clamped_w as f32;
-            let mut config = app.load_config();
-            config.ui.default_width = clamped_w;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::DefaultHeightChanged(h) => {
             let clamped_h = h.max(app.state.window_min_size.height as u32);
             app.state.window_default_size.height = clamped_h as f32;
-            let mut config = app.load_config();
-            config.ui.default_height = clamped_h;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::MinWidthChanged(w) => {
             app.state.window_min_size.width = w as f32;
-            let mut config = app.load_config();
-            config.ui.min_width = w;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::MinHeightChanged(h) => {
             app.state.window_min_size.height = h as f32;
-            let mut config = app.load_config();
-            config.ui.min_height = h;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::UseCurrentWindowSize => {
@@ -267,19 +247,13 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             let min_h = app.state.window_min_size.height as u32;
             if w >= min_w && h >= min_h {
                 app.state.window_default_size = iced::Size::new(w as f32, h as f32);
-                let mut config = app.load_config();
-                config.ui.default_width = w;
-                config.ui.default_height = h;
-                let _ = app.save_config(&config);
+                let _ = app.save_current_config();
             }
             Task::none()
         }
         SettingsMsg::SetWindowPreset { width, height } => {
             app.state.window_default_size = iced::Size::new(width as f32, height as f32);
-            let mut config = app.load_config();
-            config.ui.default_width = width;
-            config.ui.default_height = height;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::WordWrapChanged(enabled) => {
@@ -356,38 +330,29 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 theme,
             );
 
-            let mut config = app.load_config();
-            config.ui.word_wrap = enabled;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::JsonTreeViewChanged(enabled) => {
             app.state.json_tree_view = enabled;
             app.state.json.tree_mode = enabled;
-            let mut config = app.load_config();
-            config.ui.json_tree_view = enabled;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::EpubReadingModeChanged(mode) => {
             let task = crate::features::epub::update::handle_reading_mode_changed(app, mode);
-            let mut config = app.load_config();
-            config.ui.epub_reading_mode = mode;
-            let _ = app.save_config(&config);
+            app.state.epub_reading_mode = mode;
+            let _ = app.save_current_config();
             task
         }
         SettingsMsg::RubyDisplayModeChanged(mode) => {
             app.state.ruby_display_mode = mode;
-            let mut config = app.load_config();
-            config.ui.ruby_display_mode = mode;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::PreferMermaidCliChanged(enabled) => {
             app.state.prefer_mermaid_cli = enabled;
-            let mut config = app.load_config();
-            config.ui.prefer_mermaid_cli = enabled;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::MaxMemoryMbChanged(mb) => {
@@ -395,47 +360,35 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             app.state
                 .cache
                 .set_max_bytes(mb.saturating_mul(1024 * 1024));
-            let mut config = app.load_config();
-            config.cache.max_memory_mb = mb;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::MaxDiskCacheMbChanged(mb) => {
             app.state.cache_config.max_disk_cache_mb = mb;
-            let mut config = app.load_config();
-            config.cache.max_disk_cache_mb = mb;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::SmoothScrollChanged(enabled) => {
             app.state.scroll_config.smooth_scroll_enabled = enabled;
             app.state.apply_scroll_controllers();
-            let mut config = app.load_config();
-            config.scroll.smooth_scroll_enabled = enabled;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::ScrollFrictionChanged(friction) => {
             app.state.scroll_config.friction = friction;
             app.state.apply_scroll_controllers();
-            let mut config = app.load_config();
-            config.scroll.friction = friction;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::ScrollSpringStiffnessChanged(stiffness) => {
             app.state.scroll_config.spring_stiffness = stiffness;
             app.state.apply_scroll_controllers();
-            let mut config = app.load_config();
-            config.scroll.spring_stiffness = stiffness;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::SelectionMenuToggled(enabled) => {
             app.state.selection_menu_config.enabled = enabled;
-            let mut config = app.load_config();
-            config.selection_menu.enabled = enabled;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
             Task::none()
         }
         SettingsMsg::CustomAction(action_msg) => {
@@ -510,9 +463,8 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                             } else {
                                 app.state.selection_menu_config.custom_actions.push(action);
                             }
-                            let mut config = app.load_config();
-                            config.selection_menu = app.state.selection_menu_config.clone();
-                            let _ = app.save_config(&config);
+                            app.state.action_editor = None;
+                            let _ = app.save_current_config();
                         }
                     }
                 }
@@ -527,9 +479,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                         {
                             app.state.action_editor = None;
                         }
-                        let mut config = app.load_config();
-                        config.selection_menu = app.state.selection_menu_config.clone();
-                        let _ = app.save_config(&config);
+                        let _ = app.save_current_config();
                     }
                 }
                 CustomActionEditorMsg::ToggleEnabled { index, enabled } => {
@@ -540,9 +490,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                         .get_mut(index)
                     {
                         action.enabled = enabled;
-                        let mut config = app.load_config();
-                        config.selection_menu = app.state.selection_menu_config.clone();
-                        let _ = app.save_config(&config);
+                        let _ = app.save_current_config();
                     }
                 }
             }

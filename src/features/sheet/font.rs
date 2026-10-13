@@ -130,9 +130,7 @@ pub fn rescale_spreadsheet_font(app: &mut KglanceApp, new_size: f32) -> Option<T
     }
     app.state.font_size = new_size;
 
-    let mut config = app.load_config();
-    config.ui.font_size = new_size;
-    let _ = app.save_config(&config);
+    let _ = app.save_current_config();
 
     app.state
         .toasts

@@ -1278,9 +1278,7 @@ pub fn rescale_markdown_font(app: &mut KglanceApp, new_size: f32) -> Option<Task
     }
     app.state.font_size = new_size;
 
-    let mut config = app.load_config();
-    config.ui.font_size = new_size;
-    let _ = app.save_config(&config);
+    let _ = app.save_current_config();
 
     app.state
         .toasts
@@ -1362,9 +1360,7 @@ pub fn rescale_markdown_page_width(app: &mut KglanceApp, new_width: f32) -> Opti
     }
     app.state.max_text_width = Some(clamped_width);
 
-    let mut config = app.load_config();
-    config.ui.max_text_width = Some(clamped_width);
-    let _ = app.save_config(&config);
+    let _ = app.save_current_config();
 
     app.state
         .toasts

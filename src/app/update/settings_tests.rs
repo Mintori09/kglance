@@ -303,3 +303,32 @@ fn test_custom_action_editor_workflow() {
     );
     assert!(app.state.selection_menu_config.custom_actions.is_empty());
 }
+
+#[test]
+fn test_custom_actions_persisted_when_changing_other_settings() {
+    let mut app = test_app(None);
+    app.state.selection_menu_config.custom_actions =
+        vec![crate::core::selection_action::CustomAction {
+            name: "Translate".to_string(),
+            command: "trans -b :vi".to_string(),
+            enabled: true,
+            popup: true,
+            toast: false,
+            stream: false,
+        }];
+
+    // Change font size
+    let _ = handle_settings_message(&mut app, SettingsMsg::FontSizeChanged(18.0));
+    assert_eq!(app.state.selection_menu_config.custom_actions.len(), 1);
+    assert_eq!(app.current_config().selection_menu.custom_actions.len(), 1);
+
+    // Change word wrap
+    let _ = handle_settings_message(&mut app, SettingsMsg::WordWrapChanged(true));
+    assert_eq!(app.state.selection_menu_config.custom_actions.len(), 1);
+    assert_eq!(app.current_config().selection_menu.custom_actions.len(), 1);
+
+    // Change theme
+    let _ = handle_settings_message(&mut app, SettingsMsg::ThemeChanged("light".to_string()));
+    assert_eq!(app.state.selection_menu_config.custom_actions.len(), 1);
+    assert_eq!(app.current_config().selection_menu.custom_actions.len(), 1);
+}

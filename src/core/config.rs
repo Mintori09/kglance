@@ -1,4 +1,4 @@
-use crate::{log_debug, log_error};
+use crate::log_error;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -25,6 +25,7 @@ pub enum RubyDisplayMode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct UiConfig {
     pub theme: Option<String>,
     pub font_size: f32,
@@ -145,6 +146,7 @@ impl Default for ScrollConfigOptions {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct AppConfig {
+    #[serde(default)]
     pub ui: UiConfig,
     #[serde(default)]
     pub cache: CacheConfig,
@@ -179,41 +181,42 @@ impl ConfigManager {
     }
 
     pub fn load_from_path(path: &std::path::Path) -> AppConfig {
-        let raw = fs::read_to_string(path).ok();
-
-        let loaded = match raw.as_deref() {
-            Some(content) => match serde_json::from_str::<AppConfig>(content) {
-                Ok(cfg) => Some(cfg),
-                Err(err) => {
-                    log_error!("[kglance] Failed to parse config JSON: {err}");
-                    None
-                }
-            },
-            None => None,
-        };
-
-        if let Some(mut config) = loaded {
-            if let Some(ref t) = config.ui.theme
-                && t.eq_ignore_ascii_case("auto")
-            {
-                config.ui.theme = Some("dark".to_string());
-            }
-            let reserialized = serde_json::to_string_pretty(&config).unwrap_or_default();
-            if raw.as_deref() != Some(reserialized.as_str())
-                && Self::save_to_path(path, &config).is_err()
-            {
-                eprintln!("[kglance] failed to update config");
-            }
+        if !path.exists() {
+            let config = AppConfig::default();
+            let _ = Self::save_to_path(path, &config);
             return config;
         }
 
-        let config = AppConfig::default();
-        let _ = Self::save_to_path(path, &config);
-        log_debug!(
-            "[TRACE:CONFIG_LOAD] Loaded config.ui.json_tree_view = {}",
-            config.ui.json_tree_view
-        );
-        config
+        let raw = match fs::read_to_string(path) {
+            Ok(content) => content,
+            Err(err) => {
+                log_error!(
+                    "[kglance] Failed to read config file {}: {err}",
+                    path.display()
+                );
+                return AppConfig::default();
+            }
+        };
+
+        let sanitized = strip_json_comments(&raw);
+
+        match serde_json::from_str::<AppConfig>(&sanitized) {
+            Ok(mut config) => {
+                if let Some(ref t) = config.ui.theme
+                    && t.eq_ignore_ascii_case("auto")
+                {
+                    config.ui.theme = Some("dark".to_string());
+                }
+                config
+            }
+            Err(err) => {
+                log_error!(
+                    "[kglance] Failed to parse config JSON at {}: {err}",
+                    path.display()
+                );
+                AppConfig::default()
+            }
+        }
     }
 
     pub fn load_or_create() -> AppConfig {
@@ -221,13 +224,27 @@ impl ConfigManager {
     }
 
     pub fn save_to_path(path: &std::path::Path, config: &AppConfig) -> Result<(), String> {
-        if let Some(dir) = path.parent()
-            && !dir.exists()
-        {
-            fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        static SAVE_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+        let parent = path.parent().unwrap_or_else(|| std::path::Path::new("."));
+        if !parent.exists() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
-        fs::write(path, json).map_err(|e| e.to_string())?;
+
+        let pid = std::process::id();
+        let counter = SAVE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let file_stem = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("config.json");
+        let tmp_path = parent.join(format!(".{file_stem}.tmp.{pid}.{counter}"));
+
+        fs::write(&tmp_path, json).map_err(|e| e.to_string())?;
+        fs::rename(&tmp_path, path).map_err(|e| {
+            let _ = fs::remove_file(&tmp_path);
+            e.to_string()
+        })?;
         Ok(())
     }
 
@@ -245,6 +262,41 @@ impl ConfigManager {
     pub fn resolve_theme(setting_str: &str) -> AppTheme {
         setting_str.parse().unwrap_or(AppTheme::Dark)
     }
+}
+
+pub fn strip_json_comments(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    let mut in_string = false;
+    let mut escape = false;
+    let mut chars = input.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if in_string {
+            output.push(ch);
+            if escape {
+                escape = false;
+            } else if ch == '\\' {
+                escape = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+        } else if ch == '"' {
+            in_string = true;
+            output.push(ch);
+        } else if ch == '/' && chars.peek() == Some(&'/') {
+            chars.next();
+            for next_ch in chars.by_ref() {
+                if next_ch == '\n' {
+                    output.push('\n');
+                    break;
+                }
+            }
+        } else {
+            output.push(ch);
+        }
+    }
+
+    output
 }
 
 #[cfg(test)]
