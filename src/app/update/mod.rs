@@ -84,7 +84,7 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::SystemMsg::ToastDismissed(id) => {
                 misc::handle_toast_dismissed(app, id)
             }
-            crate::app::messages::SystemMsg::OpenLink(url) => misc::handle_open_link(url),
+            crate::app::messages::SystemMsg::OpenLink(url) => misc::handle_open_link(app, url),
             crate::app::messages::SystemMsg::FilePreviewError(path) => {
                 file::handle_file_preview_error(app, path)
             }

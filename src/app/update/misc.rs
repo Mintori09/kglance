@@ -12,11 +12,17 @@ pub fn handle_copy_text(app: &mut KglanceApp, text: String) -> Task<Message> {
     ])
 }
 
-pub fn handle_open_link(url: String) -> Task<Message> {
-    if is_allowed_link(&url) {
-        let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+pub fn handle_open_link(app: &mut KglanceApp, url: String) -> Task<Message> {
+    if !is_allowed_link(&url) {
+        return Task::none();
     }
-    Task::none()
+
+    if let Err(e) = std::process::Command::new("xdg-open").arg(&url).spawn() {
+        crate::log_error!("Failed to open link '{url}': {e}");
+        return Task::none();
+    }
+
+    app.show_toast(format!("Opening {url}"))
 }
 
 fn is_allowed_link(link: &str) -> bool {
