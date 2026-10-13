@@ -159,15 +159,14 @@ fn test_load_fallback_when_corrupted_json() {
     let config_path = dir.path().join("config.json");
     fs::write(&config_path, "not a valid json {{{").expect("write bad json");
 
-    // When corrupted, load_from_path should fallback to default and rewrite valid config
+    // When corrupted, load_from_path should fallback to default in memory, but MUST NOT overwrite the user's file
     let loaded = ConfigManager::load_from_path(&config_path);
     let expected_default = AppConfig::default();
     assert_eq!(loaded, expected_default);
 
-    // Verify file on disk is now recovered with valid config
-    let content = fs::read_to_string(&config_path).expect("read recovered file");
-    let parsed: AppConfig = serde_json::from_str(&content).expect("parse recovered json");
-    assert_eq!(parsed, expected_default);
+    // Verify file on disk is NOT overwritten (retains original content so user doesn't lose data)
+    let content = fs::read_to_string(&config_path).expect("read file");
+    assert_eq!(content, "not a valid json {{{");
 }
 
 #[test]
@@ -248,4 +247,82 @@ fn test_epub_reading_mode_config_serde() {
     let json = serde_json::to_string(&cfg).unwrap();
     let roundtrip: AppConfig = serde_json::from_str(&json).unwrap();
     assert_eq!(roundtrip.ui.epub_reading_mode, EpubReadingMode::Continuous);
+}
+
+#[test]
+fn test_load_partial_config_with_custom_actions_only() {
+    let dir = tempdir().expect("create temp dir");
+    let config_path = dir.path().join("config.json");
+
+    let partial_json = r#"{
+        "selection_menu": {
+            "enabled": true,
+            "custom_actions": [
+                {
+                    "name": "Translate VI",
+                    "command": "trans -b :vi",
+                    "popup": true
+                }
+            ]
+        }
+    }"#;
+    fs::write(&config_path, partial_json).expect("write partial json");
+
+    let loaded = ConfigManager::load_from_path(&config_path);
+    assert!(loaded.selection_menu.enabled);
+    assert_eq!(loaded.selection_menu.custom_actions.len(), 1);
+    assert_eq!(loaded.selection_menu.custom_actions[0].name, "Translate VI");
+    assert_eq!(
+        loaded.selection_menu.custom_actions[0].command,
+        "trans -b :vi"
+    );
+    assert!(loaded.selection_menu.custom_actions[0].popup);
+    assert!(loaded.selection_menu.custom_actions[0].enabled);
+
+    let expected_ui = UiConfig::default();
+    assert_eq!(loaded.ui, expected_ui);
+}
+
+#[test]
+fn test_load_config_with_comments() {
+    let dir = tempdir().expect("create temp dir");
+    let config_path = dir.path().join("config.json");
+
+    let json_with_comments = r#"{
+        // This is a top-level comment
+        "ui": {
+            "theme": "dark", // inline comment
+            "font_size": 15.0
+        },
+        "selection_menu": {
+            "custom_actions": [
+                {
+                    "name": "Note // not a comment inside string",
+                    "command": "cat >> ~/notes.txt" // another comment
+                }
+            ]
+        }
+    }"#;
+    fs::write(&config_path, json_with_comments).expect("write json with comments");
+
+    let loaded = ConfigManager::load_from_path(&config_path);
+    assert_eq!(loaded.ui.font_size, 15.0);
+    assert_eq!(loaded.selection_menu.custom_actions.len(), 1);
+    assert_eq!(
+        loaded.selection_menu.custom_actions[0].name,
+        "Note // not a comment inside string"
+    );
+    assert_eq!(
+        loaded.selection_menu.custom_actions[0].command,
+        "cat >> ~/notes.txt"
+    );
+}
+
+#[test]
+fn test_strip_json_comments() {
+    let input = "// comment 1\n{\"key\": \"val // not a comment\", // comment 2\n\"esc\": \"\\\" // not comment\"}\n";
+    let stripped = strip_json_comments(input);
+    assert!(!stripped.contains("comment 1"));
+    assert!(!stripped.contains("comment 2"));
+    assert!(stripped.contains("val // not a comment"));
 }

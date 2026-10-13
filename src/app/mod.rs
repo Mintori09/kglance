@@ -68,6 +68,36 @@ impl Default for KglanceApp {
 }
 
 impl KglanceApp {
+    pub fn current_config(&self) -> crate::core::config::AppConfig {
+        crate::core::config::AppConfig {
+            ui: crate::core::config::UiConfig {
+                theme: Some(self.state.theme_setting.clone()),
+                font_size: self.state.font_size,
+                font_family: self.state.font_family.clone(),
+                font_family_mono: self.state.font_family_mono.clone(),
+                epub_font_family: self.state.epub_font_family.clone(),
+                epub_reading_mode: self.state.epub_reading_mode,
+                ruby_display_mode: self.state.ruby_display_mode,
+                max_text_width: self.state.max_text_width,
+                default_width: self.state.window_default_size.width as u32,
+                default_height: self.state.window_default_size.height as u32,
+                min_width: self.state.window_min_size.width as u32,
+                min_height: self.state.window_min_size.height as u32,
+                prefer_mermaid_cli: self.state.prefer_mermaid_cli,
+                word_wrap: self.state.word_wrap,
+                json_tree_view: self.state.json_tree_view,
+            },
+            cache: self.state.cache_config.clone(),
+            scroll: self.state.scroll_config.clone(),
+            selection_menu: self.state.selection_menu_config.clone(),
+        }
+    }
+
+    pub fn save_current_config(&self) -> Result<(), String> {
+        let config = self.current_config();
+        self.save_config(&config)
+    }
+
     pub fn load_config(&self) -> crate::core::config::AppConfig {
         match &self.config_path {
             Some(path) => crate::core::config::ConfigManager::load_from_path(path),

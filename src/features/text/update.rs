@@ -336,9 +336,7 @@ pub fn handle_wrap_toggled(app: &mut KglanceApp) -> Task<Message> {
     let theme = app.state.app_theme;
     update_tokens_for_viewport(&mut app.state.text, new_scroll_y, theme);
 
-    let mut config = app.load_config();
-    config.ui.word_wrap = app.state.word_wrap;
-    let _ = app.save_config(&config);
+    let _ = app.save_current_config();
 
     iced::widget::operation::scroll_to(
         CONTENT_SCROLL_ID,
@@ -834,10 +832,7 @@ pub fn handle_toggle_word_wrap(app: &mut KglanceApp) -> Option<Task<Message>> {
         update_tokens_for_viewport(&mut app.state.typst.source_text, typst_scroll_y, theme);
     }
 
-    let mut config = app.load_config();
-    config.ui.word_wrap = app.state.word_wrap;
-
-    if let Err(err) = app.save_config(&config) {
+    if let Err(err) = app.save_current_config() {
         crate::log_error!("failed to save word-wrap preference: {err}");
     }
 
@@ -919,9 +914,7 @@ pub fn rescale_text_font(app: &mut KglanceApp, new_size: f32) -> Option<Task<Mes
     }
     app.state.font_size = new_size;
 
-    let mut config = app.load_config();
-    config.ui.font_size = new_size;
-    let _ = app.save_config(&config);
+    let _ = app.save_current_config();
 
     app.state
         .toasts
@@ -957,9 +950,7 @@ pub fn rescale_typst_font(app: &mut KglanceApp, new_size: f32) -> Option<Task<Me
     }
     app.state.font_size = new_size;
 
-    let mut config = app.load_config();
-    config.ui.font_size = new_size;
-    let _ = app.save_config(&config);
+    let _ = app.save_current_config();
 
     app.state
         .toasts

@@ -16,11 +16,14 @@ It operates in two modes:
 
 ## Key Features
 
-- **Source Code & Text**: Syntax highlighting via `syntect` with line numbers, text search (`Ctrl+F`), and word wrap toggle.
+- **Source Code & Text**: Syntax highlighting via `syntect` with line numbers, text search (`Ctrl+F`), word wrap toggle, and multiline text selection.
+- **Floating Selection Context Menu**: Interactive floating toolbar appearing upon text selection with instant plain/HTML copying and configurable custom shell actions (translation, dictionary, AI streaming).
 - **Smooth & Kinetic Inertia Scrolling**: Browser-grade physics-based smooth scrolling, touchpad kinetic fling (least-squares velocity estimation), and full Vim/Page navigation across Markdown, EPUB, PDF, and Source Code/Text.
-- **Images & Creative**: Fast rendering of PNG, JPEG, WebP, GIF, BMP, SVG (`resvg`), Photoshop (`.psd`), Krita (`.kra`), and OpenRaster (`.ora`). Full support for zoom, pan, rotation, and detailed EXIF metadata sidebar.
-- **Documents & Office**: PDF continuous scrolling, page navigation, and thumbnail sidebar; text extraction for DOCX & XLSX with LibreOffice fallback; `.typ` document rendering via `typst` CLI (if installed).
-- **Archives**: Interactive folder tree view for ZIP, Tar, GZ, and 7z archives with inner file preview.
+- **Images & Creative**: Fast rendering of PNG, JPEG, WebP, GIF (animated GIF playback engine), BMP, SVG (`resvg`), Photoshop (`.psd`), Krita (`.kra`), and OpenRaster (`.ora`). Full support for zoom, pan, lossless rotation (`r`/`R`), flipping (`h`/`v`), direct bitmap pixel copying (`Ctrl+C`), and detailed EXIF metadata sidebar.
+- **Documents & Readers**: PDF continuous scrolling, page navigation, text selection with bounding box detection, and rich HTML/plain text copying; EPUB chapter navigation, reading position preservation, and Furigana/Ruby text rendering; DOCX & XLSX text extraction with LibreOffice fallback; `.typ` document rendering via `typst` CLI.
+- **Databases & Spreadsheets**: SQLite databases (`.db`, `.sqlite`, `.sqlite3`) inspected via `rusqlite` into interactive multi-tab tables; spreadsheet viewer (`.csv`, `.tsv`, `.xlsx`, `.ods`) with column resizing, search, and dynamic font scaling (`Ctrl+=`/`Ctrl+-`/`Ctrl+Wheel`).
+- **File Navigation**: File Tree sidebar (`ge`) for browsing directory trees without leaving the preview window, alongside Table of Contents (`gt`).
+- **Archives**: Interactive folder tree view for ZIP, Tar, GZ, and 7z archives with metadata inspection.
 - **Audio & Video**: Metadata extraction, waveform visualization, and inline media playback using GStreamer pipelines.
 - **Fonts**: Font sample rendering (TTF, OTF, WOFF) and metadata display (`fontdue`).
 - **KDE Plasma 6 Integration**: Automatic Dark/Light mode theme sync, Dolphin file manager integration (Space key preview via KIO Service Menu), and autostart daemon.
@@ -32,15 +35,16 @@ It operates in two modes:
 | Category         | Formats                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Code**         | `.rs`, `.py`, `.js`, `.ts`, `.jsx`, `.tsx`, `.html`, `.css`, `.scss`, `.json`, `.toml`, `.yml/.yaml`, `.xml`, `.sh`, `.bash`, `.zsh`, `.fish`, `.c`, `.h`, `.cpp`, `.hpp`, `.java`, `.kt`, `.swift`, `.go`, `.rb`, `.php`, `.pl`, `.pm`, `.lua`, `.r`, `.sql`, `.graphql`, `.proto`, `.tex`, `.bib`, `.dockerfile`, `.makefile`, `.cmake`, `.gradle`, `.cfg`, `.ini`, `.conf`, `.txt`, `.log`, `.diff`, `.patch`, `.vim`, `.ps1`, `.bat` |
-| **Markdown**     | `.md`, `.markdown`, `.mdown`, `.mdwn`, `.mkd`, `.mkdn`                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Markdown**     | `.md`, `.markdown`, `.mdown`, `.mdwn`, `.mkd`, `.mkdn` (GFM tables, task lists, HTML `<img>`, Furigana `<ruby>`, animated GIFs, LaTeX math)                                                                                                                                                                                                                                                                                             |
 | **Images**       | `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.bmp`, `.ico`                                                                                                                                                                                                                                                                                                                                                                                 |
 | **Vector**       | `.svg`                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | **Photoshop**    | `.psd`                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | **Krita**        | `.kra`                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | **OpenRaster**   | `.ora`                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| **Documents**    | `.pdf`, `.epub`, `.typ` (requires `typst`)                                                                                                                                                                                                                                                                                                                                                                                               |
+| **Documents**    | `.pdf` (text selection & rich copy), `.epub` (Ruby text & chapter reader), `.typ` (requires `typst`)                                                                                                                                                                                                                                                                                                                                   |
+| **Databases**    | `.sqlite`, `.sqlite3`, `.db`, `.db3`, `.s3db`, `.sl3`                                                                                                                                                                                                                                                                                                                                                                                    |
 | **Office**       | `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp`                                                                                                                                                                                                                                                                                                                                                                                        |
-| **Spreadsheets** | `.csv`, `.xlsx`, `.ods`                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Spreadsheets** | `.csv`, `.tsv`, `.xlsx`, `.ods` (with dynamic font zoom)                                                                                                                                                                                                                                                                                                                                                                                  |
 | **Archives**     | `.zip`, `.tar`, `.gz`, `.tgz`, `.xz`, `.txz`, `.7z`                                                                                                                                                                                                                                                                                                                                                                                      |
 | **Fonts**        | `.ttf`, `.otf`, `.woff`, `.woff2`                                                                                                                                                                                                                                                                                                                                                                                                        |
 | **Audio**        | `.mp3`, `.wav`, `.flac`, `.ogg`, `.aac`, `.m4a`, `.opus`                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -123,10 +127,10 @@ Kglance offers rich keyboard navigation for navigating files, zooming images, sc
 | `Ctrl` + `F` / `/`                           | Open search bar                                                 | Text, Markdown, JSON, CSV, Grid  |
 | `Escape`                                     | Close search bar and clear query                                | Search active                    |
 | Type characters                              | Immediate type-to-search                                        | Grid view                        |
-| **Zoom & Font Scaling**                      |                                                                 |                                  |
-| `Ctrl` + `+` / `Ctrl` + `=`                  | Zoom in / Increase font size                                    | Image, PDF, Text, Code, Markdown |
-| `Ctrl` + `-`                                 | Zoom out / Decrease font size                                   | Image, PDF, Text, Code, Markdown |
-| `Ctrl` + Scroll                              | Zoom in/out / Resize                                            | Image, PDF, Text, Code, Markdown |
+| **Zoom & Font Scaling**                      |                                                                 |                                                |
+| `Ctrl` + `+` / `Ctrl` + `=`                  | Zoom in / Increase font size                                    | Image, PDF, Text, Code, Markdown, Spreadsheets |
+| `Ctrl` + `-`                                 | Zoom out / Decrease font size                                   | Image, PDF, Text, Code, Markdown, Spreadsheets |
+| `Ctrl` + Scroll                              | Zoom in/out / Resize                                            | Image, PDF, Text, Code, Markdown, Spreadsheets |
 | `Shift` + Scroll                             | Adjust reading column width (widen / narrow)                    | Markdown, EPUB                   |
 | `=`                                          | Fit image to window                                             | Image preview                    |
 | `Shift` + `+` / `Shift` + `=`                | Reset font size to default (14px)                               | Text, Code, Markdown, EPUB       |
@@ -148,7 +152,6 @@ Kglance offers rich keyboard navigation for navigating files, zooming images, sc
 ## Installation & Setup
 
 ### 1. Build from Source
-
 
 Ensure Rust 1.85+ (Edition 2024) is installed.
 
@@ -296,7 +299,7 @@ The config file is auto-created with defaults on first run. See `data/examples/c
     "enabled": true,
     "custom_actions": [
       {
-        "name": "Translate VI",
+        "name": "translate",
         "command": "trans -b :vi",
         "popup": true,
         "toast": false,
@@ -313,7 +316,21 @@ For a full reference, see [`data/examples/config.example.json`](data/examples/co
 
 ## Roadmap
 
-- [x] implement selection text for epub. (without virtual loading)
+### Completed (v0.4.4)
+
+- [x] Text Selection & Rich Copy (plain text & HTML) across PDF, Markdown, EPUB, and Source Code.
+- [x] Floating Selection Context Menu with configurable shell actions (streaming, toast, popup).
+- [x] Furigana / Ruby text rendering in Markdown and EPUB (`<ruby><rb>...<rt>...`).
+- [x] Directory File Tree sidebar (`ge`) alongside Document Sidebar (`gt`).
+- [x] Animated GIF decoding & playback frame timing engine.
+- [x] Lossless image rotation (`r`/`Shift+R`), flipping (`h`/`v`), and bitmap pixel clipboard copy (`Ctrl+C`).
+- [x] SQLite database inspector (`.sqlite`, `.db`) rendered as multi-tab interactive spreadsheets.
+- [x] Spreadsheet font size scaling (`Ctrl+=`, `Ctrl+-`, `Ctrl+Wheel`).
+- [x] Physics-based smooth scrolling with VSync synchronization and touchpad kinetic fling.
+
+### Next Priorities
+
+- [ ] In-PDF Text Search (`Ctrl+F` & Bounding Box Highlight)
 
 ---
 

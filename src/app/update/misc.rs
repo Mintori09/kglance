@@ -66,9 +66,7 @@ pub fn handle_theme_toggled(app: &mut KglanceApp) -> Task<Message> {
         theme,
     );
 
-    let mut config = app.load_config();
-    config.ui.theme = Some(app.state.theme_setting.clone());
-    let _ = app.save_config(&config);
+    let _ = app.save_current_config();
 
     app.show_toast(format!("Theme: {}", theme.display_name()))
 }
@@ -519,10 +517,7 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
             && ((old_w - width).abs() > 1.0 || (old_h - height).abs() > 1.0)
         {
             app.state.window_default_size = iced::Size::new(width, height);
-            let mut config = app.load_config();
-            config.ui.default_width = width.round() as u32;
-            config.ui.default_height = height.round() as u32;
-            let _ = app.save_config(&config);
+            let _ = app.save_current_config();
 
             app.state.toasts.retain(|t| !t.message.starts_with("Size:"));
             toast_task = app.show_toast(format!(
