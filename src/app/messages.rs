@@ -378,6 +378,12 @@ pub enum SelectionMenuMsg {
     },
     StreamFinished {
         action_name: String,
+        toast: bool,
+    },
+    StreamFailed {
+        action_name: String,
+        error: String,
+        toast: bool,
     },
 }
 

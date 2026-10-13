@@ -178,7 +178,7 @@ pub fn render_selection_menu_layer<'a>(state: &'a KglanceState) -> Option<Elemen
 
                 let body_element: Element<'a, Message> = if blocks.is_empty() {
                     if *is_streaming && content.is_empty() {
-                        text("Generating response...").size(popup_font_size).into()
+                        text("Loading...").size(popup_font_size).into()
                     } else {
                         text(content.as_str()).size(popup_font_size).into()
                     }

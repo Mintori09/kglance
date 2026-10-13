@@ -45,7 +45,7 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
                 };
 
                 if action.stream {
-                    stream_custom_action(action_name, action.command, text)
+                    stream_custom_action(action_name, action.command, text, toast)
                 } else {
                     Task::perform(
                         async move {
@@ -93,7 +93,7 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
             }
             Task::none()
         }
-        SelectionMenuMsg::StreamFinished { action_name } => {
+        SelectionMenuMsg::StreamFinished { action_name, toast } => {
             if let SelectionMenuState::Result {
                 action_name: cur_name,
                 content,
@@ -103,6 +103,9 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
             } = &mut app.state.selection_menu
                 && cur_name == &action_name
             {
+                if content.trim().is_empty() {
+                    content.push_str("(No output returned)");
+                }
                 let (parsed_blocks, _) = crate::features::markdown::parser::parse_markdown(
                     content,
                     std::path::Path::new(""),
@@ -110,7 +113,44 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
                 *blocks = parsed_blocks;
                 *is_streaming = false;
             }
-            Task::none()
+            if toast {
+                app.show_toast(format!("{action_name} completed"))
+            } else {
+                Task::none()
+            }
+        }
+        SelectionMenuMsg::StreamFailed {
+            action_name,
+            error,
+            toast,
+        } => {
+            if let SelectionMenuState::Result {
+                action_name: cur_name,
+                content,
+                blocks,
+                is_streaming,
+                ..
+            } = &mut app.state.selection_menu
+                && cur_name == &action_name
+            {
+                if content.trim().is_empty() {
+                    *content = format!("**Error:** {error}");
+                } else {
+                    use std::fmt::Write as _;
+                    let _ = write!(content, "\n\n**Error:** {error}");
+                }
+                let (parsed_blocks, _) = crate::features::markdown::parser::parse_markdown(
+                    content,
+                    std::path::Path::new(""),
+                );
+                *blocks = parsed_blocks;
+                *is_streaming = false;
+            }
+            if toast {
+                app.show_toast(format!("{action_name} error: {error}"))
+            } else {
+                Task::none()
+            }
         }
         SelectionMenuMsg::ActionResult {
             action_name,
@@ -168,12 +208,17 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
     }
 }
 
-pub fn stream_custom_action(action_name: String, command: String, text: String) -> Task<Message> {
+pub fn stream_custom_action(
+    action_name: String,
+    command: String,
+    text: String,
+    toast: bool,
+) -> Task<Message> {
     use iced::futures::SinkExt;
     use iced::futures::channel::mpsc::Sender;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-    let stream = iced::stream::channel(100, |mut output: Sender<Message>| async move {
+    let stream = iced::stream::channel(100, move |mut output: Sender<Message>| async move {
         let env_text = if text.len() > crate::core::selection_action::MAX_ENV_TEXT_BYTES {
             let mut byte_count = 0;
             let mut safe = String::new();
@@ -196,69 +241,175 @@ pub fn stream_custom_action(action_name: String, command: String, text: String) 
             .env("KGLANCE_TEXT", &env_text)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
             .spawn();
 
         let mut child = match spawn_res {
             Ok(child) => child,
             Err(e) => {
                 let _ = output
-                    .send(Message::SelectionMenu(SelectionMenuMsg::ActionResult {
+                    .send(Message::SelectionMenu(SelectionMenuMsg::StreamFailed {
                         action_name,
-                        result: Err(format!("Failed to spawn command: {e}")),
-                        popup: true,
-                        toast: false,
+                        error: format!("Failed to spawn command: {e}"),
+                        toast,
                     }))
                     .await;
                 return;
             }
         };
 
-        if let Some(mut stdin) = child.stdin.take() {
-            let _ = stdin.write_all(text.as_bytes()).await;
-            let _ = stdin.flush().await;
-            drop(stdin);
-        }
+        let stdin = child.stdin.take();
+        let stdin_task = async move {
+            if let Some(mut stdin) = stdin {
+                let _ = stdin.write_all(text.as_bytes()).await;
+                let _ = stdin.flush().await;
+                drop(stdin);
+            }
+        };
 
-        if let Some(mut stdout) = child.stdout.take() {
-            let mut buf = [0u8; 1024];
-            let read_stream = async {
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+
+        let mut out_sender = output.clone();
+        let act_name = action_name.clone();
+
+        let stdout_task = async move {
+            let mut total_chunks = 0usize;
+            if let Some(mut reader) = stdout {
+                let mut buf = [0u8; 1024];
+                let mut carry = Vec::new();
                 loop {
-                    match stdout.read(&mut buf).await {
+                    match reader.read(&mut buf).await {
                         Ok(0) => break,
                         Ok(n) => {
-                            let chunk = String::from_utf8_lossy(&buf[..n]).into_owned();
-                            let _ = output
-                                .send(Message::SelectionMenu(SelectionMenuMsg::StreamChunk {
-                                    action_name: action_name.clone(),
-                                    chunk,
-                                }))
-                                .await;
+                            let (chunk, rem) = if carry.is_empty() {
+                                let (c, r) = split_utf8_boundary(&buf[..n]);
+                                (c.to_string(), r.to_vec())
+                            } else {
+                                carry.extend_from_slice(&buf[..n]);
+                                let (c, r) = split_utf8_boundary(&carry);
+                                (c.to_string(), r.to_vec())
+                            };
+                            if !chunk.is_empty() {
+                                total_chunks += 1;
+                                let _ = out_sender
+                                    .send(Message::SelectionMenu(SelectionMenuMsg::StreamChunk {
+                                        action_name: act_name.clone(),
+                                        chunk,
+                                    }))
+                                    .await;
+                            }
+                            carry = rem;
                         }
                         Err(_) => break,
                     }
                 }
+                if !carry.is_empty() {
+                    let chunk = String::from_utf8_lossy(&carry).into_owned();
+                    total_chunks += 1;
+                    let _ = out_sender
+                        .send(Message::SelectionMenu(SelectionMenuMsg::StreamChunk {
+                            action_name: act_name.clone(),
+                            chunk,
+                        }))
+                        .await;
+                }
+            }
+            total_chunks
+        };
+
+        let stderr_task = async move {
+            let mut err_buf = Vec::new();
+            if let Some(mut reader) = stderr {
+                let _ = reader.read_to_end(&mut err_buf).await;
+            }
+            String::from_utf8_lossy(&err_buf).trim().to_string()
+        };
+
+        let timeout_secs = crate::core::selection_action::CUSTOM_ACTION_TIMEOUT_SECS;
+        let io_res = tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), async {
+            tokio::join!(stdin_task, stdout_task, stderr_task)
+        })
+        .await;
+
+        let (total_chunks, stderr_str) = match io_res {
+            Ok((_, chunks, err_text)) => (chunks, err_text),
+            Err(_) => {
+                let _ = child.kill().await;
+                let _ = output
+                    .send(Message::SelectionMenu(SelectionMenuMsg::StreamFailed {
+                        action_name,
+                        error: format!("Command timed out after {timeout_secs} seconds"),
+                        toast,
+                    }))
+                    .await;
+                return;
+            }
+        };
+
+        let exit_status =
+            tokio::time::timeout(std::time::Duration::from_secs(5), child.wait()).await;
+
+        let is_err = match &exit_status {
+            Ok(Ok(status)) => !status.success(),
+            _ => {
+                let _ = child.kill().await;
+                true
+            }
+        };
+
+        if is_err {
+            let error_msg = if !stderr_str.is_empty() {
+                stderr_str
+            } else if let Ok(Ok(status)) = exit_status {
+                let code = status.code().unwrap_or(-1);
+                format!("Process exited with status {code}")
+            } else {
+                "Process exited abnormally".to_string()
             };
 
-            let _ = tokio::time::timeout(
-                std::time::Duration::from_secs(
-                    crate::core::selection_action::CUSTOM_ACTION_TIMEOUT_SECS,
-                ),
-                read_stream,
-            )
-            .await;
+            let _ = output
+                .send(Message::SelectionMenu(SelectionMenuMsg::StreamFailed {
+                    action_name,
+                    error: error_msg,
+                    toast,
+                }))
+                .await;
+        } else if total_chunks == 0 && !stderr_str.is_empty() {
+            let _ = output
+                .send(Message::SelectionMenu(SelectionMenuMsg::StreamFailed {
+                    action_name,
+                    error: stderr_str,
+                    toast,
+                }))
+                .await;
+        } else {
+            let _ = output
+                .send(Message::SelectionMenu(SelectionMenuMsg::StreamFinished {
+                    action_name,
+                    toast,
+                }))
+                .await;
         }
-
-        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), child.wait()).await;
-
-        let _ = output
-            .send(Message::SelectionMenu(SelectionMenuMsg::StreamFinished {
-                action_name,
-            }))
-            .await;
     });
 
     Task::run(stream, |msg| msg)
+}
+
+pub(crate) fn split_utf8_boundary(bytes: &[u8]) -> (&str, &[u8]) {
+    match std::str::from_utf8(bytes) {
+        Ok(s) => (s, &[]),
+        Err(e) => {
+            let valid_len = e.valid_up_to();
+            if e.error_len().is_none() {
+                let valid = std::str::from_utf8(&bytes[..valid_len]).unwrap_or("");
+                (valid, &bytes[valid_len..])
+            } else {
+                let valid = std::str::from_utf8(&bytes[..valid_len]).unwrap_or("");
+                (valid, &[])
+            }
+        }
+    }
 }
 
 #[cfg(test)]
