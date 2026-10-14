@@ -176,6 +176,21 @@ impl KglanceApp {
             WindowEvent::Unfocused => {
                 self.ctrl_held = false;
                 self.shift_held = false;
+                let _ = crate::app::update::selection_menu::handle_selection_menu_msg(
+                    self,
+                    crate::app::messages::SelectionMenuMsg::ResultDragEnd,
+                );
+                self.state.text.is_dragging_selection = false;
+                self.state.text.auto_scroll_delta = None;
+                self.state.spreadsheet.is_dragging = false;
+                self.state.spreadsheet.auto_scroll_delta_y = None;
+                self.state.spreadsheet.auto_scroll_delta_x = None;
+                self.state.pdf.is_selecting = false;
+                self.state.pdf.auto_scroll_delta = None;
+                let s = crate::features::markdown::update::active_markdown_state_mut(self);
+                s.is_mouse_held = false;
+                s.is_dragging_selection = false;
+                s.auto_scroll_delta = None;
                 Task::none()
             }
             _ => Task::none(),

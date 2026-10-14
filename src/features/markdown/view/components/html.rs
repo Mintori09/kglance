@@ -24,6 +24,7 @@ pub(crate) fn render_html<'a>(html: &'a str, ctx: &RenderContext<'_>) -> Element
         default_text_color,
         ctx.selection_range,
         ctx.drag_active,
+        ctx.result_popup,
     );
     container(selectable)
         .padding(STYLE.paragraph.padding)

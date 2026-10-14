@@ -19,30 +19,66 @@ use crate::ui::types::RenderContext;
 use iced::widget::{column, container, row};
 use iced::{Element, Length, Padding};
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_selectable<'a>(
     spans: Vec<iced::widget::text::Span<'a, (), iced::Font>>,
     font_size: f32,
-    block_index: usize,
+    block_index: Option<usize>,
     width: Length,
     default_text_color: iced::Color,
     selection_range: Option<crate::core::SelectionRange>,
     drag_active: bool,
+    result_popup: bool,
 ) -> SelectableText<'a, Message> {
-    SelectableText::new(spans, font_size)
+    let widget = SelectableText::new(spans, font_size)
         .default_text_color(default_text_color)
         .width(width)
-        .block_index(block_index)
         .selection_range(selection_range)
-        .drag_active(drag_active)
-        .on_selection_change(|s| crate::app::messages::MarkdownMsg::SelectionChanged(s).into())
-        .on_drag_start(|block, offset| {
-            crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset }.into()
-        })
-        .on_drag_update(|block, offset| {
-            crate::app::messages::MarkdownMsg::SelectionDragUpdate { block, offset }.into()
-        })
-        .on_drag_end(|| crate::app::messages::MarkdownMsg::SelectionDragEnd.into())
-        .on_clear_selection(|| crate::app::messages::MarkdownMsg::SelectionClear.into())
+        .drag_active(drag_active);
+
+    attach_selection_callbacks(widget, block_index, result_popup)
+}
+
+fn attach_selection_callbacks<'a>(
+    mut widget: SelectableText<'a, Message>,
+    block_index: Option<usize>,
+    result_popup: bool,
+) -> SelectableText<'a, Message> {
+    if let Some(blk) = block_index {
+        widget = widget.block_index(blk);
+        if result_popup {
+            widget
+                .on_selection_change(|s| {
+                    crate::app::messages::SelectionMenuMsg::ResultSelectionChanged(s).into()
+                })
+                .on_drag_start(|block, offset| {
+                    crate::app::messages::SelectionMenuMsg::ResultDragStart { block, offset }.into()
+                })
+                .on_drag_update(|block, offset| {
+                    crate::app::messages::SelectionMenuMsg::ResultDragUpdate { block, offset }
+                        .into()
+                })
+                .on_drag_end(|| crate::app::messages::SelectionMenuMsg::ResultDragEnd.into())
+                .on_clear_selection(|| {
+                    crate::app::messages::SelectionMenuMsg::ResultSelectionClear.into()
+                })
+        } else {
+            widget
+                .on_selection_change(|s| {
+                    crate::app::messages::MarkdownMsg::SelectionChanged(s).into()
+                })
+                .on_drag_start(|block, offset| {
+                    crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset }.into()
+                })
+                .on_drag_update(|block, offset| {
+                    crate::app::messages::MarkdownMsg::SelectionDragUpdate { block, offset }.into()
+                })
+                .on_drag_end(|| crate::app::messages::MarkdownMsg::SelectionDragEnd.into())
+                .on_clear_selection(|| crate::app::messages::MarkdownMsg::SelectionClear.into())
+        }
+    } else {
+        widget
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -52,33 +88,26 @@ pub(crate) fn build_selectable_with_links<'a>(
     rubies: Vec<crate::ui::components::selectable_text::TextRuby>,
     tooltips: Vec<crate::ui::components::selectable_text::TextTooltip>,
     font_size: f32,
-    block_index: usize,
+    block_index: Option<usize>,
     width: Length,
     default_text_color: iced::Color,
     selection_range: Option<crate::core::SelectionRange>,
     drag_active: bool,
     theme: crate::ui::theme::AppTheme,
+    result_popup: bool,
 ) -> SelectableText<'a, Message> {
-    SelectableText::new(spans, font_size)
+    let widget = SelectableText::new(spans, font_size)
         .links(links)
         .rubies(rubies)
         .tooltips(tooltips)
         .app_theme(theme)
         .default_text_color(default_text_color)
         .width(width)
-        .block_index(block_index)
         .selection_range(selection_range)
         .drag_active(drag_active)
-        .on_link_click(|url| crate::app::messages::SystemMsg::OpenLink(url).into())
-        .on_selection_change(|s| crate::app::messages::MarkdownMsg::SelectionChanged(s).into())
-        .on_drag_start(|block, offset| {
-            crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset }.into()
-        })
-        .on_drag_update(|block, offset| {
-            crate::app::messages::MarkdownMsg::SelectionDragUpdate { block, offset }.into()
-        })
-        .on_drag_end(|| crate::app::messages::MarkdownMsg::SelectionDragEnd.into())
-        .on_clear_selection(|| crate::app::messages::MarkdownMsg::SelectionClear.into())
+        .on_link_click(|url| crate::app::messages::SystemMsg::OpenLink(url).into());
+
+    attach_selection_callbacks(widget, block_index, result_popup)
 }
 
 pub(crate) use blocks::{block_margin, render_block};
@@ -130,6 +159,7 @@ pub fn view_markdown<'a>(
         font_family_mono,
         ruby_display_mode,
         footnotes: Some(&footnotes),
+        result_popup: false,
     };
     let scroll = build_scrollable_content(blocks, state, &ctx, max_text_width);
     let content_area = build_content_area(state, scroll, &ctx);

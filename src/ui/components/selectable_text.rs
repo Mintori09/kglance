@@ -569,13 +569,11 @@ where
             return;
         };
 
-        if self.block_index.is_some()
-            && self.selection_range.is_none()
-            && !state.is_selecting
-            && !state.is_mouse_held
-        {
+        if self.block_index.is_some() && self.selection_range.is_none() && !self.drag_active {
             state.selection = None;
             state.drag_start = None;
+            state.is_selecting = false;
+            state.is_mouse_held = false;
         }
 
         match event {
@@ -631,6 +629,7 @@ where
                                 if let Some(on_end) = &self.on_drag_end {
                                     shell.publish(on_end());
                                 }
+                                shell.request_redraw();
                             }
                         }
                         click::Kind::Triple => {
@@ -656,6 +655,7 @@ where
                                 if let Some(on_end) = &self.on_drag_end {
                                     shell.publish(on_end());
                                 }
+                                shell.request_redraw();
                             }
                         }
                         click::Kind::Single => {
@@ -666,6 +666,8 @@ where
                                 (self.block_index, &self.on_drag_start)
                             {
                                 shell.publish(on_start(blk, offset));
+                            } else {
+                                shell.request_redraw();
                             }
                         }
                     }
@@ -679,11 +681,11 @@ where
                     state.is_mouse_held = false;
                     state.press_pos = None;
                     state.pressed_link_url = None;
-                    if had_selection
-                        && self.block_index.is_none()
-                        && let Some(on_clear) = &self.on_clear_selection
-                    {
-                        shell.publish(on_clear());
+                    if had_selection {
+                        shell.request_redraw();
+                        if let Some(on_clear) = &self.on_clear_selection {
+                            shell.publish(on_clear());
+                        }
                     }
                 }
             }
@@ -783,6 +785,7 @@ where
                         );
 
                         if state.is_selecting {
+                            let old_sel = state.selection;
                             if let Some(drag_start) = state.drag_start {
                                 let start = drag_start.min(offset);
                                 let end = drag_start.max(offset);
@@ -790,6 +793,9 @@ where
                             } else {
                                 state.drag_start = Some(offset);
                                 state.selection = Some((offset, offset));
+                            }
+                            if state.selection != old_sel && self.block_index.is_none() {
+                                shell.request_redraw();
                             }
                         } else if state.is_mouse_held
                             || (self.drag_active && self.selection_range.is_none())
@@ -801,6 +807,8 @@ where
                                 (self.block_index, &self.on_drag_start)
                             {
                                 shell.publish(on_start(blk, offset));
+                            } else {
+                                shell.request_redraw();
                             }
                         }
 

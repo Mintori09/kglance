@@ -268,12 +268,70 @@ pub fn handle_mouse_released(app: &mut KglanceApp) -> Task<Message> {
     let s = markdown::active_markdown_state_mut(app);
     s.is_mouse_held = false;
     s.is_dragging_selection = false;
-    s.auto_scroll_delta = None;
-    markdown::handle_selection_drag_end(app)
+    let result_drag_task = if let crate::core::SelectionMenuState::Result { is_dragging, .. } =
+        &app.state.selection_menu
+    {
+        if *is_dragging {
+            crate::app::update::selection_menu::handle_selection_menu_msg(
+                app,
+                crate::app::messages::SelectionMenuMsg::ResultDragEnd,
+            )
+        } else {
+            Task::none()
+        }
+    } else {
+        Task::none()
+    };
+    if let crate::core::SelectionMenuState::Result {
+        auto_scroll_delta, ..
+    } = &mut app.state.selection_menu
+    {
+        *auto_scroll_delta = None;
+    }
+    let md_task = markdown::handle_selection_drag_end(app);
+    Task::batch([result_drag_task, md_task])
 }
 
 pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message> {
     app.state.last_cursor_position = Some(iced::Point::new(x, y));
+
+    if matches!(
+        app.state.selection_menu,
+        crate::core::SelectionMenuState::Result {
+            is_dragging: true,
+            ..
+        }
+    ) {
+        let win_w = app.state.current_window_size.width;
+        let win_h = app.state.current_window_size.height;
+        let result_bounds = app.state.selection_menu.result_scroll_bounds(win_w, win_h);
+
+        if let crate::core::SelectionMenuState::Result {
+            auto_scroll_delta, ..
+        } = &mut app.state.selection_menu
+        {
+            if let Some(bounds) = result_bounds {
+                let overflow = if y < bounds.y {
+                    y - bounds.y
+                } else if y > bounds.y + bounds.height {
+                    y - (bounds.y + bounds.height)
+                } else {
+                    0.0
+                };
+
+                if overflow != 0.0 {
+                    let direction = overflow.signum();
+                    let speed = (overflow.abs() * 0.8).clamp(5.0, 40.0) * direction;
+                    *auto_scroll_delta = Some(speed);
+                } else {
+                    *auto_scroll_delta = None;
+                }
+            } else {
+                *auto_scroll_delta = None;
+            }
+        }
+        return Task::none();
+    }
 
     use crate::ui::components::sidebar::{
         DEFAULT_MAX_SIDEBAR_WIDTH, DEFAULT_MIN_SIDEBAR_WIDTH, PDF_MAX_SIDEBAR_WIDTH,

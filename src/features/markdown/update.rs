@@ -827,7 +827,7 @@ fn table_separator_line(num_cols: usize) -> String {
     s
 }
 
-fn char_boundary(text: &str, idx: usize) -> usize {
+pub(crate) fn char_boundary(text: &str, idx: usize) -> usize {
     let mut i = idx.min(text.len());
     while i > 0 && !text.is_char_boundary(i) {
         i -= 1;
@@ -845,7 +845,10 @@ fn collect_indexed_lines(blocks: &[Block]) -> std::collections::BTreeMap<usize, 
     indexed_blocks
 }
 
-fn build_selected_text(blocks: &[Block], range: crate::core::SelectionRange) -> Option<String> {
+pub(crate) fn build_selected_text(
+    blocks: &[Block],
+    range: crate::core::SelectionRange,
+) -> Option<String> {
     let (start_pt, end_pt) =
         if (range.start.block, range.start.offset) <= (range.end.block, range.end.offset) {
             (range.start, range.end)

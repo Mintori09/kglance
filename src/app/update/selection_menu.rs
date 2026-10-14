@@ -48,6 +48,10 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
                     content: String::new(),
                     blocks: Vec::new(),
                     is_streaming: true,
+                    selected_text: None,
+                    selection_range: None,
+                    is_dragging: false,
+                    auto_scroll_delta: None,
                 };
 
                 if action.stream {
@@ -114,6 +118,10 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
                 content,
                 blocks,
                 is_streaming,
+                selection_range,
+                selected_text,
+                is_dragging,
+                auto_scroll_delta,
                 ..
             } = &mut app.state.selection_menu
                 && cur_name == &action_name
@@ -127,6 +135,10 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
                 );
                 *blocks = parsed_blocks;
                 *is_streaming = false;
+                *selection_range = None;
+                *selected_text = None;
+                *is_dragging = false;
+                *auto_scroll_delta = None;
             }
             if toast {
                 app.show_toast(format!("{action_name} completed"))
@@ -144,6 +156,10 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
                 content,
                 blocks,
                 is_streaming,
+                selection_range,
+                selected_text,
+                is_dragging,
+                auto_scroll_delta,
                 ..
             } = &mut app.state.selection_menu
                 && cur_name == &action_name
@@ -160,6 +176,10 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
                 );
                 *blocks = parsed_blocks;
                 *is_streaming = false;
+                *selection_range = None;
+                *selected_text = None;
+                *is_dragging = false;
+                *auto_scroll_delta = None;
             }
             if toast {
                 app.show_toast(format!("{action_name} error: {error}"))
@@ -211,6 +231,10 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
                             content: output,
                             blocks,
                             is_streaming: false,
+                            selected_text: None,
+                            selection_range: None,
+                            is_dragging: false,
+                            auto_scroll_delta: None,
                         };
                         toast_task
                     }
@@ -220,6 +244,125 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
                 }
             }
         },
+        SelectionMenuMsg::ResultSelectionChanged(selected) => {
+            if let SelectionMenuState::Result { selected_text, .. } = &mut app.state.selection_menu
+            {
+                *selected_text = selected;
+            }
+            Task::none()
+        }
+        SelectionMenuMsg::ResultDragStart { block, offset } => {
+            if let SelectionMenuState::Result {
+                selection_range,
+                is_dragging,
+                selected_text,
+                ..
+            } = &mut app.state.selection_menu
+            {
+                let pt = crate::core::SelectionPoint { block, offset };
+                *selection_range = Some(crate::core::SelectionRange { start: pt, end: pt });
+                *is_dragging = true;
+                *selected_text = None;
+            }
+            Task::none()
+        }
+        SelectionMenuMsg::ResultDragUpdate { block, offset } => {
+            if let SelectionMenuState::Result {
+                content,
+                blocks,
+                selection_range: Some(range),
+                is_dragging,
+                selected_text,
+                ..
+            } = &mut app.state.selection_menu
+            {
+                range.end = crate::core::SelectionPoint { block, offset };
+                *is_dragging = true;
+                *selected_text = sync_result_selected_text(content, blocks, Some(*range));
+            }
+            Task::none()
+        }
+        SelectionMenuMsg::ResultDragEnd => {
+            if let SelectionMenuState::Result {
+                content,
+                blocks,
+                selection_range,
+                is_dragging,
+                selected_text,
+                auto_scroll_delta,
+                ..
+            } = &mut app.state.selection_menu
+            {
+                *is_dragging = false;
+                *auto_scroll_delta = None;
+                if let Some(range) = *selection_range {
+                    if range.start != range.end {
+                        *selected_text = sync_result_selected_text(content, blocks, Some(range));
+                    } else {
+                        *selection_range = None;
+                    }
+                    if selected_text.is_none() {
+                        *selection_range = None;
+                    }
+                }
+            }
+            Task::none()
+        }
+        SelectionMenuMsg::ResultSelectionClear => {
+            if let SelectionMenuState::Result {
+                selection_range,
+                is_dragging,
+                selected_text,
+                auto_scroll_delta,
+                ..
+            } = &mut app.state.selection_menu
+            {
+                *selection_range = None;
+                *is_dragging = false;
+                *selected_text = None;
+                *auto_scroll_delta = None;
+            }
+            Task::none()
+        }
+        SelectionMenuMsg::ResultAutoScrollTick => {
+            let Some(delta) = (match &app.state.selection_menu {
+                SelectionMenuState::Result {
+                    auto_scroll_delta, ..
+                } => *auto_scroll_delta,
+                _ => None,
+            }) else {
+                return Task::none();
+            };
+
+            iced::widget::operation::scroll_by(
+                "selection_result_scroll",
+                iced::widget::operation::AbsoluteOffset { x: 0.0, y: delta },
+            )
+        }
+    }
+}
+
+pub(crate) fn sync_result_selected_text(
+    content: &str,
+    blocks: &[crate::parsers::markdown::Block],
+    selection_range: Option<crate::core::SelectionRange>,
+) -> Option<String> {
+    let range = selection_range?;
+    if range.start == range.end {
+        return None;
+    }
+    if blocks.is_empty() {
+        let min_off = range.start.offset.min(range.end.offset);
+        let max_off = range.start.offset.max(range.end.offset);
+        let start = crate::features::markdown::update::char_boundary(content, min_off);
+        let end = crate::features::markdown::update::char_boundary(content, max_off);
+        if start < end && end <= content.len() {
+            Some(content[start..end].to_string())
+        } else {
+            None
+        }
+    } else {
+        crate::features::markdown::update::build_selected_text(blocks, range)
     }
 }
 

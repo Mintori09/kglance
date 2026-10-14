@@ -15,13 +15,14 @@ pub(crate) struct RenderContext<'a> {
     pub(crate) font_family_mono: Option<&'a str>,
     pub(crate) ruby_display_mode: crate::core::config::RubyDisplayMode,
     pub(crate) footnotes: Option<&'a std::collections::HashMap<String, String>>,
+    pub(crate) result_popup: bool,
 }
 
 impl<'a> RenderContext<'a> {
     #[inline]
-    pub(crate) fn alloc_block_index(&self) -> usize {
+    pub(crate) fn alloc_block_index(&self) -> Option<usize> {
         let idx = self.next_block_index.get();
         self.next_block_index.set(idx + 1);
-        idx
+        Some(idx)
     }
 }

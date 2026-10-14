@@ -139,6 +139,24 @@ impl KglanceApp {
     }
 
     pub(super) fn handle_ctrl_copy(&mut self) -> Option<Task<Message>> {
+        if let crate::core::SelectionMenuState::Result {
+            content,
+            selected_text,
+            ..
+        } = &self.state.selection_menu
+        {
+            let copy_target = selected_text
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .unwrap_or(content.as_str());
+            if !copy_target.is_empty() {
+                return Some(crate::app::update::misc::handle_copy_text(
+                    self,
+                    copy_target.to_string(),
+                ));
+            }
+        }
+
         if let Some(PreviewData::Image { data, .. }) = &self.current_content {
             if data.is_empty() {
                 return None;

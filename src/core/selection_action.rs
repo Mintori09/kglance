@@ -68,6 +68,10 @@ pub enum SelectionMenuState {
         content: String,
         blocks: Vec<crate::parsers::markdown::Block>,
         is_streaming: bool,
+        selected_text: Option<String>,
+        selection_range: Option<crate::core::SelectionRange>,
+        is_dragging: bool,
+        auto_scroll_delta: Option<f32>,
     },
 }
 
@@ -76,6 +80,10 @@ pub const RUNNING_WIDTH: f32 = 200.0;
 pub const RUNNING_HEIGHT: f32 = 36.0;
 pub const RESULT_WIDTH: f32 = 460.0;
 pub const RESULT_HEIGHT: f32 = 340.0;
+pub const RESULT_CARD_PADDING: f32 = 12.0;
+pub const RESULT_HEADER_HEIGHT: f32 = 32.0;
+pub const RESULT_SPACING: f32 = 8.0;
+pub const RESULT_SCROLL_HEIGHT: f32 = 260.0;
 
 /// Computes the approximate rendered width of the floating selection toolbar given custom actions.
 pub fn estimate_toolbar_width(actions: &[CustomAction]) -> f32 {
@@ -122,8 +130,26 @@ impl SelectionMenuState {
             Self::Toolbar { selected_text, .. } | Self::Running { selected_text, .. } => {
                 Some(selected_text.as_str())
             }
-            Self::Hidden | Self::Result { .. } => None,
+            Self::Result { selected_text, .. } => selected_text.as_deref(),
+            Self::Hidden => None,
         }
+    }
+
+    #[inline]
+    pub fn clamped_origin(
+        pos: iced::Point,
+        menu_w: f32,
+        menu_h: f32,
+        win_w: f32,
+        win_h: f32,
+    ) -> (f32, f32) {
+        let clamped_x = (pos.x - 24.0).clamp(12.0, (win_w - menu_w - 12.0).max(12.0));
+        let clamped_y = if pos.y - menu_h - 12.0 >= 44.0 {
+            pos.y - menu_h - 12.0
+        } else {
+            (pos.y + 16.0).clamp(44.0, (win_h - menu_h - 12.0).max(44.0))
+        };
+        (clamped_x, clamped_y)
     }
 
     pub fn bounds(
@@ -142,17 +168,31 @@ impl SelectionMenuState {
             Self::Result { .. } => (RESULT_WIDTH, RESULT_HEIGHT),
             Self::Hidden => return None,
         };
-        let clamped_x = (pos.x - 24.0).clamp(12.0, (win_w - menu_w - 12.0).max(12.0));
-        let clamped_y = if pos.y - menu_h - 12.0 >= 44.0 {
-            pos.y - menu_h - 12.0
-        } else {
-            (pos.y + 16.0).clamp(44.0, (win_h - menu_h - 12.0).max(44.0))
-        };
+        let (clamped_x, clamped_y) = Self::clamped_origin(pos, menu_w, menu_h, win_w, win_h);
         Some(iced::Rectangle {
             x: (clamped_x - 4.0).max(0.0),
             y: (clamped_y - 4.0).max(0.0),
             width: menu_w + 8.0,
             height: menu_h + 8.0,
+        })
+    }
+
+    pub fn result_scroll_bounds(&self, win_w: f32, win_h: f32) -> Option<iced::Rectangle> {
+        let Self::Result { pos, .. } = self else {
+            return None;
+        };
+        let menu_w = RESULT_WIDTH;
+        let menu_h = RESULT_HEIGHT;
+        let (clamped_x, clamped_y) = Self::clamped_origin(*pos, menu_w, menu_h, win_w, win_h);
+        let scroll_x = clamped_x + RESULT_CARD_PADDING;
+        let scroll_y = clamped_y + RESULT_CARD_PADDING + RESULT_HEADER_HEIGHT + RESULT_SPACING;
+        let scroll_w = menu_w - (RESULT_CARD_PADDING * 2.0);
+        let scroll_h = RESULT_SCROLL_HEIGHT;
+        Some(iced::Rectangle {
+            x: scroll_x,
+            y: scroll_y,
+            width: scroll_w,
+            height: scroll_h,
         })
     }
 

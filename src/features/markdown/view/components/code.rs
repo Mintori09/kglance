@@ -69,6 +69,7 @@ pub(crate) fn render_code_block<'a>(
         default_text_color,
         ctx.selection_range,
         ctx.drag_active,
+        ctx.result_popup,
     );
 
     let top_bar: Element<'a, Message> = if !language.is_empty() {
