@@ -301,7 +301,6 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                 }
             }
             Inline::Code(code) => {
-                let code_tooltip = format!("`{code}`");
                 if search_query.is_empty() {
                     spans.push(CachedSpan {
                         text: code.clone(),
@@ -317,14 +316,11 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                         underline: false,
                         link_url: None,
                         ruby: None,
-                        tooltip: Some(code_tooltip),
+                        tooltip: None,
                     });
                 } else {
-                    let mut highlighted =
+                    let highlighted =
                         highlight_search_in_text(code, span_ctx, code_font, Some(inline_code_fg));
-                    for s in &mut highlighted {
-                        s.tooltip = Some(code_tooltip.clone());
-                    }
                     spans.extend(highlighted);
                 }
             }
