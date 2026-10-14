@@ -32,6 +32,7 @@ pub(crate) fn render_frontmatter<'a>(
                 base_color.text,
                 ctx.selection_range,
                 ctx.drag_active,
+                ctx.result_popup,
             );
             selectable.into()
         })

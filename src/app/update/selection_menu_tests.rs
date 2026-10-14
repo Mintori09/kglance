@@ -100,6 +100,10 @@ fn test_dismiss_hides_menu_even_when_busy() {
         content: "streaming".to_string(),
         blocks: Vec::new(),
         is_streaming: true,
+        selected_text: None,
+        selection_range: None,
+        is_dragging: false,
+        auto_scroll_delta: None,
     };
     let _ = handle_selection_menu_msg(&mut app, SelectionMenuMsg::Dismiss);
     assert!(matches!(
@@ -261,6 +265,7 @@ fn test_action_result_popup() {
             content,
             blocks,
             is_streaming,
+            ..
         } => {
             assert_eq!(*p, pos);
             assert_eq!(action_name, "Translate");
@@ -282,6 +287,10 @@ fn test_stream_chunks_and_finish() {
         content: String::new(),
         blocks: Vec::new(),
         is_streaming: true,
+        selected_text: None,
+        selection_range: None,
+        is_dragging: false,
+        auto_scroll_delta: None,
     };
 
     // Receive first chunk
@@ -364,6 +373,10 @@ fn test_stream_finished_empty_output_fallback() {
         content: String::new(),
         blocks: Vec::new(),
         is_streaming: true,
+        selected_text: None,
+        selection_range: None,
+        is_dragging: false,
+        auto_scroll_delta: None,
     };
 
     let _ = handle_selection_menu_msg(
@@ -399,6 +412,10 @@ fn test_stream_failed_empty_content() {
         content: String::new(),
         blocks: Vec::new(),
         is_streaming: true,
+        selected_text: None,
+        selection_range: None,
+        is_dragging: false,
+        auto_scroll_delta: None,
     };
 
     let _ = handle_selection_menu_msg(
@@ -435,6 +452,10 @@ fn test_stream_failed_with_partial_chunks() {
         content: String::new(),
         blocks: Vec::new(),
         is_streaming: true,
+        selected_text: None,
+        selection_range: None,
+        is_dragging: false,
+        auto_scroll_delta: None,
     };
 
     let _ = handle_selection_menu_msg(
@@ -479,6 +500,10 @@ fn test_stream_finished_and_failed_with_toast() {
         content: "Done".to_string(),
         blocks: Vec::new(),
         is_streaming: true,
+        selected_text: None,
+        selection_range: None,
+        is_dragging: false,
+        auto_scroll_delta: None,
     };
 
     let _ = handle_selection_menu_msg(
@@ -596,4 +621,357 @@ fn test_split_utf8_boundary() {
     let (chunk, rem) = split_utf8_boundary(&combined);
     assert_eq!(chunk, "€");
     assert_eq!(rem, b"");
+}
+
+#[test]
+fn test_result_selection_changed() {
+    let mut app = test_app(None);
+    let pos = iced::Point::new(100.0, 100.0);
+    app.state.selection_menu = SelectionMenuState::Result {
+        pos,
+        action_name: "Action".to_string(),
+        content: "Some result content".to_string(),
+        blocks: Vec::new(),
+        is_streaming: false,
+        selected_text: None,
+        selection_range: None,
+        is_dragging: false,
+        auto_scroll_delta: None,
+    };
+
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::ResultSelectionChanged(Some("result content".to_string())),
+    );
+
+    match &app.state.selection_menu {
+        SelectionMenuState::Result { selected_text, .. } => {
+            assert_eq!(selected_text.as_deref(), Some("result content"));
+        }
+        _ => panic!("Expected Result state"),
+    }
+
+    let _ = handle_selection_menu_msg(&mut app, SelectionMenuMsg::ResultSelectionChanged(None));
+
+    match &app.state.selection_menu {
+        SelectionMenuState::Result { selected_text, .. } => {
+            assert_eq!(*selected_text, None);
+        }
+        _ => panic!("Expected Result state"),
+    }
+}
+
+#[test]
+fn test_result_copy_clicked_dismisses_and_copies() {
+    let mut app = test_app(None);
+    let pos = iced::Point::new(100.0, 100.0);
+    app.state.selection_menu = SelectionMenuState::Result {
+        pos,
+        action_name: "Action".to_string(),
+        content: "Full content".to_string(),
+        blocks: Vec::new(),
+        is_streaming: false,
+        selected_text: Some("Selected snippet".to_string()),
+        selection_range: None,
+        is_dragging: false,
+        auto_scroll_delta: None,
+    };
+
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::CopyClicked("Selected snippet".to_string()),
+    );
+
+    assert!(matches!(
+        app.state.selection_menu,
+        SelectionMenuState::Hidden
+    ));
+}
+
+#[test]
+fn test_result_drag_cross_blocks() {
+    let mut app = test_app(None);
+    let pos = iced::Point::new(100.0, 100.0);
+    let md = "# Title\n\nFirst paragraph here.\n\nSecond paragraph here.";
+    let (blocks, _) =
+        crate::features::markdown::parser::parse_markdown(md, std::path::Path::new(""));
+    app.state.selection_menu = SelectionMenuState::Result {
+        pos,
+        action_name: "Action".to_string(),
+        content: md.to_string(),
+        blocks,
+        is_streaming: false,
+        selected_text: None,
+        selection_range: None,
+        is_dragging: false,
+        auto_scroll_delta: None,
+    };
+
+    // Drag start at block 0 offset 0
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::ResultDragStart {
+            block: 0,
+            offset: 0,
+        },
+    );
+
+    match &app.state.selection_menu {
+        SelectionMenuState::Result {
+            selection_range,
+            is_dragging,
+            ..
+        } => {
+            assert!(*is_dragging);
+            assert!(selection_range.is_some());
+            let range = selection_range.unwrap();
+            assert_eq!(range.start.block, 0);
+            assert_eq!(range.start.offset, 0);
+            assert_eq!(range.end.block, 0);
+            assert_eq!(range.end.offset, 0);
+        }
+        _ => panic!("Expected Result state"),
+    }
+
+    // Drag update across to paragraph 1 (block index 1000)
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::ResultDragUpdate {
+            block: 1000,
+            offset: 5,
+        },
+    );
+
+    match &app.state.selection_menu {
+        SelectionMenuState::Result {
+            selection_range,
+            is_dragging,
+            selected_text,
+            ..
+        } => {
+            assert!(*is_dragging);
+            let range = selection_range.unwrap();
+            assert_eq!(range.start.block, 0);
+            assert_eq!(range.end.block, 1000);
+            assert_eq!(range.end.offset, 5);
+            assert!(selected_text.is_some());
+            let text = selected_text.as_ref().unwrap();
+            assert!(text.contains("Title"));
+            assert!(text.contains("First"));
+        }
+        _ => panic!("Expected Result state"),
+    }
+
+    // Drag end: should keep selected_text spanning title and first paragraph
+    let _ = handle_selection_menu_msg(&mut app, SelectionMenuMsg::ResultDragEnd);
+
+    match &app.state.selection_menu {
+        SelectionMenuState::Result {
+            selected_text,
+            is_dragging,
+            ..
+        } => {
+            assert!(!*is_dragging);
+            assert!(selected_text.is_some());
+            let text = selected_text.as_ref().unwrap();
+            assert!(text.contains("Title"));
+            assert!(text.contains("First"));
+        }
+        _ => panic!("Expected Result state"),
+    }
+
+    // Clear selection
+    let _ = handle_selection_menu_msg(&mut app, SelectionMenuMsg::ResultSelectionClear);
+
+    match &app.state.selection_menu {
+        SelectionMenuState::Result {
+            selected_text,
+            selection_range,
+            is_dragging,
+            ..
+        } => {
+            assert!(!*is_dragging);
+            assert_eq!(*selection_range, None);
+            assert_eq!(*selected_text, None);
+        }
+        _ => panic!("Expected Result state"),
+    }
+}
+
+#[test]
+fn test_result_auto_scroll_tick_does_not_mutate_selection_abruptly() {
+    let mut app = test_app(None);
+    let pos = iced::Point::new(100.0, 100.0);
+    let md = "# Title\n\nParagraph 1\n\nParagraph 2";
+    let (blocks, _) =
+        crate::features::markdown::parser::parse_markdown(md, std::path::Path::new(""));
+
+    let pt = crate::core::SelectionPoint {
+        block: 0,
+        offset: 0,
+    };
+    app.state.selection_menu = SelectionMenuState::Result {
+        pos,
+        action_name: "Action".to_string(),
+        content: md.to_string(),
+        blocks,
+        is_streaming: false,
+        selected_text: None,
+        selection_range: Some(crate::core::SelectionRange { start: pt, end: pt }),
+        is_dragging: true,
+        auto_scroll_delta: Some(25.0),
+    };
+
+    let _ = handle_selection_menu_msg(&mut app, SelectionMenuMsg::ResultAutoScrollTick);
+
+    match &app.state.selection_menu {
+        SelectionMenuState::Result {
+            selection_range,
+            auto_scroll_delta,
+            ..
+        } => {
+            assert!(selection_range.is_some());
+            let range = selection_range.unwrap();
+            // Selection range should not be forcibly blown out to blocks.len() * 1000
+            assert_eq!(range.start, pt);
+            assert_eq!(range.end, pt);
+            assert_eq!(*auto_scroll_delta, Some(25.0));
+        }
+        _ => panic!("Expected Result state"),
+    }
+}
+
+#[test]
+fn test_stream_chunk_preserves_active_selection() {
+    let mut app = test_app(None);
+    let pos = iced::Point::new(50.0, 80.0);
+    let pt = crate::core::SelectionPoint {
+        block: 0,
+        offset: 0,
+    };
+    let initial_range = Some(crate::core::SelectionRange {
+        start: pt,
+        end: crate::core::SelectionPoint {
+            block: 0,
+            offset: 4,
+        },
+    });
+    app.state.selection_menu = SelectionMenuState::Result {
+        pos,
+        action_name: "AI Action".to_string(),
+        content: "Initial".to_string(),
+        blocks: Vec::new(),
+        is_streaming: true,
+        selected_text: Some("Init".to_string()),
+        selection_range: initial_range,
+        is_dragging: true,
+        auto_scroll_delta: Some(15.0),
+    };
+
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::StreamChunk {
+            action_name: "AI Action".to_string(),
+            chunk: " chunk".to_string(),
+        },
+    );
+
+    match &app.state.selection_menu {
+        SelectionMenuState::Result {
+            content,
+            selected_text,
+            selection_range,
+            is_dragging,
+            auto_scroll_delta,
+            ..
+        } => {
+            assert_eq!(content, "Initial chunk");
+            assert_eq!(selected_text.as_deref(), Some("Init"));
+            assert_eq!(*selection_range, initial_range);
+            assert!(*is_dragging);
+            assert_eq!(*auto_scroll_delta, Some(15.0));
+        }
+        _ => panic!("Expected Result state"),
+    }
+}
+
+#[test]
+fn test_result_double_click_selection_preserved_on_drag_end() {
+    let mut app = test_app(None);
+    let pos = iced::Point::new(100.0, 100.0);
+    let pt = crate::core::SelectionPoint {
+        block: 0,
+        offset: 5,
+    };
+    app.state.selection_menu = SelectionMenuState::Result {
+        pos,
+        action_name: "Action".to_string(),
+        content: "Hello world here".to_string(),
+        blocks: Vec::new(),
+        is_streaming: false,
+        selected_text: None,
+        selection_range: Some(crate::core::SelectionRange { start: pt, end: pt }),
+        is_dragging: false,
+        auto_scroll_delta: None,
+    };
+
+    // First, Double-click fires ResultSelectionChanged
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::ResultSelectionChanged(Some("world".to_string())),
+    );
+
+    // Then widget fires ResultDragEnd
+    let _ = handle_selection_menu_msg(&mut app, SelectionMenuMsg::ResultDragEnd);
+
+    match &app.state.selection_menu {
+        SelectionMenuState::Result {
+            selected_text,
+            selection_range,
+            ..
+        } => {
+            assert_eq!(selected_text.as_deref(), Some("world"));
+            assert_eq!(*selection_range, None);
+        }
+        _ => panic!("Expected Result state"),
+    }
+}
+
+#[test]
+fn test_stream_finished_clears_stale_selection() {
+    let mut app = test_app(None);
+    let pos = iced::Point::new(100.0, 100.0);
+    app.state.selection_menu = SelectionMenuState::Result {
+        pos,
+        action_name: "AI".to_string(),
+        content: "Final text output".to_string(),
+        blocks: Vec::new(),
+        is_streaming: true,
+        selected_text: Some("Final".to_string()),
+        selection_range: None,
+        is_dragging: false,
+        auto_scroll_delta: None,
+    };
+
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::StreamFinished {
+            action_name: "AI".to_string(),
+            toast: false,
+        },
+    );
+
+    match &app.state.selection_menu {
+        SelectionMenuState::Result {
+            selected_text,
+            selection_range,
+            is_streaming,
+            ..
+        } => {
+            assert!(!*is_streaming);
+            assert_eq!(selected_text.as_deref(), None);
+            assert_eq!(*selection_range, None);
+        }
+        _ => panic!("Expected Result state"),
+    }
 }

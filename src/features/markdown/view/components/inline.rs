@@ -49,6 +49,7 @@ pub fn render_inlines_styled<'a>(
         ctx.selection_range,
         ctx.drag_active,
         ctx.theme,
+        ctx.result_popup,
     )
     .into()
 }

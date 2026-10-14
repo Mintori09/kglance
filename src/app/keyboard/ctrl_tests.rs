@@ -707,3 +707,47 @@ fn ctrl_plus_minus_resizes_spreadsheet_font_size() {
     let _ = app.handle_scroll_delta(0.0, -1.0);
     assert_eq!(app.state.font_size, initial_size);
 }
+
+#[test]
+fn ctrl_c_copies_selection_menu_result_selected_text_when_present() {
+    let mut app = test_app(None);
+    app.state.selection_menu = crate::core::SelectionMenuState::Result {
+        action_name: "Summarize".to_string(),
+        pos: iced::Point::ORIGIN,
+        content: "Full result output".to_string(),
+        blocks: Vec::new(),
+        is_streaming: false,
+        selected_text: Some("result output".to_string()),
+        selection_range: None,
+        is_dragging: false,
+        auto_scroll_delta: None,
+    };
+
+    let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+    let _guard = runtime.enter();
+
+    let task = app.handle_ctrl_copy();
+    assert!(task.is_some());
+}
+
+#[test]
+fn ctrl_c_copies_selection_menu_result_full_content_when_no_selection() {
+    let mut app = test_app(None);
+    app.state.selection_menu = crate::core::SelectionMenuState::Result {
+        action_name: "Summarize".to_string(),
+        pos: iced::Point::ORIGIN,
+        content: "Full result output".to_string(),
+        blocks: Vec::new(),
+        is_streaming: false,
+        selected_text: None,
+        selection_range: None,
+        is_dragging: false,
+        auto_scroll_delta: None,
+    };
+
+    let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+    let _guard = runtime.enter();
+
+    let task = app.handle_ctrl_copy();
+    assert!(task.is_some());
+}

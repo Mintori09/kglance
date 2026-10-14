@@ -86,10 +86,14 @@ fn test_selection_menu_state_transitions() {
         content: "xin chào thế giới".to_string(),
         blocks: Vec::new(),
         is_streaming: false,
+        selected_text: Some("thế giới".to_string()),
+        selection_range: None,
+        is_dragging: false,
+        auto_scroll_delta: None,
     };
     assert!(state.is_visible());
     assert_eq!(state.position(), Some(pos));
-    assert_eq!(state.selected_text(), None);
+    assert_eq!(state.selected_text(), Some("thế giới"));
 
     state.hide();
     assert!(!state.is_visible());

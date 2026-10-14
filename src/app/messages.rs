@@ -385,6 +385,18 @@ pub enum SelectionMenuMsg {
         error: String,
         toast: bool,
     },
+    ResultSelectionChanged(Option<String>),
+    ResultDragStart {
+        block: usize,
+        offset: usize,
+    },
+    ResultDragUpdate {
+        block: usize,
+        offset: usize,
+    },
+    ResultDragEnd,
+    ResultSelectionClear,
+    ResultAutoScrollTick,
 }
 
 #[derive(Debug, Clone)]

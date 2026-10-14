@@ -1292,6 +1292,19 @@ impl KglanceApp {
             Subscription::none()
         };
 
+        let result_auto_scroll_sub = if matches!(
+            self.state.selection_menu,
+            crate::core::SelectionMenuState::Result {
+                auto_scroll_delta: Some(_),
+                ..
+            }
+        ) {
+            iced::time::every(std::time::Duration::from_millis(16))
+                .map(|_| crate::app::messages::SelectionMenuMsg::ResultAutoScrollTick.into())
+        } else {
+            Subscription::none()
+        };
+
         let smooth_scroll_sub = if self.is_active_smooth_scrolling() {
             iced::window::frames().map(crate::app::messages::Message::SmoothScrollTick)
         } else {
@@ -1352,6 +1365,7 @@ impl KglanceApp {
             text_auto_scroll_sub,
             spreadsheet_auto_scroll_sub,
             pdf_auto_scroll_sub,
+            result_auto_scroll_sub,
             smooth_scroll_sub,
             read_positions_sub,
             audio_tick_sub,
