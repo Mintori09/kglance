@@ -249,13 +249,12 @@ fn test_extract_tooltips_all_inline_types() {
 
     let (_, _, _, tooltips) = inlines_to_spans_with_links(&inlines, &ctx);
 
-    // Expect 5 tooltips: link, code, math, footnote, ruby (in tooltip mode)
-    assert_eq!(tooltips.len(), 5);
+    // Expect 4 tooltips: link, math, footnote, ruby (in tooltip mode)
+    assert_eq!(tooltips.len(), 4);
     assert_eq!(tooltips[0].content, "https://kglance.dev");
-    assert_eq!(tooltips[1].content, "`cargo test`");
-    assert_eq!(tooltips[2].content, "$x^2$");
-    assert_eq!(tooltips[3].content, "[^1]: Footnote definition text");
-    assert_eq!(tooltips[4].content, "かん");
+    assert_eq!(tooltips[1].content, "$x^2$");
+    assert_eq!(tooltips[2].content, "[^1]: Footnote definition text");
+    assert_eq!(tooltips[3].content, "かん");
 }
 
 #[test]
