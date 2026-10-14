@@ -14,12 +14,6 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
     paragraph: ParagraphStyle { padding: [3, 0] },
     inline: InlineStyle {
         image_alt_color: primitive::GRAY_500,
-        link_button_border_width: 0.0,
-        wrap_spacing: 5.0,
-        wrap_line_spacing: 5.0,
-        tooltip_gap: spacing::S,
-        tooltip_font_size: 12.0,
-        tooltip_padding: [4, 8],
     },
     code: CodeStyle {
         border_radius: radius::SMALL,
@@ -108,12 +102,6 @@ pub(crate) struct ParagraphStyle {
 #[derive(Clone, Copy)]
 pub(crate) struct InlineStyle {
     pub image_alt_color: Color,
-    pub link_button_border_width: f32,
-    pub wrap_spacing: f32,
-    pub wrap_line_spacing: f32,
-    pub tooltip_gap: f32,
-    pub tooltip_font_size: f32,
-    pub tooltip_padding: [u16; 2],
 }
 
 #[derive(Clone, Copy)]

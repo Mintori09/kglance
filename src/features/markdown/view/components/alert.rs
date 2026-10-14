@@ -48,14 +48,12 @@ pub(crate) fn render_alert<'a>(
         })
         .color(accent_color);
 
-    let base_block_index = ctx.block_index;
-    let inner: Element<'a, Message> = column(blocks.iter().enumerate().map(|(i, block)| {
-        let alert_ctx = RenderContext {
-            block_index: base_block_index + i + 1,
-            ..*ctx
-        };
-        render_block(i, block, state, &alert_ctx)
-    }))
+    let inner: Element<'a, Message> = column(
+        blocks
+            .iter()
+            .enumerate()
+            .map(|(i, block)| render_block(i, block, state, ctx)),
+    )
     .spacing(STYLE.general.section_spacing)
     .into();
 

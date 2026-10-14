@@ -45,6 +45,42 @@ pub(crate) fn build_selectable<'a>(
         .on_clear_selection(|| crate::app::messages::MarkdownMsg::SelectionClear.into())
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_selectable_with_links<'a>(
+    spans: Vec<iced::widget::text::Span<'a, (), iced::Font>>,
+    links: Vec<crate::ui::components::selectable_text::TextLink>,
+    rubies: Vec<crate::ui::components::selectable_text::TextRuby>,
+    tooltips: Vec<crate::ui::components::selectable_text::TextTooltip>,
+    font_size: f32,
+    block_index: usize,
+    width: Length,
+    default_text_color: iced::Color,
+    selection_range: Option<crate::core::SelectionRange>,
+    drag_active: bool,
+    theme: crate::ui::theme::AppTheme,
+) -> SelectableText<'a, Message> {
+    SelectableText::new(spans, font_size)
+        .links(links)
+        .rubies(rubies)
+        .tooltips(tooltips)
+        .app_theme(theme)
+        .default_text_color(default_text_color)
+        .width(width)
+        .block_index(block_index)
+        .selection_range(selection_range)
+        .drag_active(drag_active)
+        .on_link_click(|url| crate::app::messages::SystemMsg::OpenLink(url).into())
+        .on_selection_change(|s| crate::app::messages::MarkdownMsg::SelectionChanged(s).into())
+        .on_drag_start(|block, offset| {
+            crate::app::messages::MarkdownMsg::SelectionDragStart { block, offset }.into()
+        })
+        .on_drag_update(|block, offset| {
+            crate::app::messages::MarkdownMsg::SelectionDragUpdate { block, offset }.into()
+        })
+        .on_drag_end(|| crate::app::messages::MarkdownMsg::SelectionDragEnd.into())
+        .on_clear_selection(|| crate::app::messages::MarkdownMsg::SelectionClear.into())
+}
+
 pub(crate) use blocks::{block_margin, render_block};
 pub(crate) use components::STYLE;
 pub(crate) mod window;
@@ -63,8 +99,26 @@ pub fn view_markdown<'a>(
     ruby_display_mode: crate::core::config::RubyDisplayMode,
 ) -> Element<'a, Message> {
     let search_counter = Cell::new(0);
+    let block_counter = Cell::new(0);
+    let footnotes: std::collections::HashMap<String, String> = blocks
+        .iter()
+        .filter_map(|b| {
+            if let Block::FootnoteDefinition { label, content } = b {
+                let mut parts = Vec::new();
+                for block in content {
+                    if let Block::Paragraph(inlines) = block {
+                        parts.push(crate::parsers::markdown::flatten_inlines_visual(inlines));
+                    }
+                }
+                Some((label.clone(), parts.join(" ")))
+            } else {
+                None
+            }
+        })
+        .collect();
+
     let ctx = RenderContext {
-        block_index: 0,
+        next_block_index: &block_counter,
         selection_range: state.selection_range,
         drag_active: state.is_dragging_selection || state.is_mouse_held,
         search_query: &state.search_query,
@@ -75,6 +129,7 @@ pub fn view_markdown<'a>(
         font_family,
         font_family_mono,
         ruby_display_mode,
+        footnotes: Some(&footnotes),
     };
     let scroll = build_scrollable_content(blocks, state, &ctx, max_text_width);
     let content_area = build_content_area(state, scroll, &ctx);
@@ -145,8 +200,9 @@ fn build_scrollable_content<'a>(
             .skip(first_visible)
             .take(visible_count)
         {
+            let block_cell = Cell::new(i * 1000);
             let block_ctx = RenderContext {
-                block_index: i * 1000,
+                next_block_index: &block_cell,
                 ..*ctx
             };
             let element = render_block(i, block, state, &block_ctx);
@@ -192,8 +248,9 @@ fn build_scrollable_content<'a>(
             .iter()
             .enumerate()
             .map(|(index, block)| {
+                let block_cell = Cell::new(index * 1000);
                 let block_ctx = RenderContext {
-                    block_index: index * 1000,
+                    next_block_index: &block_cell,
                     ..*ctx
                 };
                 let element = render_block(index, block, state, &block_ctx);

@@ -61,6 +61,7 @@ pub(crate) fn render_math_block<'a>(
     latex: &'a str,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
+    let _math_idx = ctx.alloc_block_index();
     let sanitized = sanitize_for_iced_math(latex);
     let text_color = ctx.theme.palette().base.text;
     let r = (text_color.r * 255.0).round() as u8;

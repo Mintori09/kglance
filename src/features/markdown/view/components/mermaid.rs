@@ -13,6 +13,12 @@ pub(crate) fn render_mermaid<'a>(
     state: &'a crate::core::MarkdownState,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
+    let _fence_open = ctx.alloc_block_index();
+    for _ in lines {
+        let _ = ctx.alloc_block_index();
+    }
+    let _fence_close = ctx.alloc_block_index();
+
     let theme = ctx.theme;
     let badge = container(
         text("Mermaid Diagram").size(scale_size(STYLE.mermaid.badge_font_size, ctx.font_size)),

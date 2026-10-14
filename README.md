@@ -331,6 +331,7 @@ For a full reference, see [`data/examples/config.example.json`](data/examples/co
 ### Next Priorities
 
 - [ ] In-PDF Text Search (`Ctrl+F` & Bounding Box Highlight)
+- [ ] Cache image from url.
 
 ---
 

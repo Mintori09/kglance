@@ -26,6 +26,7 @@ pub struct SpanCtx<'a> {
     pub base_color: Option<Color>,
     pub font_size: f32,
     pub ruby_display_mode: crate::core::config::RubyDisplayMode,
+    pub footnotes: Option<&'a std::collections::HashMap<String, String>>,
 }
 
 #[derive(Clone, Debug)]
@@ -37,6 +38,9 @@ pub(crate) struct CachedSpan {
     pub size: Option<f32>,
     pub strikethrough: bool,
     pub underline: bool,
+    pub link_url: Option<String>,
+    pub ruby: Option<String>,
+    pub tooltip: Option<String>,
 }
 
 impl CachedSpan {
@@ -188,6 +192,9 @@ fn highlight_search_in_text(
                 size: None,
                 strikethrough: false,
                 underline: false,
+                link_url: None,
+                ruby: None,
+                tooltip: None,
             });
         }
 
@@ -203,6 +210,9 @@ fn highlight_search_in_text(
             size: None,
             strikethrough: false,
             underline: false,
+            link_url: None,
+            ruby: None,
+            tooltip: None,
         });
 
         span_ctx.counter.set(span_ctx.counter.get() + 1);
@@ -218,6 +228,9 @@ fn highlight_search_in_text(
             size: None,
             strikethrough: false,
             underline: false,
+            link_url: None,
+            ruby: None,
+            tooltip: None,
         });
     }
 
@@ -252,6 +265,9 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                             size: None,
                             strikethrough: false,
                             underline: false,
+                            link_url: None,
+                            ruby: None,
+                            tooltip: None,
                         });
                     } else {
                         spans.extend(highlight_search_in_text(
@@ -275,15 +291,7 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                 ));
             }
             Inline::Italic(children) => {
-                spans.extend(apply_style_to_children(
-                    children,
-                    span_ctx,
-                    main_font,
-                    |f| Font {
-                        style: iced::font::Style::Italic,
-                        ..f
-                    },
-                ));
+                spans.extend(apply_italic_to_children(children, span_ctx, main_font));
             }
             Inline::Strikethrough(children) => {
                 for mut s in inlines_to_spans_core(children, span_ctx) {
@@ -293,6 +301,7 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                 }
             }
             Inline::Code(code) => {
+                let code_tooltip = format!("`{code}`");
                 if search_query.is_empty() {
                     spans.push(CachedSpan {
                         text: code.clone(),
@@ -306,23 +315,29 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                         },
                         strikethrough: false,
                         underline: false,
+                        link_url: None,
+                        ruby: None,
+                        tooltip: Some(code_tooltip),
                     });
                 } else {
-                    spans.extend(highlight_search_in_text(
-                        code,
-                        span_ctx,
-                        code_font,
-                        Some(inline_code_fg),
-                    ));
+                    let mut highlighted =
+                        highlight_search_in_text(code, span_ctx, code_font, Some(inline_code_fg));
+                    for s in &mut highlighted {
+                        s.tooltip = Some(code_tooltip.clone());
+                    }
+                    spans.extend(highlighted);
                 }
             }
             Inline::Link {
-                text: link_text, ..
+                text: link_text,
+                url,
             } => {
                 let link_color = span_ctx.theme.palette().roles.link;
                 for mut s in inlines_to_spans_core(link_text, span_ctx) {
                     s.color = Some(link_color);
                     s.underline = true;
+                    s.link_url = Some(url.clone());
+                    s.tooltip = Some(url.clone());
                     spans.push(s);
                 }
             }
@@ -335,6 +350,9 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                     size: None,
                     strikethrough: false,
                     underline: false,
+                    link_url: None,
+                    ruby: None,
+                    tooltip: None,
                 });
             }
             Inline::Image { alt, .. } => {
@@ -346,11 +364,18 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                     size: None,
                     strikethrough: false,
                     underline: false,
+                    link_url: None,
+                    ruby: None,
+                    tooltip: None,
                 });
             }
             Inline::InlineMath(latex) | Inline::DisplayMath(latex) => {
                 let display_text = super::latex::render_latex_to_text(latex);
                 let math_color = span_ctx.theme.palette().markdown.math;
+                let math_tooltip = match inline {
+                    Inline::DisplayMath(_) => format!("$${latex}$$"),
+                    _ => format!("${latex}$"),
+                };
                 spans.push(CachedSpan {
                     text: display_text,
                     font: main_font,
@@ -359,10 +384,18 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                     size: None,
                     strikethrough: false,
                     underline: false,
+                    link_url: None,
+                    ruby: None,
+                    tooltip: Some(math_tooltip),
                 });
             }
             Inline::FootnoteReference(label) => {
                 let link_color = span_ctx.theme.palette().roles.link;
+                let footnote_tooltip = span_ctx
+                    .footnotes
+                    .and_then(|m| m.get(label))
+                    .map(|content| format!("[^{label}]: {content}"))
+                    .unwrap_or_else(|| format!("[^{label}]"));
                 spans.push(CachedSpan {
                     text: format!("[{label}]"),
                     font: main_font,
@@ -371,12 +404,26 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                     size: None,
                     strikethrough: false,
                     underline: false,
+                    link_url: None,
+                    ruby: None,
+                    tooltip: Some(footnote_tooltip),
                 });
             }
             Inline::Ruby { text, ruby } => {
-                let display_str = match span_ctx.ruby_display_mode {
-                    crate::core::config::RubyDisplayMode::Parentheses => format!("{text}({ruby})"),
-                    _ => text.clone(),
+                let (display_str, ruby_annotation, is_underline) = match span_ctx.ruby_display_mode
+                {
+                    crate::core::config::RubyDisplayMode::Parentheses => {
+                        (format!("{text}({ruby})"), None, false)
+                    }
+                    crate::core::config::RubyDisplayMode::Hidden => (text.clone(), None, false),
+                    crate::core::config::RubyDisplayMode::Tooltip => (text.clone(), None, true),
+                    crate::core::config::RubyDisplayMode::Stacked => {
+                        (text.clone(), Some(ruby.clone()), false)
+                    }
+                };
+                let ruby_tooltip = match span_ctx.ruby_display_mode {
+                    crate::core::config::RubyDisplayMode::Tooltip => Some(ruby.clone()),
+                    _ => None,
                 };
                 if search_query.is_empty() {
                     spans.push(CachedSpan {
@@ -386,15 +433,34 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                         background: None,
                         size: None,
                         strikethrough: false,
-                        underline: false,
+                        underline: is_underline,
+                        link_url: None,
+                        ruby: ruby_annotation,
+                        tooltip: ruby_tooltip,
                     });
                 } else {
-                    spans.extend(highlight_search_in_text(
+                    let mut highlighted = highlight_search_in_text(
                         &display_str,
                         span_ctx,
                         main_font,
                         span_ctx.base_color,
-                    ));
+                    );
+                    if let Some(r) = ruby_annotation {
+                        for s in &mut highlighted {
+                            s.ruby = Some(r.clone());
+                        }
+                    }
+                    if let Some(t) = &ruby_tooltip {
+                        for s in &mut highlighted {
+                            s.tooltip = Some(t.clone());
+                        }
+                    }
+                    if is_underline {
+                        for s in &mut highlighted {
+                            s.underline = true;
+                        }
+                    }
+                    spans.extend(highlighted);
                 }
             }
         }
@@ -418,160 +484,227 @@ fn apply_style_to_children(
         .collect()
 }
 
-pub fn inlines_to_spans<'a>(children: &'a [Inline], span_ctx: &SpanCtx) -> Vec<Span<'a, (), Font>> {
-    if !span_ctx.search_query.is_empty() {
-        return inlines_to_spans_core(children, span_ctx)
-            .into_iter()
-            .map(|cs| cs.to_span())
-            .collect();
-    }
+fn is_cjk(c: char) -> bool {
+    matches!(
+        c,
+        '\u{2E80}'..='\u{2EFF}'   // CJK Radicals Supplement
+        | '\u{2F00}'..='\u{2FDF}' // Kangxi Radicals
+        | '\u{3000}'..='\u{303F}' // CJK Symbols and Punctuation
+        | '\u{3040}'..='\u{309F}' // Hiragana
+        | '\u{30A0}'..='\u{30FF}' // Katakana
+        | '\u{3100}'..='\u{312F}' // Bopomofo
+        | '\u{31F0}'..='\u{31FF}' // Katakana Phonetic Extensions
+        | '\u{3400}'..='\u{4DBF}' // CJK Unified Ideographs Extension A
+        | '\u{4E00}'..='\u{9FFF}' // CJK Unified Ideographs
+        | '\u{F900}'..='\u{FAFF}' // CJK Compatibility Ideographs
+        | '\u{AC00}'..='\u{D7AF}' // Hangul Syllables
+        | '\u{20000}'..='\u{2A6DF}' // CJK Extension B
+        | '\u{2A700}'..='\u{2B738}' // CJK Extension C
+        | '\u{2B740}'..='\u{2B81D}' // CJK Extension D
+        | '\u{2B820}'..='\u{2CEAD}' // Extension E
+        | '\u{2CEB0}'..='\u{2EBE0}' // Extension F
+    )
+}
 
-    let inline_hash = hash_inlines(children);
-    let base_weight_val = span_ctx.base_weight.map(|w| match w {
-        Weight::Thin => 100,
-        Weight::ExtraLight => 200,
-        Weight::Light => 300,
-        Weight::Normal => 400,
-        Weight::Medium => 500,
-        Weight::Semibold => 600,
-        Weight::Bold => 700,
-        Weight::ExtraBold => 800,
-        Weight::Black => 900,
-    });
-    let base_color_val = span_ctx.base_color.map(|c| {
-        let [r, g, b, a] = c.into_rgba8();
-        u32::from_be_bytes([r, g, b, a])
-    });
-    let font_size_bits = span_ctx.font_size.to_bits();
+fn apply_italic_to_children(
+    children: &[Inline],
+    span_ctx: &SpanCtx,
+    main_font: Font,
+) -> Vec<CachedSpan> {
+    let mut result = Vec::new();
 
-    let key: SpanCacheKey = (
-        inline_hash,
-        span_ctx.theme,
-        span_ctx.font_family.map(ToString::to_string),
-        span_ctx.font_family_mono.map(ToString::to_string),
-        base_weight_val,
-        base_color_val,
-        font_size_bits,
-        span_ctx.ruby_display_mode as u8,
-    );
+    for mut span in inlines_to_spans_core(children, span_ctx) {
+        if !span.text.chars().any(is_cjk) {
+            span.font = Font {
+                style: iced::font::Style::Italic,
+                ..main_font
+            };
+            result.push(span);
+            continue;
+        }
 
-    if let Ok(mut cache) = span_cache().lock()
-        && let Some(cached) = cache.get(&key)
-    {
-        return cached.iter().map(CachedSpan::to_span).collect();
-    }
+        let mut chars = span.text.chars().peekable();
+        while let Some(&first_char) = chars.peek() {
+            let is_current_cjk = is_cjk(first_char);
+            let mut chunk = String::new();
 
-    let cached_list = inlines_to_spans_core(children, span_ctx);
-    let result = cached_list.iter().map(CachedSpan::to_span).collect();
+            while let Some(&c) = chars.peek() {
+                if is_cjk(c) == is_current_cjk {
+                    chunk.push(c);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
 
-    if let Ok(mut cache) = span_cache().lock() {
-        cache.put(key, cached_list);
+            let mut sub_span = span.clone();
+            sub_span.text = chunk;
+            sub_span.font = if is_current_cjk {
+                main_font
+            } else {
+                Font {
+                    style: iced::font::Style::Italic,
+                    ..main_font
+                }
+            };
+            result.push(sub_span);
+        }
     }
 
     result
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_inlines_to_spans_caching() {
-        let inlines = vec![
-            Inline::Text("Hello world".to_string()),
-            Inline::Bold(vec![Inline::Text("bold text".to_string())]),
-            Inline::Code("code_block()".to_string()),
-        ];
-        let counter = Cell::new(0);
-        let ctx = SpanCtx {
-            font_family: None,
-            font_family_mono: None,
-            search_query: "",
-            active_match: 0,
-            counter: &counter,
-            theme: AppTheme::Dark,
-            base_weight: None,
-            base_color: None,
-            font_size: 14.0,
-            ruby_display_mode: crate::core::config::RubyDisplayMode::Stacked,
-        };
-
-        let spans1 = inlines_to_spans(&inlines, &ctx);
-        assert_eq!(spans1.len(), 3);
-        assert_eq!(spans1[0].text, "Hello world");
-        assert_eq!(spans1[1].text, "bold text");
-        assert_eq!(spans1[2].text, "code_block()");
-
-        // Second call should hit the cache and return identical content
-        let spans2 = inlines_to_spans(&inlines, &ctx);
-        assert_eq!(spans2.len(), 3);
-        assert_eq!(spans2[0].text, "Hello world");
-        assert_eq!(spans2[1].text, "bold text");
-        assert_eq!(spans2[2].text, "code_block()");
+pub(crate) fn extract_links(
+    cached_spans: &[CachedSpan],
+) -> Vec<crate::ui::components::selectable_text::TextLink> {
+    let mut links: Vec<crate::ui::components::selectable_text::TextLink> = Vec::new();
+    let mut current_offset = 0;
+    for span in cached_spans {
+        let span_len = span.text.len();
+        if let Some(url) = &span.link_url {
+            let span_start = current_offset;
+            let span_end = current_offset + span_len;
+            if let Some(last) = links.last_mut()
+                && last.url == *url
+                && last.end == span_start
+            {
+                last.end = span_end;
+            } else {
+                links.push(crate::ui::components::selectable_text::TextLink {
+                    start: span_start,
+                    end: span_end,
+                    url: url.clone(),
+                });
+            }
+        }
+        current_offset += span_len;
     }
-
-    #[test]
-    fn test_inlines_to_spans_search_query_bypasses_cache() {
-        let inlines = vec![Inline::Text("Search keyword test".to_string())];
-        let counter = Cell::new(0);
-        let ctx = SpanCtx {
-            font_family: None,
-            font_family_mono: None,
-            search_query: "keyword",
-            active_match: 0,
-            counter: &counter,
-            theme: AppTheme::Dark,
-            base_weight: None,
-            base_color: None,
-            font_size: 14.0,
-            ruby_display_mode: crate::core::config::RubyDisplayMode::Stacked,
-        };
-
-        let spans = inlines_to_spans(&inlines, &ctx);
-        assert!(spans.len() >= 2);
-        assert_eq!(counter.get(), 1);
-    }
-
-    #[test]
-    fn test_inlines_to_spans_ruby_display_modes() {
-        let inlines = vec![Inline::Ruby {
-            text: "漢字".to_string(),
-            ruby: "かんじ".to_string(),
-        }];
-        let counter = Cell::new(0);
-
-        // Parentheses mode
-        let ctx_paren = SpanCtx {
-            font_family: None,
-            font_family_mono: None,
-            search_query: "",
-            active_match: 0,
-            counter: &counter,
-            theme: AppTheme::Dark,
-            base_weight: None,
-            base_color: None,
-            font_size: 14.0,
-            ruby_display_mode: crate::core::config::RubyDisplayMode::Parentheses,
-        };
-        let spans_paren = inlines_to_spans(&inlines, &ctx_paren);
-        assert_eq!(spans_paren.len(), 1);
-        assert_eq!(spans_paren[0].text, "漢字(かんじ)");
-
-        // Hidden / Default fallback in spans
-        let ctx_hidden = SpanCtx {
-            font_family: None,
-            font_family_mono: None,
-            search_query: "",
-            active_match: 0,
-            counter: &counter,
-            theme: AppTheme::Dark,
-            base_weight: None,
-            base_color: None,
-            font_size: 14.0,
-            ruby_display_mode: crate::core::config::RubyDisplayMode::Hidden,
-        };
-        let spans_hidden = inlines_to_spans(&inlines, &ctx_hidden);
-        assert_eq!(spans_hidden.len(), 1);
-        assert_eq!(spans_hidden[0].text, "漢字");
-    }
+    links
 }
+
+pub(crate) fn extract_rubies(
+    cached_spans: &[CachedSpan],
+) -> Vec<crate::ui::components::selectable_text::TextRuby> {
+    let mut rubies: Vec<crate::ui::components::selectable_text::TextRuby> = Vec::new();
+    let mut current_offset = 0;
+    for span in cached_spans {
+        let span_len = span.text.len();
+        if let Some(ruby_str) = &span.ruby {
+            let span_start = current_offset;
+            let span_end = current_offset + span_len;
+            if let Some(last) = rubies.last_mut()
+                && last.ruby == *ruby_str
+                && last.end == span_start
+            {
+                last.end = span_end;
+            } else {
+                rubies.push(crate::ui::components::selectable_text::TextRuby {
+                    start: span_start,
+                    end: span_end,
+                    ruby: ruby_str.clone(),
+                });
+            }
+        }
+        current_offset += span_len;
+    }
+    rubies
+}
+
+pub(crate) fn extract_tooltips(
+    cached_spans: &[CachedSpan],
+) -> Vec<crate::ui::components::selectable_text::TextTooltip> {
+    let mut tooltips: Vec<crate::ui::components::selectable_text::TextTooltip> = Vec::new();
+    let mut current_offset = 0;
+    for span in cached_spans {
+        let span_len = span.text.len();
+        if let Some(content) = &span.tooltip {
+            let span_start = current_offset;
+            let span_end = current_offset + span_len;
+            if let Some(last) = tooltips.last_mut()
+                && last.content == *content
+                && last.end == span_start
+            {
+                last.end = span_end;
+            } else {
+                tooltips.push(crate::ui::components::selectable_text::TextTooltip {
+                    start: span_start,
+                    end: span_end,
+                    content: content.clone(),
+                });
+            }
+        }
+        current_offset += span_len;
+    }
+    tooltips
+}
+
+pub type InlinesSpansResult<'a> = (
+    Vec<Span<'a, (), Font>>,
+    Vec<crate::ui::components::selectable_text::TextLink>,
+    Vec<crate::ui::components::selectable_text::TextRuby>,
+    Vec<crate::ui::components::selectable_text::TextTooltip>,
+);
+
+pub fn inlines_to_spans_with_links<'a>(
+    children: &'a [Inline],
+    span_ctx: &SpanCtx,
+) -> InlinesSpansResult<'a> {
+    let cached_list = if !span_ctx.search_query.is_empty() {
+        inlines_to_spans_core(children, span_ctx)
+    } else {
+        let inline_hash = hash_inlines(children);
+        let base_weight_val = span_ctx.base_weight.map(|w| match w {
+            Weight::Thin => 100,
+            Weight::ExtraLight => 200,
+            Weight::Light => 300,
+            Weight::Normal => 400,
+            Weight::Medium => 500,
+            Weight::Semibold => 600,
+            Weight::Bold => 700,
+            Weight::ExtraBold => 800,
+            Weight::Black => 900,
+        });
+        let base_color_val = span_ctx.base_color.map(|c| {
+            let [r, g, b, a] = c.into_rgba8();
+            u32::from_be_bytes([r, g, b, a])
+        });
+        let font_size_bits = span_ctx.font_size.to_bits();
+
+        let key: SpanCacheKey = (
+            inline_hash,
+            span_ctx.theme,
+            span_ctx.font_family.map(ToString::to_string),
+            span_ctx.font_family_mono.map(ToString::to_string),
+            base_weight_val,
+            base_color_val,
+            font_size_bits,
+            span_ctx.ruby_display_mode as u8,
+        );
+
+        if let Ok(mut cache) = span_cache().lock()
+            && let Some(cached) = cache.get(&key)
+        {
+            cached.clone()
+        } else {
+            let list = inlines_to_spans_core(children, span_ctx);
+            if let Ok(mut cache) = span_cache().lock() {
+                cache.put(key, list.clone());
+            }
+            list
+        }
+    };
+
+    let links = extract_links(&cached_list);
+    let rubies = extract_rubies(&cached_list);
+    let tooltips = extract_tooltips(&cached_list);
+    let spans = cached_list.into_iter().map(|cs| cs.to_span()).collect();
+    (spans, links, rubies, tooltips)
+}
+
+pub fn inlines_to_spans<'a>(children: &'a [Inline], span_ctx: &SpanCtx) -> Vec<Span<'a, (), Font>> {
+    inlines_to_spans_with_links(children, span_ctx).0
+}
+
+#[cfg(test)]
+#[path = "inline_spans_test.rs"]
+mod tests;

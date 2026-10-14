@@ -57,10 +57,14 @@ pub(crate) fn render_code_block<'a>(
         spans
     };
 
+    let _fence_open = ctx.alloc_block_index();
+    let code_idx = ctx.alloc_block_index();
+    let _fence_close = ctx.alloc_block_index();
+
     let code_content = build_selectable(
         all_spans,
         scale_size(STYLE.code.line_font_size, font_size),
-        ctx.block_index + 1,
+        code_idx,
         Length::Fill,
         default_text_color,
         ctx.selection_range,

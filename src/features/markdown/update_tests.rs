@@ -34,14 +34,14 @@ fn test_user_bullet_item_copy_with_inline_math() {
     assert_eq!(blocks.len(), 1);
     assert!(matches!(blocks[0], Block::List { .. }));
 
-    // Test clicking & selecting the list item which has block_index = 1 (since list is at base_idx 0)
+    // Test clicking & selecting the list item which has block_index = 0 (since list is at base_idx 0)
     let range = SelectionRange {
         start: SelectionPoint {
-            block: 1,
+            block: 0,
             offset: 0,
         },
         end: SelectionPoint {
-            block: 1,
+            block: 0,
             offset: 500,
         },
     };
@@ -77,11 +77,11 @@ fn test_partial_selection_phrase_thuat_toan_ann() {
 
     let range = SelectionRange {
         start: SelectionPoint {
-            block: 1,
+            block: 0,
             offset: start_offset,
         },
         end: SelectionPoint {
-            block: 1,
+            block: 0,
             offset: end_offset,
         },
     };
@@ -106,14 +106,14 @@ fn test_nested_bullet_item_copy_with_inline_math() {
     assert_eq!(blocks.len(), 1);
     assert!(matches!(blocks[0], Block::List { .. }));
 
-    // Item 0 is at block 1, its sub-list items are at block 3 (base_idx 2 + 1)
+    // Item 0 is at block 0, its sub-list items are at block 1
     let range = SelectionRange {
         start: SelectionPoint {
-            block: 3,
+            block: 1,
             offset: 0,
         },
         end: SelectionPoint {
-            block: 3,
+            block: 1,
             offset: 500,
         },
     };
@@ -886,4 +886,19 @@ fn test_handle_markdown_scrolled_interruption_stops_active_kinetic_scroll() {
     let now = std::time::Instant::now();
     let _ = handle_smooth_scroll_tick(&mut app, now);
     assert_eq!(app.state.markdown.scroll_y, 2500.0);
+}
+
+#[test]
+fn test_nested_list_no_block_index_collision() {
+    let src = "- Item 1\n  - Sub 1.1\n  - Sub 1.2\n- Item 2\n  - Sub 2.1";
+    let blocks = parse_to_blocks(src);
+    let indexed = collect_indexed_lines(&blocks);
+
+    let keys: Vec<usize> = indexed.keys().copied().collect();
+    assert_eq!(keys, vec![0, 1, 2, 3, 4]);
+    assert_eq!(indexed.get(&0).unwrap().text, "Item 1");
+    assert_eq!(indexed.get(&1).unwrap().text, "Sub 1.1");
+    assert_eq!(indexed.get(&2).unwrap().text, "Sub 1.2");
+    assert_eq!(indexed.get(&3).unwrap().text, "Item 2");
+    assert_eq!(indexed.get(&4).unwrap().text, "Sub 2.1");
 }

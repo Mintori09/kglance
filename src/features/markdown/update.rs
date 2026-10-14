@@ -839,7 +839,8 @@ fn collect_indexed_lines(blocks: &[Block]) -> std::collections::BTreeMap<usize, 
     let mut indexed_blocks: std::collections::BTreeMap<usize, CopyLine> =
         std::collections::BTreeMap::new();
     for (i, block) in blocks.iter().enumerate() {
-        collect_indexed_plain_texts(index_block_base(i), block, &mut indexed_blocks);
+        let mut next_idx = index_block_base(i);
+        collect_indexed_plain_texts(&mut next_idx, block, &mut indexed_blocks);
     }
     indexed_blocks
 }
@@ -939,21 +940,40 @@ fn index_block_base(index: usize) -> usize {
     index * 1000
 }
 
-fn is_special_inline(inline: &crate::parsers::markdown::Inline) -> bool {
-    matches!(inline, crate::parsers::markdown::Inline::Link { .. })
+#[inline]
+fn alloc_index(next_idx: &mut usize) -> usize {
+    let idx = *next_idx;
+    *next_idx += 1;
+    idx
 }
 
 fn collect_indexed_plain_texts(
-    base_idx: usize,
+    next_idx: &mut usize,
     block: &crate::parsers::markdown::Block,
     map: &mut std::collections::BTreeMap<usize, CopyLine>,
 ) {
     match block {
+        crate::parsers::markdown::Block::Frontmatter(entries) => {
+            for (key, value) in entries {
+                let blk = alloc_index(next_idx);
+                map.insert(
+                    blk,
+                    CopyLine {
+                        prefix: None,
+                        text: format!("{key}: {value}"),
+                        suffix: None,
+                        blank_before: false,
+                        table_separator: None,
+                    },
+                );
+            }
+        }
         crate::parsers::markdown::Block::Heading { level, content } => {
+            let blk = alloc_index(next_idx);
             let hashes = "#".repeat((*level as usize).min(6));
             let text = crate::parsers::markdown::flatten_inlines_visual(content);
             map.insert(
-                base_idx,
+                blk,
                 CopyLine {
                     prefix: Some(format!("{hashes} ")),
                     text,
@@ -964,12 +984,28 @@ fn collect_indexed_plain_texts(
             );
         }
         crate::parsers::markdown::Block::Paragraph(content) => {
-            collect_paragraph_segments(base_idx, content, map);
+            if !crate::parsers::markdown::is_standalone_anchor_block(block) {
+                let blk = alloc_index(next_idx);
+                let text = crate::parsers::markdown::flatten_inlines_visual(content);
+                if !text.is_empty() {
+                    map.insert(
+                        blk,
+                        CopyLine {
+                            prefix: None,
+                            text,
+                            suffix: None,
+                            blank_before: false,
+                            table_separator: None,
+                        },
+                    );
+                }
+            }
         }
         crate::parsers::markdown::Block::CodeBlock { lang, code, .. } => {
             let lang_str = lang.as_deref().unwrap_or("");
+            let open_idx = alloc_index(next_idx);
             map.insert(
-                base_idx,
+                open_idx,
                 CopyLine {
                     prefix: None,
                     text: format!("```{lang_str}"),
@@ -978,8 +1014,9 @@ fn collect_indexed_plain_texts(
                     table_separator: None,
                 },
             );
+            let code_idx = alloc_index(next_idx);
             map.insert(
-                base_idx + 1,
+                code_idx,
                 CopyLine {
                     prefix: None,
                     text: code.clone(),
@@ -988,8 +1025,9 @@ fn collect_indexed_plain_texts(
                     table_separator: None,
                 },
             );
+            let close_idx = alloc_index(next_idx);
             map.insert(
-                base_idx + 2,
+                close_idx,
                 CopyLine {
                     prefix: None,
                     text: "```".to_string(),
@@ -1004,14 +1042,25 @@ fn collect_indexed_plain_texts(
             start_number,
             items,
         } => {
-            collect_list_plain_texts(base_idx, *ordered, *start_number, items, map, 0);
+            collect_list_plain_texts(next_idx, *ordered, *start_number, items, map, 0);
         }
         crate::parsers::markdown::Block::Quote(sub_blocks) => {
-            collect_quote_plain_texts(base_idx, sub_blocks, map, "> ");
+            collect_quote_plain_texts(next_idx, sub_blocks, map, "> ");
+        }
+        crate::parsers::markdown::Block::Alert { content, .. } => {
+            for sub_block in content {
+                collect_indexed_plain_texts(next_idx, sub_block, map);
+            }
+        }
+        crate::parsers::markdown::Block::FootnoteDefinition { content, .. } => {
+            for sub_block in content {
+                collect_indexed_plain_texts(next_idx, sub_block, map);
+            }
         }
         crate::parsers::markdown::Block::Mermaid { lines, .. } => {
+            let open_idx = alloc_index(next_idx);
             map.insert(
-                base_idx,
+                open_idx,
                 CopyLine {
                     prefix: None,
                     text: "```mermaid".to_string(),
@@ -1020,9 +1069,10 @@ fn collect_indexed_plain_texts(
                     table_separator: None,
                 },
             );
-            for (line_idx, line) in lines.iter().enumerate() {
+            for line in lines {
+                let line_idx = alloc_index(next_idx);
                 map.insert(
-                    base_idx + line_idx + 1,
+                    line_idx,
                     CopyLine {
                         prefix: None,
                         text: line.clone(),
@@ -1032,8 +1082,9 @@ fn collect_indexed_plain_texts(
                     },
                 );
             }
+            let close_idx = alloc_index(next_idx);
             map.insert(
-                base_idx + lines.len() + 1,
+                close_idx,
                 CopyLine {
                     prefix: None,
                     text: "```".to_string(),
@@ -1052,6 +1103,7 @@ fn collect_indexed_plain_texts(
             let num_cols = if col_count == 0 { 1 } else { col_count };
 
             for (i, header) in table.headers.iter().enumerate() {
+                let cell_idx = alloc_index(next_idx);
                 let text = crate::parsers::markdown::flatten_inlines_visual(&header.content);
                 let prefix = if i == 0 { "| " } else { " | " };
                 let suffix = if i + 1 == table.headers.len() {
@@ -1060,7 +1112,7 @@ fn collect_indexed_plain_texts(
                     None
                 };
                 map.insert(
-                    base_idx + i + 1,
+                    cell_idx,
                     CopyLine {
                         prefix: Some(prefix.to_string()),
                         text,
@@ -1074,6 +1126,7 @@ fn collect_indexed_plain_texts(
             for (row_idx, row_data) in table.rows.iter().enumerate() {
                 let num_cells = row_data.len();
                 for (j, cell) in row_data.iter().enumerate() {
+                    let cell_idx = alloc_index(next_idx);
                     let text = crate::parsers::markdown::flatten_inlines_visual(&cell.content);
                     let prefix = if j == 0 { "| " } else { " | " };
                     let suffix = if j + 1 == num_cells {
@@ -1087,7 +1140,7 @@ fn collect_indexed_plain_texts(
                         None
                     };
                     map.insert(
-                        base_idx + num_cols + row_idx * num_cols + j + 1,
+                        cell_idx,
                         CopyLine {
                             prefix: Some(prefix.to_string()),
                             text,
@@ -1099,13 +1152,32 @@ fn collect_indexed_plain_texts(
                 }
             }
         }
+        crate::parsers::markdown::Block::Html(html) => {
+            let trimmed = html.trim();
+            if !crate::parsers::markdown::is_empty_anchor_html(trimmed)
+                && !(trimmed.starts_with("<!--") && trimmed.ends_with("-->"))
+            {
+                let blk = alloc_index(next_idx);
+                map.insert(
+                    blk,
+                    CopyLine {
+                        prefix: None,
+                        text: html.clone(),
+                        suffix: None,
+                        blank_before: false,
+                        table_separator: None,
+                    },
+                );
+            }
+        }
         crate::parsers::markdown::Block::Math(latex) => {
+            let blk = alloc_index(next_idx);
             let rendered_text =
                 crate::features::markdown::view::components::inline_spans::render_latex_to_text(
                     latex,
                 );
             map.insert(
-                base_idx,
+                blk,
                 CopyLine {
                     prefix: None,
                     text: format!("$$\n{rendered_text}\n$$"),
@@ -1115,58 +1187,13 @@ fn collect_indexed_plain_texts(
                 },
             );
         }
-        _ => {}
+        crate::parsers::markdown::Block::Image { .. }
+        | crate::parsers::markdown::Block::HorizontalRule => {}
     }
-}
-
-fn collect_paragraph_segments(
-    base_idx: usize,
-    inlines: &[crate::parsers::markdown::Inline],
-    map: &mut std::collections::BTreeMap<usize, CopyLine>,
-) {
-    let has_special = inlines.iter().any(is_special_inline);
-    if !has_special {
-        insert_segment_line(base_idx, inlines, map);
-        return;
-    }
-
-    let mut start = 0;
-    for (i, inline) in inlines.iter().enumerate() {
-        if !is_special_inline(inline) {
-            continue;
-        }
-        insert_segment_line(base_idx + i + 1, &inlines[start..i], map);
-        start = i + 1;
-    }
-    insert_segment_line(base_idx + inlines.len() + 1, &inlines[start..], map);
-}
-
-fn insert_segment_line(
-    blk_idx: usize,
-    inlines: &[crate::parsers::markdown::Inline],
-    map: &mut std::collections::BTreeMap<usize, CopyLine>,
-) {
-    if inlines.is_empty() {
-        return;
-    }
-    let text = crate::parsers::markdown::flatten_inlines_visual(inlines);
-    if text.is_empty() {
-        return;
-    }
-    map.insert(
-        blk_idx,
-        CopyLine {
-            prefix: None,
-            text,
-            suffix: None,
-            blank_before: false,
-            table_separator: None,
-        },
-    );
 }
 
 fn collect_list_plain_texts(
-    base_idx: usize,
+    next_idx: &mut usize,
     ordered: bool,
     start_number: u64,
     items: &[crate::parsers::markdown::ListItem],
@@ -1174,15 +1201,12 @@ fn collect_list_plain_texts(
     depth: usize,
 ) {
     let indent = "  ".repeat(depth);
-    let mut current_idx = base_idx + 1;
     for (idx, item) in items.iter().enumerate() {
-        let item_blk = current_idx;
-        current_idx += 1;
-
         let has_direct_content =
             !item.content.is_empty() || item.is_task.is_some() || item.sub_blocks.is_empty();
 
         if has_direct_content {
+            let item_blk = alloc_index(next_idx);
             let raw_prefix = if let Some(checked) = item.is_task {
                 if checked {
                     "[x] ".to_string()
@@ -1210,45 +1234,36 @@ fn collect_list_plain_texts(
 
         let next_depth = if has_direct_content { depth + 1 } else { depth };
         for sub_block in item.sub_blocks.iter() {
-            match sub_block {
-                crate::parsers::markdown::Block::List {
-                    ordered: sub_ord,
-                    start_number: sub_start,
-                    items: sub_items,
-                } => {
-                    collect_list_plain_texts(
-                        current_idx,
-                        *sub_ord,
-                        *sub_start,
-                        sub_items,
-                        map,
-                        next_depth,
-                    );
-                }
-                _ => {
-                    collect_indexed_plain_texts(current_idx, sub_block, map);
-                }
+            if let crate::parsers::markdown::Block::List {
+                ordered: sub_ord,
+                start_number: sub_start,
+                items: sub_items,
+            } = sub_block
+            {
+                collect_list_plain_texts(
+                    next_idx, *sub_ord, *sub_start, sub_items, map, next_depth,
+                );
+            } else {
+                collect_indexed_plain_texts(next_idx, sub_block, map);
             }
-            current_idx += 10;
         }
     }
 }
 
 fn collect_quote_plain_texts(
-    base_idx: usize,
+    next_idx: &mut usize,
     sub_blocks: &[crate::parsers::markdown::Block],
     map: &mut std::collections::BTreeMap<usize, CopyLine>,
     quote_prefix: &str,
 ) {
-    for (i, sub_block) in sub_blocks.iter().enumerate() {
-        let sub_base = base_idx + i + 1;
+    for sub_block in sub_blocks {
         let before = map.len();
 
         if let crate::parsers::markdown::Block::Quote(inner_blocks) = sub_block {
             let inner_prefix = format!("{quote_prefix}> ");
-            collect_quote_plain_texts(sub_base, inner_blocks, map, &inner_prefix);
+            collect_quote_plain_texts(next_idx, inner_blocks, map, &inner_prefix);
         } else {
-            collect_indexed_plain_texts(sub_base, sub_block, map);
+            collect_indexed_plain_texts(next_idx, sub_block, map);
         }
 
         for k in map.keys().skip(before).copied().collect::<Vec<_>>() {
