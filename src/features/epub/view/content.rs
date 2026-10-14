@@ -2,6 +2,7 @@ use crate::parsers::markdown::BlockLayout;
 use crate::ui::components::measured::Measured;
 use iced::widget::container;
 use iced::{Element, Length, Padding};
+use std::cell::Cell;
 
 use crate::app::Message;
 use crate::core::types::EpubState;
@@ -66,8 +67,9 @@ pub(crate) fn build_epub_content<'a>(
             .skip(first_visible)
             .take(visible_count)
         {
+            let block_cell = Cell::new(i * 1000);
             let block_ctx = RenderContext {
-                block_index: i * 1000,
+                next_block_index: &block_cell,
                 selection_range: state.markdown_state.selection_range,
                 drag_active: state.markdown_state.is_dragging_selection
                     || state.markdown_state.is_mouse_held,
@@ -122,8 +124,9 @@ pub(crate) fn build_epub_content<'a>(
             .iter()
             .enumerate()
             .map(|(i, block)| {
+                let block_cell = Cell::new(i * 1000);
                 let block_ctx = RenderContext {
-                    block_index: i * 1000,
+                    next_block_index: &block_cell,
                     selection_range: state.markdown_state.selection_range,
                     drag_active: state.markdown_state.is_dragging_selection
                         || state.markdown_state.is_mouse_held,

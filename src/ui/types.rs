@@ -3,7 +3,7 @@ use std::cell::Cell;
 use crate::ui::theme::AppTheme;
 
 pub(crate) struct RenderContext<'a> {
-    pub(crate) block_index: usize,
+    pub(crate) next_block_index: &'a Cell<usize>,
     pub(crate) selection_range: Option<crate::core::SelectionRange>,
     pub(crate) drag_active: bool,
     pub(crate) search_query: &'a str,
@@ -14,4 +14,14 @@ pub(crate) struct RenderContext<'a> {
     pub(crate) font_family: Option<&'a str>,
     pub(crate) font_family_mono: Option<&'a str>,
     pub(crate) ruby_display_mode: crate::core::config::RubyDisplayMode,
+    pub(crate) footnotes: Option<&'a std::collections::HashMap<String, String>>,
+}
+
+impl<'a> RenderContext<'a> {
+    #[inline]
+    pub(crate) fn alloc_block_index(&self) -> usize {
+        let idx = self.next_block_index.get();
+        self.next_block_index.set(idx + 1);
+        idx
+    }
 }

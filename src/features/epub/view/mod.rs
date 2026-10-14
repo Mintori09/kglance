@@ -27,9 +27,10 @@ pub fn view_epub<'a>(
 ) -> Element<'a, Message> {
     let active_chapter = clamp_active_chapter(state);
     let search_counter = Cell::new(0);
+    let block_counter = Cell::new(0);
 
     let ctx = RenderContext {
-        block_index: 0,
+        next_block_index: &block_counter,
         selection_range: None,
         drag_active: false,
         search_query: &state.markdown_state.search_query,
@@ -40,6 +41,7 @@ pub fn view_epub<'a>(
         font_family,
         font_family_mono,
         ruby_display_mode,
+        footnotes: None,
     };
 
     let main_content = build_epub_content(state, active_chapter, &ctx, max_text_width);

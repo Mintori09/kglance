@@ -162,8 +162,9 @@ pub fn render_selection_menu_layer<'a>(state: &'a KglanceState) -> Option<Elemen
                 let popup_font_size = state.font_size.clamp(13.0, 15.0);
 
                 let counter = Cell::new(0);
+                let block_counter = Cell::new(0);
                 let block_ctx = RenderContext {
-                    block_index: 0,
+                    next_block_index: &block_counter,
                     selection_range: None,
                     drag_active: false,
                     search_query: "",
@@ -174,6 +175,7 @@ pub fn render_selection_menu_layer<'a>(state: &'a KglanceState) -> Option<Elemen
                     font_family: state.font_family.as_deref(),
                     font_family_mono: state.font_family_mono.as_deref(),
                     ruby_display_mode: state.ruby_display_mode,
+                    footnotes: None,
                 };
 
                 let body_element: Element<'a, Message> = if blocks.is_empty() {
