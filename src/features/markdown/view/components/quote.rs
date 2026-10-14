@@ -11,14 +11,12 @@ pub(crate) fn render_quote<'a>(
     state: &'a crate::core::MarkdownState,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
-    let base_block_index = ctx.block_index;
-    let inner: Element<'a, Message> = column(blocks.iter().enumerate().map(|(i, block)| {
-        let quote_ctx = RenderContext {
-            block_index: base_block_index + i + 1,
-            ..*ctx
-        };
-        render_block(i, block, state, &quote_ctx)
-    }))
+    let inner: Element<'a, Message> = column(
+        blocks
+            .iter()
+            .enumerate()
+            .map(|(i, block)| render_block(i, block, state, ctx)),
+    )
     .spacing(STYLE.general.section_spacing)
     .into();
 

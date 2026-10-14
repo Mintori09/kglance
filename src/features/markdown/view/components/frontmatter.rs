@@ -1,8 +1,9 @@
 use crate::app::Message;
+use crate::features::markdown::view::build_selectable;
 use crate::ui::theme::tokens::{radius, spacing};
 use crate::ui::types::RenderContext;
 use iced::font::Weight;
-use iced::widget::{column, container, row, text};
+use iced::widget::{column, container};
 use iced::{Element, Font, Length, Padding};
 
 pub(crate) fn render_frontmatter<'a>(
@@ -14,19 +15,25 @@ pub(crate) fn render_frontmatter<'a>(
     let rows: Vec<Element<'a, Message>> = entries
         .iter()
         .map(|(key, value)| {
-            let key_label = text(format!("{key}:"))
-                .size(ctx.font_size * 0.9)
+            let key_span = iced::widget::text::Span::new(format!("{key}: "))
                 .font(Font {
                     weight: Weight::Bold,
                     ..Default::default()
                 })
                 .color(base_color.text_dim);
+            let val_span = iced::widget::text::Span::new(value.clone()).color(base_color.text);
+            let blk = ctx.alloc_block_index();
 
-            let val_label = text(value.as_str())
-                .size(ctx.font_size * 0.9)
-                .color(base_color.text);
-
-            row![key_label, val_label].spacing(spacing::S).into()
+            let selectable = build_selectable(
+                vec![key_span, val_span],
+                ctx.font_size * 0.9,
+                blk,
+                Length::Fill,
+                base_color.text,
+                ctx.selection_range,
+                ctx.drag_active,
+            );
+            selectable.into()
         })
         .collect();
 

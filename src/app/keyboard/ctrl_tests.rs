@@ -131,11 +131,11 @@ fn ctrl_c_copies_markdown_selection_with_inline_math() {
     // Simulating selection on the markdown state
     app.state.markdown.selection_range = Some(SelectionRange {
         start: SelectionPoint {
-            block: 1,
+            block: 0,
             offset: 0,
         },
         end: SelectionPoint {
-            block: 1,
+            block: 0,
             offset: 500,
         },
     });

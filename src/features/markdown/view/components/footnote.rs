@@ -23,14 +23,12 @@ pub(crate) fn render_footnote_definition<'a>(
         })
         .color(base_color.text_dim);
 
-    let base_block_index = ctx.block_index;
-    let inner: Element<'a, Message> = column(blocks.iter().enumerate().map(|(i, block)| {
-        let fn_ctx = RenderContext {
-            block_index: base_block_index + i + 1,
-            ..*ctx
-        };
-        render_block(i, block, state, &fn_ctx)
-    }))
+    let inner: Element<'a, Message> = column(
+        blocks
+            .iter()
+            .enumerate()
+            .map(|(i, block)| render_block(i, block, state, ctx)),
+    )
     .spacing(STYLE.general.section_spacing)
     .into();
 

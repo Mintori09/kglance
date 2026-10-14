@@ -27,12 +27,8 @@ fn render_list_level<'a>(
     level: usize,
 ) -> Element<'a, Message> {
     let mut item_elements = Vec::with_capacity(items.len());
-    let mut current_idx = ctx.block_index + 1;
 
     for (index, item) in items.iter().enumerate() {
-        let item_block_index = current_idx;
-        current_idx += 1;
-
         let has_direct_content =
             !item.content.is_empty() || item.is_task.is_some() || item.sub_blocks.is_empty();
 
@@ -40,11 +36,7 @@ fn render_list_level<'a>(
 
         if has_direct_content {
             let prefix = create_list_prefix(ordered, start_number, index, item, ctx, level);
-            let item_ctx = RenderContext {
-                block_index: item_block_index,
-                ..*ctx
-            };
-            let content = render_inlines(&item.content, ctx.font_size, &item_ctx);
+            let content = render_inlines(&item.content, ctx.font_size, ctx);
             children.push(
                 row![prefix, content]
                     .spacing(STYLE.list.item_spacing)
@@ -53,19 +45,16 @@ fn render_list_level<'a>(
         }
 
         for (sb_idx, sub_block) in item.sub_blocks.iter().enumerate() {
-            let sub_ctx = RenderContext {
-                block_index: current_idx,
-                ..*ctx
+            let sub_element = if let crate::parsers::markdown::Block::List {
+                ordered: sub_ord,
+                start_number: sub_start,
+                items: sub_items,
+            } = sub_block
+            {
+                render_list_level(*sub_ord, *sub_start, sub_items, state, ctx, level + 1)
+            } else {
+                render_block(sb_idx, sub_block, state, ctx)
             };
-            let sub_element = match sub_block {
-                crate::parsers::markdown::Block::List {
-                    ordered: sub_ord,
-                    start_number: sub_start,
-                    items: sub_items,
-                } => render_list_level(*sub_ord, *sub_start, sub_items, state, &sub_ctx, level + 1),
-                _ => render_block(current_idx, sub_block, state, &sub_ctx),
-            };
-            current_idx += 10;
             if !has_direct_content && sb_idx == 0 {
                 let prefix = create_list_prefix(ordered, start_number, index, item, ctx, level);
                 children.push(

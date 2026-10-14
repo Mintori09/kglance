@@ -43,16 +43,12 @@ pub(crate) fn render_table<'a>(
         .iter()
         .enumerate()
         .map(|(i, header)| {
-            let cell_ctx = RenderContext {
-                block_index: ctx.block_index + i + 1,
-                ..*ctx
-            };
             let cell = render_inlines_styled(
                 &header.content,
                 header_size,
                 Some(iced::font::Weight::Semibold),
                 Some(header_text_color),
-                &cell_ctx,
+                ctx,
             );
             let width = col_widths.get(i).copied().unwrap_or(Length::FillPortion(1));
             container(cell)
@@ -90,11 +86,7 @@ pub(crate) fn render_table<'a>(
             .iter()
             .enumerate()
             .map(|(j, cell)| {
-                let cell_ctx = RenderContext {
-                    block_index: ctx.block_index + num_cols + row_index * num_cols + j + 1,
-                    ..*ctx
-                };
-                let cell_content = render_inlines(&cell.content, cell_size, &cell_ctx);
+                let cell_content = render_inlines(&cell.content, cell_size, ctx);
                 let width = col_widths.get(j).copied().unwrap_or(Length::FillPortion(1));
                 container(cell_content)
                     .padding(STYLE.table.cell_padding)
