@@ -398,7 +398,7 @@ pub fn previews_tab<'a>(
                         }),
                     name_input,
                     cmd_input,
-                    text("Selected text is passed via standard input and $KGLANCE_TEXT environment variable.")
+                    text("Selected text is passed via stdin and $KGLANCE_TEXT. File path is in $KGLANCE_FILE.")
                         .size(10)
                         .font(main_font)
                         .style(move |_| iced::widget::text::Style {

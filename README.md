@@ -307,10 +307,17 @@ The config file is auto-created with defaults on first run. See `data/examples/c
       }
     ]
   }
-}
 ```
 
-For a full reference, see [`data/examples/config.example.json`](data/examples/config.example.json).
+Custom actions receive selected text via `stdin` and the `$KGLANCE_TEXT` environment variable. In addition, file context is automatically exposed:
+- `$KGLANCE_FILE`: Absolute path to the previewed file.
+- `$KGLANCE_FILE_DIR`: Parent directory containing the previewed file.
+- `$KGLANCE_FILE_NAME`: File name with extension (e.g. `document.md`).
+- `$KGLANCE_FILE_STEM`: File base name without extension (e.g. `document`).
+- `$KGLANCE_FILE_EXT`: Lowercased file extension (e.g. `md`).
+- Command working directory (`cwd`): Executed in `$KGLANCE_FILE_DIR` when available, falling back to `$HOME`.
+
+For a full guide on configuring shell actions, AI streaming, and file context variables, see the [Custom Actions Guide](docs/user-guide/custom-actions.md). For full configuration options, see [`data/examples/config.example.json`](data/examples/config.example.json).
 
 ---
 
@@ -331,7 +338,7 @@ For a full reference, see [`data/examples/config.example.json`](data/examples/co
 ### Next Priorities
 
 - [ ] In-PDF Text Search (`Ctrl+F` & Bounding Box Highlight)
-- [ ] Cache image from url.
+- [x] Cache image from url.
 
 ---
 

@@ -34,6 +34,12 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
             let popup = action.popup;
             let toast = action.toast;
 
+            let file_path = if app.state.file_name.is_empty() {
+                None
+            } else {
+                Some(std::path::PathBuf::from(&app.state.file_name))
+            };
+
             // If popup is requested (streaming or non-streaming), open popup card immediately with loading state
             if popup {
                 app.state.selection_menu = SelectionMenuState::Result {
@@ -45,11 +51,19 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
                 };
 
                 if action.stream {
-                    stream_custom_action(action_name, action.command, text, toast)
+                    stream_custom_action(
+                        action_name,
+                        action.command,
+                        text,
+                        file_path.as_deref(),
+                        toast,
+                    )
                 } else {
                     Task::perform(
                         async move {
-                            let result = execute_custom_action(action.command, text).await;
+                            let result =
+                                execute_custom_action(action.command, text, file_path.as_deref())
+                                    .await;
                             SelectionMenuMsg::ActionResult {
                                 action_name,
                                 result,
@@ -69,7 +83,8 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
 
                 Task::perform(
                     async move {
-                        let result = execute_custom_action(action.command, text).await;
+                        let result =
+                            execute_custom_action(action.command, text, file_path.as_deref()).await;
                         SelectionMenuMsg::ActionResult {
                             action_name,
                             result,
@@ -212,37 +227,22 @@ pub fn stream_custom_action(
     action_name: String,
     command: String,
     text: String,
+    file_path: Option<&std::path::Path>,
     toast: bool,
 ) -> Task<Message> {
     use iced::futures::SinkExt;
     use iced::futures::channel::mpsc::Sender;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-    let stream = iced::stream::channel(100, move |mut output: Sender<Message>| async move {
-        let env_text = if text.len() > crate::core::selection_action::MAX_ENV_TEXT_BYTES {
-            let mut byte_count = 0;
-            let mut safe = String::new();
-            for ch in text.chars() {
-                let next_len = ch.len_utf8();
-                if byte_count + next_len > crate::core::selection_action::MAX_ENV_TEXT_BYTES {
-                    break;
-                }
-                safe.push(ch);
-                byte_count += next_len;
-            }
-            safe
-        } else {
-            text.clone()
-        };
+    let file_path = file_path.map(std::path::Path::to_path_buf);
 
-        let spawn_res = tokio::process::Command::new("sh")
-            .arg("-c")
-            .arg(&command)
-            .env("KGLANCE_TEXT", &env_text)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn();
+    let stream = iced::stream::channel(100, move |mut output: Sender<Message>| async move {
+        let spawn_res = crate::core::selection_action::prepare_custom_action_command(
+            &command,
+            &text,
+            file_path.as_deref(),
+        )
+        .spawn();
 
         let mut child = match spawn_res {
             Ok(child) => child,

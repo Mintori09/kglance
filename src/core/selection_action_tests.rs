@@ -99,22 +99,63 @@ fn test_selection_menu_state_transitions() {
 async fn test_execute_custom_action_stdin_and_env() {
     let cmd = "tr '[:lower:]' '[:upper:]'".to_string();
     let text = "hello rust".to_string();
-    let res = execute_custom_action(cmd, text).await.expect("execute");
+    let res = execute_custom_action(cmd, text, None)
+        .await
+        .expect("execute");
     assert_eq!(res.trim(), "HELLO RUST");
 
     let cmd_env = "echo \"PREFIX_$KGLANCE_TEXT\"".to_string();
     let text_env = "kglance".to_string();
-    let res_env = execute_custom_action(cmd_env, text_env)
+    let res_env = execute_custom_action(cmd_env, text_env, None)
         .await
         .expect("execute env");
     assert_eq!(res_env.trim(), "PREFIX_kglance");
 }
 
 #[tokio::test]
+async fn test_execute_custom_action_file_env() {
+    let cmd = "echo \"$KGLANCE_FILE|$KGLANCE_FILE_DIR|$KGLANCE_FILE_NAME|$KGLANCE_FILE_STEM|$KGLANCE_FILE_EXT|$(pwd)\"".to_string();
+    let text = "sample".to_string();
+    let test_file = std::path::Path::new("/tmp/test_dir/my_document.MD");
+    let res = execute_custom_action(cmd, text, Some(test_file))
+        .await
+        .expect("execute file env");
+    let trimmed = res.trim();
+    assert!(
+        trimmed.starts_with(
+            "/tmp/test_dir/my_document.MD|/tmp/test_dir|my_document.MD|my_document|md|"
+        )
+    );
+}
+
+#[tokio::test]
+async fn test_execute_custom_action_file_env_no_extension() {
+    let cmd =
+        "echo \"$KGLANCE_FILE_NAME|$KGLANCE_FILE_STEM|${KGLANCE_FILE_EXT:-none}\"".to_string();
+    let text = "sample".to_string();
+    let test_file = std::path::Path::new("/tmp/Makefile");
+    let res = execute_custom_action(cmd, text, Some(test_file))
+        .await
+        .expect("execute no ext");
+    assert_eq!(res.trim(), "Makefile|Makefile|none");
+}
+
+#[tokio::test]
+async fn test_execute_custom_action_no_file_env_fallback() {
+    let cmd = "echo \"${KGLANCE_FILE:-none}|$(pwd)\"".to_string();
+    let text = "sample".to_string();
+    let res = execute_custom_action(cmd, text, None)
+        .await
+        .expect("execute none file");
+    let trimmed = res.trim();
+    assert!(trimmed.starts_with("none|"));
+}
+
+#[tokio::test]
 async fn test_execute_custom_action_failure() {
     let cmd = "exit 1".to_string();
     let text = "test".to_string();
-    let res = execute_custom_action(cmd, text).await;
+    let res = execute_custom_action(cmd, text, None).await;
     assert!(res.is_err());
 }
 
@@ -123,7 +164,7 @@ async fn test_execute_custom_action_large_env_truncation() {
     let cmd = "echo \"${#KGLANCE_TEXT}\"".to_string();
     // 32 KB string (larger than MAX_ENV_TEXT_BYTES)
     let text = "a".repeat(32 * 1024);
-    let res = execute_custom_action(cmd, text)
+    let res = execute_custom_action(cmd, text, None)
         .await
         .expect("execute large env");
     let len: usize = res.trim().parse().expect("parsed length");
@@ -136,7 +177,7 @@ async fn test_execute_custom_action_timeout() {
     let text = "test".to_string();
     let res = match tokio::time::timeout(
         std::time::Duration::from_millis(50),
-        execute_custom_action(cmd, text),
+        execute_custom_action(cmd, text, None),
     )
     .await
     {
