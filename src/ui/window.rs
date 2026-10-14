@@ -423,6 +423,7 @@ pub fn view_window<'a>(
             prefer_mermaid_cli: state.prefer_mermaid_cli,
             word_wrap: state.word_wrap,
             json_tree_view: state.json_tree_view,
+            remember_window_size: state.remember_window_size,
         };
 
         let static_fonts = crate::ui::views::setting_page::get_system_fonts();

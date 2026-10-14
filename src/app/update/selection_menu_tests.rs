@@ -103,10 +103,7 @@ fn test_copy_clicked_clears_document_selection() {
     app.state.markdown.selection_range = Some(crate::core::SelectionRange { start: pt, end: pt });
     app.state.markdown.selected_text = Some("Text".to_string());
 
-    let _ = handle_selection_menu_msg(
-        &mut app,
-        SelectionMenuMsg::CopyClicked("Text".to_string()),
-    );
+    let _ = handle_selection_menu_msg(&mut app, SelectionMenuMsg::CopyClicked("Text".to_string()));
     assert!(matches!(
         app.state.selection_menu,
         SelectionMenuState::Hidden
@@ -344,7 +341,10 @@ fn test_action_result_non_popup_clears_document_selection() {
         },
     );
 
-    assert!(matches!(app.state.selection_menu, SelectionMenuState::Hidden));
+    assert!(matches!(
+        app.state.selection_menu,
+        SelectionMenuState::Hidden
+    ));
     assert_eq!(app.state.markdown.selection_range, None);
     assert_eq!(app.state.markdown.selected_text, None);
     assert_eq!(app.state.pdf.selected_text, None);

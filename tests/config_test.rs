@@ -48,6 +48,7 @@ fn test_config_serialization_round_trip() {
             prefer_mermaid_cli: false,
             word_wrap: false,
             json_tree_view: false,
+            remember_window_size: false,
         },
         ..Default::default()
     };

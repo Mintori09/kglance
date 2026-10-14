@@ -58,6 +58,10 @@ impl KglanceApp {
             self.state.read_positions_dirty = false;
         }
 
+        if self.state.remember_window_size {
+            self.save_current_config_logged("close");
+        }
+
         self.clear_media();
         self.current_content = None;
         self.state.reset_content_state();
@@ -249,6 +253,9 @@ impl KglanceApp {
     fn handle_window_close_requested(&mut self, window_id: window::Id) -> Task<Message> {
         self.clear_media();
         if self.is_daemon {
+            if self.state.remember_window_size {
+                self.save_current_config_logged("close");
+            }
             if let Some(ref watcher) = self.file_watcher {
                 let _ = watcher
                     .cmd_tx

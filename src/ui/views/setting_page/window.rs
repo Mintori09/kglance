@@ -1,11 +1,13 @@
-use iced::widget::{button, column, container, row, text, text_input};
+use iced::widget::{button, column, container, row, text, text_input, toggler};
 use iced::{Alignment, Element, Font, Theme};
 
 use crate::app::messages::{Message, SettingsMsg};
 use crate::core::config::UiConfig;
 use crate::ui::theme::color::BaseColors;
 use crate::ui::theme::tokens::spacing;
-use crate::ui::theme::{default_button, default_card, default_row_button, default_text_input};
+use crate::ui::theme::{
+    default_button, default_card, default_row_button, default_text_input, default_toggler,
+};
 
 pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Element<'a, Message> {
     let base_colors = BaseColors::palette(theme);
@@ -66,6 +68,20 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
         base_colors.text_dim,
     );
 
+    let theme_toggle = theme.clone();
+    let remember_size_cb = toggler(config.remember_window_size)
+        .on_toggle(|enabled| Message::Settings(SettingsMsg::RememberWindowSizeChanged(enabled)))
+        .style(move |_, status| default_toggler(&theme_toggle, status));
+
+    let remember_size_row = build_setting_row(
+        "Remember Window Size",
+        "Save active window dimensions when closing preview",
+        remember_size_cb,
+        main_font,
+        base_colors.text,
+        base_colors.text_dim,
+    );
+
     let launch_card = container(
         column![
             text("DEFAULT LAUNCH GEOMETRY")
@@ -76,6 +92,7 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
                 }),
             default_row,
             presets_setting_row,
+            remember_size_row,
         ]
         .spacing(spacing::M),
     )

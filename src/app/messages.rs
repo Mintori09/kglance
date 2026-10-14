@@ -326,6 +326,7 @@ pub enum SettingsMsg {
     SetWindowPreset { width: u32, height: u32 },
     WordWrapChanged(bool),
     JsonTreeViewChanged(bool),
+    RememberWindowSizeChanged(bool),
     EpubReadingModeChanged(crate::core::config::EpubReadingMode),
     RubyDisplayModeChanged(crate::core::config::RubyDisplayMode),
     PreferMermaidCliChanged(bool),
