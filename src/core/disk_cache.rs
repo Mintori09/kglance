@@ -23,6 +23,16 @@ pub struct DiskCacheEntryMeta {
     pub last_accessed_nanos: u128,
 }
 
+impl DiskCacheEntryMeta {
+    pub fn is_remote(&self) -> bool {
+        self.category == "remote_images"
+            || self
+                .source_path
+                .to_str()
+                .is_some_and(|s| s.starts_with("http://") || s.starts_with("https://"))
+    }
+}
+
 /// Central database index containing all cached entries and total size accounting.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct DiskCacheIndex {
@@ -299,6 +309,136 @@ impl DiskCache {
         })
     }
 
+    pub fn get_cached_url_path(&self, category: &str, url: &str, ext: &str) -> Option<PathBuf> {
+        let key = compute_url_cache_key(category, url);
+        let mut guard = self
+            .index
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        if let Some(entry) = guard.entries.get_mut(&key)
+            && entry.cached_path.exists()
+            && fs::metadata(&entry.cached_path)
+                .map(|m| m.len() > 0)
+                .unwrap_or(false)
+        {
+            entry.last_accessed_nanos = current_timestamp_nanos();
+            return Some(entry.cached_path.clone());
+        }
+
+        // Fallback: check filesystem directly
+        let file_name = if ext.is_empty() {
+            key.clone()
+        } else {
+            format!("{key}.{ext}")
+        };
+        let target = self.category_dir(category).join(file_name);
+        if target.exists() && fs::metadata(&target).map(|m| m.len() > 0).unwrap_or(false) {
+            let size = fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
+            guard.entries.insert(
+                key,
+                DiskCacheEntryMeta {
+                    category: category.to_string(),
+                    source_path: PathBuf::from(url),
+                    cached_path: target.clone(),
+                    size_bytes: size,
+                    last_accessed_nanos: current_timestamp_nanos(),
+                },
+            );
+            guard.total_bytes = guard.total_bytes.saturating_add(size);
+            let _ = save_index_to_disk(&guard, &self.root);
+            Some(target)
+        } else {
+            None
+        }
+    }
+
+    pub fn put_url_bytes(
+        &self,
+        category: &str,
+        url: &str,
+        ext: &str,
+        data: &[u8],
+    ) -> io::Result<PathBuf> {
+        let key = compute_url_cache_key(category, url);
+        let file_name = if ext.is_empty() {
+            key.clone()
+        } else {
+            format!("{key}.{ext}")
+        };
+        let cat_dir = self.category_dir(category);
+        let target_path = cat_dir.join(file_name);
+
+        if target_path.exists()
+            && fs::metadata(&target_path)
+                .map(|m| m.len() > 0)
+                .unwrap_or(false)
+        {
+            return Ok(target_path);
+        }
+
+        fs::create_dir_all(&cat_dir)?;
+
+        let unique_ctr = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let pid = std::process::id();
+        let nanos = current_timestamp_nanos();
+        let tmp_file_name = if ext.is_empty() {
+            format!(".tmp_{pid}_{nanos}_{unique_ctr}")
+        } else {
+            format!(".tmp_{pid}_{nanos}_{unique_ctr}.{ext}")
+        };
+        let tmp_path = cat_dir.join(tmp_file_name);
+
+        if let Err(err) = fs::write(&tmp_path, data) {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(err);
+        }
+
+        if !tmp_path.exists()
+            || !fs::metadata(&tmp_path)
+                .map(|m| m.len() > 0)
+                .unwrap_or(false)
+        {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(io::Error::other(
+                "Cache writer produced an empty or missing output file",
+            ));
+        }
+
+        fs::rename(&tmp_path, &target_path)?;
+
+        let size = fs::metadata(&target_path).map(|m| m.len()).unwrap_or(0);
+        {
+            let mut guard = self
+                .index
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let old_size = guard
+                .entries
+                .insert(
+                    key,
+                    DiskCacheEntryMeta {
+                        category: category.to_string(),
+                        source_path: PathBuf::from(url),
+                        cached_path: target_path.clone(),
+                        size_bytes: size,
+                        last_accessed_nanos: current_timestamp_nanos(),
+                    },
+                )
+                .map(|e| e.size_bytes)
+                .unwrap_or(0);
+
+            guard.total_bytes = guard
+                .total_bytes
+                .saturating_sub(old_size)
+                .saturating_add(size);
+            let _ = save_index_to_disk(&guard, &self.root);
+        }
+
+        notify_cache_changed();
+        Ok(target_path)
+    }
+
     pub fn prune_to_budget(&self, max_bytes: u64) -> io::Result<u64> {
         let mut guard = self
             .index
@@ -313,7 +453,7 @@ impl DiskCache {
         // Stage 1: Remove orphaned cache entries whose source file was deleted
         let mut orphaned_keys = Vec::new();
         for (key, entry) in guard.entries.iter() {
-            if !entry.source_path.exists() {
+            if !entry.is_remote() && !entry.source_path.exists() {
                 orphaned_keys.push(key.clone());
             }
         }
@@ -431,6 +571,14 @@ pub fn put_bytes(
     global_cache().put_bytes(category, source_path, ext, data)
 }
 
+pub fn get_cached_url_path(category: &str, url: &str, ext: &str) -> Option<PathBuf> {
+    global_cache().get_cached_url_path(category, url, ext)
+}
+
+pub fn put_url_bytes(category: &str, url: &str, ext: &str, data: &[u8]) -> io::Result<PathBuf> {
+    global_cache().put_url_bytes(category, url, ext, data)
+}
+
 pub fn prune_to_budget(max_bytes: u64) -> io::Result<u64> {
     global_cache().prune_to_budget(max_bytes)
 }
@@ -491,7 +639,7 @@ pub fn reconcile_index_with_disk(index: &mut DiskCacheIndex, root: &Path, clean_
         }
 
         // If source file no longer exists (orphaned)
-        if !entry.source_path.exists() {
+        if !entry.is_remote() && !entry.source_path.exists() {
             let _ = fs::remove_file(&entry.cached_path);
             keys_to_remove.push(key.clone());
             continue;
@@ -568,6 +716,12 @@ pub fn compute_cache_key(category: &str, source_path: &Path) -> Option<String> {
 
     let input = format!("{category}:{path_str}:{mtime}:{size}");
     Some(format!("{:x}", md5::compute(input.as_bytes())))
+}
+
+/// Compute a deterministic cache key for a remote URL within a category.
+pub fn compute_url_cache_key(category: &str, url: &str) -> String {
+    let input = format!("{category}:{url}");
+    format!("{:x}", md5::compute(input.as_bytes()))
 }
 
 /// Notify background pruner that new cache artifacts have been written.

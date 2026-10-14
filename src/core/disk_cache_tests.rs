@@ -259,3 +259,65 @@ fn test_is_dir_writable_and_cache_dir_usable() {
     let resolved = cache_dir();
     assert!(is_dir_writable(&resolved));
 }
+
+#[test]
+fn test_remote_url_caching_and_lru_prune() {
+    let temp_cache_dir = tempdir().unwrap();
+    let cache = DiskCache::new(temp_cache_dir.path());
+
+    let url1 = "https://example.com/images/img1.png";
+    let url2 = "https://example.com/images/img2.png";
+    let url3 = "https://example.com/images/img3.png";
+
+    // 1. Initial get: miss
+    assert!(
+        cache
+            .get_cached_url_path("remote_images", url1, "")
+            .is_none()
+    );
+
+    // 2. Put bytes
+    let path1 = cache
+        .put_url_bytes("remote_images", url1, "", &[0u8; 400])
+        .unwrap();
+    assert!(path1.exists());
+
+    // 3. Hit
+    let hit1 = cache.get_cached_url_path("remote_images", url1, "");
+    assert_eq!(hit1, Some(path1.clone()));
+
+    // 4. Reconcile: Remote URLs should NOT be treated as orphans even though url1 is not a local file
+    cache.reconcile(true);
+    assert!(path1.exists(), "Remote image must survive reconciliation");
+    cache.inspect_index(|index| {
+        assert_eq!(index.entries.len(), 1);
+        assert_eq!(index.total_bytes, 400);
+    });
+
+    // 5. Add url2 and url3 with sleep to order last_accessed_nanos
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let path2 = cache
+        .put_url_bytes("remote_images", url2, "", &[0u8; 300])
+        .unwrap();
+
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let path3 = cache
+        .put_url_bytes("remote_images", url3, "", &[0u8; 300])
+        .unwrap();
+
+    // Total = 400 + 300 + 300 = 1000 bytes.
+    // Budget = 1000 bytes. Threshold 80% = 800 bytes.
+    // Target 70% = 700 bytes.
+    // url1 is the oldest accessed -> should be evicted by LRU!
+    let remaining = cache.prune_to_budget(1000).unwrap();
+    assert!(remaining <= 700);
+
+    assert!(!path1.exists(), "Oldest remote image pruned by LRU");
+    assert!(path2.exists(), "Newer remote image kept");
+    assert!(path3.exists(), "Newest remote image kept");
+
+    cache.inspect_index(|index| {
+        assert_eq!(index.entries.len(), 2);
+        assert_eq!(index.total_bytes, 600);
+    });
+}
