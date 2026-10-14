@@ -3,21 +3,15 @@ pub fn is_remote_url(path: &str) -> bool {
     lower.starts_with("http://") || lower.starts_with("https://")
 }
 
-pub fn url_cache_key(url: &str) -> String {
-    format!("{:x}", md5::compute(url.as_bytes()))
-}
-
 pub async fn fetch_remote_image(url: &str) -> Option<Vec<u8>> {
     if !is_remote_url(url) {
         return None;
     }
 
-    let cache_dir = dirs::cache_dir()?.join("kglance").join("remote_images");
-    let _ = std::fs::create_dir_all(&cache_dir);
-    let key = url_cache_key(url);
-    let cache_file = cache_dir.join(key);
-
-    if let Ok(bytes) = std::fs::read(&cache_file) {
+    if let Some(cached_path) =
+        crate::core::disk_cache::get_cached_url_path("remote_images", url, "")
+        && let Ok(bytes) = std::fs::read(&cached_path)
+    {
         return if bytes.is_empty() { None } else { Some(bytes) };
     }
 
@@ -39,6 +33,6 @@ pub async fn fetch_remote_image(url: &str) -> Option<Vec<u8>> {
     .await
     .ok()??;
 
-    let _ = std::fs::write(&cache_file, &fetched);
+    let _ = crate::core::disk_cache::put_url_bytes("remote_images", url, "", &fetched);
     Some(fetched)
 }
