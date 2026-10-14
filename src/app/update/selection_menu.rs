@@ -17,10 +17,12 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
         }
         SelectionMenuMsg::Dismiss => {
             app.state.selection_menu.hide();
+            clear_document_selection(app);
             Task::none()
         }
         SelectionMenuMsg::CopyClicked(text) => {
             app.state.selection_menu.hide();
+            clear_document_selection(app);
             crate::app::update::misc::handle_copy_text(app, text)
         }
         SelectionMenuMsg::CustomActionClicked { action, text } => {
@@ -195,11 +197,15 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
         } => match result {
             Err(err) => {
                 app.state.selection_menu.hide();
+                if !popup {
+                    clear_document_selection(app);
+                }
                 app.show_toast(format!("{action_name} error: {err}"))
             }
             Ok(output) => {
                 if toast && !popup {
                     app.state.selection_menu.hide();
+                    clear_document_selection(app);
                     let msg = if output.trim().is_empty() {
                         format!("{action_name} completed")
                     } else {
@@ -240,6 +246,7 @@ pub fn handle_selection_menu_msg(app: &mut KglanceApp, msg: SelectionMenuMsg) ->
                     }
                 } else {
                     app.state.selection_menu.hide();
+                    clear_document_selection(app);
                     Task::none()
                 }
             }
@@ -553,6 +560,22 @@ pub(crate) fn split_utf8_boundary(bytes: &[u8]) -> (&str, &[u8]) {
             }
         }
     }
+}
+
+pub(crate) fn clear_document_selection(app: &mut KglanceApp) {
+    let s = crate::features::markdown::update::active_markdown_state_mut(app);
+    s.selection_range = None;
+    s.selected_text = None;
+    s.is_dragging_selection = false;
+    s.auto_scroll_delta = None;
+
+    app.state.pdf.clear_selection();
+    app.state.pdf.auto_scroll_delta = None;
+
+    app.state.text.clear_selection();
+    app.state.text.is_dragging_selection = false;
+    app.state.text.auto_scroll_delta = None;
+    app.state.text.drag_start = None;
 }
 
 #[cfg(test)]

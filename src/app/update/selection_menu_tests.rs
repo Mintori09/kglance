@@ -73,11 +73,46 @@ fn test_dismiss_hides_menu() {
         selected_text: "Text".to_string(),
     };
 
+    let pt = crate::core::SelectionPoint {
+        block: 0,
+        offset: 0,
+    };
+    app.state.markdown.selection_range = Some(crate::core::SelectionRange { start: pt, end: pt });
+    app.state.markdown.selected_text = Some("Text".to_string());
+
     let _ = handle_selection_menu_msg(&mut app, SelectionMenuMsg::Dismiss);
     assert!(matches!(
         app.state.selection_menu,
         SelectionMenuState::Hidden
     ));
+    assert_eq!(app.state.markdown.selection_range, None);
+    assert_eq!(app.state.markdown.selected_text, None);
+}
+
+#[test]
+fn test_copy_clicked_clears_document_selection() {
+    let mut app = test_app(None);
+    app.state.selection_menu = SelectionMenuState::Toolbar {
+        pos: iced::Point::new(10.0, 10.0),
+        selected_text: "Text".to_string(),
+    };
+    let pt = crate::core::SelectionPoint {
+        block: 0,
+        offset: 0,
+    };
+    app.state.markdown.selection_range = Some(crate::core::SelectionRange { start: pt, end: pt });
+    app.state.markdown.selected_text = Some("Text".to_string());
+
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::CopyClicked("Text".to_string()),
+    );
+    assert!(matches!(
+        app.state.selection_menu,
+        SelectionMenuState::Hidden
+    ));
+    assert_eq!(app.state.markdown.selection_range, None);
+    assert_eq!(app.state.markdown.selected_text, None);
 }
 
 #[test]
@@ -275,6 +310,45 @@ fn test_action_result_popup() {
         }
         _ => panic!("Expected Result state with parsed blocks"),
     }
+}
+
+#[test]
+fn test_action_result_non_popup_clears_document_selection() {
+    let mut app = test_app(None);
+    let pos = iced::Point::new(50.0, 80.0);
+    app.state.selection_menu = SelectionMenuState::Running {
+        pos,
+        selected_text: "Word".to_string(),
+        action_name: "Save Note".to_string(),
+    };
+
+    let pt = crate::core::SelectionPoint {
+        block: 0,
+        offset: 0,
+    };
+    app.state.markdown.selection_range = Some(crate::core::SelectionRange { start: pt, end: pt });
+    app.state.markdown.selected_text = Some("Word".to_string());
+    app.state.pdf.selected_text = Some("Word".to_string());
+    let t_start = crate::ui::components::code_viewer::selection::TextPosition::new(0, 0);
+    let t_end = crate::ui::components::code_viewer::selection::TextPosition::new(0, 4);
+    app.state.text.selection =
+        Some(crate::ui::components::code_viewer::selection::SelectionRange::new(t_start, t_end));
+
+    let _ = handle_selection_menu_msg(
+        &mut app,
+        SelectionMenuMsg::ActionResult {
+            action_name: "Save Note".to_string(),
+            result: Ok("Done".to_string()),
+            popup: false,
+            toast: true,
+        },
+    );
+
+    assert!(matches!(app.state.selection_menu, SelectionMenuState::Hidden));
+    assert_eq!(app.state.markdown.selection_range, None);
+    assert_eq!(app.state.markdown.selected_text, None);
+    assert_eq!(app.state.pdf.selected_text, None);
+    assert_eq!(app.state.text.selection, None);
 }
 
 #[test]
