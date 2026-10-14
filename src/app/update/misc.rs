@@ -580,8 +580,12 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
             && old_h > 0.0
             && ((old_w - width).abs() > 1.0 || (old_h - height).abs() > 1.0)
         {
-            app.state.window_default_size = iced::Size::new(width, height);
-            let _ = app.save_current_config();
+            if app.state.remember_window_size {
+                app.state.window_default_size = iced::Size::new(
+                    width.max(app.state.window_min_size.width),
+                    height.max(app.state.window_min_size.height),
+                );
+            }
 
             app.state.toasts.retain(|t| !t.message.starts_with("Size:"));
             toast_task = app.show_toast(format!(
@@ -833,5 +837,33 @@ mod tests {
         let _ = handle_mouse_released(&mut app);
         assert!(!app.state.pdf.is_selecting);
         assert!(app.state.pdf.auto_scroll_delta.is_none());
+    }
+
+    #[test]
+    fn test_update_current_window_size_respects_remember_window_size() {
+        let mut app = test_app(None);
+        app.state.window_width = 800.0;
+        app.state.window_height = 600.0;
+        app.state.window_default_size = iced::Size::new(800.0, 600.0);
+        app.state.remember_window_size = false;
+
+        let _ = update_current_window_size(&mut app, 1200.0, 900.0);
+        assert_eq!(app.state.window_width, 1200.0);
+        assert_eq!(app.state.window_height, 900.0);
+        assert_eq!(app.state.window_default_size, iced::Size::new(800.0, 600.0));
+
+        app.state.remember_window_size = true;
+        let _ = update_current_window_size(&mut app, 1400.0, 1000.0);
+        assert_eq!(app.state.window_width, 1400.0);
+        assert_eq!(app.state.window_height, 1000.0);
+        assert_eq!(
+            app.state.window_default_size,
+            iced::Size::new(1400.0, 1000.0)
+        );
+
+        // Test clamping to min size
+        app.state.window_min_size = iced::Size::new(800.0, 600.0);
+        let _ = update_current_window_size(&mut app, 400.0, 300.0);
+        assert_eq!(app.state.window_default_size, iced::Size::new(800.0, 600.0));
     }
 }

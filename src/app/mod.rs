@@ -86,6 +86,7 @@ impl KglanceApp {
                 prefer_mermaid_cli: self.state.prefer_mermaid_cli,
                 word_wrap: self.state.word_wrap,
                 json_tree_view: self.state.json_tree_view,
+                remember_window_size: self.state.remember_window_size,
             },
             cache: self.state.cache_config.clone(),
             scroll: self.state.scroll_config.clone(),
@@ -96,6 +97,12 @@ impl KglanceApp {
     pub fn save_current_config(&self) -> Result<(), String> {
         let config = self.current_config();
         self.save_config(&config)
+    }
+
+    pub fn save_current_config_logged(&self, context: &str) {
+        if let Err(e) = self.save_current_config() {
+            crate::log_error!("Failed to save config on {context}: {e}");
+        }
     }
 
     pub fn load_config(&self) -> crate::core::config::AppConfig {
@@ -175,6 +182,7 @@ impl KglanceApp {
             prefer_mermaid_cli: config.ui.prefer_mermaid_cli,
             word_wrap: config.ui.word_wrap,
             json_tree_view: config.ui.json_tree_view,
+            remember_window_size: config.ui.remember_window_size,
             cache_config: config.cache.clone(),
             selection_menu_config: config.selection_menu.clone(),
 

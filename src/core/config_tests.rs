@@ -20,6 +20,7 @@ fn test_default_config_values() {
     assert!(!cfg.ui.prefer_mermaid_cli);
     assert!(!cfg.ui.word_wrap);
     assert!(cfg.ui.json_tree_view);
+    assert!(!cfg.ui.remember_window_size);
     assert_eq!(cfg.ui.ruby_display_mode, RubyDisplayMode::Stacked);
 
     // Cache defaults
@@ -107,6 +108,7 @@ fn test_load_existing_custom_config() {
             prefer_mermaid_cli: true,
             word_wrap: true,
             json_tree_view: false,
+            remember_window_size: false,
             ruby_display_mode: RubyDisplayMode::default(),
         },
         cache: CacheConfig {

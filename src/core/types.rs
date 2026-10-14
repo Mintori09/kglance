@@ -136,6 +136,7 @@ pub struct KglanceState {
     pub prefer_mermaid_cli: bool,
     pub word_wrap: bool,
     pub json_tree_view: bool,
+    pub remember_window_size: bool,
     pub current_window_size: Size,
 
     pub read_positions: crate::core::ReadPositions,
@@ -213,6 +214,7 @@ impl Default for KglanceState {
             prefer_mermaid_cli: false,
             word_wrap: false,
             json_tree_view: false,
+            remember_window_size: false,
             current_window_size: Size::new(1024.0, 768.0),
 
             read_positions: crate::core::ReadPositions::default(),

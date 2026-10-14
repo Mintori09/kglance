@@ -250,23 +250,31 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
         SettingsMsg::DefaultWidthChanged(w) => {
             let clamped_w = w.max(app.state.window_min_size.width as u32);
             app.state.window_default_size.width = clamped_w as f32;
-            let _ = app.save_current_config();
+            app.save_current_config_logged("default width changed");
             Task::none()
         }
         SettingsMsg::DefaultHeightChanged(h) => {
             let clamped_h = h.max(app.state.window_min_size.height as u32);
             app.state.window_default_size.height = clamped_h as f32;
-            let _ = app.save_current_config();
+            app.save_current_config_logged("default height changed");
             Task::none()
         }
         SettingsMsg::MinWidthChanged(w) => {
-            app.state.window_min_size.width = w as f32;
-            let _ = app.save_current_config();
+            let min_w = w as f32;
+            app.state.window_min_size.width = min_w;
+            if app.state.window_default_size.width < min_w {
+                app.state.window_default_size.width = min_w;
+            }
+            app.save_current_config_logged("min width changed");
             Task::none()
         }
         SettingsMsg::MinHeightChanged(h) => {
-            app.state.window_min_size.height = h as f32;
-            let _ = app.save_current_config();
+            let min_h = h as f32;
+            app.state.window_min_size.height = min_h;
+            if app.state.window_default_size.height < min_h {
+                app.state.window_default_size.height = min_h;
+            }
+            app.save_current_config_logged("min height changed");
             Task::none()
         }
         SettingsMsg::UseCurrentWindowSize => {
@@ -276,13 +284,16 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             let min_h = app.state.window_min_size.height as u32;
             if w >= min_w && h >= min_h {
                 app.state.window_default_size = iced::Size::new(w as f32, h as f32);
-                let _ = app.save_current_config();
+                app.save_current_config_logged("use current window size");
             }
             Task::none()
         }
         SettingsMsg::SetWindowPreset { width, height } => {
-            app.state.window_default_size = iced::Size::new(width as f32, height as f32);
-            let _ = app.save_current_config();
+            app.state.window_default_size = iced::Size::new(
+                (width as f32).max(app.state.window_min_size.width),
+                (height as f32).max(app.state.window_min_size.height),
+            );
+            app.save_current_config_logged("set window preset");
             Task::none()
         }
         SettingsMsg::WordWrapChanged(enabled) => {
@@ -359,13 +370,33 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 theme,
             );
 
-            let _ = app.save_current_config();
+            app.save_current_config_logged("word wrap changed");
             Task::none()
         }
         SettingsMsg::JsonTreeViewChanged(enabled) => {
             app.state.json_tree_view = enabled;
             app.state.json.tree_mode = enabled;
-            let _ = app.save_current_config();
+            app.save_current_config_logged("json tree view changed");
+            Task::none()
+        }
+        SettingsMsg::RememberWindowSizeChanged(enabled) => {
+            app.state.remember_window_size = enabled;
+            if enabled
+                && app.state.current_window_size.width > 0.0
+                && app.state.current_window_size.height > 0.0
+            {
+                app.state.window_default_size = iced::Size::new(
+                    app.state
+                        .current_window_size
+                        .width
+                        .max(app.state.window_min_size.width),
+                    app.state
+                        .current_window_size
+                        .height
+                        .max(app.state.window_min_size.height),
+                );
+            }
+            app.save_current_config_logged("remember window size changed");
             Task::none()
         }
         SettingsMsg::EpubReadingModeChanged(mode) => {
@@ -383,17 +414,17 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 );
                 app.state.read_positions_dirty = true;
             }
-            let _ = app.save_current_config();
+            app.save_current_config_logged("epub reading mode changed");
             task
         }
         SettingsMsg::RubyDisplayModeChanged(mode) => {
             app.state.ruby_display_mode = mode;
-            let _ = app.save_current_config();
+            app.save_current_config_logged("ruby display mode changed");
             Task::none()
         }
         SettingsMsg::PreferMermaidCliChanged(enabled) => {
             app.state.prefer_mermaid_cli = enabled;
-            let _ = app.save_current_config();
+            app.save_current_config_logged("prefer mermaid cli changed");
             Task::none()
         }
         SettingsMsg::MaxMemoryMbChanged(mb) => {
@@ -401,35 +432,35 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             app.state
                 .cache
                 .set_max_bytes(mb.saturating_mul(1024 * 1024));
-            let _ = app.save_current_config();
+            app.save_current_config_logged("max memory mb changed");
             Task::none()
         }
         SettingsMsg::MaxDiskCacheMbChanged(mb) => {
             app.state.cache_config.max_disk_cache_mb = mb;
-            let _ = app.save_current_config();
+            app.save_current_config_logged("max disk cache mb changed");
             Task::none()
         }
         SettingsMsg::SmoothScrollChanged(enabled) => {
             app.state.scroll_config.smooth_scroll_enabled = enabled;
             app.state.apply_scroll_controllers();
-            let _ = app.save_current_config();
+            app.save_current_config_logged("smooth scroll changed");
             Task::none()
         }
         SettingsMsg::ScrollFrictionChanged(friction) => {
             app.state.scroll_config.friction = friction;
             app.state.apply_scroll_controllers();
-            let _ = app.save_current_config();
+            app.save_current_config_logged("scroll friction changed");
             Task::none()
         }
         SettingsMsg::ScrollSpringStiffnessChanged(stiffness) => {
             app.state.scroll_config.spring_stiffness = stiffness;
             app.state.apply_scroll_controllers();
-            let _ = app.save_current_config();
+            app.save_current_config_logged("scroll spring stiffness changed");
             Task::none()
         }
         SettingsMsg::SelectionMenuToggled(enabled) => {
             app.state.selection_menu_config.enabled = enabled;
-            let _ = app.save_current_config();
+            app.save_current_config_logged("selection menu toggled");
             Task::none()
         }
         SettingsMsg::CustomAction(action_msg) => {
@@ -586,6 +617,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             app.state.text.wrap = default_config.ui.word_wrap;
             app.state.json_tree_view = default_config.ui.json_tree_view;
             app.state.json.tree_mode = default_config.ui.json_tree_view;
+            app.state.remember_window_size = default_config.ui.remember_window_size;
             app.state.cache_config = default_config.cache.clone();
             app.state.apply_scroll_config(&default_config.scroll);
             app.state.cache.set_max_bytes(

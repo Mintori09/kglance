@@ -43,6 +43,51 @@ fn test_set_window_preset() {
 }
 
 #[test]
+fn test_remember_window_size_changed() {
+    let mut app = test_app(None);
+    app.state.current_window_size = Size::new(1366.0, 768.0);
+    app.state.window_default_size = Size::new(1024.0, 768.0);
+    assert!(!app.state.remember_window_size);
+
+    let _ = handle_settings_message(&mut app, SettingsMsg::RememberWindowSizeChanged(true));
+    assert!(app.state.remember_window_size);
+    assert_eq!(app.state.window_default_size, Size::new(1366.0, 768.0));
+    assert!(app.current_config().ui.remember_window_size);
+    assert_eq!(app.current_config().ui.default_width, 1366);
+
+    let _ = handle_settings_message(&mut app, SettingsMsg::RememberWindowSizeChanged(false));
+    assert!(!app.state.remember_window_size);
+    assert!(!app.current_config().ui.remember_window_size);
+}
+
+#[test]
+fn test_min_size_changes_raise_default_size() {
+    let mut app = test_app(None);
+    app.state.window_default_size = Size::new(1024.0, 768.0);
+    app.state.window_min_size = Size::new(800.0, 600.0);
+
+    // Increase min width beyond default width
+    let _ = handle_settings_message(&mut app, SettingsMsg::MinWidthChanged(1200));
+    assert_eq!(app.state.window_min_size.width, 1200.0);
+    assert_eq!(app.state.window_default_size.width, 1200.0);
+
+    // Increase min height beyond default height
+    let _ = handle_settings_message(&mut app, SettingsMsg::MinHeightChanged(900));
+    assert_eq!(app.state.window_min_size.height, 900.0);
+    assert_eq!(app.state.window_default_size.height, 900.0);
+}
+
+#[test]
+fn test_remember_window_size_clamps_to_min_size() {
+    let mut app = test_app(None);
+    app.state.window_min_size = Size::new(800.0, 600.0);
+    app.state.current_window_size = Size::new(500.0, 400.0);
+
+    let _ = handle_settings_message(&mut app, SettingsMsg::RememberWindowSizeChanged(true));
+    assert_eq!(app.state.window_default_size, Size::new(800.0, 600.0));
+}
+
+#[test]
 fn test_epub_reading_mode_changed() {
     let mut app = test_app(None);
     let _ = handle_settings_message(
