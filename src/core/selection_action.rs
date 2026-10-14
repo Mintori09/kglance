@@ -190,12 +190,15 @@ impl SelectionMenuState {
 pub const MAX_ENV_TEXT_BYTES: usize = 16 * 1024;
 pub const CUSTOM_ACTION_TIMEOUT_SECS: u64 = 30;
 
-pub async fn execute_custom_action(command: String, text: String) -> Result<String, String> {
+pub fn prepare_custom_action_command(
+    command: &str,
+    text: &str,
+    file_path: Option<&std::path::Path>,
+) -> tokio::process::Command {
     let env_text = if text.len() > MAX_ENV_TEXT_BYTES {
-        let mut truncated = text.chars();
         let mut byte_count = 0;
         let mut safe = String::new();
-        for ch in truncated.by_ref() {
+        for ch in text.chars() {
             let next_len = ch.len_utf8();
             if byte_count + next_len > MAX_ENV_TEXT_BYTES {
                 break;
@@ -205,16 +208,66 @@ pub async fn execute_custom_action(command: String, text: String) -> Result<Stri
         }
         safe
     } else {
-        text.clone()
+        text.to_string()
     };
 
-    let mut child = tokio::process::Command::new("sh")
-        .arg("-c")
-        .arg(&command)
+    let mut cmd = tokio::process::Command::new("sh");
+    cmd.arg("-c")
+        .arg(command)
         .env("KGLANCE_TEXT", &env_text)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    let fallback_cwd = dirs::home_dir().unwrap_or_else(|| "/tmp".into());
+
+    if let Some(path) = file_path {
+        let abs_path = if let Ok(canonical) = std::fs::canonicalize(path) {
+            canonical
+        } else if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                .join(path)
+        };
+        cmd.env("KGLANCE_FILE", &abs_path);
+
+        let parent_dir = abs_path.parent();
+        if let Some(parent) = parent_dir {
+            cmd.env("KGLANCE_FILE_DIR", parent);
+        }
+
+        let target_cwd = parent_dir
+            .filter(|p| p.is_dir())
+            .map(std::path::Path::to_path_buf)
+            .unwrap_or(fallback_cwd);
+        cmd.current_dir(target_cwd);
+
+        if let Some(name) = abs_path.file_name().and_then(|n| n.to_str()) {
+            cmd.env("KGLANCE_FILE_NAME", name);
+        }
+
+        if let Some(stem) = abs_path.file_stem().and_then(|s| s.to_str()) {
+            cmd.env("KGLANCE_FILE_STEM", stem);
+        }
+
+        if let Some(ext) = abs_path.extension().and_then(|e| e.to_str()) {
+            cmd.env("KGLANCE_FILE_EXT", ext.to_lowercase());
+        }
+    } else {
+        cmd.current_dir(fallback_cwd);
+    }
+
+    cmd
+}
+
+pub async fn execute_custom_action(
+    command: String,
+    text: String,
+    file_path: Option<&std::path::Path>,
+) -> Result<String, String> {
+    let mut child = prepare_custom_action_command(&command, &text, file_path)
         .spawn()
         .map_err(|e| format!("Failed to spawn command: {e}"))?;
 
