@@ -147,6 +147,24 @@ impl super::KglanceApp {
             }
         }
 
+        if matches!(self.current_content, Some(PreviewData::Model3d { .. })) {
+            match &key {
+                iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("r") => {
+                    return self.update(crate::app::messages::Model3dMsg::ResetCamera.into());
+                }
+                iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("s") => {
+                    return self.update(crate::app::messages::Model3dMsg::ToggleShading.into());
+                }
+                iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("g") => {
+                    return self.update(crate::app::messages::Model3dMsg::ToggleGrid.into());
+                }
+                iced::keyboard::Key::Named(Named::Space) => {
+                    return self.update(crate::app::messages::Model3dMsg::ToggleAutoRotate.into());
+                }
+                _ => {}
+            }
+        }
+
         if matches!(self.current_content, Some(PreviewData::Audio { .. })) {
             match &key {
                 iced::keyboard::Key::Character(c)

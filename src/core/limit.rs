@@ -22,6 +22,9 @@ pub fn preview_size_limit(ext: &str) -> u64 {
         | "heif" | "tiff" | "tif" | "jxl" | "apng" | "kra" | "ora" | "psd" | "xcf" | "ai"
         | "eps" | "ttf" | "otf" | "woff" | "woff2" | "eot" => 500 * MB,
 
+        // 3D Models: 100 MB (prevents high VRAM/RAM inflation during mesh expansion)
+        "stl" | "obj" => 100 * MB,
+
         // Default (text, code, structured data, other): 20 MB
         _ => 20 * MB,
     }
@@ -77,6 +80,13 @@ mod tests {
             "woff", "woff2", "eot",
         ] {
             assert_eq!(preview_size_limit(ext), 500 * MB);
+        }
+    }
+
+    #[test]
+    fn test_model3d_limits() {
+        for ext in ["stl", "obj"] {
+            assert_eq!(preview_size_limit(ext), 100 * MB);
         }
     }
 

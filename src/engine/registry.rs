@@ -20,5 +20,6 @@ pub fn build_registry() -> ParserRegistry {
     r.register(Box::new(features::sqlite::parser::SqliteParser));
     r.register(Box::new(features::office::parser::OfficeParser));
     r.register(Box::new(features::typst::parser::TypstParser));
+    r.register(Box::new(features::model3d::parser::Model3dParser));
     r
 }
