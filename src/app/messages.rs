@@ -350,7 +350,15 @@ pub enum TrashMsg {
     RequestTrashCurrent,
     ConfirmTrashCurrent,
     CancelTrashDialog,
+    TrashCompleted {
+        file_to_trash: String,
+        result: Result<crate::core::trash::TrashedItem, String>,
+    },
     UndoTrash,
+    RestoreCompleted {
+        restored_item: crate::core::trash::TrashedItem,
+        result: Result<(), String>,
+    },
     ToastActionClicked(crate::core::types::ToastAction),
 }
 

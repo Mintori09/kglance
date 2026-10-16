@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrashedItem {
     pub original_path: PathBuf,
+    pub original_index: usize,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -36,7 +37,7 @@ impl TrashHistory {
     }
 }
 
-pub fn move_to_trash(path: &Path) -> Result<TrashedItem, String> {
+pub fn move_to_trash(path: &Path, original_index: usize) -> Result<TrashedItem, String> {
     if !path.exists() {
         return Err(format!("File does not exist: {}", path.display()));
     }
@@ -45,6 +46,7 @@ pub fn move_to_trash(path: &Path) -> Result<TrashedItem, String> {
 
     Ok(TrashedItem {
         original_path: path.to_path_buf(),
+        original_index,
     })
 }
 

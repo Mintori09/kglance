@@ -16,7 +16,15 @@ pub fn handle_trash_msg(app: &mut KglanceApp, msg: TrashMsg) -> Task<Message> {
             app.state.show_trash_confirm_dialog = false;
             Task::none()
         }
+        TrashMsg::TrashCompleted {
+            file_to_trash,
+            result,
+        } => handle_trash_completed(app, file_to_trash, result),
         TrashMsg::UndoTrash => handle_undo_trash(app),
+        TrashMsg::RestoreCompleted {
+            restored_item,
+            result,
+        } => handle_restore_completed(app, restored_item, result),
         TrashMsg::ToastActionClicked(action) => match action {
             ToastAction::UndoTrash => handle_undo_trash(app),
         },
@@ -46,33 +54,61 @@ pub fn execute_trash_current_file(app: &mut KglanceApp) -> Task<Message> {
         return Task::none();
     }
 
+    // Teardown active media immediately so file handles are released before deletion
+    app.clear_media();
+
     let path = PathBuf::from(&file_to_trash);
-    let trash_result = crate::core::trash::move_to_trash(&path);
+    let original_index = app.state.current_index;
 
-    let item = match trash_result {
-        Ok(item) => item,
-        Err(err) => {
-            return app.show_toast(format!("Failed to move to Trash: {err}"));
-        }
-    };
-
-    app.state.trash_history.push(item);
-
-    let file_name_display = path
-        .file_name()
-        .map(|f| f.to_string_lossy().into_owned())
-        .unwrap_or_else(|| file_to_trash.clone());
-
-    let undo_timeout = app.state.trash_config.undo_timeout_seconds;
-    let toast_task = app.show_toast_with_action(
-        format!("Moved \"{file_name_display}\" to Trash"),
-        Some(ToastAction::UndoTrash),
-        undo_timeout,
-    );
-
+    // Advance UI / playlist immediately for fast UX and evict cache
     let nav_task = advance_or_close_after_delete(app, &file_to_trash);
 
-    Task::batch(vec![toast_task, nav_task])
+    let path_clone = path.clone();
+    let file_to_trash_clone = file_to_trash.clone();
+    let trash_task = Task::perform(
+        async move {
+            tokio::task::spawn_blocking(move || {
+                crate::core::trash::move_to_trash(&path_clone, original_index)
+            })
+            .await
+            .unwrap_or_else(|e| Err(format!("Task spawn failed: {e}")))
+        },
+        move |result| {
+            TrashMsg::TrashCompleted {
+                file_to_trash: file_to_trash_clone,
+                result,
+            }
+            .into()
+        },
+    );
+
+    Task::batch(vec![nav_task, trash_task])
+}
+
+fn handle_trash_completed(
+    app: &mut KglanceApp,
+    file_to_trash: String,
+    result: Result<crate::core::trash::TrashedItem, String>,
+) -> Task<Message> {
+    match result {
+        Ok(item) => {
+            app.state.trash_history.push(item);
+
+            let path = PathBuf::from(&file_to_trash);
+            let file_name_display = path
+                .file_name()
+                .map(|f| f.to_string_lossy().into_owned())
+                .unwrap_or_else(|| file_to_trash.clone());
+
+            let undo_timeout = app.state.trash_config.undo_timeout_seconds;
+            app.show_toast_with_action(
+                format!("Moved \"{file_name_display}\" to Trash"),
+                Some(ToastAction::UndoTrash),
+                undo_timeout,
+            )
+        }
+        Err(err) => app.show_toast(format!("Failed to move to Trash: {err}")),
+    }
 }
 
 fn advance_or_close_after_delete(app: &mut KglanceApp, deleted_path: &str) -> Task<Message> {
@@ -144,26 +180,48 @@ pub fn handle_undo_trash(app: &mut KglanceApp) -> Task<Message> {
         return app.show_toast("No item to undo");
     };
 
-    let restore_path = last_trashed.original_path.clone();
-    let restore_res = crate::core::trash::restore_trashed_item(&last_trashed);
+    let item_for_task = last_trashed.clone();
+    let item_for_callback = last_trashed;
 
-    match restore_res {
+    Task::perform(
+        async move {
+            tokio::task::spawn_blocking(move || {
+                crate::core::trash::restore_trashed_item(&item_for_task)
+            })
+            .await
+            .unwrap_or_else(|e| Err(format!("Task spawn failed: {e}")))
+        },
+        move |result| {
+            TrashMsg::RestoreCompleted {
+                restored_item: item_for_callback,
+                result,
+            }
+            .into()
+        },
+    )
+}
+
+fn handle_restore_completed(
+    app: &mut KglanceApp,
+    restored_item: crate::core::trash::TrashedItem,
+    result: Result<(), String>,
+) -> Task<Message> {
+    match result {
         Ok(()) => {
+            let restore_path = restored_item.original_path;
             let path_str = restore_path.to_string_lossy().into_owned();
             let file_name_display = restore_path
                 .file_name()
                 .map(|f| f.to_string_lossy().into_owned())
                 .unwrap_or_else(|| path_str.clone());
 
-            // Re-insert into playlist if directory matches
+            // Re-insert into playlist with safe bounds if directory matches
             let in_same_dir =
                 restore_path.parent().map(|p| p.to_path_buf()) == app.state.active_dir;
             if in_same_dir && !app.state.playlist.contains(&path_str) {
-                app.state.playlist.push(path_str.clone());
-                app.state.playlist.sort();
-                if let Some(pos) = app.state.playlist.iter().position(|p| p == &path_str) {
-                    app.state.current_index = pos;
-                }
+                let safe_idx = restored_item.original_index.min(app.state.playlist.len());
+                app.state.playlist.insert(safe_idx, path_str.clone());
+                app.state.current_index = safe_idx;
             }
             app.state.file_name = path_str.clone();
 
