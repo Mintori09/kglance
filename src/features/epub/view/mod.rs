@@ -31,8 +31,9 @@ pub fn view_epub<'a>(
 
     let ctx = RenderContext {
         next_block_index: &block_counter,
-        selection_range: None,
-        drag_active: false,
+        selection_range: state.markdown_state.selection_range,
+        drag_active: state.markdown_state.is_dragging_selection
+            || state.markdown_state.is_mouse_held,
         search_query: &state.markdown_state.search_query,
         active_match: state.markdown_state.search_match_index,
         counter: &search_counter,

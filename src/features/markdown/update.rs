@@ -410,6 +410,9 @@ pub fn handle_selection_drag_start(
         app.state.selection_menu.hide();
     }
     let s = active_markdown_state_mut(app);
+    if s.is_dragging_selection && s.selection_range.is_some() {
+        return handle_selection_drag_update(app, block, offset);
+    }
     let start_pt = crate::core::SelectionPoint { block, offset };
     s.selection_range = Some(crate::core::SelectionRange {
         start: start_pt,

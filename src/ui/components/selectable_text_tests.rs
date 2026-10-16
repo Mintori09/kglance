@@ -408,3 +408,25 @@ fn test_selectable_text_tooltips_builder() {
     assert_eq!(widget.tooltips[1].content, "`code`");
     assert_eq!(widget.app_theme, Some(AppTheme::Dark));
 }
+
+#[test]
+fn test_selectable_text_drag_active_builder() {
+    let range = crate::core::SelectionRange {
+        start: crate::core::SelectionPoint {
+            block: 0,
+            offset: 0,
+        },
+        end: crate::core::SelectionPoint {
+            block: 0,
+            offset: 5,
+        },
+    };
+    let widget = SelectableText::<crate::app::Message>::new(Vec::new(), 14.0)
+        .block_index(0)
+        .drag_active(true)
+        .selection_range(Some(range));
+
+    assert!(widget.drag_active);
+    assert_eq!(widget.block_index, Some(0));
+    assert_eq!(widget.selection_range, Some(range));
+}
