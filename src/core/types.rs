@@ -35,10 +35,16 @@ pub struct DirState {
     pub current_index: Option<usize>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ToastAction {
+    UndoTrash,
+}
+
 #[derive(Debug, Clone)]
 pub struct ToastInfo {
     pub id: u64,
     pub message: String,
+    pub action: Option<ToastAction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -151,6 +157,10 @@ pub struct KglanceState {
     pub selection_menu: crate::core::selection_action::SelectionMenuState,
     pub last_cursor_position: Option<iced::Point>,
     pub action_editor: Option<crate::core::selection_action::CustomActionEditorState>,
+    pub trash_config: crate::core::config::TrashConfig,
+    pub keybinding_config: crate::core::config::KeybindingConfig,
+    pub trash_history: crate::core::trash::TrashHistory,
+    pub show_trash_confirm_dialog: bool,
 }
 
 impl Default for KglanceState {
@@ -228,6 +238,10 @@ impl Default for KglanceState {
             selection_menu: crate::core::selection_action::SelectionMenuState::default(),
             last_cursor_position: None,
             action_editor: None,
+            trash_config: crate::core::config::TrashConfig::default(),
+            keybinding_config: crate::core::config::KeybindingConfig::default(),
+            trash_history: crate::core::trash::TrashHistory::default(),
+            show_trash_confirm_dialog: false,
         }
     }
 }

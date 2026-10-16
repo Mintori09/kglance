@@ -283,6 +283,15 @@ impl MemoryCache {
         self.trim_to_budget();
     }
 
+    pub fn remove(&mut self, key: &str) -> Option<CachedContent> {
+        if let Some(entry) = self.lru.pop(key) {
+            self.current_bytes = self.current_bytes.saturating_sub(entry.size_bytes);
+            Some(entry.content)
+        } else {
+            None
+        }
+    }
+
     pub fn clear(&mut self) {
         self.lru.clear();
         self.current_bytes = 0;

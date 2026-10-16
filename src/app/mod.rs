@@ -91,6 +91,8 @@ impl KglanceApp {
             cache: self.state.cache_config.clone(),
             scroll: self.state.scroll_config.clone(),
             selection_menu: self.state.selection_menu_config.clone(),
+            trash: self.state.trash_config.clone(),
+            keybindings: self.state.keybinding_config.clone(),
         }
     }
 
@@ -185,6 +187,8 @@ impl KglanceApp {
             remember_window_size: config.ui.remember_window_size,
             cache_config: config.cache.clone(),
             selection_menu_config: config.selection_menu.clone(),
+            trash_config: config.trash.clone(),
+            keybinding_config: config.keybindings.clone(),
 
             ..Default::default()
         };

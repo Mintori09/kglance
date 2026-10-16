@@ -77,6 +77,29 @@ impl super::KglanceApp {
             return task;
         }
 
+        if self.state.show_trash_confirm_dialog {
+            match key {
+                iced::keyboard::Key::Named(Named::Enter) => {
+                    return self.update(crate::app::messages::TrashMsg::ConfirmTrashCurrent.into());
+                }
+                iced::keyboard::Key::Named(Named::Escape) => {
+                    return self.update(crate::app::messages::TrashMsg::CancelTrashDialog.into());
+                }
+                _ => return Task::none(),
+            }
+        }
+
+        if matches!(key, iced::keyboard::Key::Named(Named::Delete)) {
+            let matches_shortcut = self
+                .state
+                .keybinding_config
+                .trash_file
+                .eq_ignore_ascii_case("delete");
+            if matches_shortcut {
+                return self.update(crate::app::messages::TrashMsg::RequestTrashCurrent.into());
+            }
+        }
+
         if matches!(key, iced::keyboard::Key::Named(Named::Enter)) {
             return self.handle_open_clicked();
         }
