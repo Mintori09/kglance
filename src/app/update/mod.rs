@@ -614,7 +614,9 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 crate::features::json::update::handle_toggle_format(app)
             }
         },
+        Message::Model3d(msg) => crate::features::model3d::update::handle_model3d_message(app, msg),
         Message::Settings(msg) => settings::handle_settings_message(app, msg),
+
         Message::FileTree(msg) => file_tree::handle_file_tree_msg(app, msg),
         Message::SelectionMenu(msg) => selection_menu::handle_selection_menu_msg(app, msg),
 

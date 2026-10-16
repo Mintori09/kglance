@@ -95,6 +95,10 @@ wl-clipboard-rs = "0.9.3"
 rusqlite = { version = "0.33", default-features = false, features = [
   "bundled",
 ] }
+tobj = { version = "4", default-features = false }
+iced_wgpu = "0.14"
+wgpu = "27"
+bytemuck = "1"
 [features]
 default = ["7z"]
 7z = ["sevenz-rust"]

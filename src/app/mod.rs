@@ -1175,6 +1175,7 @@ impl KglanceApp {
                     *width,
                     *height,
                 ),
+                PreviewData::Model3d(mesh) => crate::ui::views::view_model3d(&self.state, mesh),
                 PreviewData::Error(err) => iced::widget::text(err)
                     .size(crate::ui::theme::tokens::typography::DISPLAY)
                     .into(),
@@ -1363,6 +1364,14 @@ impl KglanceApp {
             Subscription::none()
         };
 
+        let is_model3d = matches!(self.current_content, Some(PreviewData::Model3d { .. }));
+        let model3d_anim_sub = if is_model3d && self.state.model3d.auto_rotate && gui_open {
+            iced::time::every(std::time::Duration::from_millis(16))
+                .map(|_| crate::app::messages::Model3dMsg::Tick.into())
+        } else {
+            Subscription::none()
+        };
+
         Subscription::batch(vec![
             dbus_sub,
             event_sub,
@@ -1380,6 +1389,7 @@ impl KglanceApp {
             spinner_sub,
             markdown_anim_sub,
             image_anim_sub,
+            model3d_anim_sub,
         ])
     }
 

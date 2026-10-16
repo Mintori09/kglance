@@ -409,6 +409,20 @@ pub enum FileTreeMsg {
 }
 
 #[derive(Debug, Clone)]
+pub enum Model3dMsg {
+    Rotate { delta_yaw: f32, delta_pitch: f32 },
+    Zoom(f32),
+    DragStarted(iced::Point),
+    DragMoved(iced::Point),
+    DragEnded,
+    ResetCamera,
+    ToggleShading,
+    ToggleAutoRotate,
+    ToggleGrid,
+    Tick,
+}
+
+#[derive(Debug, Clone)]
 pub enum Message {
     None,
     // Action & System
@@ -427,6 +441,7 @@ pub enum Message {
     Markdown(MarkdownMsg),
     Epub(EpubMsg),
     Json(JsonMsg),
+    Model3d(Model3dMsg),
     Settings(SettingsMsg),
     FileTree(FileTreeMsg),
     SelectionMenu(SelectionMenuMsg),
@@ -515,6 +530,11 @@ impl From<EpubMsg> for Message {
 impl From<JsonMsg> for Message {
     fn from(m: JsonMsg) -> Self {
         Message::Json(m)
+    }
+}
+impl From<Model3dMsg> for Message {
+    fn from(m: Model3dMsg) -> Self {
+        Message::Model3d(m)
     }
 }
 impl From<SettingsMsg> for Message {

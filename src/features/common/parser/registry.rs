@@ -443,6 +443,7 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 metadata,
                 cover_art,
             },
+            ParsedContent::Model3d(mesh) => crate::core::preview::PreviewData::Model3d(mesh),
         };
         Ok(preview)
     }
