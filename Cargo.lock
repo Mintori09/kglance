@@ -3217,6 +3217,7 @@ name = "kglance"
 version = "0.4.6"
 dependencies = [
  "base64 0.22.1",
+ "bytemuck",
  "calamine",
  "chrono",
  "criterion",
@@ -3231,6 +3232,7 @@ dependencies = [
  "iced_futures",
  "iced_math",
  "iced_video_player",
+ "iced_wgpu",
  "image",
  "kamadak-exif",
  "lru 0.18.4",
@@ -3254,10 +3256,12 @@ dependencies = [
  "syntect",
  "tar",
  "tempfile",
+ "tobj",
  "tokio",
  "ttf-parser",
  "unicode-normalization",
  "url",
+ "wgpu",
  "wl-clipboard-rs",
  "zbus",
  "zip",
@@ -6259,6 +6263,12 @@ name = "tinyvec"
 version = "1.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
+
+[[package]]
+name = "tobj"
+version = "4.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6eb8e04167c1c0c76b5de63226fd733485ad63ef71e40de31e16272f47b099e2"
 
 [[package]]
 name = "tokio"

@@ -99,4 +99,5 @@ pub enum ParsedContent {
         sample_height: u32,
         data: Vec<u8>,
     },
+    Model3d(crate::features::model3d::types::Model3dMesh),
 }

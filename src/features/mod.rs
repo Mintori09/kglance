@@ -12,7 +12,9 @@ pub mod image;
 pub mod json;
 pub mod krita;
 pub mod markdown;
+pub mod model3d;
 pub mod office;
+
 pub mod pdf;
 pub mod psd;
 pub mod sqlite;

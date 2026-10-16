@@ -109,6 +109,7 @@ pub enum PreviewData {
         sample_height: u32,
         data: Vec<u8>,
     },
+    Model3d(crate::features::model3d::types::Model3dMesh),
     Error(String),
 }
 
@@ -347,6 +348,13 @@ impl PreviewData {
                 state.media = crate::core::MediaState::default();
                 state.media.metadata = metadata.clone();
                 state.file_type_text = "Video File".to_string();
+            }
+            PreviewData::Model3d(mesh) => {
+                state.model3d = crate::features::model3d::types::Model3dState::new(&mesh.bounds);
+                state.file_type_text = format!(
+                    "3D Model ({} tris, {} verts)",
+                    mesh.triangle_count, mesh.vertex_count
+                );
             }
             PreviewData::Error(err) => {
                 state.file_type_text = format!("Error: {err}");

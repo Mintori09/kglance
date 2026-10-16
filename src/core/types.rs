@@ -107,6 +107,7 @@ pub struct KglanceState {
     pub markdown: MarkdownState,
     pub epub: EpubState,
     pub json: JsonState,
+    pub model3d: crate::features::model3d::types::Model3dState,
     pub file_tree: crate::features::file_tree::FileTreeState,
 
     pub grid_cols: usize,
@@ -190,6 +191,7 @@ impl Default for KglanceState {
             markdown: MarkdownState::default(),
             epub: EpubState::default(),
             json: JsonState::default(),
+            model3d: crate::features::model3d::types::Model3dState::default(),
             file_tree: crate::features::file_tree::FileTreeState::default(),
             grid_cols: 5,
             window_width: 0.0,
@@ -264,6 +266,8 @@ impl KglanceState {
         self.markdown = MarkdownState::default();
         self.epub = EpubState::default();
         self.json = JsonState::default();
+        self.model3d = crate::features::model3d::types::Model3dState::default();
+
         self.apply_scroll_controllers();
     }
 

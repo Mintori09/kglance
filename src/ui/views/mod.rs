@@ -9,6 +9,7 @@ pub use crate::features::grid::view_grid;
 pub use crate::features::image::view_image;
 pub use crate::features::json::view_json;
 pub use crate::features::markdown::view_markdown;
+pub use crate::features::model3d::view_model3d;
 pub use crate::features::pdf::view_pdf;
 pub use crate::features::sheet::view_spreadsheet;
 pub use crate::features::text::view_text;
