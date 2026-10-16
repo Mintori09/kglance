@@ -245,8 +245,10 @@ pub fn handle_mouse_pressed(app: &mut KglanceApp, x: f32, y: f32) -> Task<Messag
 
     app.stop_active_scroll_animations();
     app.state.pdf.auto_scroll_delta = None;
+    let is_sidebar_resizing =
+        app.state.markdown.sidebar_resizing || app.state.epub.sidebar_resizing;
     let s = markdown::active_markdown_state_mut(app);
-    s.is_mouse_held = s.is_dragging_selection;
+    s.is_mouse_held = !is_sidebar_resizing;
     s.auto_scroll_delta = None;
     s.smooth_scroll.is_animating = false;
     s.smooth_scroll.velocity = 0.0;

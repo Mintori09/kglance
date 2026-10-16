@@ -902,3 +902,52 @@ fn test_nested_list_no_block_index_collision() {
     assert_eq!(indexed.get(&3).unwrap().text, "Item 2");
     assert_eq!(indexed.get(&4).unwrap().text, "Sub 2.1");
 }
+
+#[test]
+fn test_drag_selection_started_from_empty_area() {
+    use crate::app::test_util::test_app;
+
+    let mut app = test_app(None);
+    let src = "First line\n\nSecond line";
+    let blocks = parse_to_blocks(src);
+    app.current_content = Some(crate::core::PreviewData::Markdown {
+        raw_text: src.to_string(),
+        blocks,
+    });
+
+    // 1. Mouse pressed on empty area (margin/padding outside any text block)
+    let _ = crate::app::update::misc::handle_mouse_pressed(&mut app, 0.0, 0.0);
+    assert!(app.state.markdown.is_mouse_held);
+    assert_eq!(app.state.markdown.selection_range, None);
+
+    // 2. Cursor moves across block 0, entering offset 0 and dragging to offset 5
+    let _ = handle_selection_drag_start(&mut app, 0, 0);
+    let _ = handle_selection_drag_update(&mut app, 0, 5);
+    assert!(app.state.markdown.is_dragging_selection);
+
+    // 2b. Cursor continues moving into block 1: another drag_start call must NOT overwrite anchor block 0
+    let _ = handle_selection_drag_start(&mut app, 1000, 2);
+    assert_eq!(
+        app.state.markdown.selection_range,
+        Some(SelectionRange {
+            start: SelectionPoint {
+                block: 0,
+                offset: 0
+            },
+            end: SelectionPoint {
+                block: 1000,
+                offset: 2
+            },
+        })
+    );
+
+    // 3. Mouse released ends selection and captures text
+    let _ = handle_selection_drag_end(&mut app);
+    let _ = crate::app::update::misc::handle_mouse_released(&mut app);
+    assert!(!app.state.markdown.is_mouse_held);
+    assert!(!app.state.markdown.is_dragging_selection);
+    assert_eq!(
+        app.state.markdown.selected_text.as_deref(),
+        Some("First line\nSe")
+    );
+}
