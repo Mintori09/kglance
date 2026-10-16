@@ -147,6 +147,63 @@ impl Default for ScrollConfigOptions {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TrashConfig {
+    #[serde(default = "default_trash_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_confirm_on_delete")]
+    pub confirm_on_delete: bool,
+    #[serde(default = "default_undo_timeout_seconds")]
+    pub undo_timeout_seconds: u64,
+}
+
+fn default_trash_enabled() -> bool {
+    true
+}
+
+fn default_confirm_on_delete() -> bool {
+    true
+}
+
+fn default_undo_timeout_seconds() -> u64 {
+    8
+}
+
+impl Default for TrashConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_trash_enabled(),
+            confirm_on_delete: default_confirm_on_delete(),
+            undo_timeout_seconds: default_undo_timeout_seconds(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct KeybindingConfig {
+    #[serde(default = "default_trash_file_shortcut")]
+    pub trash_file: String,
+    #[serde(default = "default_undo_trash_shortcut")]
+    pub undo_trash: String,
+}
+
+fn default_trash_file_shortcut() -> String {
+    "Delete".into()
+}
+
+fn default_undo_trash_shortcut() -> String {
+    "Ctrl+Z".into()
+}
+
+impl Default for KeybindingConfig {
+    fn default() -> Self {
+        Self {
+            trash_file: default_trash_file_shortcut(),
+            undo_trash: default_undo_trash_shortcut(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct AppConfig {
     #[serde(default)]
@@ -157,6 +214,10 @@ pub struct AppConfig {
     pub scroll: ScrollConfigOptions,
     #[serde(default)]
     pub selection_menu: crate::core::selection_action::SelectionMenuConfig,
+    #[serde(default)]
+    pub trash: TrashConfig,
+    #[serde(default)]
+    pub keybindings: KeybindingConfig,
 }
 
 pub struct ConfigManager;

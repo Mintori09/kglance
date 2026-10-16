@@ -38,6 +38,15 @@ fn test_default_config_values() {
     // Selection menu defaults
     assert!(cfg.selection_menu.enabled);
     assert!(cfg.selection_menu.custom_actions.is_empty());
+
+    // Trash defaults
+    assert!(cfg.trash.enabled);
+    assert!(cfg.trash.confirm_on_delete);
+    assert_eq!(cfg.trash.undo_timeout_seconds, 8);
+
+    // Keybindings defaults
+    assert_eq!(cfg.keybindings.trash_file, "Delete");
+    assert_eq!(cfg.keybindings.undo_trash, "Ctrl+Z");
 }
 
 #[test]
@@ -121,6 +130,8 @@ fn test_load_existing_custom_config() {
             spring_stiffness: 200.0,
         },
         selection_menu: Default::default(),
+        trash: Default::default(),
+        keybindings: Default::default(),
     };
 
     assert_eq!(loaded, expected);

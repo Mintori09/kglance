@@ -68,6 +68,8 @@ pub fn handle_daemon_open_with_playlist(
     app.state.apply_scroll_config(&config.scroll);
     app.state.file_tree.update_external_path(Path::new(&path));
     app.state.selection_menu_config = config.selection_menu;
+    app.state.trash_config = config.trash;
+    app.state.keybinding_config = config.keybindings;
 
     if !playlist.is_empty() {
         app.state.playlist = playlist;

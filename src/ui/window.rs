@@ -300,7 +300,29 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         .toasts
         .iter()
         .map(|t| {
-            container(text(&t.message).size(typography::BODY_MD).font(main_font))
+            let msg_text = text(&t.message).size(typography::BODY_MD).font(main_font);
+            let content: Element<'a, Message> = if let Some(action) = &t.action {
+                let action_copy = action.clone();
+                let action_btn = button(
+                    text("Undo (Ctrl+Z)")
+                        .size(typography::CAPTION)
+                        .font(main_font),
+                )
+                .on_press(Message::Trash(
+                    crate::app::messages::TrashMsg::ToastActionClicked(action_copy),
+                ))
+                .style(iced::widget::button::primary)
+                .padding([2, 8]);
+
+                row![msg_text, action_btn]
+                    .spacing(spacing::S)
+                    .align_y(Alignment::Center)
+                    .into()
+            } else {
+                msg_text.into()
+            };
+
+            container(content)
                 .padding(Padding {
                     top: 6.0,
                     right: 16.0,
@@ -437,6 +459,8 @@ pub fn view_window<'a>(
                 scroll_config: &state.scroll_config,
                 selection_menu_config: &state.selection_menu_config,
                 action_editor: state.action_editor.as_ref(),
+                trash_config: &state.trash_config,
+                keybinding_config: &state.keybinding_config,
                 active_tab: state.settings_tab,
                 available_fonts: static_fonts,
             },
@@ -460,6 +484,71 @@ pub fn view_window<'a>(
         );
 
         stack = stack.push(backdrop);
+    }
+
+    if state.show_trash_confirm_dialog {
+        let main_font = crate::ui::theme::font::get_main_font(state.font_family.as_deref());
+        let file_name = std::path::Path::new(&state.file_name)
+            .file_name()
+            .map(|f| f.to_string_lossy().into_owned())
+            .unwrap_or_else(|| state.file_name.clone());
+
+        let title = text("Move to Trash?")
+            .size(typography::TITLE)
+            .font(main_font);
+        let desc = text(format!(
+            "Are you sure you want to move \"{file_name}\" to the Trash?"
+        ))
+        .size(typography::BODY_MD)
+        .font(main_font);
+
+        let cancel_btn = button(
+            text("Cancel (Esc)")
+                .size(typography::BODY_MD)
+                .font(main_font),
+        )
+        .on_press(Message::Trash(
+            crate::app::messages::TrashMsg::CancelTrashDialog,
+        ))
+        .style(iced::widget::button::secondary)
+        .padding([spacing::XS, spacing::M]);
+
+        let confirm_btn = button(
+            text("Move to Trash (Enter)")
+                .size(typography::BODY_MD)
+                .font(main_font),
+        )
+        .on_press(Message::Trash(
+            crate::app::messages::TrashMsg::ConfirmTrashCurrent,
+        ))
+        .style(iced::widget::button::danger)
+        .padding([spacing::XS, spacing::M]);
+
+        let button_row =
+            row![Space::new().width(Length::Fill), cancel_btn, confirm_btn].spacing(spacing::S);
+
+        let dialog_content = column![title, desc, button_row]
+            .spacing(spacing::M)
+            .padding(spacing::L);
+
+        let dialog_box = container(dialog_content).width(440.0).style(default_raised);
+
+        let dialog_backdrop = iced::widget::opaque(
+            container(dialog_box)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Center)
+                .align_y(Alignment::Center)
+                .style(|theme: &iced::Theme| {
+                    let overlay = AppTheme::from(theme).palette().overlay;
+                    container::Style {
+                        background: Some(overlay.backdrop_modal.into()),
+                        ..Default::default()
+                    }
+                }),
+        );
+
+        stack = stack.push(dialog_backdrop);
     }
 
     stack.into()

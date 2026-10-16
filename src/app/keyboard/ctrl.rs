@@ -41,6 +41,13 @@ impl KglanceApp {
                 self.handle_json_shortcut(c)
             }
             "w" | "W" | "\u{17}" => crate::features::text::update::handle_toggle_word_wrap(self),
+            "z" | "Z" | "\u{1a}" => {
+                if !self.shift_held && !modifiers.shift() {
+                    Some(self.update(crate::app::messages::TrashMsg::UndoTrash.into()))
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
