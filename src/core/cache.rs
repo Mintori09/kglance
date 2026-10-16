@@ -167,6 +167,16 @@ impl PreviewData {
             PreviewData::Font { sample, data, .. } => {
                 sample.len().saturating_add(data.len()).saturating_add(256)
             }
+            PreviewData::Model3d(mesh) => mesh
+                .vertices
+                .len()
+                .saturating_mul(std::mem::size_of::<f32>())
+                .saturating_add(
+                    mesh.indices
+                        .len()
+                        .saturating_mul(std::mem::size_of::<u32>()),
+                )
+                .saturating_add(256),
             PreviewData::Error(msg) => msg.len().saturating_add(64),
         }
     }

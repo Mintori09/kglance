@@ -4,7 +4,7 @@ pub const SUPPORTED_EXTS: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "txt", "md", "typ", "rs", "py", "js", "ts",
     "json", "toml", "yaml", "pdf", "mp4", "mkv", "avi", "webm", "mp3", "wav", "flac", "csv", "tsv",
     "xlsx", "xls", "epub", "docx", "doc", "pptx", "ppt", "odt", "ods", "odp", "kra", "ora", "psd",
-    "sqlite", "sqlite3", "db", "db3", "s3db", "sl3",
+    "sqlite", "sqlite3", "db", "db3", "s3db", "sl3", "stl", "obj",
 ];
 
 pub fn is_supported_path(path: &Path) -> bool {
@@ -59,6 +59,8 @@ mod tests {
         assert!(is_supported_path(Path::new("test.png")));
         assert!(is_supported_path(Path::new("test.TXT")));
         assert!(is_supported_path(Path::new("test.markdown.md")));
+        assert!(is_supported_path(Path::new("model.stl")));
+        assert!(is_supported_path(Path::new("model.OBJ")));
         assert!(!is_supported_path(Path::new("test.exe")));
         assert!(!is_supported_path(Path::new("no_ext")));
     }
