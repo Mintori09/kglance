@@ -303,7 +303,11 @@ fn test_real_file_trash_and_restore_cycle() {
 
     // Now perform restore
     let restore_res = crate::core::trash::restore_trashed_item(&trashed_item);
-    assert!(restore_res.is_ok(), "Restore failed: {:?}", restore_res.err());
+    assert!(
+        restore_res.is_ok(),
+        "Restore failed: {:?}",
+        restore_res.err()
+    );
     assert!(file1.exists(), "File 1 should exist after restore");
 
     let _ = handle_trash_msg(
@@ -317,4 +321,3 @@ fn test_real_file_trash_and_restore_cycle() {
     assert_eq!(app.state.playlist.len(), 2);
     assert_eq!(app.state.file_name, f1_str);
 }
-
