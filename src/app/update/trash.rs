@@ -180,6 +180,11 @@ pub fn handle_undo_trash(app: &mut KglanceApp) -> Task<Message> {
         return app.show_toast("No item to undo");
     };
 
+    // Dismiss existing undo toast notifications immediately
+    app.state
+        .toasts
+        .retain(|t| t.action != Some(crate::core::types::ToastAction::UndoTrash));
+
     let item_for_task = last_trashed.clone();
     let item_for_callback = last_trashed;
 
