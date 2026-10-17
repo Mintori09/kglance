@@ -38,16 +38,27 @@ impl TrashHistory {
 }
 
 pub fn move_to_trash(path: &Path, original_index: usize) -> Result<TrashedItem, String> {
-    if !path.exists() {
-        return Err(format!("File does not exist: {}", path.display()));
+    crate::log_info!("move_to_trash called for: {}", path.display());
+    let abs_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+
+    if !abs_path.exists() {
+        crate::log_error!("File does not exist: {}", abs_path.display());
+        return Err(format!("File does not exist: {}", abs_path.display()));
     }
 
-    trash::delete(path).map_err(|e| format!("Failed to move to trash: {e}"))?;
-
-    Ok(TrashedItem {
-        original_path: path.to_path_buf(),
-        original_index,
-    })
+    match trash::delete(&abs_path) {
+        Ok(()) => {
+            crate::log_info!("Successfully moved to trash: {}", abs_path.display());
+            Ok(TrashedItem {
+                original_path: abs_path,
+                original_index,
+            })
+        }
+        Err(e) => {
+            crate::log_error!("trash::delete failed for {}: {e}", abs_path.display());
+            Err(format!("Failed to move to trash: {e}"))
+        }
+    }
 }
 
 pub fn restore_trashed_item(item: &TrashedItem) -> Result<(), String> {

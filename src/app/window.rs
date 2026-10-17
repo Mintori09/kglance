@@ -117,10 +117,15 @@ impl KglanceApp {
         let toast_id = self.state.next_toast_id;
         self.state.next_toast_id += 1;
 
+        let duration = Duration::from_secs(duration_secs);
+        let msg_str = message.into();
+        crate::log_info!("show_toast_with_action adding toast id={toast_id}: {msg_str}");
         self.state.toasts.push(ToastInfo {
             id: toast_id,
-            message: message.into(),
+            message: msg_str,
             action,
+            created_at: std::time::Instant::now(),
+            duration,
         });
 
         Task::perform(

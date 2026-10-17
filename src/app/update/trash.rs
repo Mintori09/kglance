@@ -50,6 +50,7 @@ pub fn handle_request_trash(app: &mut KglanceApp) -> Task<Message> {
 
 pub fn execute_trash_current_file(app: &mut KglanceApp) -> Task<Message> {
     let file_to_trash = app.state.file_name.clone();
+    crate::log_info!("execute_trash_current_file called for: {file_to_trash}");
     if file_to_trash.is_empty() {
         return Task::none();
     }
@@ -58,22 +59,35 @@ pub fn execute_trash_current_file(app: &mut KglanceApp) -> Task<Message> {
     app.clear_media();
 
     let path = PathBuf::from(&file_to_trash);
+    let abs_path = path.canonicalize().unwrap_or_else(|_| path.clone());
     let original_index = app.state.current_index;
+    crate::log_info!("Target canonical path: {}", abs_path.display());
+
+    // Track as recently trashed to prevent watcher race conditions clobbering UI / toasts
+    app.state.recently_trashed.insert(file_to_trash.clone());
+    app.state
+        .recently_trashed
+        .insert(abs_path.to_string_lossy().into_owned());
 
     // Advance UI / playlist immediately for fast UX and evict cache
     let nav_task = advance_or_close_after_delete(app, &file_to_trash);
 
-    let path_clone = path.clone();
     let file_to_trash_clone = file_to_trash.clone();
     let trash_task = Task::perform(
         async move {
-            tokio::task::spawn_blocking(move || {
-                crate::core::trash::move_to_trash(&path_clone, original_index)
+            crate::log_info!("trash_task async block started for: {}", abs_path.display());
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            std::thread::spawn(move || {
+                let res = crate::core::trash::move_to_trash(&abs_path, original_index);
+                let _ = tx.send(res);
+            });
+            rx.await.unwrap_or_else(|e| {
+                crate::log_error!("trash worker thread join failed: {e}");
+                Err(format!("Task execution failed: {e}"))
             })
-            .await
-            .unwrap_or_else(|e| Err(format!("Task spawn failed: {e}")))
         },
         move |result| {
+            crate::log_info!("trash_task completion callback invoked with: {result:?}");
             TrashMsg::TrashCompleted {
                 file_to_trash: file_to_trash_clone,
                 result,
@@ -90,6 +104,7 @@ fn handle_trash_completed(
     file_to_trash: String,
     result: Result<crate::core::trash::TrashedItem, String>,
 ) -> Task<Message> {
+    crate::log_info!("handle_trash_completed for {file_to_trash}: {result:?}");
     match result {
         Ok(item) => {
             app.state.trash_history.push(item);
@@ -101,20 +116,27 @@ fn handle_trash_completed(
                 .unwrap_or_else(|| file_to_trash.clone());
 
             let undo_timeout = app.state.trash_config.undo_timeout_seconds;
+            crate::log_info!("Showing toast: Moved \"{file_name_display}\" to Trash");
             app.show_toast_with_action(
                 format!("Moved \"{file_name_display}\" to Trash"),
                 Some(ToastAction::UndoTrash),
                 undo_timeout,
             )
         }
-        Err(err) => app.show_toast(format!("Failed to move to Trash: {err}")),
+        Err(err) => {
+            crate::log_error!("handle_trash_completed showing err toast: {err}");
+            app.show_toast(format!("Failed to move to Trash: {err}"))
+        }
     }
 }
 
 fn advance_or_close_after_delete(app: &mut KglanceApp, deleted_path: &str) -> Task<Message> {
-    // Remove from playlist
+    // Remove from playlist and update index
     if let Some(pos) = app.state.playlist.iter().position(|p| p == deleted_path) {
         app.state.playlist.remove(pos);
+        if pos < app.state.current_index {
+            app.state.current_index = app.state.current_index.saturating_sub(1);
+        }
     }
 
     // Evict from memory cache
@@ -125,14 +147,13 @@ fn advance_or_close_after_delete(app: &mut KglanceApp, deleted_path: &str) -> Ta
         app.state.file_name.clear();
         app.current_content = None;
         app.state.content_ready = false;
-
-        // If no more files in playlist, close/hide current window
-        app.handle_close()
+        app.state.is_loading = false;
+        Task::none()
     } else {
-        // Move to the next available file (clamp to new bounds)
+        // Move to the next available file (clamp to new bounds: if deleting the last item, stay at new last item)
         let new_len = app.state.playlist.len();
         if app.state.current_index >= new_len {
-            app.state.current_index = 0;
+            app.state.current_index = new_len - 1;
         }
 
         let next_path = app.state.playlist[app.state.current_index].clone();
@@ -152,6 +173,12 @@ fn advance_or_close_after_delete(app: &mut KglanceApp, deleted_path: &str) -> Ta
 }
 
 fn load_file_after_delete(app: &mut KglanceApp, path: String) -> Task<Message> {
+    // Release previous preview data and handles from RAM
+    app.clear_media();
+    app.current_content = None;
+    app.state.reset_content_state_for_loading(path.clone());
+    crate::core::utils::trim_process_memory();
+
     if let Some(cached) = app.state.cache.get(&path)
         && let Some(cached_data) = cached.as_preview().cloned()
     {
@@ -160,7 +187,7 @@ fn load_file_after_delete(app: &mut KglanceApp, path: String) -> Task<Message> {
             .generation_id
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
             + 1;
-        return app.update(
+        return Task::done(
             crate::app::messages::SystemMsg::FileLoaded {
                 path,
                 content: (*cached_data).clone(),
@@ -180,21 +207,25 @@ pub fn handle_undo_trash(app: &mut KglanceApp) -> Task<Message> {
         return app.show_toast("No item to undo");
     };
 
-    // Dismiss existing undo toast notifications immediately
+    // Dismiss active Undo toast immediately for instant feedback and to prevent duplicate triggers
     app.state
         .toasts
-        .retain(|t| t.action != Some(crate::core::types::ToastAction::UndoTrash));
+        .retain(|t| t.action != Some(ToastAction::UndoTrash));
 
     let item_for_task = last_trashed.clone();
     let item_for_callback = last_trashed;
 
     Task::perform(
         async move {
-            tokio::task::spawn_blocking(move || {
-                crate::core::trash::restore_trashed_item(&item_for_task)
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            std::thread::spawn(move || {
+                let res = crate::core::trash::restore_trashed_item(&item_for_task);
+                let _ = tx.send(res);
+            });
+            rx.await.unwrap_or_else(|e| {
+                crate::log_error!("restore worker thread join failed: {e}");
+                Err(format!("Task execution failed: {e}"))
             })
-            .await
-            .unwrap_or_else(|e| Err(format!("Task spawn failed: {e}")))
         },
         move |result| {
             TrashMsg::RestoreCompleted {
@@ -220,9 +251,9 @@ fn handle_restore_completed(
                 .map(|f| f.to_string_lossy().into_owned())
                 .unwrap_or_else(|| path_str.clone());
 
-            // Re-insert into playlist with safe bounds if directory matches
-            let in_same_dir =
-                restore_path.parent().map(|p| p.to_path_buf()) == app.state.active_dir;
+            // Re-insert into playlist with safe bounds if directory matches or playlist was empty
+            let in_same_dir = app.state.active_dir.is_none()
+                || restore_path.parent().map(|p| p.to_path_buf()) == app.state.active_dir;
             if in_same_dir && !app.state.playlist.contains(&path_str) {
                 let safe_idx = restored_item.original_index.min(app.state.playlist.len());
                 app.state.playlist.insert(safe_idx, path_str.clone());
@@ -231,10 +262,7 @@ fn handle_restore_completed(
             app.state.file_name = path_str.clone();
 
             let toast_task = app.show_toast(format!("Restored \"{file_name_display}\""));
-            let load_task =
-                crate::app::update::navigation::load_file_task(app, path_str, |err_path| {
-                    crate::app::messages::SystemMsg::FilePreviewError(err_path).into()
-                });
+            let load_task = load_file_after_delete(app, path_str);
 
             Task::batch(vec![toast_task, load_task])
         }

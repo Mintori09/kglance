@@ -45,6 +45,8 @@ pub struct ToastInfo {
     pub id: u64,
     pub message: String,
     pub action: Option<ToastAction>,
+    pub created_at: std::time::Instant,
+    pub duration: std::time::Duration,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -161,6 +163,7 @@ pub struct KglanceState {
     pub keybinding_config: crate::core::config::KeybindingConfig,
     pub trash_history: crate::core::trash::TrashHistory,
     pub show_trash_confirm_dialog: bool,
+    pub recently_trashed: std::collections::HashSet<String>,
 }
 
 impl Default for KglanceState {
@@ -242,6 +245,7 @@ impl Default for KglanceState {
             keybinding_config: crate::core::config::KeybindingConfig::default(),
             trash_history: crate::core::trash::TrashHistory::default(),
             show_trash_confirm_dialog: false,
+            recently_trashed: std::collections::HashSet::new(),
         }
     }
 }
@@ -322,6 +326,7 @@ impl KglanceState {
         self.markdown = MarkdownState::default();
         self.epub = EpubState::default();
         self.json = JsonState::default();
+        self.model3d = crate::features::model3d::types::Model3dState::default();
         self.apply_scroll_controllers();
     }
 

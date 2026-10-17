@@ -79,6 +79,9 @@ pub fn handle_theme_toggled(app: &mut KglanceApp) -> Task<Message> {
 
 pub fn handle_toast_dismissed(app: &mut KglanceApp, id: u64) -> Task<Message> {
     app.state.toasts.retain(|t| t.id != id);
+    if app.state.playlist.is_empty() && app.state.toasts.is_empty() {
+        return app.handle_close();
+    }
     Task::none()
 }
 

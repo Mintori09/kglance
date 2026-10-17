@@ -1,6 +1,6 @@
 use iced::{
     Alignment, Element, Length, Padding,
-    widget::{Space, Stack, button, column, container, row, text},
+    widget::{Space, Stack, button, column, container, progress_bar, row, text},
 };
 
 use crate::app::Message;
@@ -8,7 +8,9 @@ use crate::core::KglanceState;
 use crate::ui::theme::AppTheme;
 use crate::ui::theme::color::primitive::OVERLAY_SHADOW;
 use crate::ui::theme::tokens::{elevation, radius, spacing, typography};
-use crate::ui::theme::{default_raised, default_root};
+use crate::ui::theme::{
+    default_button, default_button_danger, default_dialog, default_raised, default_root,
+};
 use std::path::Path;
 
 fn left_metadata_text(state: &KglanceState) -> String {
@@ -290,18 +292,30 @@ fn typst_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Ele
     }
 }
 
+pub fn toast_remaining_ratio(
+    created_at: std::time::Instant,
+    duration: std::time::Duration,
+    now: std::time::Instant,
+) -> f32 {
+    let total_dur_secs = duration.as_secs_f32().max(0.1);
+    let elapsed_secs = now.saturating_duration_since(created_at).as_secs_f32();
+    (1.0 - (elapsed_secs / total_dur_secs)).clamp(0.0, 1.0)
+}
+
 fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     if state.toasts.is_empty() {
         return Element::from(container(text("")).padding(0));
     }
 
     let main_font = crate::ui::theme::font::get_main_font(state.font_family.as_deref());
+    let now = std::time::Instant::now();
+
     let items: Vec<Element<'a, Message>> = state
         .toasts
         .iter()
         .map(|t| {
             let msg_text = text(&t.message).size(typography::BODY_MD).font(main_font);
-            let content: Element<'a, Message> = if let Some(action) = &t.action {
+            let content_row: Element<'a, Message> = if let Some(action) = &t.action {
                 let action_copy = action.clone();
                 let action_btn = button(
                     text("Undo (Ctrl+Z)")
@@ -311,24 +325,53 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
                 .on_press(Message::Trash(
                     crate::app::messages::TrashMsg::ToastActionClicked(action_copy),
                 ))
-                .style(iced::widget::button::primary)
-                .padding([2, 8]);
+                .style(default_button)
+                .padding([spacing::XXS + 1.0, spacing::S]);
 
-                row![msg_text, action_btn]
-                    .spacing(spacing::S)
+                row![msg_text, Space::new().width(spacing::M), action_btn]
                     .align_y(Alignment::Center)
                     .into()
             } else {
                 msg_text.into()
             };
 
-            container(content)
-                .padding(Padding {
-                    top: 6.0,
-                    right: 16.0,
-                    bottom: 6.0,
-                    left: 16.0,
-                })
+            // Calculate remaining progress (1.0 -> 0.0)
+            let remaining_ratio = toast_remaining_ratio(t.created_at, t.duration, now);
+
+            let bar =
+                progress_bar(0.0..=1.0, remaining_ratio)
+                    .girth(3.0)
+                    .style(|theme: &iced::Theme| {
+                        use iced::widget::progress_bar;
+                        let roles = crate::ui::theme::color::roles::palette(theme);
+                        progress_bar::Style {
+                            background: roles.accent.scale_alpha(0.12).into(),
+                            bar: roles.accent.into(),
+                            border: iced::Border {
+                                radius: iced::border::Radius {
+                                    top_left: 0.0,
+                                    top_right: 0.0,
+                                    bottom_left: radius::FLOATING_PILL,
+                                    bottom_right: radius::FLOATING_PILL,
+                                },
+                                ..Default::default()
+                            },
+                        }
+                    });
+
+            let toast_body = column![
+                container(content_row).padding(Padding {
+                    top: spacing::S + 1.0,
+                    right: spacing::L,
+                    bottom: spacing::S,
+                    left: spacing::L,
+                }),
+                container(bar).width(Length::Fill),
+            ]
+            .spacing(0);
+
+            container(toast_body)
+                .clip(true)
                 .style(|theme: &iced::Theme| {
                     use iced::widget::container;
                     let p = AppTheme::from(theme).palette().base;
@@ -336,11 +379,11 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
                         background: Some(p.surface_raised.into()),
                         text_color: Some(p.text),
                         border: iced::Border {
-                            radius: radius::MD.into(),
+                            radius: radius::FLOATING_PILL.into(),
                             width: 1.0,
                             color: p.border,
                         },
-                        shadow: elevation::medium(OVERLAY_SHADOW),
+                        shadow: elevation::floating_pill(OVERLAY_SHADOW),
                         ..Default::default()
                     }
                 })
@@ -353,7 +396,7 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         .padding(Padding {
             top: 0.0,
             right: 0.0,
-            bottom: spacing::XL,
+            bottom: 44.0,
             left: 0.0,
         })
         .width(Length::Shrink)
@@ -412,12 +455,6 @@ pub fn view_window<'a>(
         .height(Length::Fill)
         .style(default_root);
 
-    let toast_layer = container(toasts(state))
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .align_y(Alignment::End)
-        .align_x(iced::alignment::Horizontal::Center);
-
     let mut stack = Stack::new().push(base);
 
     if let Some(selection_layer) =
@@ -425,8 +462,6 @@ pub fn view_window<'a>(
     {
         stack = stack.push(selection_layer);
     }
-
-    stack = stack.push(toast_layer);
 
     if show_settings_modal {
         let ui_config = crate::core::config::UiConfig {
@@ -510,8 +545,8 @@ pub fn view_window<'a>(
         .on_press(Message::Trash(
             crate::app::messages::TrashMsg::CancelTrashDialog,
         ))
-        .style(iced::widget::button::secondary)
-        .padding([spacing::XS, spacing::M]);
+        .style(default_button)
+        .padding([spacing::XS + 2.0, spacing::M]);
 
         let confirm_btn = button(
             text("Move to Trash (Enter)")
@@ -521,8 +556,8 @@ pub fn view_window<'a>(
         .on_press(Message::Trash(
             crate::app::messages::TrashMsg::ConfirmTrashCurrent,
         ))
-        .style(iced::widget::button::danger)
-        .padding([spacing::XS, spacing::M]);
+        .style(default_button_danger)
+        .padding([spacing::XS + 2.0, spacing::M]);
 
         let button_row =
             row![Space::new().width(Length::Fill), cancel_btn, confirm_btn].spacing(spacing::S);
@@ -531,7 +566,7 @@ pub fn view_window<'a>(
             .spacing(spacing::M)
             .padding(spacing::L);
 
-        let dialog_box = container(dialog_content).width(440.0).style(default_raised);
+        let dialog_box = container(dialog_content).width(440.0).style(default_dialog);
 
         let dialog_backdrop = iced::widget::opaque(
             container(dialog_box)
@@ -549,6 +584,15 @@ pub fn view_window<'a>(
         );
 
         stack = stack.push(dialog_backdrop);
+    }
+
+    if !state.toasts.is_empty() {
+        let toast_layer = container(toasts(state))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_y(Alignment::End)
+            .align_x(iced::alignment::Horizontal::Center);
+        stack = stack.push(toast_layer);
     }
 
     stack.into()
@@ -574,6 +618,20 @@ mod tests {
     }
 
     #[test]
+    fn test_view_window_with_toast_layout() {
+        use crate::core::types::{ToastAction, ToastInfo};
+        let mut state = KglanceState::default();
+        state.toasts.push(ToastInfo {
+            id: 1,
+            message: "Moved file to trash".to_string(),
+            action: Some(ToastAction::UndoTrash),
+            created_at: std::time::Instant::now(),
+            duration: std::time::Duration::from_secs(8),
+        });
+        let _element: Element<'_, Message> = view_window(&state, container(text("")).into());
+    }
+
+    #[test]
     fn test_metadata_text_partial() {
         let state = KglanceState {
             file_name: "test_doc.md".to_string(),
@@ -583,5 +641,30 @@ mod tests {
 
         let left = left_metadata_text(&state);
         assert_eq!(left, "Text Document");
+    }
+
+    #[test]
+    fn test_toast_remaining_ratio_progression() {
+        let t0 = std::time::Instant::now();
+        let dur = std::time::Duration::from_secs(10);
+
+        // At start: ratio is 1.0
+        let r0 = toast_remaining_ratio(t0, dur, t0);
+        assert!((r0 - 1.0).abs() < f32::EPSILON);
+
+        // At half duration: ratio is 0.5
+        let t_half = t0 + std::time::Duration::from_secs(5);
+        let r_half = toast_remaining_ratio(t0, dur, t_half);
+        assert!((r_half - 0.5).abs() < 0.01);
+
+        // At end: ratio is 0.0
+        let t_end = t0 + std::time::Duration::from_secs(10);
+        let r_end = toast_remaining_ratio(t0, dur, t_end);
+        assert!((r_end - 0.0).abs() < f32::EPSILON);
+
+        // Beyond end: clamped to 0.0
+        let t_after = t0 + std::time::Duration::from_secs(15);
+        let r_after = toast_remaining_ratio(t0, dur, t_after);
+        assert!((r_after - 0.0).abs() < f32::EPSILON);
     }
 }
