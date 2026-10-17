@@ -15,8 +15,9 @@ pub(crate) fn scale_size(design_size: f32, user_font_size: f32) -> f32 {
 
 pub use color::{AppTheme, ColorPalette, DARK_PALETTE, LIGHT_PALETTE};
 pub use default::{
-    badge_style, default_button, default_button_primary, default_card, default_checkbox,
-    default_grid_card, default_inset, default_pick_list, default_raised, default_root,
-    default_row_button, default_rule, default_scrollable, default_slider, default_text_input,
-    default_toggler, default_tooltip, video_controls_pill, video_pill_button, video_slider,
+    badge_style, default_button, default_button_danger, default_button_primary, default_card,
+    default_checkbox, default_dialog, default_grid_card, default_inset, default_pick_list,
+    default_raised, default_root, default_row_button, default_rule, default_scrollable,
+    default_slider, default_text_input, default_toggler, default_tooltip, video_controls_pill,
+    video_pill_button, video_slider,
 };

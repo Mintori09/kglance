@@ -111,6 +111,7 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 }
                 iced::Task::none()
             }
+            crate::app::messages::SystemMsg::ToastTick => iced::Task::none(),
         },
         Message::Navigation(msg) => match msg {
             crate::app::messages::NavigationMsg::PrevFileClicked => {

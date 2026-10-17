@@ -212,6 +212,46 @@ pub fn default_button_primary(theme: &Theme, status: button::Status) -> button::
     }
 }
 
+pub fn default_button_danger(theme: &Theme, status: button::Status) -> button::Style {
+    let p = BaseColors::palette(theme);
+    let role = roles::palette(theme);
+    let bg = match status {
+        button::Status::Hovered => {
+            let mut c = role.danger;
+            c.a = 0.88;
+            c
+        }
+        button::Status::Pressed => {
+            let mut c = role.danger;
+            c.a = 0.75;
+            c
+        }
+        _ => role.danger,
+    };
+    button::Style {
+        background: Some(bg.into()),
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: radius::LG.into(),
+        },
+        text_color: Color::WHITE,
+        shadow: subtle_shadow(p.shadow),
+        snap: false,
+    }
+}
+
+pub fn default_dialog(theme: &Theme) -> container::Style {
+    let p = BaseColors::palette(theme);
+    container::Style {
+        background: Some(p.surface.into()),
+        text_color: Some(p.text),
+        border: container_border(p.border, radius::XL),
+        shadow: card_shadow(p.shadow),
+        snap: false,
+    }
+}
+
 pub fn default_text_input(theme: &Theme, status: text_input::Status) -> text_input::Style {
     let p = BaseColors::palette(theme);
     let role = roles::palette(theme);

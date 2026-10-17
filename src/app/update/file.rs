@@ -193,6 +193,11 @@ pub fn handle_active_file_deleted(app: &mut KglanceApp, path: String) -> Task<Me
         return Task::none();
     }
 
+    // If the file was intentionally trashed by user via kglance, suppress the generic deletion toast
+    if app.state.recently_trashed.contains(&path) {
+        return Task::none();
+    }
+
     let path_obj = Path::new(&path);
     let name = path_obj
         .file_name()
@@ -287,7 +292,8 @@ pub fn handle_directory_sync_completed(
 
     let mut file_to_load = None;
     let mut active_file_deleted = false;
-    app.state.playlist = new_playlist;
+    let old_playlist = std::mem::replace(&mut app.state.playlist, new_playlist);
+
     if let Some(pos) = app
         .state
         .playlist
@@ -297,11 +303,30 @@ pub fn handle_directory_sync_completed(
         app.state.current_index = pos;
         app.state.active_dir = Some(dir.to_path_buf());
     } else if let Some(first) = app.state.playlist.first() {
-        app.state.current_index = 0;
-        app.state.file_name = first.clone();
-        app.state.active_dir = Some(dir.to_path_buf());
-        file_to_load = Some(first.clone());
-        active_file_deleted = true;
+        // If removed file is in recently_trashed, advance_or_close_after_delete has already advanced
+        // to the correct file, so we should NOT jump to first unless necessary.
+        let is_recent_trash = old_playlist
+            .iter()
+            .any(|p| app.state.recently_trashed.contains(p))
+            || app.state.recently_trashed.contains(&app.state.file_name);
+        if !is_recent_trash {
+            app.state.current_index = 0;
+            app.state.file_name = first.clone();
+            app.state.active_dir = Some(dir.to_path_buf());
+            file_to_load = Some(first.clone());
+            active_file_deleted = true;
+        } else {
+            // Find if there is any file at current_index or clamp
+            let clamped_idx = app
+                .state
+                .current_index
+                .min(app.state.playlist.len().saturating_sub(1));
+            app.state.current_index = clamped_idx;
+            if let Some(candidate) = app.state.playlist.get(clamped_idx) {
+                app.state.file_name = candidate.clone();
+                file_to_load = Some(candidate.clone());
+            }
+        }
     } else {
         app.state.current_index = 0;
         app.state.file_name.clear();
@@ -329,10 +354,21 @@ pub fn handle_directory_sync_completed(
         tasks.extend(thumb_tasks);
     }
 
+    // Check if the removed files are solely from our own trash actions
+    let has_internal_trash = old_playlist
+        .iter()
+        .any(|p| app.state.recently_trashed.contains(p))
+        || app
+            .state
+            .recently_trashed
+            .iter()
+            .any(|p| !app.state.playlist.contains(p));
+
     // Show toast notification on directory file count change or active file removal
     if active_file_deleted && !app.state.playlist.is_empty() {
         tasks.push(app.show_toast("Current file removed; showing first file".to_string()));
-    } else if old_count > 0 && old_count != new_count && !active_file_deleted {
+    } else if old_count > 0 && old_count != new_count && !active_file_deleted && !has_internal_trash
+    {
         let toast_msg = if new_count > old_count {
             let diff = new_count - old_count;
             if diff == 1 {
