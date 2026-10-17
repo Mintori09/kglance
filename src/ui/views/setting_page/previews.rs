@@ -50,6 +50,8 @@ pub fn previews_tab<'a>(
     config: &UiConfig,
     selection_menu_config: &'a SelectionMenuConfig,
     action_editor: Option<&'a CustomActionEditorState>,
+    trash_config: &'a crate::core::config::TrashConfig,
+    keybinding_config: &'a crate::core::config::KeybindingConfig,
     main_font: Font,
 ) -> Element<'a, Message> {
     let base_colors = BaseColors::palette(theme);
@@ -454,9 +456,10 @@ pub fn previews_tab<'a>(
         base_colors.text_dim,
     );
 
+    let theme_for_json = theme_clone.clone();
     let json_cb = toggler(config.json_tree_view)
         .on_toggle(|enabled| Message::Settings(SettingsMsg::JsonTreeViewChanged(enabled)))
-        .style(move |_, status| default_toggler(&theme_clone, status));
+        .style(move |_, status| default_toggler(&theme_for_json, status));
 
     let json_row = build_setting_row(
         "JSON Tree View by Default",
@@ -483,7 +486,69 @@ pub fn previews_tab<'a>(
     .padding(spacing::M)
     .style(default_card);
 
-    column![doc_card, selection_card, code_card]
+    // --- CARD 4: TRASH & FILE ACTIONS ---
+    let trash_enabled_cb = toggler(trash_config.enabled)
+        .on_toggle(|enabled| Message::Settings(SettingsMsg::TrashEnabledChanged(enabled)))
+        .style({
+            let theme = theme_clone.clone();
+            move |_, status| default_toggler(&theme, status)
+        });
+
+    let trash_enabled_row = build_setting_row(
+        "Enable Move to Trash",
+        "Allow sending active preview file to Trash via shortcut or menu",
+        trash_enabled_cb,
+        main_font,
+        base_colors.text,
+        base_colors.text_dim,
+    );
+
+    let confirm_cb = toggler(trash_config.confirm_on_delete)
+        .on_toggle(|confirm| Message::Settings(SettingsMsg::TrashConfirmOnDeleteChanged(confirm)))
+        .style({
+            let theme = theme_clone.clone();
+            move |_, status| default_toggler(&theme, status)
+        });
+
+    let confirm_row = build_setting_row(
+        "Confirm Before Moving to Trash",
+        "Prompt with a confirmation dialog before trashing the file",
+        confirm_cb,
+        main_font,
+        base_colors.text,
+        base_colors.text_dim,
+    );
+
+    let undo_label = text(format!(
+        "Shortcut: {} • Undo: {} (Toast: {}s)",
+        keybinding_config.trash_file,
+        keybinding_config.undo_trash,
+        trash_config.undo_timeout_seconds
+    ))
+    .size(11)
+    .font(main_font)
+    .style(move |_| iced::widget::text::Style {
+        color: Some(base_colors.text_dim),
+    });
+
+    let trash_card = container(
+        column![
+            text("TRASH & FILE MANAGEMENT")
+                .size(11)
+                .font(main_font)
+                .style(move |_| iced::widget::text::Style {
+                    color: Some(base_colors.text_dim)
+                }),
+            trash_enabled_row,
+            confirm_row,
+            undo_label,
+        ]
+        .spacing(spacing::M),
+    )
+    .padding(spacing::M)
+    .style(default_card);
+
+    column![doc_card, selection_card, code_card, trash_card]
         .spacing(spacing::M)
         .into()
 }

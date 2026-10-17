@@ -568,9 +568,36 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             }
             Task::none()
         }
+        SettingsMsg::TrashEnabledChanged(enabled) => {
+            app.state.trash_config.enabled = enabled;
+            let _ = app.save_current_config();
+            Task::none()
+        }
+        SettingsMsg::TrashConfirmOnDeleteChanged(confirm) => {
+            app.state.trash_config.confirm_on_delete = confirm;
+            let _ = app.save_current_config();
+            Task::none()
+        }
+        SettingsMsg::TrashUndoTimeoutChanged(timeout) => {
+            app.state.trash_config.undo_timeout_seconds = timeout;
+            let _ = app.save_current_config();
+            Task::none()
+        }
+        SettingsMsg::KeybindingTrashFileChanged(shortcut) => {
+            app.state.keybinding_config.trash_file = shortcut;
+            let _ = app.save_current_config();
+            Task::none()
+        }
+        SettingsMsg::KeybindingUndoTrashChanged(shortcut) => {
+            app.state.keybinding_config.undo_trash = shortcut;
+            let _ = app.save_current_config();
+            Task::none()
+        }
         SettingsMsg::ResetToDefaults => {
             let default_config = crate::core::config::AppConfig::default();
             app.state.selection_menu_config = default_config.selection_menu.clone();
+            app.state.trash_config = default_config.trash.clone();
+            app.state.keybinding_config = default_config.keybindings.clone();
             let old_size = app.state.font_size;
             app.state.font_size = default_config.ui.font_size;
             app.state.default_font_size = default_config.ui.font_size;

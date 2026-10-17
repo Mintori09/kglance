@@ -337,7 +337,29 @@ pub enum SettingsMsg {
     ScrollSpringStiffnessChanged(f32),
     SelectionMenuToggled(bool),
     CustomAction(CustomActionEditorMsg),
+    TrashEnabledChanged(bool),
+    TrashConfirmOnDeleteChanged(bool),
+    TrashUndoTimeoutChanged(u64),
+    KeybindingTrashFileChanged(String),
+    KeybindingUndoTrashChanged(String),
     ResetToDefaults,
+}
+
+#[derive(Debug, Clone)]
+pub enum TrashMsg {
+    RequestTrashCurrent,
+    ConfirmTrashCurrent,
+    CancelTrashDialog,
+    TrashCompleted {
+        file_to_trash: String,
+        result: Result<crate::core::trash::TrashedItem, String>,
+    },
+    UndoTrash,
+    RestoreCompleted {
+        restored_item: crate::core::trash::TrashedItem,
+        result: Result<(), String>,
+    },
+    ToastActionClicked(crate::core::types::ToastAction),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -445,6 +467,7 @@ pub enum Message {
     Settings(SettingsMsg),
     FileTree(FileTreeMsg),
     SelectionMenu(SelectionMenuMsg),
+    Trash(TrashMsg),
 
     // Layout / Global Events
     SmoothScrollTick(std::time::Instant),
@@ -550,5 +573,10 @@ impl From<FileTreeMsg> for Message {
 impl From<SelectionMenuMsg> for Message {
     fn from(m: SelectionMenuMsg) -> Self {
         Message::SelectionMenu(m)
+    }
+}
+impl From<TrashMsg> for Message {
+    fn from(m: TrashMsg) -> Self {
+        Message::Trash(m)
     }
 }

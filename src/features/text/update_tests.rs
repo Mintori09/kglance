@@ -155,3 +155,31 @@ fn test_text_selection_drag_ended_triggers_selection_menu() {
         crate::core::selection_action::SelectionMenuState::Hidden
     ));
 }
+
+#[test]
+fn test_text_wheel_scrolled_when_smooth_scroll_disabled() {
+    let mut app = KglanceApp::default();
+    let content: String = (0..200)
+        .map(|i| format!("line {i} with some content\n"))
+        .collect();
+    app.state.text = create_text_state(content, "txt", 14.0, false, AppTheme::Dark, 800.0);
+    app.state.text.viewport_height = 800.0;
+    app.state.text.scroll_y = 100.0;
+    app.state.scroll_config.smooth_scroll_enabled = false;
+    app.state.apply_scroll_controllers();
+
+    // Lines: 1 notch down (-1.0) with viewport_height = 800.0 (step = 120.0px) -> scroll_y: 100.0 -> 220.0
+    let delta_lines = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -1.0 };
+    let _ = handle_wheel_scrolled(&mut app, delta_lines);
+
+    assert_eq!(app.state.text.scroll_y, 220.0);
+    assert!(!app.state.text.smooth_scroll.is_animating());
+    assert_eq!(app.state.text.smooth_scroll.position_y(), 220.0);
+
+    // Clamping: Scroll up past the top boundary clamps to 0.0
+    let delta_up_excess = iced::mouse::ScrollDelta::Lines { x: 0.0, y: 10.0 };
+    let _ = handle_wheel_scrolled(&mut app, delta_up_excess);
+    assert_eq!(app.state.text.scroll_y, 0.0);
+    assert!(!app.state.text.smooth_scroll.is_animating());
+    assert_eq!(app.state.text.smooth_scroll.position_y(), 0.0);
+}

@@ -106,3 +106,25 @@ fn test_json_wheel_scroll_interrupts_active_kinetic_scroll() {
     assert!(!app.state.json.scroll_controller.is_animating());
     assert!(app.state.json.scroll_y > 100.0);
 }
+
+#[test]
+fn test_json_wheel_scrolled_when_smooth_scroll_disabled() {
+    let mut app = create_json_test_app();
+    app.state.scroll_config.smooth_scroll_enabled = false;
+    app.state.apply_scroll_controllers();
+
+    // Lines: 1 notch down (-1.0) with viewport_height = 800.0, initial scroll_y = 100.0 (step = 120.0px) -> scroll_y: 220.0
+    let delta_lines = ScrollDelta::Lines { x: 0.0, y: -1.0 };
+    let _ = handle_wheel_scrolled(&mut app, delta_lines);
+
+    assert_eq!(app.state.json.scroll_y, 220.0);
+    assert!(!app.state.json.smooth_scroll.is_animating());
+    assert_eq!(app.state.json.smooth_scroll.position_y(), 220.0);
+
+    // Clamping: Scroll up past the top boundary clamps to 0.0
+    let delta_up_excess = ScrollDelta::Lines { x: 0.0, y: 10.0 };
+    let _ = handle_wheel_scrolled(&mut app, delta_up_excess);
+    assert_eq!(app.state.json.scroll_y, 0.0);
+    assert!(!app.state.json.smooth_scroll.is_animating());
+    assert_eq!(app.state.json.smooth_scroll.position_y(), 0.0);
+}
