@@ -75,6 +75,15 @@ fn test_trash_advances_playlist_and_undo_restores() {
     let last_toast = app.state.toasts.last().expect("toast exists");
     assert_eq!(last_toast.action, Some(ToastAction::UndoTrash));
 
+    // When undo is triggered, the undo toast should be dismissed immediately
+    let _ = handle_trash_msg(&mut app, TrashMsg::UndoTrash);
+    assert!(
+        !app.state
+            .toasts
+            .iter()
+            .any(|t| t.action == Some(ToastAction::UndoTrash))
+    );
+
     // When restore completes
     let _ = handle_trash_msg(
         &mut app,
