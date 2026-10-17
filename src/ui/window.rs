@@ -6,7 +6,6 @@ use iced::{
 use crate::app::Message;
 use crate::core::KglanceState;
 use crate::ui::theme::AppTheme;
-use crate::ui::theme::color::primitive::OVERLAY_SHADOW;
 use crate::ui::theme::tokens::{elevation, radius, spacing, typography};
 use crate::ui::theme::{
     default_button, default_button_danger, default_dialog, default_raised, default_root,
@@ -374,16 +373,16 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
                 .clip(true)
                 .style(|theme: &iced::Theme| {
                     use iced::widget::container;
-                    let p = AppTheme::from(theme).palette().base;
+                    let overlay = AppTheme::from(theme).palette().overlay;
                     container::Style {
-                        background: Some(p.surface_raised.into()),
-                        text_color: Some(p.text),
+                        background: Some(overlay.floating_bg.into()),
+                        text_color: Some(overlay.floating_fg),
                         border: iced::Border {
                             radius: radius::FLOATING_PILL.into(),
                             width: 1.0,
-                            color: p.border,
+                            color: overlay.floating_border,
                         },
-                        shadow: elevation::floating_pill(OVERLAY_SHADOW),
+                        shadow: elevation::floating_pill(overlay.floating_shadow),
                         ..Default::default()
                     }
                 })
@@ -396,7 +395,7 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         .padding(Padding {
             top: 0.0,
             right: 0.0,
-            bottom: 44.0,
+            bottom: 56.0,
             left: 0.0,
         })
         .width(Length::Shrink)
