@@ -541,45 +541,42 @@ pub fn handle_wheel_scrolled(
 
     match delta {
         iced::mouse::ScrollDelta::Lines { x, y } => {
-            state.scroll_controller.stop(state.scroll_y);
-            state.scroll_controller_x.stop(state.scroll_x);
+            let prev_y = state.scroll_y;
+            let prev_x = state.scroll_x;
+            state.scroll_controller.stop(prev_y);
+            state.scroll_controller_x.stop(prev_x);
             if app.shift_held {
                 // Shift + Wheel vertical scroll -> Redirect to horizontal scroll
                 let delta_h = if y.abs() > f32::EPSILON { y } else { x };
                 if delta_h.abs() > f32::EPSILON {
                     let col_width = (vw * 0.15).clamp(80.0, 250.0);
                     let step = -delta_h * col_width;
-                    state
-                        .smooth_scroll_x
-                        .start_interactive(state.scroll_x, step, max_x);
+                    state.smooth_scroll_x.start_interactive(prev_x, step, max_x);
                 }
             } else {
                 if y.abs() > f32::EPSILON {
                     let line_height = (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION)
                         .clamp(50.0, 240.0);
                     let step = -y * line_height;
-                    state
-                        .smooth_scroll
-                        .start_interactive(state.scroll_y, step, max_y);
+                    state.smooth_scroll.start_interactive(prev_y, step, max_y);
                 }
                 if x.abs() > f32::EPSILON {
                     let col_width = (vw * 0.15).clamp(80.0, 250.0);
                     let step = -x * col_width;
-                    state
-                        .smooth_scroll_x
-                        .start_interactive(state.scroll_x, step, max_x);
+                    state.smooth_scroll_x.start_interactive(prev_x, step, max_x);
                 }
             }
             if !state.smooth_scroll.is_animating() && !state.smooth_scroll_x.is_animating() {
-                state.scroll_y = state.smooth_scroll.position_y();
-                state.scroll_x = state.smooth_scroll_x.position_y();
-                return iced::widget::operation::scroll_to(
-                    CONTENT_SCROLL_ID,
-                    iced::widget::operation::AbsoluteOffset {
-                        x: state.scroll_x,
-                        y: state.scroll_y,
-                    },
-                );
+                let new_y = state.smooth_scroll.position_y();
+                let new_x = state.smooth_scroll_x.position_y();
+                if (new_y - prev_y).abs() > f32::EPSILON || (new_x - prev_x).abs() > f32::EPSILON {
+                    state.scroll_y = new_y;
+                    state.scroll_x = new_x;
+                    return iced::widget::operation::scroll_to(
+                        CONTENT_SCROLL_ID,
+                        iced::widget::operation::AbsoluteOffset { x: new_x, y: new_y },
+                    );
+                }
             }
             Task::none()
         }

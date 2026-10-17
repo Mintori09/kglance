@@ -105,17 +105,18 @@ pub fn handle_wheel_scrolled(
                 state.scroll_controller.stop(state.scroll_y);
                 let line_height =
                     (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION).clamp(50.0, 240.0);
+                let prev_y = state.scroll_y;
                 let step = -y * line_height;
-                state
-                    .smooth_scroll
-                    .start_interactive(state.scroll_y, step, max_y);
+                state.smooth_scroll.start_interactive(prev_y, step, max_y);
                 if !state.smooth_scroll.is_animating() {
                     let new_y = state.smooth_scroll.position_y();
-                    state.scroll_y = new_y;
-                    return iced::widget::operation::scroll_to(
-                        "content_scroll",
-                        iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
-                    );
+                    if (new_y - prev_y).abs() > f32::EPSILON {
+                        state.scroll_y = new_y;
+                        return iced::widget::operation::scroll_to(
+                            "content_scroll",
+                            iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
+                        );
+                    }
                 }
             }
             Task::none()
