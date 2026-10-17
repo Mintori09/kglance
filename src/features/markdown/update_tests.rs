@@ -226,6 +226,41 @@ fn test_handle_smooth_wheel_scrolled_lines_and_pixels() {
 }
 
 #[test]
+fn test_handle_wheel_scrolled_when_smooth_scroll_disabled() {
+    use crate::app::test_util::{markdown_content, test_app};
+
+    let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph")));
+    app.state.markdown.viewport_height = 800.0;
+    app.state.markdown.total_content_height = 3000.0;
+    app.state.markdown.scroll_y = 100.0;
+    app.state.scroll_config.smooth_scroll_enabled = false;
+    app.state.apply_scroll_controllers();
+
+    // Lines: 1 notch down (-1.0) with viewport_height = 800.0 (step = 120.0px) -> scroll_y: 100.0 -> 220.0
+    let delta_lines = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -1.0 };
+    let _ = handle_smooth_wheel_scrolled(&mut app, delta_lines);
+
+    assert_eq!(app.state.markdown.scroll_y, 220.0);
+    assert!(!app.state.markdown.smooth_scroll.is_animating());
+    assert_eq!(app.state.markdown.smooth_scroll.position_y(), 220.0);
+    assert_eq!(app.state.markdown.smooth_scroll.target_y(), 220.0);
+
+    // Clamping: Scroll up past the top boundary (10.0 notches up -> -1200px) clamps to 0.0
+    let delta_up_excess = iced::mouse::ScrollDelta::Lines { x: 0.0, y: 10.0 };
+    let _ = handle_smooth_wheel_scrolled(&mut app, delta_up_excess);
+    assert_eq!(app.state.markdown.scroll_y, 0.0);
+    assert!(!app.state.markdown.smooth_scroll.is_animating());
+    assert_eq!(app.state.markdown.smooth_scroll.position_y(), 0.0);
+
+    // Clamping: Scroll down past the bottom boundary (30.0 notches down -> 3600px) clamps to max_y (3000 - 800 = 2200.0)
+    let delta_down_excess = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -30.0 };
+    let _ = handle_smooth_wheel_scrolled(&mut app, delta_down_excess);
+    assert_eq!(app.state.markdown.scroll_y, 2200.0);
+    assert!(!app.state.markdown.smooth_scroll.is_animating());
+    assert_eq!(app.state.markdown.smooth_scroll.position_y(), 2200.0);
+}
+
+#[test]
 fn test_markdown_touchpad_hold_finger_does_not_fling() {
     use crate::app::test_util::{markdown_content, test_app};
 

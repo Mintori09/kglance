@@ -444,18 +444,21 @@ pub fn handle_text_state_wheel_scrolled(
                 text_state.scroll_controller.stop(text_state.scroll_y);
                 let line_height =
                     (vh * crate::core::scroll::WHEEL_SCROLL_VIEWPORT_FRACTION).clamp(50.0, 240.0);
+                let prev_y = text_state.scroll_y;
                 let step = -y * line_height;
                 text_state
                     .smooth_scroll
-                    .start_interactive(text_state.scroll_y, step, max_y);
+                    .start_interactive(prev_y, step, max_y);
                 if !text_state.smooth_scroll.is_animating() {
                     let new_y = text_state.smooth_scroll.position_y();
-                    text_state.scroll_y = new_y;
-                    update_tokens_for_viewport(text_state, new_y, theme);
-                    return iced::widget::operation::scroll_to(
-                        scroll_id,
-                        iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
-                    );
+                    if (new_y - prev_y).abs() > f32::EPSILON {
+                        text_state.scroll_y = new_y;
+                        update_tokens_for_viewport(text_state, new_y, theme);
+                        return iced::widget::operation::scroll_to(
+                            scroll_id,
+                            iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
+                        );
+                    }
                 }
             }
             Task::none()
@@ -508,7 +511,15 @@ pub fn handle_wheel_scrolled(
         return Task::none();
     }
     let theme = app.state.app_theme;
-    handle_text_state_wheel_scrolled(&mut app.state.text, theme, CONTENT_SCROLL_ID, delta)
+    let prev_y = app.state.text.scroll_y;
+    let task =
+        handle_text_state_wheel_scrolled(&mut app.state.text, theme, CONTENT_SCROLL_ID, delta);
+    if !app.state.text.smooth_scroll.is_animating()
+        && (app.state.text.scroll_y - prev_y).abs() > f32::EPSILON
+    {
+        app.record_read_position();
+    }
+    task
 }
 
 pub fn advance_text_state_smooth_scroll(
