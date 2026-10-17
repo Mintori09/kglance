@@ -105,17 +105,27 @@ impl KglanceApp {
     }
 
     pub fn show_toast(&mut self, message: impl Into<String>) -> Task<Message> {
+        self.show_toast_with_action(message, None, TOAST_DURATION_SECS)
+    }
+
+    pub fn show_toast_with_action(
+        &mut self,
+        message: impl Into<String>,
+        action: Option<crate::core::types::ToastAction>,
+        duration_secs: u64,
+    ) -> Task<Message> {
         let toast_id = self.state.next_toast_id;
         self.state.next_toast_id += 1;
 
         self.state.toasts.push(ToastInfo {
             id: toast_id,
             message: message.into(),
+            action,
         });
 
         Task::perform(
             async move {
-                tokio::time::sleep(Duration::from_secs(TOAST_DURATION_SECS)).await;
+                tokio::time::sleep(Duration::from_secs(duration_secs)).await;
             },
             move |_| crate::app::messages::SystemMsg::ToastDismissed(toast_id).into(),
         )

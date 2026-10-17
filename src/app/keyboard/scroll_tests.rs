@@ -581,3 +581,28 @@ fn test_pdf_wheel_scroll_interrupts_active_kinetic_scroll() {
     assert!(!app.state.pdf.scroll_controller.is_animating());
     assert!(app.state.pdf.scroll_y > 150.0);
 }
+
+#[test]
+fn test_pdf_wheel_scrolled_when_smooth_scroll_disabled() {
+    let mut app = test_app(None);
+    app.state.pdf.viewport_height = 800.0;
+    app.state.pdf.total_content_height = 8000.0;
+    app.state.pdf.scroll_y = 150.0;
+    app.state.scroll_config.smooth_scroll_enabled = false;
+    app.state.apply_scroll_controllers();
+
+    // Scroll down 1 notch (step = -( -1.0 ) * 120.0 = 120.0) -> scroll_y: 150.0 -> 270.0
+    let delta = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -1.0 };
+    let _ = crate::features::pdf::update::handle_wheel_scrolled(&mut app, delta);
+
+    assert_eq!(app.state.pdf.scroll_y, 270.0);
+    assert!(!app.state.pdf.smooth_scroll.is_animating());
+    assert_eq!(app.state.pdf.smooth_scroll.position_y(), 270.0);
+
+    // Clamping: Scroll up past the top boundary clamps to 0.0
+    let delta_up_excess = iced::mouse::ScrollDelta::Lines { x: 0.0, y: 10.0 };
+    let _ = crate::features::pdf::update::handle_wheel_scrolled(&mut app, delta_up_excess);
+    assert_eq!(app.state.pdf.scroll_y, 0.0);
+    assert!(!app.state.pdf.smooth_scroll.is_animating());
+    assert_eq!(app.state.pdf.smooth_scroll.position_y(), 0.0);
+}

@@ -28,6 +28,19 @@ impl super::KglanceApp {
         self.shift_held =
             modifiers.shift() || matches!(key, iced::keyboard::Key::Named(Named::Shift));
 
+        // When trash confirmation modal is active, trap all keyboard input strictly to Enter/Escape
+        if self.state.show_trash_confirm_dialog {
+            match key {
+                iced::keyboard::Key::Named(Named::Enter) => {
+                    return self.update(crate::app::messages::TrashMsg::ConfirmTrashCurrent.into());
+                }
+                iced::keyboard::Key::Named(Named::Escape) => {
+                    return self.update(crate::app::messages::TrashMsg::CancelTrashDialog.into());
+                }
+                _ => return Task::none(),
+            }
+        }
+
         if matches!(key, iced::keyboard::Key::Named(Named::Copy))
             && let Some(task) = self.handle_ctrl_copy()
         {
@@ -75,6 +88,17 @@ impl super::KglanceApp {
 
         if let Some(task) = self.handle_typst_shortcut(&key) {
             return task;
+        }
+
+        if matches!(key, iced::keyboard::Key::Named(Named::Delete)) {
+            let matches_shortcut = self
+                .state
+                .keybinding_config
+                .trash_file
+                .eq_ignore_ascii_case("delete");
+            if matches_shortcut {
+                return self.update(crate::app::messages::TrashMsg::RequestTrashCurrent.into());
+            }
         }
 
         if matches!(key, iced::keyboard::Key::Named(Named::Enter)) {

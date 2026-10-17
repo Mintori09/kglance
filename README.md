@@ -26,6 +26,7 @@ It operates in two modes:
 - **Archives**: Interactive folder tree view for ZIP, Tar, GZ, and 7z archives with metadata inspection.
 - **Audio & Video**: Metadata extraction, waveform visualization, and inline media playback using GStreamer pipelines.
 - **Fonts**: Font sample rendering (TTF, OTF, WOFF) and metadata display (`fontdue`).
+- **File Triage & Trash**: Direct file trashing (`Delete`) via FreeDesktop Trash with instant undo toast (`Ctrl+Z`), configurable confirmation modal, and keybindings in settings.
 - **KDE Plasma 6 Integration**: Automatic Dark/Light mode theme sync, Dolphin file manager integration (Space key preview via KIO Service Menu), and autostart daemon.
 
 ---

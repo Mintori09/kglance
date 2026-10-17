@@ -576,6 +576,80 @@ fn test_sheet_wheel_scroll_interrupts_active_kinetic_scroll() {
 }
 
 #[test]
+fn test_spreadsheet_wheel_scrolled_when_smooth_scroll_disabled() {
+    let headers = vec!["A".to_string(), "B".to_string()];
+    let rows: Vec<Vec<String>> = (0..100)
+        .map(|i| vec![format!("Row {i}"), format!("Val {i}")])
+        .collect();
+    let columns = vec![
+        ColumnMeta {
+            name: "A".to_string(),
+            col_type: ColumnType::Text,
+            width: 150.0,
+        },
+        ColumnMeta {
+            name: "B".to_string(),
+            col_type: ColumnType::Text,
+            width: 150.0,
+        },
+    ];
+    let sheet = SheetInfo {
+        name: "Sheet1".to_string(),
+        headers,
+        rows,
+        columns,
+    };
+
+    let mut app = KglanceApp::default();
+    populate_state(&mut app.state, std::slice::from_ref(&sheet), 0);
+    app.current_content = Some(PreviewData::Spreadsheet {
+        sheets: vec![sheet],
+        active_sheet: 0,
+    });
+    app.state.spreadsheet.viewport_width = 800.0;
+    app.state.spreadsheet.viewport_height = 600.0;
+    app.state.spreadsheet.total_content_width = 3000.0;
+    app.state.spreadsheet.total_content_height = 5000.0;
+    app.state.spreadsheet.scroll_x = 0.0;
+    app.state.spreadsheet.scroll_y = 100.0;
+    app.state.scroll_config.smooth_scroll_enabled = false;
+    app.state.apply_scroll_controllers();
+
+    // Scroll down 1 notch and right 1 notch (step_y = 90.0, step_x = 120.0) -> scroll_y = 190.0, scroll_x = 120.0
+    let delta = iced::mouse::ScrollDelta::Lines { x: -1.0, y: -1.0 };
+    let _ = handle_wheel_scrolled(&mut app, delta);
+
+    assert_eq!(app.state.spreadsheet.scroll_y, 190.0);
+    assert!((app.state.spreadsheet.scroll_x - 120.0).abs() < 1e-4);
+    assert!(!app.state.spreadsheet.smooth_scroll.is_animating());
+    assert!(!app.state.spreadsheet.smooth_scroll_x.is_animating());
+    assert_eq!(app.state.spreadsheet.smooth_scroll.position_y(), 190.0);
+    assert!((app.state.spreadsheet.smooth_scroll_x.position_y() - 120.0).abs() < 1e-4);
+
+    // Clamping: Scroll up and left past 0.0 clamps both axes to 0.0
+    let delta_up_left_excess = iced::mouse::ScrollDelta::Lines { x: 10.0, y: 10.0 };
+    let _ = handle_wheel_scrolled(&mut app, delta_up_left_excess);
+    assert_eq!(app.state.spreadsheet.scroll_y, 0.0);
+    assert_eq!(app.state.spreadsheet.scroll_x, 0.0);
+    assert!(!app.state.spreadsheet.smooth_scroll.is_animating());
+    assert!(!app.state.spreadsheet.smooth_scroll_x.is_animating());
+    assert_eq!(app.state.spreadsheet.smooth_scroll.position_y(), 0.0);
+    assert_eq!(app.state.spreadsheet.smooth_scroll_x.position_y(), 0.0);
+
+    // Shift + Wheel vertical scroll redirects to horizontal scroll
+    app.shift_held = true;
+    let delta_shift = iced::mouse::ScrollDelta::Lines { x: 0.0, y: -1.0 };
+    let _ = handle_wheel_scrolled(&mut app, delta_shift);
+    assert_eq!(app.state.spreadsheet.scroll_y, 0.0);
+    assert!((app.state.spreadsheet.scroll_x - 120.0).abs() < 1e-4);
+    assert!(!app.state.spreadsheet.smooth_scroll.is_animating());
+    assert!(!app.state.spreadsheet.smooth_scroll_x.is_animating());
+    assert_eq!(app.state.spreadsheet.smooth_scroll.position_y(), 0.0);
+    assert!((app.state.spreadsheet.smooth_scroll_x.position_y() - 120.0).abs() < 1e-4);
+    app.shift_held = false;
+}
+
+#[test]
 fn test_compute_csv_column_window_empty() {
     let prefix = vec![0.0];
     let win = compute_csv_column_window(&prefix, 0.0, 1000.0, ROW_NUMBER_COL_WIDTH);

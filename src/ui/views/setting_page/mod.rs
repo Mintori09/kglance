@@ -27,6 +27,8 @@ pub struct SettingsPageContext<'a, 'b> {
     pub scroll_config: &'b ScrollConfigOptions,
     pub selection_menu_config: &'a crate::core::selection_action::SelectionMenuConfig,
     pub action_editor: Option<&'a crate::core::selection_action::CustomActionEditorState>,
+    pub trash_config: &'a crate::core::config::TrashConfig,
+    pub keybinding_config: &'a crate::core::config::KeybindingConfig,
     pub active_tab: SettingTab,
     pub available_fonts: &'a [String],
 }
@@ -93,6 +95,8 @@ pub fn settings_page<'a>(ctx: SettingsPageContext<'a, '_>) -> Element<'a, Messag
             ctx.config,
             ctx.selection_menu_config,
             ctx.action_editor,
+            ctx.trash_config,
+            ctx.keybinding_config,
             main_font,
         ),
         SettingTab::CacheScroll => cache_scroll::cache_scroll_tab(

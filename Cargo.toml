@@ -99,6 +99,7 @@ tobj = { version = "4", default-features = false }
 iced_wgpu = "0.14"
 wgpu = "27"
 bytemuck = "1"
+trash = "5.2.9"
 [features]
 default = ["7z"]
 7z = ["sevenz-rust"]

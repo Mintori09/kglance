@@ -243,6 +243,8 @@ fn test_reset_to_defaults() {
     assert_eq!(app.state.cache_config, defaults.cache);
     assert_eq!(app.state.scroll_config, defaults.scroll);
     assert_eq!(app.state.selection_menu_config, defaults.selection_menu);
+    assert_eq!(app.state.trash_config, defaults.trash);
+    assert_eq!(app.state.keybinding_config, defaults.keybindings);
 }
 
 #[test]
