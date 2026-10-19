@@ -29,8 +29,12 @@ pub fn list_zip_entries(archive_path: &Path) -> Result<Vec<ArchiveEntry>, ParseE
             })
             .unwrap_or_default();
 
+        let name = entry
+            .name()
+            .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+
         entries.push(ArchiveEntry {
-            path: entry.name().to_string(),
+            path: name.to_string(),
             size: entry.size(),
             is_dir: entry.is_dir(),
             modified,
