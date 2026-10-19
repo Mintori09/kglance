@@ -244,6 +244,10 @@ where
         let state = tree.state.downcast_mut::<State>();
         let bounds = layout.bounds();
 
+        if shell.is_event_captured() {
+            return;
+        }
+
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
                 if let Some(cursor_pos) = cursor.position_over(bounds) {
@@ -309,6 +313,7 @@ where
                     }
 
                     state.last_click = Some(new_click);
+                    shell.capture_event();
                 }
             }
             Event::Mouse(mouse::Event::CursorMoved { .. }) => {

@@ -576,6 +576,10 @@ where
             state.is_mouse_held = false;
         }
 
+        if shell.is_event_captured() {
+            return;
+        }
+
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
                 state.hovered_tooltip = None;
@@ -797,8 +801,9 @@ where
                             if state.selection != old_sel && self.block_index.is_none() {
                                 shell.request_redraw();
                             }
-                        } else if state.is_mouse_held
-                            || (self.drag_active && self.selection_range.is_none())
+                        } else if is_over
+                            && (state.is_mouse_held
+                                || (self.drag_active && self.selection_range.is_none()))
                         {
                             state.is_selecting = true;
                             state.drag_start = Some(offset);
