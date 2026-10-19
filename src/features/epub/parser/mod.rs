@@ -169,7 +169,11 @@ pub fn load_all_chapters_and_images_from_epub(
     }
 
     // 5. Extract all matching images in a single pass over archive.file_names()
-    let file_names: Vec<String> = archive.file_names().map(ToString::to_string).collect();
+    let file_names: Vec<String> = archive
+        .file_names()
+        .flatten()
+        .map(|name| name.into_owned())
+        .collect();
     let mut all_images = HashMap::new();
 
     for name in file_names {
@@ -693,7 +697,11 @@ pub fn extract_selective_images<R: Read + Seek>(
     }
 
     let mut found_cover = cover_href.is_some();
-    let file_names: Vec<String> = archive.file_names().map(ToString::to_string).collect();
+    let file_names: Vec<String> = archive
+        .file_names()
+        .flatten()
+        .map(|name| name.into_owned())
+        .collect();
 
     for name in file_names {
         let filename = extract_filename(&name);
