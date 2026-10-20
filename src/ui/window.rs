@@ -1,11 +1,12 @@
 use iced::{
     Alignment, Element, Length, Padding,
-    widget::{Space, Stack, button, column, container, progress_bar, row, text},
+    widget::{Space, Stack, button, column, container, row, text},
 };
 
 use crate::app::Message;
 use crate::core::KglanceState;
 use crate::ui::theme::AppTheme;
+use crate::ui::theme::color::primitive::OVERLAY_SHADOW;
 use crate::ui::theme::tokens::{elevation, radius, spacing, typography};
 use crate::ui::theme::{
     default_button, default_button_danger, default_dialog, default_raised, default_root,
@@ -291,30 +292,19 @@ fn typst_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Ele
     }
 }
 
-pub fn toast_remaining_ratio(
-    created_at: std::time::Instant,
-    duration: std::time::Duration,
-    now: std::time::Instant,
-) -> f32 {
-    let total_dur_secs = duration.as_secs_f32().max(0.1);
-    let elapsed_secs = now.saturating_duration_since(created_at).as_secs_f32();
-    (1.0 - (elapsed_secs / total_dur_secs)).clamp(0.0, 1.0)
-}
-
 fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     if state.toasts.is_empty() {
         return Element::from(container(text("")).padding(0));
     }
 
     let main_font = crate::ui::theme::font::get_main_font(state.font_family.as_deref());
-    let now = std::time::Instant::now();
 
     let items: Vec<Element<'a, Message>> = state
         .toasts
         .iter()
         .map(|t| {
             let msg_text = text(&t.message).size(typography::BODY_MD).font(main_font);
-            let content_row: Element<'a, Message> = if let Some(action) = &t.action {
+            let content: Element<'a, Message> = if let Some(action) = &t.action {
                 let action_copy = action.clone();
                 let action_btn = button(
                     text("Undo (Ctrl+Z)")
@@ -324,65 +314,36 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
                 .on_press(Message::Trash(
                     crate::app::messages::TrashMsg::ToastActionClicked(action_copy),
                 ))
-                .style(default_button)
-                .padding([spacing::XXS + 1.0, spacing::S]);
+                .style(iced::widget::button::primary)
+                .padding([2, 8]);
 
-                row![msg_text, Space::new().width(spacing::M), action_btn]
+                row![msg_text, action_btn]
+                    .spacing(spacing::S)
                     .align_y(Alignment::Center)
                     .into()
             } else {
                 msg_text.into()
             };
 
-            // Calculate remaining progress (1.0 -> 0.0)
-            let remaining_ratio = toast_remaining_ratio(t.created_at, t.duration, now);
-
-            let bar =
-                progress_bar(0.0..=1.0, remaining_ratio)
-                    .girth(3.0)
-                    .style(|theme: &iced::Theme| {
-                        use iced::widget::progress_bar;
-                        let roles = crate::ui::theme::color::roles::palette(theme);
-                        progress_bar::Style {
-                            background: roles.accent.scale_alpha(0.12).into(),
-                            bar: roles.accent.into(),
-                            border: iced::Border {
-                                radius: iced::border::Radius {
-                                    top_left: 0.0,
-                                    top_right: 0.0,
-                                    bottom_left: radius::FLOATING_PILL,
-                                    bottom_right: radius::FLOATING_PILL,
-                                },
-                                ..Default::default()
-                            },
-                        }
-                    });
-
-            let toast_body = column![
-                container(content_row).padding(Padding {
-                    top: spacing::S + 1.0,
-                    right: spacing::L,
-                    bottom: spacing::S,
-                    left: spacing::L,
-                }),
-                container(bar).width(Length::Fill),
-            ]
-            .spacing(0);
-
-            container(toast_body)
-                .clip(true)
+            container(content)
+                .padding(Padding {
+                    top: 6.0,
+                    right: 16.0,
+                    bottom: 6.0,
+                    left: 16.0,
+                })
                 .style(|theme: &iced::Theme| {
                     use iced::widget::container;
-                    let overlay = AppTheme::from(theme).palette().overlay;
+                    let p = AppTheme::from(theme).palette().base;
                     container::Style {
-                        background: Some(overlay.floating_bg.into()),
-                        text_color: Some(overlay.floating_fg),
+                        background: Some(p.surface_raised.into()),
+                        text_color: Some(p.text),
                         border: iced::Border {
                             radius: radius::FLOATING_PILL.into(),
                             width: 1.0,
-                            color: overlay.floating_border,
+                            color: p.border,
                         },
-                        shadow: elevation::floating_pill(overlay.floating_shadow),
+                        shadow: elevation::floating_pill(OVERLAY_SHADOW),
                         ..Default::default()
                     }
                 })
@@ -395,7 +356,7 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         .padding(Padding {
             top: 0.0,
             right: 0.0,
-            bottom: 56.0,
+            bottom: 40.0,
             left: 0.0,
         })
         .width(Length::Shrink)
@@ -643,27 +604,27 @@ mod tests {
     }
 
     #[test]
-    fn test_toast_remaining_ratio_progression() {
-        let t0 = std::time::Instant::now();
-        let dur = std::time::Duration::from_secs(10);
+    fn test_toasts_rendering_when_empty_and_non_empty() {
+        use crate::core::types::{ToastAction, ToastInfo};
+        let mut state = KglanceState::default();
+        {
+            let _empty = toasts(&state);
+        }
 
-        // At start: ratio is 1.0
-        let r0 = toast_remaining_ratio(t0, dur, t0);
-        assert!((r0 - 1.0).abs() < f32::EPSILON);
-
-        // At half duration: ratio is 0.5
-        let t_half = t0 + std::time::Duration::from_secs(5);
-        let r_half = toast_remaining_ratio(t0, dur, t_half);
-        assert!((r_half - 0.5).abs() < 0.01);
-
-        // At end: ratio is 0.0
-        let t_end = t0 + std::time::Duration::from_secs(10);
-        let r_end = toast_remaining_ratio(t0, dur, t_end);
-        assert!((r_end - 0.0).abs() < f32::EPSILON);
-
-        // Beyond end: clamped to 0.0
-        let t_after = t0 + std::time::Duration::from_secs(15);
-        let r_after = toast_remaining_ratio(t0, dur, t_after);
-        assert!((r_after - 0.0).abs() < f32::EPSILON);
+        state.toasts.push(ToastInfo {
+            id: 1,
+            message: "Copied!".to_string(),
+            action: None,
+            created_at: std::time::Instant::now(),
+            duration: std::time::Duration::from_secs(2),
+        });
+        state.toasts.push(ToastInfo {
+            id: 2,
+            message: "Moved file to trash".to_string(),
+            action: Some(ToastAction::UndoTrash),
+            created_at: std::time::Instant::now(),
+            duration: std::time::Duration::from_secs(8),
+        });
+        let _non_empty = toasts(&state);
     }
 }
