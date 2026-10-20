@@ -1376,13 +1376,6 @@ impl KglanceApp {
             Subscription::none()
         };
 
-        let toast_tick_sub = if !self.state.toasts.is_empty() && gui_open {
-            iced::time::every(std::time::Duration::from_millis(30))
-                .map(|_| crate::app::messages::SystemMsg::ToastTick.into())
-        } else {
-            Subscription::none()
-        };
-
         Subscription::batch(vec![
             dbus_sub,
             event_sub,
@@ -1401,7 +1394,6 @@ impl KglanceApp {
             markdown_anim_sub,
             image_anim_sub,
             model3d_anim_sub,
-            toast_tick_sub,
         ])
     }
 

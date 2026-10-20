@@ -307,7 +307,6 @@ pub enum SystemMsg {
     WindowResized(f32, f32),
     ReadPositionsTick,
     SpinnerTick,
-    ToastTick,
 }
 
 #[derive(Debug, Clone)]
