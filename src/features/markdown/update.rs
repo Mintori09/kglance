@@ -127,7 +127,7 @@ pub fn handle_toc_toggle_collapse(app: &mut KglanceApp, idx: usize) -> Task<Mess
 }
 
 pub fn handle_toc_heading_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message> {
-    let state = &mut app.state.markdown;
+    let state = active_markdown_state_mut(app);
     let y = state
         .block_y_offsets
         .get(idx)
@@ -152,7 +152,19 @@ pub fn handle_toc_heading_clicked(app: &mut KglanceApp, idx: usize) -> Task<Mess
     state
         .smooth_scroll
         .start_navigation(state.scroll_y, y, max_y);
-    Task::none()
+    if !state.smooth_scroll.is_animating {
+        let new_y = state.smooth_scroll.position_y();
+        state.scroll_y = new_y;
+        let toc_task = scroll_toc_to_active(state.toc_visible, &state.toc, new_y);
+        app.record_read_position();
+        let scroll_task = operation::scroll_to(
+            "content_scroll",
+            operation::AbsoluteOffset { x: 0.0, y: new_y },
+        );
+        Task::batch([scroll_task, toc_task])
+    } else {
+        Task::none()
+    }
 }
 
 pub fn handle_markdown_scrolled(
