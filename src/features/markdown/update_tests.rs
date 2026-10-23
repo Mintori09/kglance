@@ -895,6 +895,27 @@ fn test_toc_heading_click_interrupts_active_kinetic_scroll() {
 }
 
 #[test]
+fn test_toc_heading_click_when_smooth_scroll_disabled() {
+    use crate::app::test_util::test_app;
+
+    let mut app = test_app(None);
+    app.state.markdown.viewport_height = 800.0;
+    app.state.markdown.total_content_height = 6000.0;
+    app.state.markdown.scroll_y = 200.0;
+    app.state.markdown.block_y_offsets = vec![0.0, 1500.0, 3000.0];
+    app.state.scroll_config.smooth_scroll_enabled = false;
+    app.state.apply_scroll_controllers();
+
+    let _ = handle_toc_heading_clicked(&mut app, 1);
+
+    assert!(!app.state.markdown.smooth_scroll.is_animating());
+    assert_eq!(
+        app.state.markdown.scroll_y,
+        crate::parsers::markdown::layout_constants::CONTENT_PADDING + 1500.0
+    );
+}
+
+#[test]
 fn test_handle_markdown_scrolled_interruption_stops_active_kinetic_scroll() {
     use crate::app::test_util::test_app;
 
