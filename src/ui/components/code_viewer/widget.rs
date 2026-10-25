@@ -421,8 +421,7 @@ where
 
         let gutter_x = viewport.x.max(bounds.x);
         let gutter_color = self.theme.palette().base.text_dim;
-        let gutter_bg = self.theme.palette().base.surface;
-        let gutter_border = self.theme.palette().base.border;
+        let gutter_bg = self.theme.palette().base.bg;
         let default_text_color = self.theme.palette().base.text;
         let selection_bg = self.theme.palette().overlay.selection_bg;
         let search_match_bg = self.theme.palette().markdown.search_inactive_bg;
@@ -436,7 +435,7 @@ where
             ..self.font
         };
 
-        // Render pinned gutter background and separator line
+        // Render pinned gutter bgutter_borderackground and separator line
         renderer.fill_quad(
             renderer::Quad {
                 bounds: Rectangle {
@@ -450,21 +449,6 @@ where
                 snap: false,
             },
             Background::Color(gutter_bg),
-        );
-
-        renderer.fill_quad(
-            renderer::Quad {
-                bounds: Rectangle {
-                    x: gutter_x + gutter_w - 1.0,
-                    y: viewport.y,
-                    width: 1.0,
-                    height: viewport.height,
-                },
-                border: Border::default(),
-                shadow: Shadow::default(),
-                snap: false,
-            },
-            Background::Color(gutter_border),
         );
 
         let (start_line, _) = if let Some(d) = self.display_map {
