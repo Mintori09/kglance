@@ -53,6 +53,7 @@ pub struct ImageState {
     pub show_info: bool,
     pub animated_gif: Option<Arc<crate::features::image::AnimatedGif>>,
     pub animation_start_time: Option<std::time::Instant>,
+    pub prev_frame_handle: Option<image::Handle>,
 }
 
 impl Default for ImageState {
@@ -73,6 +74,7 @@ impl Default for ImageState {
             show_info: false,
             animated_gif: None,
             animation_start_time: None,
+            prev_frame_handle: None,
         }
     }
 }

@@ -99,6 +99,7 @@ pub fn populate_state(
         show_info: false,
         animated_gif,
         animation_start_time,
+        prev_frame_handle: None,
     };
 
     state.file_type_text = format_info.to_string();
