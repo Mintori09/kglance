@@ -71,7 +71,7 @@ impl ImageRenderer for CanvasRenderer {
 
         let rotation = iced::Radians(camera.rotation.to_radians());
 
-        // 1. Draw preview_handle as persistent underlay if present.
+        // 1. Draw preview_handle as persistent baseline underlay if present.
         // In Iced's WGPU backend, image data >2MB is uploaded asynchronously on a
         // background worker thread when first encountered, during which iced_wgpu
         // skips drawing the image for 1-2 frames. Drawing preview_handle first
@@ -91,11 +91,33 @@ impl ImageRenderer for CanvasRenderer {
             );
         }
 
-        // 2. Draw display_handle (or fallback handle) on top of the underlay.
+        // 2. Draw prev_frame_handle as continuous underlay for animated GIFs.
+        // When transitioning between frames (>20 frames), newly encountered frames
+        // are uploaded asynchronously by iced_wgpu. Keeping the immediately preceding
+        // frame drawn underneath prevents black/transparent flashes during frame swaps.
+        if let Some(ref prev_frame) = image.prev_frame_handle
+            && image.preview_handle.as_ref() != Some(prev_frame)
+        {
+            renderer.draw_image(
+                image::Image {
+                    handle: prev_frame.clone(),
+                    filter_method: image::FilterMethod::Linear,
+                    rotation,
+                    border_radius: iced::border::Radius::default(),
+                    opacity: 1.0,
+                    snap: false,
+                },
+                draw_bounds,
+                bounds,
+            );
+        }
+
+        // 3. Draw display_handle (or fallback handle) on top of the underlay.
         let main_handle = image.display_handle.as_ref().or(image.handle.as_ref());
 
         if let Some(main_handle) = main_handle
             && image.preview_handle.as_ref() != Some(main_handle)
+            && image.prev_frame_handle.as_ref() != Some(main_handle)
         {
             renderer.draw_image(
                 image::Image {
