@@ -23,7 +23,10 @@ fn count_inlines_metrics(
             Inline::Text(t) => {
                 count_str_metrics(t, visual_units, explicit_newlines, true);
             }
-            Inline::Bold(c) | Inline::Italic(c) | Inline::Strikethrough(c) => {
+            Inline::Bold(c)
+            | Inline::Italic(c)
+            | Inline::Strikethrough(c)
+            | Inline::Underline(c) => {
                 count_inlines_metrics(c, visual_units, explicit_newlines);
             }
             Inline::Code(t) => {

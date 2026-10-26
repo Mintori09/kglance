@@ -25,6 +25,7 @@ pub enum Inline {
     Bold(Vec<Inline>),
     Italic(Vec<Inline>),
     Strikethrough(Vec<Inline>),
+    Underline(Vec<Inline>),
     Code(String),
     Link {
         text: Vec<Inline>,

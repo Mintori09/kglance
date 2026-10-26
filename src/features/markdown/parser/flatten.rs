@@ -39,6 +39,16 @@ fn flatten_inlines_with(inlines: &[Inline], mode: FlattenMode) -> String {
             Inline::Bold(c) => flatten_emphasis(&mut s, c, "**", mode),
             Inline::Italic(c) => flatten_emphasis(&mut s, c, "_", mode),
             Inline::Strikethrough(c) => flatten_emphasis(&mut s, c, "~~", mode),
+            Inline::Underline(c) => match mode {
+                FlattenMode::Markdown => {
+                    s.push_str("<u>");
+                    s.push_str(&flatten_inlines_with(c, mode));
+                    s.push_str("</u>");
+                }
+                FlattenMode::Plain | FlattenMode::Visual | FlattenMode::Toc => {
+                    s.push_str(&flatten_inlines_with(c, mode));
+                }
+            },
             Inline::Code(t) => {
                 if matches!(mode, FlattenMode::Markdown | FlattenMode::Toc) {
                     s.push('`');
