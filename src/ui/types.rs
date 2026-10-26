@@ -16,6 +16,7 @@ pub(crate) struct RenderContext<'a> {
     pub(crate) ruby_display_mode: crate::core::config::RubyDisplayMode,
     pub(crate) footnotes: Option<&'a std::collections::HashMap<String, String>>,
     pub(crate) result_popup: bool,
+    pub(crate) show_heading_divider: bool,
 }
 
 impl<'a> RenderContext<'a> {

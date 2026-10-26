@@ -44,6 +44,7 @@ pub fn view_epub<'a>(
         ruby_display_mode,
         footnotes: None,
         result_popup: false,
+        show_heading_divider: false,
     };
 
     let main_content = build_epub_content(state, active_chapter, &ctx, max_text_width);

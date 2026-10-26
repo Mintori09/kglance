@@ -29,7 +29,7 @@ pub(crate) fn render_heading<'a>(
         })
         .width(Length::Fill);
 
-    if level == 1 || level == 2 {
+    if (level == 1 || level == 2) && ctx.show_heading_divider {
         let theme = ctx.theme;
         let divider = container(text(""))
             .style(move |_: &iced::Theme| divider_line_style(theme))
