@@ -114,7 +114,7 @@ where
         if self.rubies.is_empty() {
             0.0
         } else {
-            ruby_box_height(self.font_size) + 2.0
+            ruby_top_padding(self.font_size)
         }
     }
 
@@ -223,11 +223,15 @@ struct State {
     hovered_tooltip: Option<HoveredTooltip>,
 }
 
+pub fn ruby_top_padding(font_size: f32) -> f32 {
+    ruby_box_height(font_size) + 2.0
+}
+
 fn ruby_font_size(font_size: f32) -> f32 {
     (font_size * 0.52).max(8.0)
 }
 
-fn ruby_box_height(font_size: f32) -> f32 {
+pub fn ruby_box_height(font_size: f32) -> f32 {
     ruby_font_size(font_size) * 1.2
 }
 
