@@ -128,6 +128,12 @@ pub(super) fn handle_inline_html<F>(
         return;
     }
 
+    if lower.starts_with("<u") && (lower == "<u>" || lower.starts_with("<u ")) {
+        let content = parse_until(&["</u>"]);
+        result.push(Inline::Underline(content));
+        return;
+    }
+
     if lower.starts_with("<code") && (lower == "<code>" || lower.starts_with("<code "))
         || lower.starts_with("<kbd") && (lower == "<kbd>" || lower.starts_with("<kbd "))
         || lower.starts_with("<tt") && (lower == "<tt>" || lower.starts_with("<tt "))
@@ -216,6 +222,7 @@ pub(super) fn handle_inline_html<F>(
         || lower == "</del>"
         || lower == "</s>"
         || lower == "</strike>"
+        || lower == "</u>"
         || lower == "</span>"
         || lower == "</div>"
         || lower == "</p>"

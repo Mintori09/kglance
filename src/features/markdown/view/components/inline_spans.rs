@@ -110,6 +110,10 @@ fn hash_inlines_recursive(inlines: &[Inline], hasher: &mut FxHasher) {
                 hasher.write_u8(4);
                 hash_inlines_recursive(c, hasher);
             }
+            Inline::Underline(c) => {
+                hasher.write_u8(13);
+                hash_inlines_recursive(c, hasher);
+            }
             Inline::Code(code) => {
                 hasher.write_u8(5);
                 hasher.write(code.as_bytes());
@@ -297,6 +301,12 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                 for mut s in inlines_to_spans_core(children, span_ctx) {
                     s.font = main_font;
                     s.strikethrough = true;
+                    spans.push(s);
+                }
+            }
+            Inline::Underline(children) => {
+                for mut s in inlines_to_spans_core(children, span_ctx) {
+                    s.underline = true;
                     spans.push(s);
                 }
             }

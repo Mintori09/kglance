@@ -1622,3 +1622,23 @@ fn test_paragraph_height_estimation_prose() {
     // 2 lines * 21.0 + 16.0 = 58.0
     assert_eq!(h3, 58.0);
 }
+
+#[test]
+fn parses_inline_underline_html_tag() {
+    let blocks = parse_to_blocks("<u>本当に助かった</u>とあるが");
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            assert!(
+                inlines.iter().any(|i| match i {
+                    Inline::Underline(subs) => {
+                        matches!(&subs[0], Inline::Text(t) if t == "本当に助かった")
+                    }
+                    _ => false,
+                }),
+                "expected paragraph to contain Inline::Underline"
+            );
+        }
+        _ => panic!("expected paragraph block"),
+    }
+}
