@@ -1,8 +1,10 @@
 use super::style::STYLE;
 use crate::app::Message;
+use crate::core::config::RubyDisplayMode;
 use crate::features::markdown::view::blocks::render_block;
 use crate::features::markdown::view::components::render_inlines;
-use crate::parsers::markdown::ListItem;
+use crate::parsers::markdown::{Block, Inline, ListItem};
+use crate::ui::components::selectable_text::ruby_top_padding;
 use crate::ui::theme::font::get_code_font;
 use crate::ui::types::RenderContext;
 use iced::widget::{column, container, row, text};
@@ -35,7 +37,9 @@ fn render_list_level<'a>(
         let mut children: Vec<Element<'a, Message>> = Vec::with_capacity(item.sub_blocks.len() + 1);
 
         if has_direct_content {
-            let prefix = create_list_prefix(ordered, start_number, index, item, ctx, level);
+            let has_ruby = has_stacked_ruby(&item.content, ctx.ruby_display_mode);
+            let prefix =
+                create_list_prefix(ordered, start_number, index, item, ctx, level, has_ruby);
             let content = render_inlines(&item.content, ctx.font_size, ctx);
             children.push(
                 row![prefix, content]
@@ -56,7 +60,9 @@ fn render_list_level<'a>(
                 render_block(sb_idx, sub_block, state, ctx)
             };
             if !has_direct_content && sb_idx == 0 {
-                let prefix = create_list_prefix(ordered, start_number, index, item, ctx, level);
+                let has_ruby = block_starts_with_stacked_ruby(sub_block, ctx.ruby_display_mode);
+                let prefix =
+                    create_list_prefix(ordered, start_number, index, item, ctx, level, has_ruby);
                 children.push(
                     row![prefix, sub_element]
                         .spacing(STYLE.list.item_spacing)
@@ -107,8 +113,9 @@ fn create_list_prefix<'a>(
     item: &ListItem,
     ctx: &RenderContext<'_>,
     level: usize,
+    has_stacked_ruby: bool,
 ) -> Element<'a, Message> {
-    if let Some(checked) = item.is_task {
+    let base_prefix: Element<'a, Message> = if let Some(checked) = item.is_task {
         let symbol = if checked { "[x] " } else { "[ ] " };
         let color: Color = if checked {
             ctx.theme.palette().roles.success
@@ -140,5 +147,64 @@ fn create_list_prefix<'a>(
             .color(color)
             .shaping(iced::widget::text::Shaping::Basic)
             .into()
+    };
+
+    if has_stacked_ruby {
+        container(base_prefix)
+            .padding(Padding {
+                top: ruby_top_padding(ctx.font_size),
+                right: 0.0,
+                bottom: 0.0,
+                left: 0.0,
+            })
+            .into()
+    } else {
+        base_prefix
     }
 }
+
+pub(crate) fn has_stacked_ruby(inlines: &[Inline], mode: RubyDisplayMode) -> bool {
+    matches!(mode, RubyDisplayMode::Stacked) && inlines.iter().any(inline_has_ruby)
+}
+
+fn inline_has_ruby(inline: &Inline) -> bool {
+    match inline {
+        Inline::Ruby { .. } => true,
+        Inline::Bold(children)
+        | Inline::Italic(children)
+        | Inline::Strikethrough(children)
+        | Inline::Link { text: children, .. } => children.iter().any(inline_has_ruby),
+        Inline::Text(_)
+        | Inline::Code(_)
+        | Inline::Image { .. }
+        | Inline::InlineMath(_)
+        | Inline::DisplayMath(_)
+        | Inline::FootnoteReference(_)
+        | Inline::SoftBreak => false,
+    }
+}
+
+fn block_starts_with_stacked_ruby(block: &Block, mode: RubyDisplayMode) -> bool {
+    match block {
+        Block::Paragraph(inlines)
+        | Block::Heading {
+            content: inlines, ..
+        } => has_stacked_ruby(inlines, mode),
+        Block::Frontmatter(_)
+        | Block::List { .. }
+        | Block::Quote(_)
+        | Block::CodeBlock { .. }
+        | Block::Table(_)
+        | Block::Html(_)
+        | Block::HorizontalRule
+        | Block::Alert { .. }
+        | Block::Math(_)
+        | Block::Mermaid { .. }
+        | Block::FootnoteDefinition { .. }
+        | Block::Image { .. } => false,
+    }
+}
+
+#[cfg(test)]
+#[path = "list_tests.rs"]
+mod tests;
