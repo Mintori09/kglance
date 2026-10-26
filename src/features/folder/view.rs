@@ -7,6 +7,7 @@ use super::breadcrumbs::create_breadcrumbs;
 use super::distribution::create_distribution_bar;
 use crate::app::Message;
 use crate::core::{FolderState, SortField};
+use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::theme::color::base::BaseColors;
 use crate::ui::theme::color::primitive;
 use crate::ui::theme::font::{get_main_font, get_main_font_bold, get_main_font_medium};
@@ -79,21 +80,25 @@ pub fn view_folder<'a>(
     let folder_header = create_folder_header(&state.sort_state, style_ctx.main_font_medium);
     let rows_list = create_folder_rows(state, &style_ctx);
 
-    let table_box = container(
-        column![
-            folder_header,
-            scrollable(rows_list)
-                .id("content_scroll")
-                .style(default_scrollable)
-                .on_scroll(|vp| crate::app::messages::NavigationMsg::FolderScrolled(vp).into())
-                .height(Length::Fill)
-        ]
-        .spacing(spacing::XS)
-        .padding(spacing::XS as u16),
-    )
-    .style(table_card_style)
-    .width(Length::Fill)
-    .height(Length::Fill);
+    let mut table_content = column![folder_header].spacing(spacing::XS);
+
+    if state.search_visible {
+        table_content =
+            table_content.push(search_bar(SearchKind::Folder, &state.search_query, None));
+    }
+
+    table_content = table_content.push(
+        scrollable(rows_list)
+            .id("content_scroll")
+            .style(default_scrollable)
+            .on_scroll(|vp| crate::app::messages::NavigationMsg::FolderScrolled(vp).into())
+            .height(Length::Fill),
+    );
+
+    let table_box = container(table_content.padding(spacing::XS as u16))
+        .style(table_card_style)
+        .width(Length::Fill)
+        .height(Length::Fill);
 
     container(
         column![summary_block, table_box]
@@ -434,7 +439,13 @@ fn create_folder_rows<'a>(
         .spacing(ROWS_LIST_SPACING)
         .padding(ROWS_LIST_PADDING);
 
+    let query = state.search_query.trim().to_lowercase();
+
     for (row_index, row_data) in state.rows.iter().enumerate() {
+        if !query.is_empty() && !row_data.name.to_lowercase().contains(&query) {
+            continue;
+        }
+
         let is_selected = state.selected_index == Some(row_index);
         let is_odd = row_index % 2 == 1;
         let row_button = create_folder_row(row_index, row_data, is_selected, is_odd, ctx);

@@ -48,6 +48,10 @@ impl KglanceApp {
             return Some(self.open_spreadsheet_search_without_query());
         }
 
+        if self.is_folder_search_available() {
+            return Some(self.open_folder_search());
+        }
+
         if self.is_grid_view() {
             return Some(self.open_grid_search_without_query());
         }
@@ -78,6 +82,7 @@ impl KglanceApp {
             Some(PreviewData::Json { .. }) => self.state.json.search_visible,
             Some(PreviewData::Markdown { .. }) => self.state.markdown.search_visible,
             Some(PreviewData::Spreadsheet { .. }) => self.state.spreadsheet.search_visible,
+            Some(PreviewData::Folder { .. }) => self.state.folder.search_visible,
             _ => false,
         }
     }
@@ -132,6 +137,9 @@ impl KglanceApp {
             }
             Some(PreviewData::Spreadsheet { .. }) if self.state.spreadsheet.search_visible => {
                 self.close_spreadsheet_search();
+            }
+            Some(PreviewData::Folder { .. }) if self.state.folder.search_visible => {
+                self.close_folder_search();
             }
             _ => {}
         }
@@ -257,6 +265,20 @@ impl KglanceApp {
     fn close_spreadsheet_search(&mut self) {
         self.state.spreadsheet.search_visible = false;
         self.state.spreadsheet.search_query.clear();
+    }
+
+    fn is_folder_search_available(&self) -> bool {
+        matches!(self.current_content, Some(PreviewData::Folder { .. }))
+    }
+
+    fn open_folder_search(&mut self) -> Task<Message> {
+        self.state.folder.search_visible = true;
+        iced::widget::operation::focus("folder_search_input")
+    }
+
+    fn close_folder_search(&mut self) {
+        self.state.folder.search_visible = false;
+        self.state.folder.search_query.clear();
     }
 
     fn is_close_shortcut(key: &iced::keyboard::Key) -> bool {

@@ -54,6 +54,8 @@ pub struct FolderState {
     pub folder_path: String,
     pub scroll_y: f32,
     pub viewport_height: f32,
+    pub search_visible: bool,
+    pub search_query: String,
 }
 
 pub fn sort_folder_rows(rows: &mut [FolderRowState], sort: &SortState) {
