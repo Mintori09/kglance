@@ -726,7 +726,7 @@ fn test_reading_mode_changed_preserves_position_single_to_continuous() {
     // In continuous mode, scroll_y must NOT be 0.0 or initial_scroll_y,
     // but must match the offset of chapter 2 block 1 in continuous layout + 15.0!
     let ch2_start = app.state.epub.chapter_block_offsets[1];
-    let header_count = 2; // HR + Heading
+    let header_count = 1; // HR separator
     let cont_target_block = ch2_start + header_count + 1;
     let expected_continuous_y =
         app.state.epub.markdown_state.block_y_offsets[cont_target_block] + 15.0;
@@ -791,7 +791,7 @@ fn test_reading_mode_changed_preserves_position_continuous_to_single() {
 
     // Position user in continuous mode at chapter 2's second block + 25.0
     let ch2_start = app.state.epub.chapter_block_offsets[1];
-    let header_count = 2; // HR + Heading
+    let header_count = 1; // HR separator
     let cont_target_block = ch2_start + header_count + 1;
     let cont_scroll_y = app.state.epub.markdown_state.block_y_offsets[cont_target_block] + 25.0;
     app.state.epub.markdown_state.scroll_y = cont_scroll_y;

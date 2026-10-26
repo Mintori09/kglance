@@ -121,15 +121,8 @@ pub fn build_continuous_blocks(chapters: &[EpubChapterInfo]) -> (Vec<Block>, Vec
             continue;
         }
 
-        let first_is_heading = matches!(ch.blocks.first(), Some(Block::Heading { .. }));
-        if !first_is_heading && !ch.title.is_empty() {
-            if ch_idx > 0 {
-                all_blocks.push(Block::HorizontalRule);
-            }
-            all_blocks.push(Block::Heading {
-                level: ch.level.clamp(1, 6),
-                content: vec![crate::parsers::markdown::Inline::Text(ch.title.clone())],
-            });
+        if ch_idx > 0 {
+            all_blocks.push(Block::HorizontalRule);
         }
 
         all_blocks.extend(ch.blocks.iter().cloned());
@@ -366,8 +359,9 @@ mod tests {
         let (blocks, offsets) = build_continuous_blocks(&chapters);
         assert_eq!(offsets.len(), 2);
         assert_eq!(offsets[0], 0);
-        // Chapter 1 has 1 heading block + 1 paragraph block = 2 blocks, plus a HorizontalRule before Chapter 2
+        // Chapter 1 has 1 paragraph block = 1 block, plus a HorizontalRule before Chapter 2 (offset at index 1)
         assert!(offsets[1] > offsets[0]);
-        assert!(blocks.len() >= 4);
+        assert_eq!(offsets[1], 1);
+        assert_eq!(blocks.len(), 3); // ch1 para + HR + ch2 para
     }
 }

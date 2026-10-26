@@ -1,5 +1,4 @@
 use crate::core::types::{EpubChapterInfo, EpubState};
-use crate::parsers::markdown::Block;
 
 /// Reading position anchor that can be translated bidirectionally between
 /// SingleChapter and Continuous reading modes without losing the user's reading line.
@@ -10,25 +9,17 @@ pub struct EpubReadingAnchor {
     pub intra_block_offset: f32,
 }
 
-/// Synthetic block counts inserted by [`crate::features::epub::state::build_continuous_blocks`]
-/// when a chapter does not begin with an existing heading:
-/// - Chapter 0: 1 block (`Heading`)
-/// - Subsequent chapters: 2 blocks (`HorizontalRule` + `Heading`) to visually separate chapters.
-pub const SYNTHETIC_HEADER_BLOCKS_FIRST_CHAPTER: usize = 1;
-pub const SYNTHETIC_HEADER_BLOCKS_SUBSEQUENT_CHAPTER: usize = 2;
+/// Synthetic separator block counts inserted by [`crate::features::epub::state::build_continuous_blocks`]:
+/// - Chapter 0: 0 blocks
+/// - Subsequent chapters: 1 block (`HorizontalRule`) to visually separate chapters.
+pub const SYNTHETIC_SEPARATOR_BLOCKS_SUBSEQUENT_CHAPTER: usize = 1;
 
-/// Counts synthetic heading blocks injected when concatenating chapters in Continuous mode.
+/// Counts synthetic separator blocks (`HorizontalRule`) injected when concatenating chapters in Continuous mode.
 pub fn chapter_header_blocks_count(ch: &EpubChapterInfo, ch_idx: usize) -> usize {
     if ch.blocks.is_empty() {
-        return 0;
-    }
-    let first_is_heading = matches!(ch.blocks.first(), Some(Block::Heading { .. }));
-    if !first_is_heading && !ch.title.is_empty() {
-        if ch_idx > 0 {
-            SYNTHETIC_HEADER_BLOCKS_SUBSEQUENT_CHAPTER
-        } else {
-            SYNTHETIC_HEADER_BLOCKS_FIRST_CHAPTER
-        }
+        0
+    } else if ch_idx > 0 {
+        SYNTHETIC_SEPARATOR_BLOCKS_SUBSEQUENT_CHAPTER
     } else {
         0
     }
