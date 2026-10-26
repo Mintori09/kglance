@@ -149,6 +149,11 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::NavigationMsg::FileClicked(idx) => {
                 navigation::handle_file_clicked(app, idx)
             }
+            crate::app::messages::NavigationMsg::OpenPath(path) => {
+                navigation::load_file_task(app, path, |err_path| {
+                    crate::app::messages::SystemMsg::FilePreviewError(err_path).into()
+                })
+            }
             crate::app::messages::NavigationMsg::FolderScrolled(vp) => {
                 if app.ctrl_held {
                     return Task::none();

@@ -26,6 +26,7 @@ pub enum NavigationMsg {
     ToggleSettingsClicked,
     FileClicked(usize),
     FolderScrolled(iced::widget::scrollable::Viewport),
+    OpenPath(String),
 }
 
 #[derive(Debug, Clone)]

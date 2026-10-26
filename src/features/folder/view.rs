@@ -3,6 +3,8 @@ use std::path::Path;
 use iced::widget::{button, column, container, row, scrollable, svg, text};
 use iced::{Alignment, Border, Color, Element, Font, Length, Shadow, Theme, alignment};
 
+use super::breadcrumbs::create_breadcrumbs;
+use super::distribution::create_distribution_bar;
 use crate::app::Message;
 use crate::core::{FolderState, SortField};
 use crate::ui::theme::color::base::BaseColors;
@@ -11,10 +13,10 @@ use crate::ui::theme::font::{get_main_font, get_main_font_bold, get_main_font_me
 use crate::ui::theme::tokens::{elevation, radius, spacing, tables, typography};
 use crate::ui::theme::{AppTheme, default_scrollable, icon_theme};
 
-const COLUMN_PORTION_NAME: u16 = 48;
-const COLUMN_PORTION_KIND: u16 = 20;
-const COLUMN_PORTION_SIZE: u16 = 14;
-const COLUMN_PORTION_MODIFIED: u16 = 18;
+const COLUMN_WIDTH_KIND: f32 = 140.0;
+const COLUMN_WIDTH_SIZE: f32 = 80.0;
+const COLUMN_WIDTH_MODIFIED: f32 = 130.0;
+const SCROLLBAR_OFFSET: f32 = 12.0;
 
 const SORT_ASCENDING_INDICATOR: &str = "▲";
 const SORT_DESCENDING_INDICATOR: &str = "▼";
@@ -24,7 +26,6 @@ const DEFAULT_FOLDER_EMOJI: &str = "📁";
 const FOLDER_ICON_NAME: &str = "inode-directory";
 
 const SUMMARY_FOLDER_NAME_SIZE: f32 = 16.0;
-const SUMMARY_PATH_SIZE: f32 = typography::CAPTION;
 const SUMMARY_STATS_SIZE: f32 = 11.5;
 const SUMMARY_ICON_SIZE: f32 = 26.0;
 
@@ -74,7 +75,7 @@ pub fn view_folder<'a>(
         main_font_medium: get_main_font_medium(font_family),
     };
 
-    let summary_block = create_summary_block(state, &style_ctx);
+    let summary_block = create_summary_block(state, &style_ctx, theme);
     let folder_header = create_folder_header(&state.sort_state, style_ctx.main_font_medium);
     let rows_list = create_folder_rows(state, &style_ctx);
 
@@ -125,6 +126,7 @@ fn resolve_theme_colors(theme: AppTheme) -> (Color, Color, Color) {
 fn create_summary_block<'a>(
     state: &'a FolderState,
     ctx: &FolderStyleContext,
+    theme: AppTheme,
 ) -> Element<'a, Message> {
     let folder_name = Path::new(&state.folder_path)
         .file_name()
@@ -157,14 +159,13 @@ fn create_summary_block<'a>(
         .padding(spacing::S as u16)
         .style(summary_icon_box_style);
 
+    let breadcrumbs = create_breadcrumbs(&state.folder_path, ctx.main_font, theme);
+
     let folder_info = column![
         text(folder_name)
             .size(SUMMARY_FOLDER_NAME_SIZE)
             .font(ctx.main_font_bold),
-        text(&state.folder_path)
-            .size(SUMMARY_PATH_SIZE)
-            .font(ctx.main_font)
-            .color(ctx.sub_dim_color),
+        breadcrumbs,
     ]
     .spacing(spacing::XXS);
 
@@ -206,16 +207,22 @@ fn create_summary_block<'a>(
     .style(summary_badge_style);
     badges = badges.push(size_badge);
 
-    container(
-        row![left_side, badges]
-            .spacing(spacing::M)
-            .align_y(Alignment::Center)
-            .width(Length::Fill),
-    )
-    .padding(SUMMARY_PADDING)
-    .style(summary_card_style)
-    .width(Length::Fill)
-    .into()
+    let top_row = row![left_side, badges]
+        .spacing(spacing::M)
+        .align_y(Alignment::Center)
+        .width(Length::Fill);
+
+    let mut summary_content = column![top_row].spacing(spacing::S).width(Length::Fill);
+
+    if let Some(dist_bar) = create_distribution_bar(&state.rows, theme) {
+        summary_content = summary_content.push(dist_bar);
+    }
+
+    container(summary_content)
+        .padding(SUMMARY_PADDING)
+        .style(summary_card_style)
+        .width(Length::Fill)
+        .into()
 }
 
 fn create_folder_header<'a>(
@@ -228,7 +235,7 @@ fn create_folder_header<'a>(
                 sort_state,
                 SortField::Name,
                 "Name",
-                COLUMN_PORTION_NAME,
+                Length::Fill,
                 main_font_medium,
                 alignment::Horizontal::Left,
             ),
@@ -236,7 +243,7 @@ fn create_folder_header<'a>(
                 sort_state,
                 SortField::Kind,
                 "Kind",
-                COLUMN_PORTION_KIND,
+                Length::Fixed(COLUMN_WIDTH_KIND),
                 main_font_medium,
                 alignment::Horizontal::Left,
             ),
@@ -244,7 +251,7 @@ fn create_folder_header<'a>(
                 sort_state,
                 SortField::Size,
                 "Size",
-                COLUMN_PORTION_SIZE,
+                Length::Fixed(COLUMN_WIDTH_SIZE),
                 main_font_medium,
                 alignment::Horizontal::Right,
             ),
@@ -252,10 +259,11 @@ fn create_folder_header<'a>(
                 sort_state,
                 SortField::Modified,
                 "Modified",
-                COLUMN_PORTION_MODIFIED,
+                Length::Fixed(COLUMN_WIDTH_MODIFIED),
                 main_font_medium,
                 alignment::Horizontal::Left,
             ),
+            iced::widget::Space::new().width(Length::Fixed(SCROLLBAR_OFFSET)),
         ]
         .spacing(HEADER_LAYOUT_SPACING)
         .align_y(Alignment::Center)
@@ -271,7 +279,7 @@ fn create_header_button<'a>(
     sort_state: &crate::core::SortState,
     field: SortField,
     label: &str,
-    width_portion: u16,
+    width: Length,
     main_font_medium: Font,
     align: alignment::Horizontal,
 ) -> button::Button<'a, Message> {
@@ -287,7 +295,7 @@ fn create_header_button<'a>(
     )
     .on_press(Message::SortByFieldClicked(field))
     .style(move |theme, status| header_button_style(theme, status, is_active))
-    .width(Length::FillPortion(width_portion))
+    .width(width)
 }
 
 fn format_sort_label(sort_state: &crate::core::SortState, field: SortField, label: &str) -> String {
@@ -389,9 +397,9 @@ fn header_button_style(theme: &Theme, status: button::Status, is_active: bool) -
     let app_theme = AppTheme::from(theme);
 
     let hover_bg = if app_theme.is_dark() {
-        primitive::WHITE_006
+        primitive::WHITE_008
     } else {
-        primitive::BLACK_006
+        primitive::BLACK_008
     };
 
     let (bg, text_color) = match status {
@@ -464,26 +472,29 @@ fn create_folder_row<'a>(
                 .size(ROW_NAME_SIZE)
                 .font(name_font)
                 .color(ctx.text_color)
+                .wrapping(iced::widget::text::Wrapping::None)
         ]
         .spacing(ROW_NAME_SPACING)
         .align_y(Alignment::Center)
-        .width(Length::FillPortion(COLUMN_PORTION_NAME)),
+        .width(Length::Fill),
         text(&row_data.kind)
             .size(ROW_TEXT_SIZE)
             .font(ctx.main_font)
             .color(ctx.dim_color)
-            .width(Length::FillPortion(COLUMN_PORTION_KIND)),
+            .wrapping(iced::widget::text::Wrapping::None)
+            .width(Length::Fixed(COLUMN_WIDTH_KIND)),
         text(&row_data.size)
             .size(ROW_TEXT_SIZE)
             .font(ctx.main_font)
             .color(size_color)
-            .width(Length::FillPortion(COLUMN_PORTION_SIZE))
+            .width(Length::Fixed(COLUMN_WIDTH_SIZE))
             .align_x(alignment::Horizontal::Right),
         text(&row_data.modified)
             .size(ROW_TEXT_SIZE)
             .font(ctx.main_font)
             .color(ctx.sub_dim_color)
-            .width(Length::FillPortion(COLUMN_PORTION_MODIFIED)),
+            .wrapping(iced::widget::text::Wrapping::None)
+            .width(Length::Fixed(COLUMN_WIDTH_MODIFIED)),
     ]
     .align_y(Alignment::Center)
     .padding(ROW_CONTENT_PADDING)
@@ -513,9 +524,9 @@ fn folder_row_style(
     };
 
     let hover_bg = if app_theme.is_dark() {
-        primitive::WHITE_006
+        primitive::WHITE_008
     } else {
-        primitive::BLACK_006
+        primitive::BLACK_008
     };
 
     let bg_color = match (is_selected, status) {
