@@ -516,3 +516,62 @@ fn test_decode_to_rgba_jpeg_fast_path() {
     // Red channel should be close to 255
     assert!(pixels[0] > 200);
 }
+
+#[test]
+fn test_image_animation_tick_updates_previous_frame_handle() {
+    use image::codecs::gif::GifEncoder;
+    use image::{Delay, Frame, RgbaImage};
+    use kglance::app::KglanceApp;
+    use kglance::features::image::{decode_animated_gif, handle_image_animation_tick};
+
+    let mut buf = Vec::new();
+    {
+        let mut encoder = GifEncoder::new(&mut buf);
+        let frame1 = Frame::from_parts(
+            RgbaImage::new(10, 10),
+            0,
+            0,
+            Delay::from_numer_denom_ms(50, 1),
+        );
+        let frame2 = Frame::from_parts(
+            RgbaImage::new(10, 10),
+            0,
+            0,
+            Delay::from_numer_denom_ms(50, 1),
+        );
+        encoder.encode_frame(frame1).unwrap();
+        encoder.encode_frame(frame2).unwrap();
+    }
+
+    let anim = decode_animated_gif(&buf).expect("should decode animated GIF");
+    let mut app = KglanceApp::default();
+    app.state.image.animated_gif = Some(std::sync::Arc::new(anim.clone()));
+    app.state.image.display_handle = Some(anim.frames[0].handle.clone());
+    app.state.image.prev_frame_handle = None;
+
+    // Simulate animation start time 70ms in the past (which targets frame 1)
+    app.state.image.animation_start_time =
+        Some(std::time::Instant::now() - std::time::Duration::from_millis(70));
+
+    let _ = handle_image_animation_tick(&mut app);
+
+    // Frame 0 handle should now be transferred into prev_frame_handle
+    assert!(app.state.image.prev_frame_handle.is_some());
+    assert_eq!(
+        app.state
+            .image
+            .prev_frame_handle
+            .as_ref()
+            .map(iced::widget::image::Handle::id),
+        Some(anim.frames[0].handle.id())
+    );
+    // Display handle should be updated to frame 1
+    assert_eq!(
+        app.state
+            .image
+            .display_handle
+            .as_ref()
+            .map(iced::widget::image::Handle::id),
+        Some(anim.frames[1].handle.id())
+    );
+}

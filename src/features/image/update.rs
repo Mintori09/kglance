@@ -544,6 +544,7 @@ pub fn handle_image_animation_tick(app: &mut KglanceApp) -> Task<Message> {
             .map(iced::widget::image::Handle::id)
             != Some(current_handle.id())
         {
+            app.state.image.prev_frame_handle = app.state.image.display_handle.take();
             app.state.image.display_handle = Some(current_handle.clone());
         }
     }
