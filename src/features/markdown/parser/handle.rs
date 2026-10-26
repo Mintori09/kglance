@@ -472,10 +472,24 @@ impl<'a> EventStream<'a> {
                 };
                 let content = self.parse_inlines();
                 let _ = self.iter.next();
-                vec![Block::Heading {
-                    level: lvl,
-                    content,
-                }]
+
+                // Drop empty headings (e.g. `<h1 class="block"><br/></h1>` in EPUB)
+                // so they don't produce empty blocks with orphan dividers
+                let is_empty = content.is_empty()
+                    || content.iter().all(|inline| match inline {
+                        Inline::Text(t) => t.trim().is_empty(),
+                        Inline::SoftBreak => true,
+                        _ => false,
+                    });
+
+                if is_empty {
+                    Vec::new()
+                } else {
+                    vec![Block::Heading {
+                        level: lvl,
+                        content,
+                    }]
+                }
             }
             Event::Start(Tag::CodeBlock(kind)) => {
                 let block = self.parse_code_block(kind);

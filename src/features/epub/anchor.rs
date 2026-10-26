@@ -1,4 +1,5 @@
 use crate::core::types::{EpubChapterInfo, EpubState};
+use crate::parsers::markdown::Block;
 
 /// Reading position anchor that can be translated bidirectionally between
 /// SingleChapter and Continuous reading modes without losing the user's reading line.
@@ -9,17 +10,40 @@ pub struct EpubReadingAnchor {
     pub intra_block_offset: f32,
 }
 
-/// Synthetic separator block counts inserted by [`crate::features::epub::state::build_continuous_blocks`]:
-/// - Chapter 0: 0 blocks
-/// - Subsequent chapters: 1 block (`HorizontalRule`) to visually separate chapters.
-pub const SYNTHETIC_SEPARATOR_BLOCKS_SUBSEQUENT_CHAPTER: usize = 1;
+/// Checks whether a synthetic separator (`HorizontalRule`) is needed before `curr_ch`.
+/// If the last non-empty block of previous chapter or first block of current chapter is already
+/// a `HorizontalRule`, we avoid inserting an extra synthetic separator to prevent double dividers.
+pub fn needs_chapter_separator(prev_blocks: &[Block], curr_blocks: &[Block]) -> bool {
+    if prev_blocks.is_empty() || curr_blocks.is_empty() {
+        return false;
+    }
+    let prev_ends_with_hr = matches!(prev_blocks.last(), Some(Block::HorizontalRule));
+    let curr_starts_with_hr = matches!(curr_blocks.first(), Some(Block::HorizontalRule));
+    !prev_ends_with_hr && !curr_starts_with_hr
+}
 
-/// Counts synthetic separator blocks (`HorizontalRule`) injected when concatenating chapters in Continuous mode.
-pub fn chapter_header_blocks_count(ch: &EpubChapterInfo, ch_idx: usize) -> usize {
-    if ch.blocks.is_empty() {
-        0
-    } else if ch_idx > 0 {
-        SYNTHETIC_SEPARATOR_BLOCKS_SUBSEQUENT_CHAPTER
+/// Counts synthetic separator blocks (`HorizontalRule`) injected before a chapter in Continuous mode.
+pub fn chapter_header_blocks_count(chapters: &[EpubChapterInfo], ch_idx: usize) -> usize {
+    if ch_idx == 0 {
+        return 0;
+    }
+    let Some(curr_ch) = chapters.get(ch_idx) else {
+        return 0;
+    };
+    if curr_ch.blocks.is_empty() {
+        return 0;
+    }
+
+    // Find previous non-empty chapter
+    let prev_blocks = chapters[..ch_idx]
+        .iter()
+        .rev()
+        .find(|c| !c.blocks.is_empty())
+        .map(|c| c.blocks.as_slice())
+        .unwrap_or(&[]);
+
+    if needs_chapter_separator(prev_blocks, &curr_ch.blocks) {
+        1
     } else {
         0
     }
@@ -44,9 +68,7 @@ pub fn continuous_chapter_start_and_header(
         target_ch
     };
 
-    let header_count = chapters
-        .get(first_seen_idx)
-        .map_or(0, |ch| chapter_header_blocks_count(ch, first_seen_idx));
+    let header_count = chapter_header_blocks_count(chapters, first_seen_idx);
 
     (start_block_idx, header_count)
 }

@@ -121,7 +121,9 @@ pub fn build_continuous_blocks(chapters: &[EpubChapterInfo]) -> (Vec<Block>, Vec
             continue;
         }
 
-        if ch_idx > 0 {
+        if ch_idx > 0
+            && crate::features::epub::anchor::chapter_header_blocks_count(chapters, ch_idx) > 0
+        {
             all_blocks.push(Block::HorizontalRule);
         }
 
@@ -363,5 +365,38 @@ mod tests {
         assert!(offsets[1] > offsets[0]);
         assert_eq!(offsets[1], 1);
         assert_eq!(blocks.len(), 3); // ch1 para + HR + ch2 para
+
+        // Test deduplication when chapter 2 starts with HorizontalRule
+        let chapters_with_hr = vec![
+            EpubChapterInfo {
+                title: "Chapter 1".to_string(),
+                level: 1,
+                anchor: None,
+                file_href: "ch1.xhtml".to_string(),
+                blocks: vec![Block::Paragraph(vec![
+                    crate::parsers::markdown::Inline::Text("Content 1".to_string()),
+                ])],
+            },
+            EpubChapterInfo {
+                title: "Chapter 2".to_string(),
+                level: 1,
+                anchor: None,
+                file_href: "ch2.xhtml".to_string(),
+                blocks: vec![
+                    Block::HorizontalRule,
+                    Block::Paragraph(vec![crate::parsers::markdown::Inline::Text(
+                        "Content 2".to_string(),
+                    )]),
+                ],
+            },
+        ];
+
+        let (blocks_dedup, offsets_dedup) = build_continuous_blocks(&chapters_with_hr);
+        assert_eq!(offsets_dedup.len(), 2);
+        assert_eq!(offsets_dedup[0], 0);
+        assert_eq!(offsets_dedup[1], 1);
+        // Only 3 blocks: ch1 para, then ch2's own HR and ch2 para (no synthetic double HR)
+        assert_eq!(blocks_dedup.len(), 3);
+        assert!(matches!(blocks_dedup[1], Block::HorizontalRule));
     }
 }
