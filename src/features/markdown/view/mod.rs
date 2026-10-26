@@ -160,6 +160,7 @@ pub fn view_markdown<'a>(
         ruby_display_mode,
         footnotes: Some(&footnotes),
         result_popup: false,
+        show_heading_divider: true,
     };
     let scroll = build_scrollable_content(blocks, state, &ctx, max_text_width);
     let content_area = build_content_area(state, scroll, &ctx);

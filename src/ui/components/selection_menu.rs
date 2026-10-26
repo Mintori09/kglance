@@ -236,6 +236,7 @@ pub fn render_selection_menu_layer<'a>(state: &'a KglanceState) -> Option<Elemen
                         ruby_display_mode: state.ruby_display_mode,
                         footnotes: None,
                         result_popup: true,
+                        show_heading_divider: true,
                     };
                     let el = crate::features::markdown::view::render_block(
                         i,
