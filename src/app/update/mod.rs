@@ -457,6 +457,18 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::GridMsg::SearchClosed => grid::handle_grid_search_closed(app),
         },
+        Message::Folder(msg) => match msg {
+            crate::app::messages::FolderMsg::SearchQueryChanged(q) => {
+                app.state.folder.search_query = q;
+                app.state.folder.selected_index = None;
+                Task::none()
+            }
+            crate::app::messages::FolderMsg::SearchClosed => {
+                app.state.folder.search_visible = false;
+                app.state.folder.search_query.clear();
+                Task::none()
+            }
+        },
         Message::Markdown(msg) => match msg {
             crate::app::messages::MarkdownMsg::TocToggled => {
                 crate::features::markdown::update::handle_toc_toggled(app)
