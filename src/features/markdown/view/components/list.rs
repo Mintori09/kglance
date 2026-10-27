@@ -5,7 +5,6 @@ use crate::features::markdown::view::blocks::render_block;
 use crate::features::markdown::view::components::{render_inlines, render_inlines_styled};
 use crate::parsers::markdown::{Block, Inline, ListItem};
 use crate::ui::components::selectable_text::ruby_top_padding;
-use crate::ui::theme::font::get_code_font;
 use crate::ui::types::RenderContext;
 use iced::widget::{column, container, row, text};
 use iced::{Border, Color, Element, Length, Padding};
