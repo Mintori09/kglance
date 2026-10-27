@@ -800,7 +800,7 @@ impl<'a> EventStream<'a> {
         }
     }
 
-    fn parse_table(&mut self, _alignments: Vec<pulldown_cmark::Alignment>) -> Option<TableBlock> {
+    fn parse_table(&mut self, alignments: Vec<pulldown_cmark::Alignment>) -> Option<TableBlock> {
         let mut headers = Vec::new();
         let mut rows = Vec::new();
 
@@ -832,6 +832,7 @@ impl<'a> EventStream<'a> {
             headers,
             rows,
             column_weights,
+            alignments,
         })
     }
 

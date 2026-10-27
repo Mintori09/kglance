@@ -2,13 +2,13 @@ use super::style::STYLE;
 use crate::app::Message;
 use crate::core::config::RubyDisplayMode;
 use crate::features::markdown::view::blocks::render_block;
-use crate::features::markdown::view::components::render_inlines;
+use crate::features::markdown::view::components::{render_inlines, render_inlines_styled};
 use crate::parsers::markdown::{Block, Inline, ListItem};
 use crate::ui::components::selectable_text::ruby_top_padding;
 use crate::ui::theme::font::get_code_font;
 use crate::ui::types::RenderContext;
 use iced::widget::{column, container, row, text};
-use iced::{Color, Element, Length, Padding};
+use iced::{Border, Color, Element, Length, Padding};
 
 pub(crate) fn render_list<'a>(
     ordered: bool,
@@ -40,7 +40,17 @@ fn render_list_level<'a>(
             let has_ruby = has_stacked_ruby(&item.content, ctx.ruby_display_mode);
             let prefix =
                 create_list_prefix(ordered, start_number, index, item, ctx, level, has_ruby);
-            let content = render_inlines(&item.content, ctx.font_size, ctx);
+            let content = if item.is_task == Some(true) {
+                render_inlines_styled(
+                    &item.content,
+                    ctx.font_size,
+                    None,
+                    Some(ctx.theme.palette().base.text_dim),
+                    ctx,
+                )
+            } else {
+                render_inlines(&item.content, ctx.font_size, ctx)
+            };
             children.push(
                 row![prefix, content]
                     .spacing(STYLE.list.item_spacing)
@@ -116,17 +126,51 @@ fn create_list_prefix<'a>(
     has_stacked_ruby: bool,
 ) -> Element<'a, Message> {
     let base_prefix: Element<'a, Message> = if let Some(checked) = item.is_task {
-        let symbol = if checked { "[x] " } else { "[ ] " };
-        let color: Color = if checked {
-            ctx.theme.palette().roles.success
+        let box_size = (ctx.font_size * 0.9).round().max(14.0);
+        let border_color = if checked {
+            ctx.theme.palette().roles.accent
         } else {
-            ctx.theme.palette().base.text_dim
+            ctx.theme.palette().base.border
         };
-        text(symbol)
-            .font(get_code_font(ctx.font_family_mono))
-            .size(ctx.font_size)
-            .color(color)
-            .shaping(iced::widget::text::Shaping::Basic)
+        let bg_color = if checked {
+            ctx.theme.palette().roles.accent
+        } else {
+            Color::TRANSPARENT
+        };
+        let checkmark_color = if checked {
+            Color::WHITE
+        } else {
+            Color::TRANSPARENT
+        };
+
+        let checkmark = text(if checked { "✓" } else { "" })
+            .size((box_size * 0.75).round())
+            .color(checkmark_color)
+            .shaping(iced::widget::text::Shaping::Basic);
+
+        let checkbox = container(checkmark)
+            .width(box_size)
+            .height(box_size)
+            .align_x(iced::alignment::Horizontal::Center)
+            .align_y(iced::alignment::Vertical::Center)
+            .style(move |_: &iced::Theme| container::Style {
+                background: Some(bg_color.into()),
+                border: Border {
+                    color: border_color,
+                    width: 1.5,
+                    radius: 3.5.into(),
+                },
+                ..Default::default()
+            });
+
+        // Wrap with a tiny right padding to align naturally with the following text
+        container(checkbox)
+            .padding(Padding {
+                top: 2.0,
+                right: 4.0,
+                bottom: 0.0,
+                left: 0.0,
+            })
             .into()
     } else if ordered {
         let color = ctx.theme.palette().roles.accent;

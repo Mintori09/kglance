@@ -57,6 +57,7 @@ pub struct TableBlock {
     pub headers: Vec<TableCell>,
     pub rows: Vec<Vec<TableCell>>,
     pub column_weights: Vec<u16>,
+    pub alignments: Vec<pulldown_cmark::Alignment>,
 }
 
 #[derive(Debug, Clone)]

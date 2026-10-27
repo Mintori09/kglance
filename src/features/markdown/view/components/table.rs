@@ -3,12 +3,21 @@ use super::style::{
     table_separator_style,
 };
 use crate::app::Message;
-use crate::features::markdown::view::components::{render_inlines, render_inlines_styled};
+use crate::features::markdown::view::components::render_inlines_aligned;
 use crate::parsers::markdown::TableBlock;
 use crate::ui::theme::scale_size;
 use crate::ui::types::RenderContext;
+use iced::alignment::Horizontal;
 use iced::widget::{column, container, row, text};
 use iced::{Element, Length};
+
+fn map_alignment(align: Option<&pulldown_cmark::Alignment>) -> Horizontal {
+    match align {
+        Some(pulldown_cmark::Alignment::Center) => Horizontal::Center,
+        Some(pulldown_cmark::Alignment::Right) => Horizontal::Right,
+        _ => Horizontal::Left,
+    }
+}
 
 pub(crate) fn render_table<'a>(
     table: &'a TableBlock,
@@ -43,17 +52,20 @@ pub(crate) fn render_table<'a>(
         .iter()
         .enumerate()
         .map(|(i, header)| {
-            let cell = render_inlines_styled(
+            let align_x = map_alignment(table.alignments.get(i));
+            let cell = render_inlines_aligned(
                 &header.content,
                 header_size,
                 Some(iced::font::Weight::Semibold),
                 Some(header_text_color),
+                align_x,
                 ctx,
             );
             let width = col_widths.get(i).copied().unwrap_or(Length::FillPortion(1));
             container(cell)
                 .padding(STYLE.table.header_padding)
                 .width(width)
+                .align_x(align_x)
                 .into()
         })
         .collect();
@@ -86,11 +98,14 @@ pub(crate) fn render_table<'a>(
             .iter()
             .enumerate()
             .map(|(j, cell)| {
-                let cell_content = render_inlines(&cell.content, cell_size, ctx);
+                let align_x = map_alignment(table.alignments.get(j));
+                let cell_content =
+                    render_inlines_aligned(&cell.content, cell_size, None, None, align_x, ctx);
                 let width = col_widths.get(j).copied().unwrap_or(Length::FillPortion(1));
                 container(cell_content)
                     .padding(STYLE.table.cell_padding)
                     .width(width)
+                    .align_x(align_x)
                     .into()
             })
             .collect();
