@@ -159,7 +159,7 @@ pub fn load_all_chapters_and_images_from_epub(
     // 1. Identify all unique file hrefs that need to be read/parsed
     let mut needed_hrefs = HashSet::new();
     for ch in chapters {
-        if ch.blocks.is_empty() && !ch.file_href.is_empty() {
+        if !ch.file_href.is_empty() {
             needed_hrefs.insert(ch.file_href.clone());
         }
     }
@@ -193,10 +193,10 @@ pub fn load_all_chapters_and_images_from_epub(
     let mut seen_file_offsets: HashMap<String, usize> = HashMap::new();
 
     for (ch_idx, ch) in chapters.iter().enumerate() {
-        let (blocks, chapter_styles) = if !ch.blocks.is_empty() {
-            (ch.blocks.clone(), HashMap::new())
-        } else if let Some((parsed_b, parsed_s)) = parsed_files.get(&ch.file_href) {
+        let (blocks, chapter_styles) = if let Some((parsed_b, parsed_s)) = parsed_files.get(&ch.file_href) {
             (parsed_b.clone(), parsed_s.clone())
+        } else if !ch.blocks.is_empty() {
+            (ch.blocks.clone(), HashMap::new())
         } else {
             (Vec::new(), HashMap::new())
         };

@@ -46,6 +46,26 @@ pub fn render_inlines_aligned<'a>(
     align_x: iced::alignment::Horizontal,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
+    render_inlines_aligned_with_prefix(
+        inlines,
+        font_size,
+        base_weight,
+        base_color,
+        align_x,
+        None,
+        ctx,
+    )
+}
+
+pub fn render_inlines_aligned_with_prefix<'a>(
+    inlines: &'a [Inline],
+    font_size: f32,
+    base_weight: Option<iced::font::Weight>,
+    base_color: Option<iced::Color>,
+    align_x: iced::alignment::Horizontal,
+    prefix_text: Option<&str>,
+    ctx: &RenderContext<'_>,
+) -> Element<'a, Message> {
     let span_ctx = SpanCtx {
         font_family: ctx.font_family,
         font_family_mono: ctx.font_family_mono,
@@ -60,7 +80,22 @@ pub fn render_inlines_aligned<'a>(
         footnotes: ctx.footnotes,
     };
     let default_text_color = base_color.unwrap_or(ctx.theme.palette().base.text);
-    let (spans, links, rubies, tooltips) = inlines_to_spans_with_links(inlines, &span_ctx);
+    let (mut spans, links, rubies, tooltips) = inlines_to_spans_with_links(inlines, &span_ctx);
+
+    if let Some(prefix) = prefix_text {
+        let prefix_font = iced::Font {
+            weight: base_weight.unwrap_or(iced::font::Weight::Normal),
+            ..crate::ui::theme::font::get_main_font(span_ctx.font_family)
+        };
+        spans.insert(
+            0,
+            iced::widget::text::Span::new(prefix.to_string())
+                .font(prefix_font)
+                .color(default_text_color)
+                .size(iced::Pixels(font_size)),
+        );
+    }
+
     let blk = ctx.alloc_block_index();
     crate::features::markdown::view::build_selectable_with_links(
         spans,
