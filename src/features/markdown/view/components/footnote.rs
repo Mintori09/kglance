@@ -14,20 +14,26 @@ pub(crate) fn render_footnote_definition<'a>(
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
     let base_color = ctx.theme.palette().base;
-    let label_str = format!("[^{label}]:");
+    let label_str = format!("[{label}]");
+    let footnote_font_size = (ctx.font_size * 0.88).round();
     let label_widget = text(label_str)
-        .size(ctx.font_size * 0.85)
+        .size(footnote_font_size)
         .font(Font {
             weight: Weight::Bold,
             ..Default::default()
         })
-        .color(base_color.text_dim);
+        .color(ctx.theme.palette().roles.link);
+
+    let inner_ctx = RenderContext {
+        font_size: footnote_font_size,
+        ..*ctx
+    };
 
     let inner: Element<'a, Message> = column(
         blocks
             .iter()
             .enumerate()
-            .map(|(i, block)| render_block(i, block, state, ctx)),
+            .map(|(i, block)| render_block(i, block, state, &inner_ctx)),
     )
     .spacing(STYLE.general.section_spacing)
     .into();
@@ -42,5 +48,9 @@ pub(crate) fn render_footnote_definition<'a>(
             left: 0.0,
         })
         .width(Length::Fill)
+        .style(move |_: &iced::Theme| container::Style {
+            text_color: Some(base_color.text_dim),
+            ..Default::default()
+        })
         .into()
 }
