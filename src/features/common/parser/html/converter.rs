@@ -31,6 +31,7 @@ pub struct HtmlToMarkdownConverter {
     link_stack: Vec<String>,
     sub_depth: usize,
     sup_depth: usize,
+    sup_buffer: String,
     in_ruby: bool,
     ruby_base: String,
     ruby_text: String,
@@ -75,6 +76,7 @@ impl HtmlToMarkdownConverter {
             link_stack: Vec::new(),
             sub_depth: 0,
             sup_depth: 0,
+            sup_buffer: String::new(),
             in_ruby: false,
             ruby_base: String::new(),
             ruby_text: String::new(),
@@ -333,7 +335,9 @@ impl HtmlToMarkdownConverter {
             }
             "sup" => {
                 self.sup_depth += 1;
-                self.append_str("^");
+                if self.sup_depth == 1 {
+                    self.sup_buffer.clear();
+                }
             }
             "hr" => self.append_str("\n\n---\n\n"),
             "ruby" => {
@@ -496,7 +500,16 @@ impl HtmlToMarkdownConverter {
             "sup" => {
                 if self.sup_depth > 0 {
                     self.sup_depth -= 1;
-                    self.append_str("^");
+                    if self.sup_depth == 0 {
+                        let content = self.sup_buffer.trim();
+                        // If it is a footnote reference (e.g. "1", "2", "*", "i")
+                        if is_footnote_label(content) {
+                            self.append_str(&format!("[^{content}]"));
+                        } else if !content.is_empty() {
+                            self.append_str(&to_superscript_unicode(content));
+                        }
+                        self.sup_buffer.clear();
+                    }
                 }
             }
             "rt" => {
@@ -678,6 +691,11 @@ impl HtmlToMarkdownConverter {
 
         if self.in_cell {
             self.current_cell.push_str(text);
+            return;
+        }
+
+        if self.sup_depth > 0 {
+            self.sup_buffer.push_str(text);
             return;
         }
 
@@ -931,6 +949,7 @@ fn clean_markdown_output(text: &str) -> String {
                 .next()
                 .is_some_and(|c| c.is_ascii_digit())
                 && trimmed_start.find(". ").is_some());
+        let is_footnote_def = trimmed_start.starts_with("[^") && trimmed_start.find("]:").is_some();
 
         if is_quote_line {
             if !in_quote && !result.is_empty() {
@@ -962,11 +981,41 @@ fn clean_markdown_output(text: &str) -> String {
             in_list = true;
             in_table = false;
             in_quote = false;
-        } else {
+        } else if is_footnote_def {
             if !result.is_empty() {
                 result.push_str("\n\n");
             }
             result.push_str(trimmed);
+            in_list = false;
+            in_table = false;
+            in_quote = false;
+        } else {
+            // Check if this line looks like a footnote definition formatted as `[^1]. Text` or `[^1]: Text`
+            let normalized_line = if trimmed_start.starts_with("[^") {
+                if let Some(bracket_end) = trimmed_start.find(']') {
+                    let after = &trimmed_start[bracket_end + 1..];
+                    if let Some(rest) = after.strip_prefix(". ") {
+                        let label = &trimmed_start[..=bracket_end];
+                        Some(format!("{label}: {rest}"))
+                    } else if let Some(rest) = after.strip_prefix(": ") {
+                        let label = &trimmed_start[..=bracket_end];
+                        Some(format!("{label}: {rest}"))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let line_to_push = normalized_line.as_deref().unwrap_or(trimmed);
+
+            if !result.is_empty() {
+                result.push_str("\n\n");
+            }
+            result.push_str(line_to_push);
             in_table = false;
             in_list = false;
             in_quote = false;
@@ -974,6 +1023,42 @@ fn clean_markdown_output(text: &str) -> String {
     }
 
     result
+}
+
+fn is_footnote_label(s: &str) -> bool {
+    let trimmed = s.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    // Simple numeric, or standard footnote symbols like * or † or letters like a, b, i, ii
+    trimmed
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '*' || c == '†' || c == '‡')
+}
+
+fn to_superscript_unicode(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            '0' => '⁰',
+            '1' => '¹',
+            '2' => '²',
+            '3' => '³',
+            '4' => '⁴',
+            '5' => '⁵',
+            '6' => '⁶',
+            '7' => '⁷',
+            '8' => '⁸',
+            '9' => '⁹',
+            '+' => '⁺',
+            '-' => '⁻',
+            '=' => '⁼',
+            '(' => '⁽',
+            ')' => '⁾',
+            'n' => 'ⁿ',
+            'i' => 'ⁱ',
+            other => other,
+        })
+        .collect()
 }
 
 fn mathml_to_latex(raw: &str) -> String {
