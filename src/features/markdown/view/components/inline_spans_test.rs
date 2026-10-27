@@ -253,7 +253,7 @@ fn test_extract_tooltips_all_inline_types() {
     assert_eq!(tooltips.len(), 4);
     assert_eq!(tooltips[0].content, "https://kglance.dev");
     assert_eq!(tooltips[1].content, "$x^2$");
-    assert_eq!(tooltips[2].content, "[^1]: Footnote definition text");
+    assert_eq!(tooltips[2].content, "[1]: Footnote definition text");
     assert_eq!(tooltips[3].content, "かん");
 }
 

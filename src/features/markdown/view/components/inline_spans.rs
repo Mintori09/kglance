@@ -400,14 +400,14 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                 let footnote_tooltip = span_ctx
                     .footnotes
                     .and_then(|m| m.get(label))
-                    .map(|content| format!("[^{label}]: {content}"))
-                    .unwrap_or_else(|| format!("[^{label}]"));
+                    .map(|content| format!("[{label}]: {content}"))
+                    .unwrap_or_else(|| format!("[{label}]"));
                 spans.push(CachedSpan {
                     text: format!("[{label}]"),
                     font: main_font,
                     color: Some(link_color),
                     background: None,
-                    size: None,
+                    size: Some((span_ctx.font_size * 0.8).round()),
                     strikethrough: false,
                     underline: false,
                     link_url: None,
