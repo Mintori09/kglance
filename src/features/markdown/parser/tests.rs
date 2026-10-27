@@ -562,17 +562,23 @@ fn test_parse_code_block_to_blocks() {
 
 #[test]
 fn test_parse_table() {
-    let md = "| H1 | H2 |\n|---|---|\n| C1 | C2 |";
+    let md = "| Left | Center | Right |\n|:---|:---:|---:|\n| C1 | C2 | C3 |";
     let blocks = parse_to_blocks(md);
     assert_eq!(blocks.len(), 1);
     match &blocks[0] {
         Block::Table(tbl) => {
-            assert_eq!(tbl.headers.len(), 2);
-            assert_eq!(flatten_inlines(&tbl.headers[0].content), "H1");
-            assert_eq!(flatten_inlines(&tbl.headers[1].content), "H2");
+            assert_eq!(tbl.headers.len(), 3);
+            assert_eq!(flatten_inlines(&tbl.headers[0].content), "Left");
+            assert_eq!(flatten_inlines(&tbl.headers[1].content), "Center");
+            assert_eq!(flatten_inlines(&tbl.headers[2].content), "Right");
             assert_eq!(tbl.rows.len(), 1);
             assert_eq!(flatten_inlines(&tbl.rows[0][0].content), "C1");
             assert_eq!(flatten_inlines(&tbl.rows[0][1].content), "C2");
+            assert_eq!(flatten_inlines(&tbl.rows[0][2].content), "C3");
+            assert_eq!(tbl.alignments.len(), 3);
+            assert_eq!(tbl.alignments[0], pulldown_cmark::Alignment::Left);
+            assert_eq!(tbl.alignments[1], pulldown_cmark::Alignment::Center);
+            assert_eq!(tbl.alignments[2], pulldown_cmark::Alignment::Right);
         }
         _ => panic!("expected Table block"),
     }
@@ -923,6 +929,7 @@ fn markdown_state_ignores_non_mermaid_blocks() {
                 content: vec![text("1")],
             }]],
             column_weights: vec![100],
+            alignments: vec![pulldown_cmark::Alignment::None],
         }),
     ];
 
