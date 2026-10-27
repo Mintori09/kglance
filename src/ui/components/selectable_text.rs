@@ -260,6 +260,7 @@ fn point_to_offset(
     bounds: Rectangle,
     cursor_pos: Point,
     top_pad: f32,
+    offset_x: f32,
 ) -> usize {
     let effective_y = bounds.y + top_pad;
     if cursor_pos.y < bounds.y {
@@ -271,7 +272,7 @@ fn point_to_offset(
 
     let clamped_x = cursor_pos.x.clamp(bounds.x, bounds.x + bounds.width);
     let rel_y = (cursor_pos.y - effective_y).max(0.0);
-    let rel_pos = Point::new(clamped_x - bounds.x, rel_y);
+    let rel_pos = Point::new((clamped_x - (bounds.x + offset_x)).max(0.0), rel_y);
 
     if let Some(cursor) = buffer.hit(rel_pos.x, rel_pos.y) {
         let line_start = line_offsets.get(cursor.line).copied().unwrap_or(0);
@@ -587,6 +588,13 @@ where
             return;
         };
 
+        let draw_anchor = bounds.anchor(
+            paragraph.min_bounds(),
+            self.align_x,
+            alignment::Vertical::Top,
+        );
+        let offset_x = (draw_anchor.x - bounds.x).max(0.0);
+
         if self.block_index.is_some() && self.selection_range.is_none() && !self.drag_active {
             state.selection = None;
             state.drag_start = None;
@@ -615,6 +623,7 @@ where
                         bounds,
                         cursor_pos,
                         self.top_padding(),
+                        offset_x,
                     );
                     state.pressed_link_url = self
                         .links
@@ -726,6 +735,7 @@ where
                             bounds,
                             cursor_pos,
                             self.top_padding(),
+                            offset_x,
                         );
 
                         let matched_tooltip = self
@@ -748,6 +758,7 @@ where
                                 self.top_padding(),
                                 start,
                                 end,
+                                offset_x,
                             )
                             .unwrap_or(Rectangle {
                                 x: cursor_pos.x,
@@ -804,6 +815,7 @@ where
                             bounds,
                             cursor_pos,
                             self.top_padding(),
+                            offset_x,
                         );
 
                         if state.is_selecting {
@@ -917,6 +929,12 @@ where
         };
 
         let top_pad = self.top_padding();
+        let draw_anchor = bounds.anchor(
+            paragraph.min_bounds(),
+            self.align_x,
+            alignment::Vertical::Top,
+        );
+        let offset_x = (draw_anchor.x - bounds.x).max(0.0);
 
         let effective_selection = if let Some(current_blk) = self.block_index {
             if let Some(range) = self.selection_range {
@@ -1006,7 +1024,7 @@ where
 
                 for glyph in run.glyphs {
                     if glyph.end > sel_start_in_line && glyph.start < sel_end_in_line {
-                        let x = bounds.x + glyph.x;
+                        let x = bounds.x + offset_x + glyph.x;
                         let x_end = x + glyph.w;
                         text_min_x = Some(text_min_x.map_or(x, |m: f32| m.min(x)));
                         text_max_x = Some(text_max_x.map_or(x_end, |m: f32| m.max(x_end)));
@@ -1034,7 +1052,7 @@ where
 
         renderer.fill_paragraph(
             paragraph,
-            Point::new(bounds.x, bounds.y + top_pad),
+            Point::new(bounds.x + offset_x, bounds.y + top_pad),
             self.default_text_color,
             bounds,
         );
@@ -1082,7 +1100,7 @@ where
 
                     for glyph in run.glyphs {
                         if glyph.end > r_start_in_line && glyph.start < r_end_in_line {
-                            let x = bounds.x + glyph.x;
+                            let x = bounds.x + offset_x + glyph.x;
                             let x_end = x + glyph.w;
                             k_min_x = Some(k_min_x.map_or(x, |m: f32| m.min(x)));
                             k_max_x = Some(k_max_x.map_or(x_end, |m: f32| m.max(x_end)));
@@ -1136,6 +1154,12 @@ where
         if let Some(cursor_pos) = cursor.position_over(bounds) {
             let state = tree.state.downcast_ref::<State>();
             if let Some(paragraph) = &state.paragraph {
+                let draw_anchor = bounds.anchor(
+                    paragraph.min_bounds(),
+                    self.align_x,
+                    alignment::Vertical::Top,
+                );
+                let offset_x = (draw_anchor.x - bounds.x).max(0.0);
                 let fallback_offsets;
                 let line_offsets: &[usize] = if state.line_offsets.is_empty() {
                     fallback_offsets = compute_line_starts(paragraph.buffer());
@@ -1150,6 +1174,7 @@ where
                     bounds,
                     cursor_pos,
                     self.top_padding(),
+                    offset_x,
                 );
                 if self
                     .links

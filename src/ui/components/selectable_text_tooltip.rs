@@ -161,6 +161,7 @@ pub fn compute_inline_rect(
     top_pad: f32,
     start: usize,
     end: usize,
+    offset_x: f32,
 ) -> Option<Rectangle> {
     let mut min_x: Option<f32> = None;
     let mut max_x: Option<f32> = None;
@@ -192,7 +193,7 @@ pub fn compute_inline_rect(
 
         for glyph in run.glyphs {
             if glyph.end > r_start_in_line && glyph.start < r_end_in_line {
-                let x = bounds.x + glyph.x;
+                let x = bounds.x + offset_x + glyph.x;
                 let x_end = x + glyph.w;
                 min_x = Some(min_x.map_or(x, |m| m.min(x)));
                 max_x = Some(max_x.map_or(x_end, |m| m.max(x_end)));
