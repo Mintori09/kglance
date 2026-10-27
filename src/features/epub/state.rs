@@ -187,6 +187,20 @@ pub fn populate_state(
                 .get(active_chapter)
                 .map(|ch| ch.blocks.as_slice())
                 .unwrap_or(&[]);
+
+            if !state.file_name.is_empty()
+                && let Some(ch) = chapters.get(active_chapter)
+                && !ch.file_href.is_empty()
+                && let Ok((_, _, styles)) =
+                    crate::features::epub::parser::load_chapter_content_and_images_from_epub(
+                        std::path::Path::new(&state.file_name),
+                        &ch.file_href,
+                        ch.anchor.as_deref(),
+                    )
+            {
+                markdown_state.block_styles = styles;
+            }
+
             let content_width = state.epub_content_width();
             crate::features::markdown::recompute_markdown_layout(
                 &mut markdown_state,

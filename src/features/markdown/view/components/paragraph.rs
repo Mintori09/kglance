@@ -1,7 +1,7 @@
 use super::style::STYLE;
 use crate::app::Message;
 use crate::features::epub::parser::css::BlockStyle;
-use crate::features::markdown::view::components::render_inlines_aligned;
+use crate::features::markdown::view::components::inline::render_inlines_aligned_with_prefix;
 use crate::parsers::markdown::Inline;
 use crate::ui::types::RenderContext;
 use iced::widget::container;
@@ -23,14 +23,43 @@ pub(crate) fn render_paragraph<'a>(
         None
     };
 
-    let rich = render_inlines_aligned(content, ctx.font_size, weight, None, align_x, ctx);
+    let prefix_storage: String;
+    let prefix_text = if indent > 0.0 && !content.is_empty() {
+        let num_spaces = if indent >= 40.0 {
+            3
+        } else if indent >= 20.0 {
+            2
+        } else {
+            1
+        };
+        prefix_storage = "\u{2003}".repeat(num_spaces);
+        Some(prefix_storage.as_str())
+    } else {
+        None
+    };
+
+    let rich = render_inlines_aligned_with_prefix(
+        content,
+        ctx.font_size,
+        weight,
+        None,
+        align_x,
+        prefix_text,
+        ctx,
+    );
 
     let [pad_v, pad_h] = STYLE.paragraph.padding;
+    let (top_padding, bottom_padding) = if is_bold {
+        (pad_v as f32 + 10.0, pad_v as f32 + 4.0)
+    } else {
+        (pad_v as f32, pad_v as f32)
+    };
+
     let padding = Padding {
-        top: pad_v as f32,
+        top: top_padding,
         right: pad_h as f32,
-        bottom: pad_v as f32,
-        left: pad_h as f32 + indent,
+        bottom: bottom_padding,
+        left: pad_h as f32,
     };
 
     container(rich).padding(padding).width(Length::Fill).into()
