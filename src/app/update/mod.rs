@@ -149,6 +149,11 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::NavigationMsg::FileClicked(idx) => {
                 navigation::handle_file_clicked(app, idx)
             }
+            crate::app::messages::NavigationMsg::OpenPath(path) => {
+                navigation::load_file_task(app, path, |err_path| {
+                    crate::app::messages::SystemMsg::FilePreviewError(err_path).into()
+                })
+            }
             crate::app::messages::NavigationMsg::FolderScrolled(vp) => {
                 if app.ctrl_held {
                     return Task::none();
@@ -451,6 +456,18 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 grid::handle_grid_search_query_changed(app, q)
             }
             crate::app::messages::GridMsg::SearchClosed => grid::handle_grid_search_closed(app),
+        },
+        Message::Folder(msg) => match msg {
+            crate::app::messages::FolderMsg::SearchQueryChanged(q) => {
+                app.state.folder.search_query = q;
+                app.state.folder.selected_index = None;
+                Task::none()
+            }
+            crate::app::messages::FolderMsg::SearchClosed => {
+                app.state.folder.search_visible = false;
+                app.state.folder.search_query.clear();
+                Task::none()
+            }
         },
         Message::Markdown(msg) => match msg {
             crate::app::messages::MarkdownMsg::TocToggled => {

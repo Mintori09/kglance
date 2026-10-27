@@ -18,6 +18,7 @@ pub enum SearchKind {
     Json,
     Spreadsheet,
     Grid,
+    Folder,
 }
 
 struct SearchMessages {
@@ -35,6 +36,7 @@ impl SearchKind {
             Self::Json => "Search key or value...",
             Self::Spreadsheet => "Search spreadsheet...",
             Self::Grid => "Search files...",
+            Self::Folder => "Search files and folders...",
         }
     }
 
@@ -45,6 +47,7 @@ impl SearchKind {
             Self::Json => "json_search_input",
             Self::Spreadsheet => "ss_search_input",
             Self::Grid => "grid_search_input",
+            Self::Folder => "folder_search_input",
         }
     }
 
@@ -79,6 +82,12 @@ impl SearchKind {
                 on_next: None,
                 on_prev: None,
                 on_close: crate::app::messages::GridMsg::SearchClosed.into(),
+            },
+            Self::Folder => SearchMessages {
+                on_query: |q| crate::app::messages::FolderMsg::SearchQueryChanged(q).into(),
+                on_next: None,
+                on_prev: None,
+                on_close: crate::app::messages::FolderMsg::SearchClosed.into(),
             },
         }
     }
