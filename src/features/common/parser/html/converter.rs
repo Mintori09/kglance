@@ -36,6 +36,7 @@ pub struct HtmlToMarkdownConverter {
     ruby_text: String,
     in_rt: bool,
     in_rp: bool,
+    quote_stack: Vec<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -79,6 +80,7 @@ impl HtmlToMarkdownConverter {
             ruby_text: String::new(),
             in_rt: false,
             in_rp: false,
+            quote_stack: Vec::new(),
         }
     }
 
@@ -223,8 +225,15 @@ impl HtmlToMarkdownConverter {
                     self.append_str(&format!("\n\n{hashes} "));
                 }
             }
-            "p" | "div" | "blockquote" | "section" | "article" | "header" | "footer" | "aside"
-            | "figure" | "figcaption" | "main" | "body" | "dt" | "dd" => {
+            "blockquote" => {
+                if let Some(id) = extract_id_or_name(e) {
+                    self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n"));
+                }
+                self.ensure_newline();
+                self.quote_stack.push(String::with_capacity(256));
+            }
+            "p" | "div" | "section" | "article" | "header" | "footer" | "aside" | "figure"
+            | "figcaption" | "main" | "body" | "dt" | "dd" => {
                 if let Some(id) = extract_id_or_name(e) {
                     self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n"));
                 }
@@ -510,12 +519,44 @@ impl HtmlToMarkdownConverter {
                 self.ensure_newline();
                 self.append_str("\n");
             }
-            "p" | "div" | "blockquote" | "section" | "article" => {
+            "blockquote" => {
+                if let Some(quote_content) = self.quote_stack.pop() {
+                    let trimmed = quote_content.trim();
+                    if !trimmed.is_empty() {
+                        let mut formatted = String::with_capacity(trimmed.len() + 32);
+                        formatted.push_str("\n\n");
+                        for line in trimmed.lines() {
+                            let line_trim = line.trim();
+                            if line_trim.is_empty() {
+                                formatted.push_str(">\n");
+                            } else {
+                                formatted.push_str("> ");
+                                formatted.push_str(line_trim);
+                                formatted.push('\n');
+                            }
+                        }
+                        formatted.push('\n');
+                        self.append_str(&formatted);
+                    }
+                }
+                self.ensure_newline();
+            }
+            "p" | "div" | "section" | "article" => {
                 if self.in_ruby {
                     self.in_ruby = false;
                     self.flush_ruby_pair();
                 }
-                self.ensure_newline();
+                if let Some(current_quote) = self.quote_stack.last_mut() {
+                    if !current_quote.is_empty() && !current_quote.ends_with("\n\n") {
+                        if current_quote.ends_with('\n') {
+                            current_quote.push('\n');
+                        } else {
+                            current_quote.push_str("\n\n");
+                        }
+                    }
+                } else {
+                    self.ensure_newline();
+                }
             }
             _ => {}
         }
@@ -662,13 +703,19 @@ impl HtmlToMarkdownConverter {
     fn append_str(&mut self, s: &str) {
         if self.in_cell {
             self.current_cell.push_str(s);
+        } else if let Some(current_quote) = self.quote_stack.last_mut() {
+            current_quote.push_str(s);
         } else {
             self.output.push_str(s);
         }
     }
 
     fn ensure_newline(&mut self) {
-        if !self.output.is_empty() && !self.output.ends_with('\n') {
+        if let Some(current_quote) = self.quote_stack.last_mut() {
+            if !current_quote.is_empty() && !current_quote.ends_with('\n') {
+                current_quote.push('\n');
+            }
+        } else if !self.output.is_empty() && !self.output.ends_with('\n') {
             self.output.push('\n');
         }
     }
@@ -846,6 +893,7 @@ fn clean_markdown_output(text: &str) -> String {
     let mut in_code_fence = false;
     let mut in_table = false;
     let mut in_list = false;
+    let mut in_quote = false;
 
     for line in text.lines() {
         let trimmed_start = line.trim_start();
@@ -869,9 +917,11 @@ fn clean_markdown_output(text: &str) -> String {
         if trimmed.is_empty() {
             in_table = false;
             in_list = false;
+            in_quote = false;
             continue;
         }
 
+        let is_quote_line = trimmed_start.starts_with("> ") || trimmed == ">";
         let is_table_row = trimmed.starts_with('|') && trimmed.ends_with('|');
         let is_list_item = trimmed_start.starts_with("- ")
             || trimmed_start.starts_with("* ")
@@ -882,7 +932,17 @@ fn clean_markdown_output(text: &str) -> String {
                 .is_some_and(|c| c.is_ascii_digit())
                 && trimmed_start.find(". ").is_some());
 
-        if is_table_row {
+        if is_quote_line {
+            if !in_quote && !result.is_empty() {
+                result.push_str("\n\n");
+            } else if in_quote {
+                result.push('\n');
+            }
+            result.push_str(trimmed);
+            in_quote = true;
+            in_table = false;
+            in_list = false;
+        } else if is_table_row {
             if !in_table && !result.is_empty() {
                 result.push_str("\n\n");
             } else if in_table {
@@ -891,6 +951,7 @@ fn clean_markdown_output(text: &str) -> String {
             result.push_str(trimmed);
             in_table = true;
             in_list = false;
+            in_quote = false;
         } else if is_list_item {
             if !in_list && !result.is_empty() {
                 result.push_str("\n\n");
@@ -900,6 +961,7 @@ fn clean_markdown_output(text: &str) -> String {
             result.push_str(line);
             in_list = true;
             in_table = false;
+            in_quote = false;
         } else {
             if !result.is_empty() {
                 result.push_str("\n\n");
@@ -907,6 +969,7 @@ fn clean_markdown_output(text: &str) -> String {
             result.push_str(trimmed);
             in_table = false;
             in_list = false;
+            in_quote = false;
         }
     }
 
