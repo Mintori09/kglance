@@ -480,7 +480,7 @@ fn test_epub_nested_directory_image_resolution() {
         loaded.is_ok(),
         "Chapter and images should load successfully"
     );
-    let (blocks, images) = loaded.unwrap();
+    let (blocks, images, _) = loaded.unwrap();
     assert!(!blocks.is_empty());
     assert!(
         images.contains_key("OEBPS/images/fig1.png")

@@ -11,7 +11,14 @@ pub fn render_inlines<'a>(
     font_size: f32,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
-    render_inlines_styled(inlines, font_size, None, None, ctx)
+    render_inlines_aligned(
+        inlines,
+        font_size,
+        None,
+        None,
+        iced::alignment::Horizontal::Left,
+        ctx,
+    )
 }
 
 pub fn render_inlines_styled<'a>(
@@ -19,6 +26,24 @@ pub fn render_inlines_styled<'a>(
     font_size: f32,
     base_weight: Option<iced::font::Weight>,
     base_color: Option<iced::Color>,
+    ctx: &RenderContext<'_>,
+) -> Element<'a, Message> {
+    render_inlines_aligned(
+        inlines,
+        font_size,
+        base_weight,
+        base_color,
+        iced::alignment::Horizontal::Left,
+        ctx,
+    )
+}
+
+pub fn render_inlines_aligned<'a>(
+    inlines: &'a [Inline],
+    font_size: f32,
+    base_weight: Option<iced::font::Weight>,
+    base_color: Option<iced::Color>,
+    align_x: iced::alignment::Horizontal,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
     let span_ctx = SpanCtx {
@@ -50,6 +75,7 @@ pub fn render_inlines_styled<'a>(
         ctx.drag_active,
         ctx.theme,
         ctx.result_popup,
+        align_x,
     )
     .into()
 }

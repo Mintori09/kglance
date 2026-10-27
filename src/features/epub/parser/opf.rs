@@ -94,6 +94,25 @@ pub fn extract_cover_image_href(opf_xml: &str) -> Option<String> {
     None
 }
 
+pub fn extract_css_items(xml: &str) -> Vec<String> {
+    let mut hrefs = Vec::new();
+    let mut search_str = xml;
+
+    while let Some(idx) = search_str.find("<item") {
+        let tag_end = search_str[idx..].find('>').unwrap_or(0);
+        let tag = &search_str[idx..idx + tag_end];
+
+        if (tag.contains("media-type=\"text/css\"") || tag.contains("media-type='text/css'"))
+            && let Some(href) = extract_attribute(tag, "href=\"")
+        {
+            hrefs.push(href);
+        }
+        search_str = &search_str[idx + tag_end.max(1)..];
+    }
+
+    hrefs
+}
+
 pub fn extract_spine_items(xml: &str) -> Vec<String> {
     let mut item_refs = Vec::new();
     let mut search_str = xml;

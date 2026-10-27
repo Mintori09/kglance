@@ -1,6 +1,7 @@
 use super::style::{STYLE, divider_line_style, heading_layout};
 use crate::app::Message;
-use crate::features::markdown::view::components::render_inlines_styled;
+use crate::features::epub::parser::css::BlockStyle;
+use crate::features::markdown::view::components::render_inlines_aligned;
 use crate::parsers::markdown::Inline;
 use crate::ui::types::RenderContext;
 use iced::font::Weight;
@@ -10,16 +11,27 @@ use iced::{Element, Length, Padding};
 pub(crate) fn render_heading<'a>(
     level: u8,
     content: &'a [Inline],
+    style: Option<&BlockStyle>,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
     let layout = heading_layout(level, ctx.font_size);
-    let (weight, color) = match level {
+    let (default_weight, color) = match level {
         1 => (Some(Weight::Bold), Some(ctx.theme.palette().base.text)),
         2 => (Some(Weight::Bold), Some(ctx.theme.palette().base.text)),
         3 => (Some(Weight::Semibold), Some(ctx.theme.palette().base.text)),
         _ => (Some(Weight::Medium), Some(ctx.theme.palette().base.text)),
     };
-    let heading_content = render_inlines_styled(content, layout.font_size, weight, color, ctx);
+    let weight = if style.is_some_and(|s| s.is_bold) {
+        Some(Weight::Bold)
+    } else {
+        default_weight
+    };
+    let align_x = style
+        .map(|s| s.align.to_horizontal_align())
+        .unwrap_or(iced::alignment::Horizontal::Left);
+
+    let heading_content =
+        render_inlines_aligned(content, layout.font_size, weight, color, align_x, ctx);
     let heading = container(heading_content)
         .padding(Padding {
             top: layout.padding_top,

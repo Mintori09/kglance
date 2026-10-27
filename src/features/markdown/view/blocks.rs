@@ -14,14 +14,16 @@ pub(crate) fn render_block<'a>(
     state: &'a crate::core::MarkdownState,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
+    let block_style = state.block_styles.get(&index);
+
     match block {
         Block::Frontmatter(entries) => render_frontmatter(entries, ctx),
-        Block::Heading { level, content } => render_heading(*level, content, ctx),
+        Block::Heading { level, content } => render_heading(*level, content, block_style, ctx),
         Block::Paragraph(content) => {
             if crate::parsers::markdown::is_standalone_anchor_block(block) {
                 iced::widget::Space::new().into()
             } else {
-                render_paragraph(content, ctx)
+                render_paragraph(content, block_style, ctx)
             }
         }
         Block::CodeBlock { lang, code, .. } => render_code_block(lang, code, ctx),

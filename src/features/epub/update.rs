@@ -77,7 +77,7 @@ pub fn ensure_chapter_loaded(app: &mut KglanceApp, idx: usize) {
                 app.state.epub.chapters[idx].blocks = blocks;
             } else if !path_str.is_empty() {
                 let path = std::path::Path::new(&path_str);
-                if let Ok((new_blocks, new_images)) =
+                if let Ok((new_blocks, new_images, new_styles)) =
                     crate::features::epub::parser::load_chapter_content_and_images_from_epub(
                         path,
                         &chapter_file_href,
@@ -97,6 +97,7 @@ pub fn ensure_chapter_loaded(app: &mut KglanceApp, idx: usize) {
                             preview_ch.blocks = new_blocks.clone();
                         }
                     }
+                    app.state.epub.markdown_state.block_styles = new_styles;
                     app.state.epub.chapters[idx].blocks = new_blocks;
                 }
             }
