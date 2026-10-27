@@ -13,6 +13,7 @@ use crate::core::types::EpubState;
 use crate::features::epub::view::content::build_epub_content;
 use crate::features::epub::view::helpers::clamp_active_chapter;
 use crate::features::epub::view::sidebar::render_chapter_sidebar;
+use crate::features::markdown::Block;
 use crate::ui::components::sidebar::drag_handle;
 use crate::ui::types::RenderContext;
 
@@ -29,6 +30,24 @@ pub fn view_epub<'a>(
     let search_counter = Cell::new(0);
     let block_counter = Cell::new(0);
 
+    let active_blocks = state.active_blocks();
+    let footnotes: std::collections::HashMap<String, String> = active_blocks
+        .iter()
+        .filter_map(|b| {
+            if let Block::FootnoteDefinition { label, content } = b {
+                let mut parts = Vec::new();
+                for block in content {
+                    if let Block::Paragraph(inlines) = block {
+                        parts.push(crate::parsers::markdown::flatten_inlines_visual(inlines));
+                    }
+                }
+                Some((label.clone(), parts.join(" ")))
+            } else {
+                None
+            }
+        })
+        .collect();
+
     let ctx = RenderContext {
         next_block_index: &block_counter,
         selection_range: state.markdown_state.selection_range,
@@ -42,9 +61,10 @@ pub fn view_epub<'a>(
         font_family,
         font_family_mono,
         ruby_display_mode,
-        footnotes: None,
+        footnotes: Some(&footnotes),
         result_popup: false,
         show_heading_divider: false,
+        is_epub: true,
     };
 
     let main_content = build_epub_content(state, active_chapter, &ctx, max_text_width);
