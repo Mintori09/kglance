@@ -907,12 +907,17 @@ fn clean_lang_token(token: &str) -> String {
 }
 
 fn is_custom_bullet_start(s: &str) -> Option<&str> {
-    const BULLETS: &[&str] = &[
-        "♦ ", "• ", "▪ ", "▫ ", "✦ ", "► ", "▸ ", "⁃ ", "– ", "— ", "◇ ", "▶ ", "● ",
+    const BULLET_CHARS: &[char] = &[
+        '♦', '•', '▪', '▫', '✦', '►', '▸', '⁃', '–', '—', '◇', '▶', '●',
     ];
-    for b in BULLETS {
-        if let Some(rest) = s.strip_prefix(b) {
-            return Some(rest);
+    let mut chars = s.chars();
+    if let Some(first) = chars.next()
+        && BULLET_CHARS.contains(&first)
+    {
+        let rest = chars.as_str();
+        let stripped = rest.trim_start_matches(|c: char| c.is_whitespace() || c == '\u{a0}');
+        if stripped.len() < rest.len() {
+            return Some(stripped);
         }
     }
     None

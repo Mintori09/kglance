@@ -128,6 +128,12 @@ pub fn extract_blocks_styles(
         if is_standalone_anchor_block(block) {
             continue;
         }
+
+        let consumed_count = match block {
+            Block::List { items, .. } => items.len().max(1),
+            _ => 1,
+        };
+
         if let Some(meta) = non_empty_metas.get(meta_idx) {
             let style = css::resolve_block_style(
                 &meta.classes,
@@ -137,8 +143,8 @@ pub fn extract_blocks_styles(
             if style != css::BlockStyle::default() {
                 styles.insert(b_idx, style);
             }
-            meta_idx += 1;
         }
+        meta_idx += consumed_count;
     }
 
     styles

@@ -103,6 +103,7 @@ fn test_convert_html_custom_bullet_list() {
 <p class="block_4">♦ Ăn ít đường nhất có thể.</p>
 <p class="block_4">♦ Thường xuyên ăn các bữa nhỏ trong ngày để có năng lượng.</p>
 <p class="block_4">♦ Dậy và ngủ mà không cần đặt báo thức.</p>
+<p class="block_4">♦<span class="text_">&nbsp;2,5 giờ dành cho giải trí</span></p>
 <p class="block_4">Ý đồ của thử nghiệm này rất đơn giản</p>"#;
     let md = convert_html_to_markdown(html);
     let blocks = parse_to_blocks(&md);
@@ -110,14 +111,53 @@ fn test_convert_html_custom_bullet_list() {
     match &blocks[1] {
         Block::List { ordered, items, .. } => {
             assert!(!ordered);
-            assert_eq!(items.len(), 4);
+            assert_eq!(items.len(), 5);
             assert!(flatten_inlines(&items[0].content).contains("Loại bỏ hoàn toàn caffeine"));
             assert!(
                 flatten_inlines(&items[3].content).contains("Dậy và ngủ mà không cần đặt báo thức")
             );
+            assert!(flatten_inlines(&items[4].content).contains("2,5 giờ dành cho giải trí"));
         }
         _ => panic!("Expected List block for custom bullets"),
     }
+}
+
+#[test]
+fn test_extract_blocks_styles_list_desync_prevention() {
+    let html = r#"<p class="block_left">Intro paragraph</p>
+<p class="block_left">♦ Item 1</p>
+<p class="block_left">♦ Item 2</p>
+<p class="block_left">♦ Item 3</p>
+<p class="block_center">Should remain center aligned</p>"#;
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 3); // Intro, List (3 items), Center paragraph
+
+    let mut stylesheet = HashMap::new();
+    stylesheet.insert(
+        "block_left".to_string(),
+        css::BlockStyle {
+            align: css::TextAlign::Left,
+            text_indent: 0.0,
+            is_bold: false,
+        },
+    );
+    stylesheet.insert(
+        "block_center".to_string(),
+        css::BlockStyle {
+            align: css::TextAlign::Center,
+            text_indent: 0.0,
+            is_bold: false,
+        },
+    );
+
+    let styles = extract_blocks_styles(html, &blocks, &stylesheet);
+    // Block 0 is Intro (left)
+    // Block 1 is List (left)
+    // Block 2 must be Center, NOT left!
+    let center_style = styles.get(&2);
+    assert!(center_style.is_some(), "Block 2 must have style");
+    assert_eq!(center_style.unwrap().align, css::TextAlign::Center);
 }
 
 #[test]
