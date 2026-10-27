@@ -61,6 +61,42 @@ fn test_convert_html_to_markdown_ruby() {
 }
 
 #[test]
+fn test_convert_html_footnote_and_superscript() {
+    let html = "<p>hấp dẫn hơn.<span class=\"text_1\"><sup class=\"calibre7\">2</sup></span></p>\n<p class=\"block_4\"><span class=\"text_1\"><sup class=\"calibre7\">1</sup></span>. Tên một chương trình truyền hình thực tế ở Mỹ...</p>\n<p class=\"block_4\"><span class=\"text_1\"><sup class=\"calibre7\">2</sup></span>. Tiện thể, tôi cần nói ngay: \"Tôi không có thời gian\"...</p>";
+    let md = convert_html_to_markdown(html);
+    assert_eq!(
+        md,
+        "hấp dẫn hơn.[^2]\n\n[^1]: Tên một chương trình truyền hình thực tế ở Mỹ...\n\n[^2]: Tiện thể, tôi cần nói ngay: \"Tôi không có thời gian\"..."
+    );
+
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 3);
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            assert!(
+                inlines
+                    .iter()
+                    .any(|i| matches!(i, Inline::FootnoteReference(lbl) if lbl == "2")),
+                "Expected footnote reference '2'"
+            );
+        }
+        _ => panic!("Expected Paragraph block"),
+    }
+    match &blocks[1] {
+        Block::FootnoteDefinition { label, .. } => {
+            assert_eq!(label, "1");
+        }
+        _ => panic!("Expected FootnoteDefinition for 1"),
+    }
+    match &blocks[2] {
+        Block::FootnoteDefinition { label, .. } => {
+            assert_eq!(label, "2");
+        }
+        _ => panic!("Expected FootnoteDefinition for 2"),
+    }
+}
+
+#[test]
 fn test_extract_ncx_navpoints() {
     let ncx_xml = r#"
         <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/">
