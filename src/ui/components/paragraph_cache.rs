@@ -31,6 +31,19 @@ pub fn hash_spans(spans: &[Span<'_, (), Font>]) -> u64 {
         span.font.hash(&mut hasher);
         span.color.map(|c| c.into_rgba8()).hash(&mut hasher);
         span.size.map(|s| s.0.to_bits()).hash(&mut hasher);
+        if let Some(h) = span.highlight {
+            match h.background {
+                iced::Background::Color(c) => {
+                    1u8.hash(&mut hasher);
+                    c.into_rgba8().hash(&mut hasher);
+                }
+                iced::Background::Gradient(_) => {
+                    2u8.hash(&mut hasher);
+                }
+            }
+        } else {
+            0u8.hash(&mut hasher);
+        }
     }
     hasher.finish()
 }
@@ -74,5 +87,20 @@ mod tests {
         let span_color2 =
             Span::<'static, (), Font>::new("Hello World").color(iced::Color::from_rgb8(0, 255, 0));
         assert_ne!(hash_spans(&[span_color1]), hash_spans(&[span_color2]));
+
+        let span_bg1 = Span::<'static, (), Font>::new("Hello World")
+            .background(iced::Color::from_rgb8(255, 255, 0));
+        let span_bg2 = Span::<'static, (), Font>::new("Hello World")
+            .background(iced::Color::from_rgb8(255, 128, 0));
+        let span_no_bg = Span::<'static, (), Font>::new("Hello World");
+
+        assert_ne!(
+            hash_spans(std::slice::from_ref(&span_bg1)),
+            hash_spans(std::slice::from_ref(&span_bg2))
+        );
+        assert_ne!(
+            hash_spans(std::slice::from_ref(&span_bg1)),
+            hash_spans(std::slice::from_ref(&span_no_bg))
+        );
     }
 }

@@ -351,10 +351,20 @@ pub fn handle_search_next(app: &mut KglanceApp) -> Task<Message> {
             }
         };
         let s = &mut app.state.markdown;
+        let target_y = (y - s.viewport_height * 0.25).max(0.0);
         let max_y = crate::core::scroll::max_scroll_y(s.total_content_height, s.viewport_height);
+        let target_y = target_y.min(max_y);
         s.scroll_controller.stop(s.scroll_y);
-        s.smooth_scroll.start_navigation(s.scroll_y, y, max_y);
-        return Task::none();
+        s.smooth_scroll
+            .start_navigation(s.scroll_y, target_y, max_y);
+        let scroll_task = operation::scroll_to(
+            "content_scroll",
+            operation::AbsoluteOffset {
+                x: 0.0,
+                y: target_y,
+            },
+        );
+        return scroll_task;
     }
     Task::none()
 }
@@ -388,10 +398,20 @@ pub fn handle_search_prev(app: &mut KglanceApp) -> Task<Message> {
             }
         };
         let s = &mut app.state.markdown;
+        let target_y = (y - s.viewport_height * 0.25).max(0.0);
         let max_y = crate::core::scroll::max_scroll_y(s.total_content_height, s.viewport_height);
+        let target_y = target_y.min(max_y);
         s.scroll_controller.stop(s.scroll_y);
-        s.smooth_scroll.start_navigation(s.scroll_y, y, max_y);
-        return Task::none();
+        s.smooth_scroll
+            .start_navigation(s.scroll_y, target_y, max_y);
+        let scroll_task = operation::scroll_to(
+            "content_scroll",
+            operation::AbsoluteOffset {
+                x: 0.0,
+                y: target_y,
+            },
+        );
+        return scroll_task;
     }
     Task::none()
 }

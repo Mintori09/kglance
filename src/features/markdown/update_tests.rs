@@ -1007,3 +1007,37 @@ fn test_drag_selection_started_from_empty_area() {
         Some("First line\nSe")
     );
 }
+
+#[test]
+fn test_handle_search_next_prev_navigation() {
+    let mut app = KglanceApp {
+        current_content: Some(PreviewData::Markdown {
+            blocks: vec![],
+            raw_text: String::new(),
+        }),
+        ..Default::default()
+    };
+    app.state.markdown.search_match_count = 3;
+    app.state.markdown.search_match_blocks = vec![0, 2, 4];
+    app.state.markdown.search_match_index = 0;
+    app.state.markdown.block_y_offsets = vec![0.0, 100.0, 300.0, 600.0, 1000.0];
+    app.state.markdown.viewport_height = 800.0;
+    app.state.markdown.total_content_height = 2000.0;
+
+    let _ = handle_search_next(&mut app);
+    assert_eq!(app.state.markdown.search_match_index, 1);
+    assert_eq!(app.state.markdown.search_info, "2/3");
+    // target_y = 300.0 - 800.0 * 0.25 = 100.0
+    assert_eq!(app.state.markdown.smooth_scroll.target_y(), 100.0);
+
+    let _ = handle_search_next(&mut app);
+    assert_eq!(app.state.markdown.search_match_index, 2);
+    assert_eq!(app.state.markdown.search_info, "3/3");
+    // target_y = 1000.0 - 800.0 * 0.25 = 800.0
+    assert_eq!(app.state.markdown.smooth_scroll.target_y(), 800.0);
+
+    let _ = handle_search_prev(&mut app);
+    assert_eq!(app.state.markdown.search_match_index, 1);
+    assert_eq!(app.state.markdown.search_info, "2/3");
+    assert_eq!(app.state.markdown.smooth_scroll.target_y(), 100.0);
+}
