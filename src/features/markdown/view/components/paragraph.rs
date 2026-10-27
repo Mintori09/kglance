@@ -23,8 +23,25 @@ pub(crate) fn render_paragraph<'a>(
         None
     };
 
+    let starts_with_bullet = content.first().is_some_and(|inline| match inline {
+        Inline::Text(t) => {
+            let s = t.trim_start();
+            s.starts_with('♦')
+                || s.starts_with('•')
+                || s.starts_with('▪')
+                || s.starts_with('▫')
+                || s.starts_with('✦')
+                || s.starts_with('►')
+                || s.starts_with('▸')
+                || s.starts_with('⁃')
+                || s.starts_with('◇')
+                || s.starts_with('●')
+        }
+        _ => false,
+    });
+
     let prefix_storage: String;
-    let prefix_text = if indent > 0.0 && !content.is_empty() {
+    let prefix_text = if indent > 0.0 && !content.is_empty() && !starts_with_bullet {
         let num_spaces = if indent >= 40.0 {
             3
         } else if indent >= 20.0 {

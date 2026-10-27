@@ -906,6 +906,18 @@ fn clean_lang_token(token: &str) -> String {
     token.to_lowercase()
 }
 
+fn is_custom_bullet_start(s: &str) -> Option<&str> {
+    const BULLETS: &[&str] = &[
+        "♦ ", "• ", "▪ ", "▫ ", "✦ ", "► ", "▸ ", "⁃ ", "– ", "— ", "◇ ", "▶ ", "● ",
+    ];
+    for b in BULLETS {
+        if let Some(rest) = s.strip_prefix(b) {
+            return Some(rest);
+        }
+    }
+    None
+}
+
 fn clean_markdown_output(text: &str) -> String {
     let mut result = String::with_capacity(text.len());
     let mut in_code_fence = false;
@@ -941,7 +953,9 @@ fn clean_markdown_output(text: &str) -> String {
 
         let is_quote_line = trimmed_start.starts_with("> ") || trimmed == ">";
         let is_table_row = trimmed.starts_with('|') && trimmed.ends_with('|');
-        let is_list_item = trimmed_start.starts_with("- ")
+        let custom_bullet_rest = is_custom_bullet_start(trimmed_start);
+        let is_list_item = custom_bullet_rest.is_some()
+            || trimmed_start.starts_with("- ")
             || trimmed_start.starts_with("* ")
             || trimmed_start.starts_with("+ ")
             || (trimmed_start
@@ -977,7 +991,12 @@ fn clean_markdown_output(text: &str) -> String {
             } else if in_list {
                 result.push('\n');
             }
-            result.push_str(line);
+            if let Some(rest) = custom_bullet_rest {
+                result.push_str("- ");
+                result.push_str(rest.trim_start());
+            } else {
+                result.push_str(line);
+            }
             in_list = true;
             in_table = false;
             in_quote = false;
