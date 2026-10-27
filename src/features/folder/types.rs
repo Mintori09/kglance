@@ -54,29 +54,30 @@ pub struct FolderState {
     pub folder_path: String,
     pub scroll_y: f32,
     pub viewport_height: f32,
+    pub search_visible: bool,
+    pub search_query: String,
 }
 
 pub fn sort_folder_rows(rows: &mut [FolderRowState], sort: &SortState) {
     if !sort.active {
         return;
     }
-    match sort.field {
-        SortField::Name => {
-            rows.sort_by(|a, b| a.name.cmp(&b.name));
+    rows.sort_by(|a, b| {
+        // Folders always come first regardless of field or ascending order
+        match (a.is_dir, b.is_dir) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => {
+                let ord = match sort.field {
+                    SortField::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                    SortField::Kind => a.kind.cmp(&b.kind),
+                    SortField::Size => a.raw_size.cmp(&b.raw_size),
+                    SortField::Modified => a.raw_modified.cmp(&b.raw_modified),
+                };
+                if sort.ascending { ord } else { ord.reverse() }
+            }
         }
-        SortField::Kind => {
-            rows.sort_by(|a, b| a.kind.cmp(&b.kind));
-        }
-        SortField::Size => {
-            rows.sort_by_key(|a| a.raw_size);
-        }
-        SortField::Modified => {
-            rows.sort_by_key(|a| a.raw_modified);
-        }
-    }
-    if !sort.ascending {
-        rows.reverse();
-    }
+    });
 }
 
 pub fn human_file_kind(name: &str, is_dir: bool) -> &'static str {

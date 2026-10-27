@@ -26,6 +26,13 @@ pub enum NavigationMsg {
     ToggleSettingsClicked,
     FileClicked(usize),
     FolderScrolled(iced::widget::scrollable::Viewport),
+    OpenPath(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum FolderMsg {
+    SearchQueryChanged(String),
+    SearchClosed,
 }
 
 #[derive(Debug, Clone)]
@@ -468,6 +475,7 @@ pub enum Message {
     FileTree(FileTreeMsg),
     SelectionMenu(SelectionMenuMsg),
     Trash(TrashMsg),
+    Folder(FolderMsg),
 
     // Layout / Global Events
     SmoothScrollTick(std::time::Instant),
@@ -578,5 +586,10 @@ impl From<SelectionMenuMsg> for Message {
 impl From<TrashMsg> for Message {
     fn from(m: TrashMsg) -> Self {
         Message::Trash(m)
+    }
+}
+impl From<FolderMsg> for Message {
+    fn from(m: FolderMsg) -> Self {
+        Message::Folder(m)
     }
 }
