@@ -154,6 +154,143 @@ fn parse_heading_tag(name: &str) -> Option<u8> {
     }
 }
 
+pub fn extract_classes(e: &quick_xml::events::BytesStart) -> Vec<String> {
+    for attr in e.attributes().flatten() {
+        if attr.key.as_ref().eq_ignore_ascii_case("class") {
+            let val = attr.value.to_string();
+            return val
+                .split_whitespace()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+    }
+    Vec::new()
+}
+
+pub fn extract_inline_style_attr(e: &quick_xml::events::BytesStart) -> Option<String> {
+    for attr in e.attributes().flatten() {
+        if attr.key.as_ref().eq_ignore_ascii_case("style") {
+            let val = attr.value.to_string();
+            let trimmed = val.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Information extracted from an HTML block tag (`<h1..6>` or `<p>`).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct RawHtmlBlockMeta {
+    pub tag: String,
+    pub classes: Vec<String>,
+    pub inline_style: Option<String>,
+    pub id: Option<String>,
+    pub is_empty: bool,
+}
+
+/// Scans HTML to extract metadata for all block-level elements (`<p>`, `<h1>`..`<h6>`).
+pub fn extract_html_blocks_meta(html: &str) -> Vec<RawHtmlBlockMeta> {
+    use quick_xml::events::Event;
+    use quick_xml::reader::Reader;
+
+    let mut reader = Reader::from_str(html);
+    reader.config_mut().check_end_names = false;
+    reader.config_mut().trim_text(false);
+
+    let mut metas = Vec::new();
+    let mut buf = Vec::with_capacity(256);
+
+    let mut current_block: Option<RawHtmlBlockMeta> = None;
+    let mut text_count = 0usize;
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => {
+                let name = e.name();
+                let tag_str = name.as_ref().to_ascii_lowercase();
+
+                if matches!(
+                    tag_str.as_str(),
+                    "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6"
+                ) {
+                    if let Some(mut prev) = current_block.take() {
+                        prev.is_empty = text_count == 0;
+                        metas.push(prev);
+                    }
+                    current_block = Some(RawHtmlBlockMeta {
+                        tag: tag_str,
+                        classes: extract_classes(e),
+                        inline_style: extract_inline_style_attr(e),
+                        id: extract_id_or_name(e),
+                        is_empty: true,
+                    });
+                    text_count = 0;
+                } else if tag_str == "img" && current_block.is_some() {
+                    text_count += 1;
+                }
+            }
+            Ok(Event::Empty(ref e)) => {
+                let name = e.name();
+                let tag_str = name.as_ref().to_ascii_lowercase();
+
+                if tag_str == "img" && current_block.is_some() {
+                    text_count += 1;
+                } else if matches!(
+                    tag_str.as_str(),
+                    "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6"
+                ) {
+                    if let Some(mut prev) = current_block.take() {
+                        prev.is_empty = text_count == 0;
+                        metas.push(prev);
+                    }
+                    metas.push(RawHtmlBlockMeta {
+                        tag: tag_str,
+                        classes: extract_classes(e),
+                        inline_style: extract_inline_style_attr(e),
+                        id: extract_id_or_name(e),
+                        is_empty: true,
+                    });
+                    text_count = 0;
+                }
+            }
+            Ok(Event::End(ref e)) => {
+                let name = e.name();
+                let tag_str = name.as_ref().to_ascii_lowercase();
+
+                if let Some(ref cur) = current_block
+                    && cur.tag == tag_str
+                {
+                    let mut block = current_block.take().unwrap();
+                    block.is_empty = text_count == 0;
+                    metas.push(block);
+                    text_count = 0;
+                }
+            }
+            Ok(Event::Text(ref e)) => {
+                let s = e.as_ref();
+                let clean = s.replace('\u{a0}', " ");
+                if !clean.trim().is_empty() {
+                    text_count += clean.trim().len();
+                }
+            }
+            Ok(Event::Eof) | Err(_) => {
+                if let Some(mut prev) = current_block.take() {
+                    prev.is_empty = text_count == 0;
+                    metas.push(prev);
+                }
+                break;
+            }
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    metas
+}
+
 pub fn extract_id_or_name(e: &quick_xml::events::BytesStart) -> Option<String> {
     for attr in e.attributes().flatten() {
         let key = attr.key.as_ref();

@@ -1,3 +1,4 @@
+pub mod css;
 mod html;
 mod ncx;
 mod opf;
@@ -24,8 +25,8 @@ use html::{
 };
 use ncx::{NcxNavPoint, decode_url_component, extract_epub3_navpoints, extract_ncx_navpoints};
 use opf::{
-    extract_cover_image_href, extract_nav_href, extract_ncx_href, extract_opf_path,
-    extract_spine_items, resolve_relative_path,
+    extract_cover_image_href, extract_css_items, extract_nav_href, extract_ncx_href,
+    extract_opf_path, extract_spine_items, resolve_relative_path,
 };
 
 const DEFAULT_TITLE: &str = "Unknown Title";
@@ -46,21 +47,33 @@ pub fn parse_chapter_content<R: Read + Seek>(
     Ok(blocks)
 }
 
-pub type LoadedChapterContent = (Vec<Block>, HashMap<String, Vec<u8>>);
+pub type LoadedChapterContent = (
+    Vec<Block>,
+    HashMap<String, Vec<u8>>,
+    HashMap<usize, css::BlockStyle>,
+);
 
 pub fn load_chapter_content_and_images_from_epub(
     path: &Path,
     file_href: &str,
-    anchor: Option<&str>,
+    _anchor: Option<&str>,
 ) -> Result<LoadedChapterContent, ParseError> {
     let file = File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     let reader = BufReader::new(file);
     let mut archive =
         zip::ZipArchive::new(reader).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     let opf_path = read_container_opf_path(&mut archive)?;
-    let blocks = parse_chapter_content(&mut archive, &opf_path, file_href, anchor)?;
+    let opf_xml = read_archive_entry_string(&mut archive, &opf_path).unwrap_or_default();
+    let stylesheet_map = load_all_stylesheets(&mut archive, &opf_path, &opf_xml);
+
+    let resolved_path = resolve_relative_path(&opf_path, file_href);
+    let html = read_archive_entry_string(&mut archive, &resolved_path)?;
+    let md = convert_html_to_markdown(&html);
+    let blocks = parse_to_blocks(&md);
+    let styles = extract_blocks_styles(&html, &blocks, &stylesheet_map);
+
     let images = extract_selective_images(&mut archive, &opf_path, None, &blocks, Some(file_href));
-    Ok((blocks, images))
+    Ok((blocks, images, styles))
 }
 
 pub fn load_chapter_from_epub(
@@ -79,7 +92,57 @@ pub fn load_chapter_from_epub(
 pub type LoadedAllChaptersContent = (
     Vec<crate::core::types::EpubChapterInfo>,
     HashMap<String, Vec<u8>>,
+    HashMap<usize, css::BlockStyle>,
 );
+
+pub fn load_all_stylesheets<R: Read + Seek>(
+    archive: &mut zip::ZipArchive<R>,
+    opf_path: &str,
+    opf_xml: &str,
+) -> HashMap<String, css::BlockStyle> {
+    let css_hrefs = extract_css_items(opf_xml);
+    let mut combined = HashMap::new();
+    for href in css_hrefs {
+        let resolved = resolve_relative_path(opf_path, &href);
+        if let Ok(css_text) = read_archive_entry_string(archive, &resolved) {
+            let parsed = css::parse_stylesheet(&css_text);
+            combined.extend(parsed);
+        }
+    }
+    combined
+}
+
+pub fn extract_blocks_styles(
+    html: &str,
+    blocks: &[Block],
+    stylesheet_map: &HashMap<String, css::BlockStyle>,
+) -> HashMap<usize, css::BlockStyle> {
+    use crate::features::common::parser::html::extract_html_blocks_meta;
+
+    let metas = extract_html_blocks_meta(html);
+    let non_empty_metas: Vec<_> = metas.into_iter().filter(|m| !m.is_empty).collect();
+    let mut styles = HashMap::new();
+    let mut meta_idx = 0usize;
+
+    for (b_idx, block) in blocks.iter().enumerate() {
+        if is_standalone_anchor_block(block) {
+            continue;
+        }
+        if let Some(meta) = non_empty_metas.get(meta_idx) {
+            let style = css::resolve_block_style(
+                &meta.classes,
+                meta.inline_style.as_deref(),
+                stylesheet_map,
+            );
+            if style != css::BlockStyle::default() {
+                styles.insert(b_idx, style);
+            }
+            meta_idx += 1;
+        }
+    }
+
+    styles
+}
 
 pub fn load_all_chapters_and_images_from_epub(
     path: &Path,
@@ -90,6 +153,8 @@ pub fn load_all_chapters_and_images_from_epub(
     let mut archive =
         zip::ZipArchive::new(reader).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     let opf_path = read_container_opf_path(&mut archive)?;
+    let opf_xml = read_archive_entry_string(&mut archive, &opf_path).unwrap_or_default();
+    let stylesheet_map = load_all_stylesheets(&mut archive, &opf_path, &opf_xml);
 
     // 1. Identify all unique file hrefs that need to be read/parsed
     let mut needed_hrefs = HashSet::new();
@@ -108,28 +173,32 @@ pub fn load_all_chapters_and_images_from_epub(
         }
     }
 
-    // 3. Parse HTML to markdown and then to blocks in parallel using rayon
-    let parsed_files: HashMap<String, Vec<Block>> = raw_files
+    // 3. Parse HTML to markdown, blocks, and block styles in parallel using rayon
+    let parsed_files: HashMap<String, (Vec<Block>, HashMap<usize, css::BlockStyle>)> = raw_files
         .into_par_iter()
         .map(|(href, html)| {
             let md = convert_html_to_markdown(&html);
             let blocks = parse_to_blocks(&md);
-            (href, blocks)
+            let styles = extract_blocks_styles(&html, &blocks, &stylesheet_map);
+            (href, (blocks, styles))
         })
         .collect();
 
-    // 4. Construct the loaded chapter list and collect all referenced images
+    // 4. Construct the loaded chapter list, combined continuous styles, and collect all referenced images
     let mut loaded_chapters = Vec::with_capacity(chapters.len());
     let mut target_names: HashSet<String> = HashSet::new();
     let mut target_to_orig: HashMap<String, Vec<String>> = HashMap::new();
+    let mut continuous_styles: HashMap<usize, css::BlockStyle> = HashMap::new();
+    let mut continuous_block_offset = 0usize;
+    let mut seen_file_offsets: HashMap<String, usize> = HashMap::new();
 
-    for ch in chapters {
-        let blocks = if !ch.blocks.is_empty() {
-            ch.blocks.clone()
-        } else if let Some(parsed) = parsed_files.get(&ch.file_href) {
-            parsed.clone()
+    for (ch_idx, ch) in chapters.iter().enumerate() {
+        let (blocks, chapter_styles) = if !ch.blocks.is_empty() {
+            (ch.blocks.clone(), HashMap::new())
+        } else if let Some((parsed_b, parsed_s)) = parsed_files.get(&ch.file_href) {
+            (parsed_b.clone(), parsed_s.clone())
         } else {
-            Vec::new()
+            (Vec::new(), HashMap::new())
         };
 
         let block_imgs = extract_images_from_blocks(&blocks);
@@ -157,6 +226,31 @@ pub fn load_all_chapters_and_images_from_epub(
             let filename = extract_filename(&img);
             target_names.insert(filename);
             target_names.insert(img);
+        }
+
+        // Map styles into continuous block offset coordinates
+        if !ch.file_href.is_empty()
+            && let Some(&existing_offset) = seen_file_offsets.get(&ch.file_href)
+        {
+            // Already incorporated into continuous stream
+            let _ = existing_offset;
+        } else {
+            if !ch.file_href.is_empty() {
+                seen_file_offsets.insert(ch.file_href.clone(), continuous_block_offset);
+            }
+            if !blocks.is_empty() {
+                if ch_idx > 0
+                    && crate::features::epub::anchor::chapter_header_blocks_count(chapters, ch_idx)
+                        > 0
+                {
+                    // Block::HorizontalRule is inserted
+                    continuous_block_offset += 1;
+                }
+                for (local_idx, style) in chapter_styles {
+                    continuous_styles.insert(continuous_block_offset + local_idx, style);
+                }
+                continuous_block_offset += blocks.len();
+            }
         }
 
         loaded_chapters.push(crate::core::types::EpubChapterInfo {
@@ -202,7 +296,7 @@ pub fn load_all_chapters_and_images_from_epub(
         }
     }
 
-    Ok((loaded_chapters, all_images))
+    Ok((loaded_chapters, all_images, continuous_styles))
 }
 
 pub fn load_images_for_blocks_from_epub(

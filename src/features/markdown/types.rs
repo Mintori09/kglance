@@ -77,6 +77,8 @@ pub struct MarkdownState {
     pub smooth_scroll: SmoothScrollState,
     pub touchpad_tracker: TouchpadGestureTracker,
     pub scroll_controller: ScrollController,
+    /// Styles for rendered blocks (alignment, indentation, bold), keyed by block index.
+    pub block_styles: HashMap<usize, crate::features::epub::parser::css::BlockStyle>,
 }
 
 impl Default for MarkdownState {
@@ -122,6 +124,7 @@ impl Default for MarkdownState {
             smooth_scroll: SmoothScrollState::default(),
             touchpad_tracker: TouchpadGestureTracker::default(),
             scroll_controller: ScrollController::default(),
+            block_styles: HashMap::new(),
         }
     }
 }

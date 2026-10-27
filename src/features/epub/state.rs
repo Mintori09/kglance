@@ -157,7 +157,7 @@ pub fn populate_state(
             let mut imgs = images.clone();
             if chs.iter().any(|c| c.blocks.is_empty())
                 && !state.file_name.is_empty()
-                && let Ok((full_chs, new_imgs)) =
+                && let Ok((full_chs, new_imgs, full_styles)) =
                     crate::features::epub::parser::load_all_chapters_and_images_from_epub(
                         std::path::Path::new(&state.file_name),
                         chapters,
@@ -167,6 +167,7 @@ pub fn populate_state(
                 for (k, v) in new_imgs {
                     imgs.insert(k, v);
                 }
+                markdown_state.block_styles = full_styles;
             }
 
             let (all_blocks, offsets) = build_continuous_blocks(&chs);
