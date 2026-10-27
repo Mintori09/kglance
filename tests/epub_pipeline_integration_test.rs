@@ -168,3 +168,16 @@ fn test_epub_parser_registry_integration() {
         panic!("Expected PreviewData::Epub, got different variant");
     }
 }
+
+#[test]
+fn test_html_converter_blockquote() {
+    let html = "<blockquote><p>Quote line 1</p><p>Quote line 2</p></blockquote>";
+    let md = kglance::features::common::parser::html::convert_html_to_markdown(html);
+    let (blocks, _) = kglance::parsers::markdown::parse_markdown(&md, std::path::Path::new("."));
+    match &blocks[0] {
+        kglance::parsers::markdown::Block::Quote(inner) => {
+            assert_eq!(inner.len(), 2, "Expected 2 paragraphs inside quote");
+        }
+        other => panic!("Expected Block::Quote, got {:?}", other),
+    }
+}

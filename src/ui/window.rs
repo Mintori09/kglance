@@ -71,6 +71,7 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     let file_tree_btn = file_tree_toggle_button(state, main_font);
     let counter = playlist_position_button(state, main_font);
     let page_counter = page_indicator(state, main_font);
+    let epub_counter = epub_progress_indicator(state, main_font);
     let toc_btn = toc_toggle_button(state, main_font);
     let typst = typst_toggle_button(state, main_font);
     let info = image_info_button(state, main_font);
@@ -79,6 +80,7 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         file_tree_btn,
         counter,
         page_counter,
+        epub_counter,
         toc_btn,
         text(left)
             .size(typography::CAPTION)
@@ -229,6 +231,31 @@ fn page_indicator<'a>(state: &KglanceState, font: iced::Font) -> Option<Element<
 
     Some(
         text(format!("[ {page} / {total} ]"))
+            .size(11)
+            .font(font)
+            .style(metadata_style)
+            .into(),
+    )
+}
+
+fn epub_progress_indicator<'a>(
+    state: &KglanceState,
+    font: iced::Font,
+) -> Option<Element<'a, Message>> {
+    let is_epub = file_has_extension(state, "epub") || state.file_type_text.contains("EPUB");
+    if !is_epub || state.epub.chapters.is_empty() {
+        return None;
+    }
+
+    let active = state.epub.active_chapter + 1;
+    let total = state.epub.chapters.len();
+    let max_scroll = (state.epub.markdown_state.total_content_height
+        - state.epub.markdown_state.viewport_height)
+        .max(1.0);
+    let pct = ((state.epub.markdown_state.scroll_y / max_scroll) * 100.0).clamp(0.0, 100.0) as u32;
+
+    Some(
+        text(format!("[ {active} / {total} ] • {pct}%"))
             .size(11)
             .font(font)
             .style(metadata_style)
@@ -626,5 +653,38 @@ mod tests {
             duration: std::time::Duration::from_secs(8),
         });
         let _non_empty = toasts(&state);
+    }
+
+    #[test]
+    fn test_epub_progress_indicator() {
+        let mut state = KglanceState {
+            file_name: "test.epub".to_string(),
+            file_type_text: "EPUB E-Book".to_string(),
+            ..Default::default()
+        };
+        state.epub.chapters = vec![
+            crate::core::types::EpubChapterInfo {
+                title: "Chapter 1".to_string(),
+                file_href: "ch1.xhtml".to_string(),
+                anchor: None,
+                blocks: Vec::new(),
+                level: 0,
+            },
+            crate::core::types::EpubChapterInfo {
+                title: "Chapter 2".to_string(),
+                file_href: "ch2.xhtml".to_string(),
+                anchor: None,
+                blocks: Vec::new(),
+                level: 0,
+            },
+        ];
+        state.epub.active_chapter = 0;
+        state.epub.markdown_state.total_content_height = 1000.0;
+        state.epub.markdown_state.viewport_height = 500.0;
+        state.epub.markdown_state.scroll_y = 250.0;
+
+        let font = iced::Font::DEFAULT;
+        let indicator = epub_progress_indicator(&state, font);
+        assert!(indicator.is_some());
     }
 }
