@@ -936,6 +936,29 @@ where
         );
         let offset_x = (draw_anchor.x - bounds.x).max(0.0);
 
+        for (index, span) in self.spans.iter().enumerate() {
+            if let Some(highlight) = span.highlight {
+                let regions = paragraph.span_bounds(index);
+                for region in regions {
+                    let quad_bounds = Rectangle {
+                        x: bounds.x + region.x,
+                        y: bounds.y + top_pad + region.y,
+                        width: region.width,
+                        height: region.height,
+                    };
+                    renderer.fill_quad(
+                        renderer::Quad {
+                            bounds: quad_bounds,
+                            border: highlight.border,
+                            shadow: Shadow::default(),
+                            snap: true,
+                        },
+                        highlight.background,
+                    );
+                }
+            }
+        }
+
         let effective_selection = if let Some(current_blk) = self.block_index {
             if let Some(range) = self.selection_range {
                 let (start_pt, end_pt) = if (range.start.block, range.start.offset)
