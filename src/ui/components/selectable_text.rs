@@ -58,6 +58,7 @@ where
     on_clear_selection: Option<Box<dyn Fn() -> Message + 'a>>,
     drag_active: bool,
     width: Length,
+    align_x: alignment::Horizontal,
     _phantom: std::marker::PhantomData<(Theme, Renderer)>,
 }
 
@@ -86,8 +87,14 @@ where
             on_clear_selection: None,
             drag_active: false,
             width: Length::Fill,
+            align_x: alignment::Horizontal::Left,
             _phantom: std::marker::PhantomData,
         }
+    }
+
+    pub fn align_x(mut self, align: alignment::Horizontal) -> Self {
+        self.align_x = align;
+        self
     }
 
     pub fn links(mut self, links: Vec<TextLink>) -> Self {
@@ -473,10 +480,17 @@ where
 
             state.last_size
         } else {
+            let align_bits = match self.align_x {
+                alignment::Horizontal::Left => 0,
+                alignment::Horizontal::Center => 1,
+                alignment::Horizontal::Right => 2,
+            };
+
             let key = super::paragraph_cache::ParagraphKey {
                 spans_hash,
                 font_size_bits: self.font_size.to_bits(),
                 max_width_bits: (max_width * 2.0).round() as u32,
+                align_bits,
             };
 
             if let Some(cached) = super::paragraph_cache::get_cached_paragraph(&key) {
@@ -508,7 +522,7 @@ where
                     size: Pixels(self.font_size),
                     line_height: iced::advanced::text::LineHeight::Relative(line_height_val),
                     font: Font::default(),
-                    align_x: alignment::Horizontal::Left.into(),
+                    align_x: self.align_x.into(),
                     align_y: alignment::Vertical::Top,
                     shaping: iced::advanced::text::Shaping::Advanced,
                     wrapping: iced::advanced::text::Wrapping::Word,

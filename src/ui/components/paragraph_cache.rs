@@ -12,6 +12,7 @@ pub struct ParagraphKey {
     pub spans_hash: u64,
     pub font_size_bits: u32,
     pub max_width_bits: u32,
+    pub align_bits: u8,
 }
 
 #[derive(Clone)]
