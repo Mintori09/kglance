@@ -46,7 +46,7 @@ pub(crate) fn render_block<'a>(
         Block::FootnoteDefinition { label, content } => {
             render_footnote_definition(label, content, state, ctx)
         }
-        Block::HorizontalRule => render_horizontal_rule(ctx.theme),
+        Block::HorizontalRule => render_horizontal_rule(ctx.theme, ctx.is_epub),
         Block::Html(html) => {
             if crate::parsers::markdown::is_empty_anchor_html(html) {
                 iced::widget::Space::new().into()

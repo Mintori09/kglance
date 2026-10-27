@@ -237,6 +237,7 @@ pub fn render_selection_menu_layer<'a>(state: &'a KglanceState) -> Option<Elemen
                         footnotes: None,
                         result_popup: true,
                         show_heading_divider: true,
+                        is_epub: false,
                     };
                     let el = crate::features::markdown::view::render_block(
                         i,
