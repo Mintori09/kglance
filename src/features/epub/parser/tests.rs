@@ -123,6 +123,29 @@ fn test_convert_html_custom_bullet_list() {
 }
 
 #[test]
+fn test_quote_attribution_dash_not_converted_to_list() {
+    let html = r#"<p class="block_">“Nếu thời gian là thứ đáng giá nhất, phí phạm thời gian hẳn phải là sự lãng phí ngông cuồng nhất.</p>
+<p class="block_1">—<span class="text_">&nbsp;Benjamin Franklin</span></p>"#;
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 2, "Expected 2 separate paragraphs");
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            assert!(flatten_inlines(inlines).contains("Nếu thời gian là thứ đáng giá nhất"));
+        }
+        _ => panic!("Expected Paragraph block for quote"),
+    }
+    match &blocks[1] {
+        Block::Paragraph(inlines) => {
+            let text = flatten_inlines(inlines);
+            assert!(text.contains("—") || text.contains("Benjamin Franklin"));
+            assert!(!text.starts_with("- "));
+        }
+        _ => panic!("Expected Paragraph block for attribution, not a List"),
+    }
+}
+
+#[test]
 fn test_extract_blocks_styles_list_desync_prevention() {
     let html = r#"<p class="block_left">Intro paragraph</p>
 <p class="block_left">♦ Item 1</p>

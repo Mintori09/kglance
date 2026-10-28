@@ -909,9 +909,7 @@ fn clean_lang_token(token: &str) -> String {
     token.to_lowercase()
 }
 
-pub const CUSTOM_BULLET_CHARS: &[char] = &[
-    '♦', '•', '▪', '▫', '✦', '►', '▸', '⁃', '–', '—', '◇', '▶', '●',
-];
+pub const CUSTOM_BULLET_CHARS: &[char] = &['♦', '•', '▪', '▫', '✦', '►', '▸', '⁃', '◇', '▶', '●'];
 
 fn is_custom_bullet_start(s: &str) -> Option<&str> {
     let mut chars = s.chars();
