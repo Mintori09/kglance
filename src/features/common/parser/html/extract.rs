@@ -64,7 +64,13 @@ pub fn extract_chapter_title_from_html(html: &str, book_title: &str) -> Option<S
         .or_else(|| extract_tag_content(html, "h3"))
         .or_else(|| {
             let title = extract_tag_content(html, "title")?;
-            if title != book_title {
+            let lower = title.trim().to_lowercase();
+            let is_generic = lower.is_empty()
+                || lower == "untitled"
+                || lower == "unknown"
+                || lower == "không xác định"
+                || lower == "chưa có tiêu đề";
+            if title != book_title && !is_generic {
                 Some(title)
             } else {
                 None
