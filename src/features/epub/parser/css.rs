@@ -26,6 +26,8 @@ pub struct BlockStyle {
     pub align: TextAlign,
     pub text_indent: f32,
     pub is_bold: bool,
+    pub is_italic: bool,
+    pub is_uppercase: bool,
 }
 
 /// Parses CSS text content and maps class selectors (`.class_name`) to `BlockStyle`.
@@ -46,6 +48,8 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
         let mut align = None;
         let mut indent = None;
         let mut is_bold = false;
+        let mut is_italic = false;
+        let mut is_uppercase = false;
 
         for decl in body.split(';') {
             let decl = decl.trim();
@@ -71,15 +75,21 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
                         || val == "900")
                 {
                     is_bold = true;
+                } else if prop == "font-style" && (val == "italic" || val == "oblique") {
+                    is_italic = true;
+                } else if prop == "text-transform" && val == "uppercase" {
+                    is_uppercase = true;
                 }
             }
         }
 
-        if align.is_some() || indent.is_some() || is_bold {
+        if align.is_some() || indent.is_some() || is_bold || is_italic || is_uppercase {
             let style = BlockStyle {
                 align: align.unwrap_or_default(),
                 text_indent: indent.unwrap_or(0.0),
                 is_bold,
+                is_italic,
+                is_uppercase,
             };
 
             for sel in selectors.split(',') {
@@ -120,6 +130,12 @@ pub fn resolve_block_style(
             if cls_style.is_bold {
                 style.is_bold = true;
             }
+            if cls_style.is_italic {
+                style.is_italic = true;
+            }
+            if cls_style.is_uppercase {
+                style.is_uppercase = true;
+            }
         }
     }
 
@@ -133,6 +149,12 @@ pub fn resolve_block_style(
         }
         if inline_s.is_bold {
             style.is_bold = true;
+        }
+        if inline_s.is_italic {
+            style.is_italic = true;
+        }
+        if inline_s.is_uppercase {
+            style.is_uppercase = true;
         }
     }
 
@@ -183,6 +205,10 @@ pub fn parse_inline_style(style_str: &str) -> BlockStyle {
                     || val == "900")
             {
                 style.is_bold = true;
+            } else if prop == "font-style" && (val == "italic" || val == "oblique") {
+                style.is_italic = true;
+            } else if prop == "text-transform" && val == "uppercase" {
+                style.is_uppercase = true;
             }
         }
     }
@@ -217,6 +243,8 @@ mod tests {
                 align: TextAlign::Center,
                 text_indent: 0.0,
                 is_bold: true,
+                is_italic: false,
+                is_uppercase: false,
             })
         );
         assert_eq!(
@@ -225,6 +253,8 @@ mod tests {
                 align: TextAlign::Right,
                 text_indent: 28.4,
                 is_bold: false,
+                is_italic: false,
+                is_uppercase: false,
             })
         );
         assert_eq!(
@@ -233,15 +263,21 @@ mod tests {
                 align: TextAlign::Justify,
                 text_indent: 28.4,
                 is_bold: false,
+                is_italic: false,
+                is_uppercase: false,
             })
         );
     }
 
     #[test]
     fn test_parse_inline_style() {
-        let style = parse_inline_style("text-align: center; text-indent: 1.5em; font-weight: bold");
+        let style = parse_inline_style(
+            "text-align: center; text-indent: 1.5em; font-weight: bold; font-style: italic; text-transform: uppercase",
+        );
         assert_eq!(style.align, TextAlign::Center);
         assert_eq!(style.text_indent, 24.0);
         assert!(style.is_bold);
+        assert!(style.is_italic);
+        assert!(style.is_uppercase);
     }
 }

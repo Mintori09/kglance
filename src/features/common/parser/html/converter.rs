@@ -38,6 +38,7 @@ pub struct HtmlToMarkdownConverter {
     in_rt: bool,
     in_rp: bool,
     quote_stack: Vec<String>,
+    span_format_stack: Vec<&'static str>,
 }
 
 #[derive(Clone, Copy)]
@@ -83,6 +84,7 @@ impl HtmlToMarkdownConverter {
             in_rt: false,
             in_rp: false,
             quote_stack: Vec::new(),
+            span_format_stack: Vec::new(),
         }
     }
 
@@ -281,6 +283,49 @@ impl HtmlToMarkdownConverter {
                     self.math_buffer.clear();
                     self.math_annotation_tex = None;
                     self.in_math_display = true;
+                } else {
+                    let mut is_bold = false;
+                    let mut is_italic = false;
+                    for attr in e.attributes().flatten() {
+                        let key = attr.key.as_ref();
+                        let val = attr.value.to_ascii_lowercase();
+                        if key.eq_ignore_ascii_case("class") {
+                            for class_token in val.split_whitespace() {
+                                if class_token == "text_2" || class_token.ends_with("_italic") {
+                                    is_italic = true;
+                                } else if class_token == "text_" || class_token.ends_with("_bold") {
+                                    is_bold = true;
+                                } else if class_token == "text_3" {
+                                    is_bold = true;
+                                    is_italic = true;
+                                }
+                            }
+                        } else if key.eq_ignore_ascii_case("style") {
+                            if val.contains("font-style: italic")
+                                || val.contains("font-style:italic")
+                            {
+                                is_italic = true;
+                            }
+                            if val.contains("font-weight: bold") || val.contains("font-weight:bold")
+                            {
+                                is_bold = true;
+                            }
+                        }
+                    }
+
+                    let delimiter = match (is_bold, is_italic) {
+                        (true, true) => Some("***"),
+                        (true, false) => Some("**"),
+                        (false, true) => Some("*"),
+                        (false, false) => None,
+                    };
+
+                    if let Some(delim) = delimiter {
+                        self.append_str(delim);
+                        self.span_format_stack.push(delim);
+                    } else {
+                        self.span_format_stack.push("");
+                    }
                 }
             }
             "ul" => {
@@ -491,6 +536,13 @@ impl HtmlToMarkdownConverter {
             "b" | "strong" => self.append_str("**"),
             "i" | "em" => self.append_str("*"),
             "del" | "s" | "strike" => self.append_str("~~"),
+            "span" => {
+                if let Some(delim) = self.span_format_stack.pop()
+                    && !delim.is_empty()
+                {
+                    self.append_str(delim);
+                }
+            }
             "sub" => {
                 if self.sub_depth > 0 {
                     self.sub_depth -= 1;
@@ -920,6 +972,17 @@ fn is_custom_bullet_start(s: &str) -> Option<&str> {
         let stripped = rest.trim_start_matches(|c: char| c.is_whitespace() || c == '\u{a0}');
         if stripped.len() < rest.len() {
             return Some(stripped);
+        }
+        // Also support when delimiter like `**` immediately follows the bullet before whitespace
+        if let Some(after_delim) = stripped
+            .strip_prefix("**")
+            .or_else(|| stripped.strip_prefix('*'))
+        {
+            let inner =
+                after_delim.trim_start_matches(|c: char| c.is_whitespace() || c == '\u{a0}');
+            if inner.len() < after_delim.len() {
+                return Some(stripped);
+            }
         }
     }
     None

@@ -30,8 +30,28 @@ pub(crate) fn render_heading<'a>(
         .map(|s| s.align.to_horizontal_align())
         .unwrap_or(iced::alignment::Horizontal::Left);
 
-    let heading_content =
-        render_inlines_aligned(content, layout.font_size, weight, color, align_x, ctx);
+    let uppercase_storage: Vec<Inline>;
+    let effective_content = if style.is_some_and(|s| s.is_uppercase) {
+        uppercase_storage = content
+            .iter()
+            .map(|inline| match inline {
+                Inline::Text(t) => Inline::Text(t.to_uppercase()),
+                other => other.clone(),
+            })
+            .collect();
+        &uppercase_storage
+    } else {
+        content
+    };
+
+    let heading_content = render_inlines_aligned(
+        effective_content,
+        layout.font_size,
+        weight,
+        color,
+        align_x,
+        ctx,
+    );
     let heading = container(heading_content)
         .padding(Padding {
             top: layout.padding_top,

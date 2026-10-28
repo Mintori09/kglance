@@ -37,6 +37,7 @@ fn measure_intrinsic_block_height(
         counter: &span_counter,
         theme: AppTheme::Light,
         base_weight: None,
+        base_style: None,
         base_color: None,
         font_size,
         ruby_display_mode: kglance::core::config::RubyDisplayMode::default(),

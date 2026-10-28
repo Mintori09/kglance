@@ -23,6 +23,7 @@ pub struct SpanCtx<'a> {
     pub counter: &'a Cell<usize>,
     pub theme: AppTheme,
     pub base_weight: Option<Weight>,
+    pub base_style: Option<iced::font::Style>,
     pub base_color: Option<Color>,
     pub font_size: f32,
     pub ruby_display_mode: crate::core::config::RubyDisplayMode,
@@ -245,6 +246,9 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
     let mut main_font = get_main_font(span_ctx.font_family);
     if let Some(weight) = span_ctx.base_weight {
         main_font.weight = weight;
+    }
+    if let Some(style) = span_ctx.base_style {
+        main_font.style = style;
     }
     let code_font = get_code_font(span_ctx.font_family_mono);
     let mut spans = Vec::new();
@@ -651,10 +655,10 @@ pub type InlinesSpansResult<'a> = (
     Vec<crate::ui::components::selectable_text::TextTooltip>,
 );
 
-pub fn inlines_to_spans_with_links<'a>(
-    children: &'a [Inline],
+pub fn inlines_to_spans_with_links(
+    children: &[Inline],
     span_ctx: &SpanCtx,
-) -> InlinesSpansResult<'a> {
+) -> InlinesSpansResult<'static> {
     let cached_list = if !span_ctx.search_query.is_empty() {
         inlines_to_spans_core(children, span_ctx)
     } else {
@@ -707,7 +711,7 @@ pub fn inlines_to_spans_with_links<'a>(
     (spans, links, rubies, tooltips)
 }
 
-pub fn inlines_to_spans<'a>(children: &'a [Inline], span_ctx: &SpanCtx) -> Vec<Span<'a, (), Font>> {
+pub fn inlines_to_spans(children: &[Inline], span_ctx: &SpanCtx) -> Vec<Span<'static, (), Font>> {
     inlines_to_spans_with_links(children, span_ctx).0
 }
 

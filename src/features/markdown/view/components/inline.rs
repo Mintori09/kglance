@@ -6,8 +6,29 @@ use crate::parsers::markdown::Inline;
 use crate::ui::types::RenderContext;
 use iced::Element;
 
+#[derive(Clone, Copy)]
+pub struct InlineStyleOptions<'a> {
+    pub base_weight: Option<iced::font::Weight>,
+    pub base_style: Option<iced::font::Style>,
+    pub base_color: Option<iced::Color>,
+    pub align_x: iced::alignment::Horizontal,
+    pub prefix_text: Option<&'a str>,
+}
+
+impl Default for InlineStyleOptions<'_> {
+    fn default() -> Self {
+        Self {
+            base_weight: None,
+            base_style: None,
+            base_color: None,
+            align_x: iced::alignment::Horizontal::Left,
+            prefix_text: None,
+        }
+    }
+}
+
 pub fn render_inlines<'a>(
-    inlines: &'a [Inline],
+    inlines: &[Inline],
     font_size: f32,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
@@ -22,7 +43,7 @@ pub fn render_inlines<'a>(
 }
 
 pub fn render_inlines_styled<'a>(
-    inlines: &'a [Inline],
+    inlines: &[Inline],
     font_size: f32,
     base_weight: Option<iced::font::Weight>,
     base_color: Option<iced::Color>,
@@ -39,7 +60,7 @@ pub fn render_inlines_styled<'a>(
 }
 
 pub fn render_inlines_aligned<'a>(
-    inlines: &'a [Inline],
+    inlines: &[Inline],
     font_size: f32,
     base_weight: Option<iced::font::Weight>,
     base_color: Option<iced::Color>,
@@ -58,12 +79,28 @@ pub fn render_inlines_aligned<'a>(
 }
 
 pub fn render_inlines_aligned_with_prefix<'a>(
-    inlines: &'a [Inline],
+    inlines: &[Inline],
     font_size: f32,
     base_weight: Option<iced::font::Weight>,
     base_color: Option<iced::Color>,
     align_x: iced::alignment::Horizontal,
     prefix_text: Option<&str>,
+    ctx: &RenderContext<'_>,
+) -> Element<'a, Message> {
+    let opts = InlineStyleOptions {
+        base_weight,
+        base_style: None,
+        base_color,
+        align_x,
+        prefix_text,
+    };
+    render_inlines_with_options(inlines, font_size, opts, ctx)
+}
+
+pub fn render_inlines_with_options<'a>(
+    inlines: &[Inline],
+    font_size: f32,
+    opts: InlineStyleOptions<'_>,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
     let span_ctx = SpanCtx {
@@ -73,18 +110,20 @@ pub fn render_inlines_aligned_with_prefix<'a>(
         active_match: ctx.active_match,
         counter: ctx.counter,
         theme: ctx.theme,
-        base_weight,
-        base_color,
+        base_weight: opts.base_weight,
+        base_style: opts.base_style,
+        base_color: opts.base_color,
         font_size,
         ruby_display_mode: ctx.ruby_display_mode,
         footnotes: ctx.footnotes,
     };
-    let default_text_color = base_color.unwrap_or(ctx.theme.palette().base.text);
+    let default_text_color = opts.base_color.unwrap_or(ctx.theme.palette().base.text);
     let (mut spans, links, rubies, tooltips) = inlines_to_spans_with_links(inlines, &span_ctx);
 
-    if let Some(prefix) = prefix_text {
+    if let Some(prefix) = opts.prefix_text {
         let prefix_font = iced::Font {
-            weight: base_weight.unwrap_or(iced::font::Weight::Normal),
+            weight: opts.base_weight.unwrap_or(iced::font::Weight::Normal),
+            style: opts.base_style.unwrap_or(iced::font::Style::Normal),
             ..crate::ui::theme::font::get_main_font(span_ctx.font_family)
         };
         spans.insert(
@@ -110,7 +149,7 @@ pub fn render_inlines_aligned_with_prefix<'a>(
         ctx.drag_active,
         ctx.theme,
         ctx.result_popup,
-        align_x,
+        opts.align_x,
     )
     .into()
 }
