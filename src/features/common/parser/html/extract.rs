@@ -228,7 +228,7 @@ pub fn extract_html_blocks_meta(html: &str) -> Vec<RawHtmlBlockMeta> {
                         is_empty: true,
                     });
                     text_count = 0;
-                } else if tag_str == "img" && current_block.is_some() {
+                } else if matches!(tag_str.as_str(), "img" | "image") && current_block.is_some() {
                     text_count += 1;
                 }
             }
@@ -236,7 +236,7 @@ pub fn extract_html_blocks_meta(html: &str) -> Vec<RawHtmlBlockMeta> {
                 let name = e.name();
                 let tag_str = name.as_ref().to_ascii_lowercase();
 
-                if tag_str == "img" && current_block.is_some() {
+                if matches!(tag_str.as_str(), "img" | "image") && current_block.is_some() {
                     text_count += 1;
                 } else if matches!(
                     tag_str.as_str(),

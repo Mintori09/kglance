@@ -181,3 +181,24 @@ fn test_html_converter_blockquote() {
         other => panic!("Expected Block::Quote, got {:?}", other),
     }
 }
+
+#[test]
+fn test_html_converter_svg_image() {
+    let svg_html = r#"<div>
+        <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+            <image width="800" height="1170" xlink:href="../Images/cover.jpg"/>
+        </svg>
+    </div>"#;
+    let md = kglance::features::common::parser::html::convert_html_to_markdown(svg_html);
+    let (blocks, _) = kglance::parsers::markdown::parse_markdown(&md, std::path::Path::new("."));
+    assert_eq!(blocks.len(), 1, "Expected 1 markdown image block");
+    match &blocks[0] {
+        kglance::parsers::markdown::Block::Image { path, .. } => {
+            assert!(
+                path == "../Images/cover.jpg" || path == "./../Images/cover.jpg",
+                "Image path should match cover image, got: {path}"
+            );
+        }
+        other => panic!("Expected Block::Image, got {:?}", other),
+    }
+}

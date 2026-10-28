@@ -26,16 +26,9 @@ pub(crate) fn render_paragraph<'a>(
     let starts_with_bullet = content.first().is_some_and(|inline| match inline {
         Inline::Text(t) => {
             let s = t.trim_start();
-            s.starts_with('♦')
-                || s.starts_with('•')
-                || s.starts_with('▪')
-                || s.starts_with('▫')
-                || s.starts_with('✦')
-                || s.starts_with('►')
-                || s.starts_with('▸')
-                || s.starts_with('⁃')
-                || s.starts_with('◇')
-                || s.starts_with('●')
+            s.chars().next().is_some_and(|c| {
+                crate::features::common::parser::html::CUSTOM_BULLET_CHARS.contains(&c)
+            })
         }
         _ => false,
     });
