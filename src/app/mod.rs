@@ -757,12 +757,14 @@ impl KglanceApp {
 
             let gen_arc = self.state.epub.markdown_state.generation_id.clone();
             for path_str in all_image_paths {
-                tasks.push(crate::features::markdown::spawn_image_load_task(
-                    path_str,
-                    None,
-                    gen_arc.clone(),
-                    current_gen,
-                ));
+                if crate::core::net::is_remote_url(&path_str) {
+                    tasks.push(crate::features::markdown::spawn_image_load_task(
+                        path_str,
+                        None,
+                        gen_arc.clone(),
+                        current_gen,
+                    ));
+                }
             }
         }
         tasks

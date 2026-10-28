@@ -2,7 +2,9 @@ pub mod converter;
 pub mod entities;
 pub mod extract;
 
-pub use converter::{HtmlToMarkdownConverter, convert_html_to_markdown, strip_html_tags};
+pub use converter::{
+    CUSTOM_BULLET_CHARS, HtmlToMarkdownConverter, convert_html_to_markdown, strip_html_tags,
+};
 pub use entities::{decode_html_entities, normalize_nfc};
 pub use extract::{
     HtmlHeading, RawHtmlBlockMeta, extract_attribute, extract_chapter_title_from_html,

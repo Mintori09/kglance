@@ -365,7 +365,7 @@ impl HtmlToMarkdownConverter {
                 self.in_rt = false;
                 self.in_rp = false;
             }
-            "img" => self.handle_img_tag(e),
+            "img" | "image" => self.handle_img_tag(e),
             _ => {
                 if let Some(id) = extract_id_or_name(e) {
                     if self.output.ends_with('\n') || self.output.is_empty() {
@@ -598,7 +598,7 @@ impl HtmlToMarkdownConverter {
         match name {
             "br" => self.append_str("\n"),
             "hr" => self.append_str("\n\n---\n\n"),
-            "img" => self.handle_img_tag(e),
+            "img" | "image" => self.handle_img_tag(e),
             _ => {}
         }
     }
@@ -612,7 +612,10 @@ impl HtmlToMarkdownConverter {
 
         for attr in e.attributes().flatten() {
             let key = attr.key.as_ref();
-            if key.eq_ignore_ascii_case("src") {
+            if key.eq_ignore_ascii_case("src")
+                || key.eq_ignore_ascii_case("href")
+                || key.eq_ignore_ascii_case("xlink:href")
+            {
                 src = attr.value.to_string();
             } else if key.eq_ignore_ascii_case("alt") {
                 alt = attr.value.to_string();
@@ -906,13 +909,14 @@ fn clean_lang_token(token: &str) -> String {
     token.to_lowercase()
 }
 
+pub const CUSTOM_BULLET_CHARS: &[char] = &[
+    '♦', '•', '▪', '▫', '✦', '►', '▸', '⁃', '–', '—', '◇', '▶', '●',
+];
+
 fn is_custom_bullet_start(s: &str) -> Option<&str> {
-    const BULLET_CHARS: &[char] = &[
-        '♦', '•', '▪', '▫', '✦', '►', '▸', '⁃', '–', '—', '◇', '▶', '●',
-    ];
     let mut chars = s.chars();
     if let Some(first) = chars.next()
-        && BULLET_CHARS.contains(&first)
+        && CUSTOM_BULLET_CHARS.contains(&first)
     {
         let rest = chars.as_str();
         let stripped = rest.trim_start_matches(|c: char| c.is_whitespace() || c == '\u{a0}');
