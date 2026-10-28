@@ -789,3 +789,119 @@ fn test_epub_img_tag_with_dimensions_and_remote_url() {
         _ => panic!("Expected Block::Image"),
     }
 }
+
+#[test]
+fn test_epub_parser_preamble_spine_items_before_ncx() {
+    let temp_dir = std::env::temp_dir();
+    let test_epub_path = temp_dir.join(format!(
+        "test_preamble_{}.epub",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+
+    let file = std::fs::File::create(&test_epub_path).unwrap();
+    let mut zip = zip::ZipWriter::new(file);
+    let options = zip::write::SimpleFileOptions::default();
+
+    zip.start_file("mimetype", options).unwrap();
+    zip.write_all(b"application/epub+zip").unwrap();
+
+    zip.start_file("META-INF/container.xml", options).unwrap();
+    zip.write_all(
+        br#"<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>"#,
+    )
+    .unwrap();
+
+    zip.start_file("OEBPS/content.opf", options).unwrap();
+    zip.write_all(
+        br#"<?xml version="1.0" encoding="utf-8"?>
+<package version="2.0" unique-identifier="BookId" xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Preamble Test Book</dc:title>
+  </metadata>
+  <manifest>
+    <item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>
+    <item id="quotes" href="quotes.xhtml" media-type="application/xhtml+xml"/>
+    <item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="cover"/>
+    <itemref idref="quotes"/>
+    <itemref idref="ch1"/>
+  </spine>
+</package>"#,
+    )
+    .unwrap();
+
+    zip.start_file("OEBPS/toc.ncx", options).unwrap();
+    zip.write_all(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="nav1" playOrder="1">
+      <navLabel><text>Chương 1</text></navLabel>
+      <content src="ch1.xhtml"/>
+    </navPoint>
+  </navMap>
+</ncx>"#
+            .as_bytes(),
+    )
+    .unwrap();
+
+    zip.start_file("OEBPS/cover.xhtml", options).unwrap();
+    zip.write_all(
+        "<html><head><title>Cover</title></head><body><h1>Bia sach</h1></body></html>".as_bytes(),
+    )
+    .unwrap();
+
+    zip.start_file("OEBPS/quotes.xhtml", options).unwrap();
+    zip.write_all(
+        "<html><head><title>Danh ngon</title></head><body><p>Thoi gian la vang.</p></body></html>"
+            .as_bytes(),
+    )
+    .unwrap();
+
+    zip.start_file("OEBPS/ch1.xhtml", options).unwrap();
+    zip.write_all(
+        "<html><head><title>Chương 1</title></head><body><h1>Chương 1</h1><p>Noi dung chinh.</p></body></html>"
+            .as_bytes(),
+    )
+    .unwrap();
+
+    zip.finish().unwrap();
+
+    let parser = EpubParser;
+    let res = parser.parse(&test_epub_path).unwrap();
+
+    if let ParsedContent::Epub { chapters, .. } = res {
+        assert_eq!(
+            chapters.len(),
+            3,
+            "Phải có 3 chapters: cover, quotes, và ch1"
+        );
+        assert_eq!(chapters[0].0, "Bia sach");
+        assert_eq!(chapters[0].3, "cover.xhtml");
+        assert!(
+            !chapters[0].4.is_empty(),
+            "Chapter 0 ban đầu phải được nạp blocks"
+        );
+
+        assert_eq!(chapters[1].0, "Danh ngon");
+        assert_eq!(chapters[1].3, "quotes.xhtml");
+
+        assert_eq!(chapters[2].0, "Chương 1");
+        assert_eq!(chapters[2].3, "ch1.xhtml");
+    } else {
+        panic!("Expected ParsedContent::Epub");
+    }
+
+    let _ = std::fs::remove_file(test_epub_path);
+}

@@ -356,7 +356,13 @@ impl PreviewParser for EpubParser {
         }
 
         let mut chapters = if !nav_entries.is_empty() {
-            build_lazy_chapters_from_ncx(&mut archive, &opf_path, &nav_entries)
+            build_lazy_chapters_from_ncx(
+                &mut archive,
+                &opf_path,
+                &nav_entries,
+                &spine_items,
+                &title,
+            )
         } else {
             build_lazy_chapters_from_spine(&mut archive, &opf_path, &spine_items, &title)
         };
@@ -416,14 +422,70 @@ fn build_lazy_chapters_from_ncx<R: Read + Seek>(
     archive: &mut zip::ZipArchive<R>,
     opf_path: &str,
     ncx_entries: &[NcxNavPoint],
+    spine_items: &[String],
+    book_title: &str,
 ) -> Vec<ParsedEpubChapter> {
     let mut chapters = Vec::new();
 
+    // Identify preamble items in spine that appear before the first NCX entry
+    let first_ncx_file = ncx_entries.first().map(|e| e.2.as_str());
+    let mut preamble_items = Vec::new();
+
+    if let Some(first_file) = first_ncx_file {
+        for spine_item in spine_items {
+            let item_filename = extract_filename(spine_item);
+            let first_filename = extract_filename(first_file);
+            if spine_item == first_file || item_filename == first_filename {
+                break;
+            }
+            preamble_items.push(spine_item.clone());
+        }
+    }
+
+    let has_preamble = !preamble_items.is_empty();
+
+    // 1. Process preamble items
+    for (idx, item_path) in preamble_items.into_iter().enumerate() {
+        let is_first = idx == 0;
+        let resolved_path = resolve_relative_path(opf_path, &item_path);
+        let blocks = if is_first {
+            let html = read_archive_entry_string(archive, &resolved_path).unwrap_or_default();
+            let md = convert_html_to_markdown(&html);
+            parse_to_blocks(&md)
+        } else {
+            Vec::new()
+        };
+
+        let title = if let Ok(html) = read_archive_entry_string(archive, &resolved_path) {
+            extract_chapter_title_from_html(&html, book_title)
+                .map(|t| decode_html_entities(&t))
+                .unwrap_or_else(|| {
+                    if item_path.to_ascii_lowercase().contains("cover")
+                        || item_path.to_ascii_lowercase().contains("titlepage")
+                    {
+                        "Bìa sách".to_string()
+                    } else {
+                        format!("Mở đầu {}", idx + 1)
+                    }
+                })
+        } else if item_path.to_ascii_lowercase().contains("cover")
+            || item_path.to_ascii_lowercase().contains("titlepage")
+        {
+            "Bìa sách".to_string()
+        } else {
+            format!("Mở đầu {}", idx + 1)
+        };
+
+        chapters.push((title, 1, None, item_path, blocks));
+    }
+
+    // 2. Process NCX entries
     for (index, entry) in ncx_entries.iter().enumerate() {
         let (label, level, file_part, anchor) = entry;
         let clean_title = decode_html_entities(label);
 
-        let blocks = if index == 0 {
+        // If no preamble existed, the first NCX entry is the initial chapter (load its blocks)
+        let blocks = if !has_preamble && index == 0 {
             parse_chapter_content(archive, opf_path, file_part, anchor.as_deref())
                 .unwrap_or_default()
         } else {
