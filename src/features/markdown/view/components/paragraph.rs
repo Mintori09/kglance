@@ -1,7 +1,9 @@
 use super::style::STYLE;
 use crate::app::Message;
 use crate::features::epub::parser::css::BlockStyle;
-use crate::features::markdown::view::components::inline::render_inlines_aligned_with_prefix;
+use crate::features::markdown::view::components::inline::{
+    InlineStyleOptions, render_inlines_with_options,
+};
 use crate::parsers::markdown::Inline;
 use crate::ui::types::RenderContext;
 use iced::widget::container;
@@ -12,13 +14,24 @@ pub(crate) fn render_paragraph<'a>(
     style: Option<&BlockStyle>,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
-    let (align_x, indent, is_bold) = match style {
-        Some(s) => (s.align.to_horizontal_align(), s.text_indent, s.is_bold),
-        None => (iced::alignment::Horizontal::Left, 0.0, false),
+    let (align_x, indent, is_bold, is_italic) = match style {
+        Some(s) => (
+            s.align.to_horizontal_align(),
+            s.text_indent,
+            s.is_bold,
+            s.is_italic,
+        ),
+        None => (iced::alignment::Horizontal::Left, 0.0, false, false),
     };
 
     let weight = if is_bold {
         Some(iced::font::Weight::Bold)
+    } else {
+        None
+    };
+
+    let font_style = if is_italic {
+        Some(iced::font::Style::Italic)
     } else {
         None
     };
@@ -48,15 +61,15 @@ pub(crate) fn render_paragraph<'a>(
         None
     };
 
-    let rich = render_inlines_aligned_with_prefix(
-        content,
-        ctx.font_size,
-        weight,
-        None,
+    let opts = InlineStyleOptions {
+        base_weight: weight,
+        base_style: font_style,
+        base_color: None,
         align_x,
         prefix_text,
-        ctx,
-    );
+    };
+
+    let rich = render_inlines_with_options(content, ctx.font_size, opts, ctx);
 
     let [pad_v, pad_h] = STYLE.paragraph.padding;
     let (top_padding, bottom_padding) = if is_bold {

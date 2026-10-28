@@ -146,6 +146,35 @@ fn test_quote_attribution_dash_not_converted_to_list() {
 }
 
 #[test]
+fn test_convert_html_span_classes_to_markdown_formatting() {
+    let html = r#"<p>Sách <span class="text_2">Getting Things Done</span> và <span class="text_">Hoàn thành</span>.</p>"#;
+    let md = convert_html_to_markdown(html);
+    assert!(
+        md.contains("*Getting Things Done*"),
+        "text_2 should convert to italic markdown, got: {md}"
+    );
+    assert!(
+        md.contains("**Hoàn thành**"),
+        "text_ should convert to bold markdown, got: {md}"
+    );
+
+    let blocks = parse_to_blocks(&md);
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            assert!(
+                inlines.iter().any(|i| matches!(i, Inline::Italic(_))),
+                "Expected Inline::Italic for text_2"
+            );
+            assert!(
+                inlines.iter().any(|i| matches!(i, Inline::Bold(_))),
+                "Expected Inline::Bold for text_"
+            );
+        }
+        _ => panic!("Expected Paragraph block"),
+    }
+}
+
+#[test]
 fn test_extract_blocks_styles_list_desync_prevention() {
     let html = r#"<p class="block_left">Intro paragraph</p>
 <p class="block_left">♦ Item 1</p>
@@ -163,6 +192,8 @@ fn test_extract_blocks_styles_list_desync_prevention() {
             align: css::TextAlign::Left,
             text_indent: 0.0,
             is_bold: false,
+            is_italic: false,
+            is_uppercase: false,
         },
     );
     stylesheet.insert(
@@ -171,6 +202,8 @@ fn test_extract_blocks_styles_list_desync_prevention() {
             align: css::TextAlign::Center,
             text_indent: 0.0,
             is_bold: false,
+            is_italic: false,
+            is_uppercase: false,
         },
     );
 

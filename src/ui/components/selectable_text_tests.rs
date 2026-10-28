@@ -278,6 +278,7 @@ fn test_ruby_center_alignment() {
         counter: &counter,
         theme: crate::ui::theme::AppTheme::Dark,
         base_weight: Some(iced::font::Weight::Bold),
+        base_style: None,
         base_color: None,
         font_size: 24.0,
         ruby_display_mode: crate::core::config::RubyDisplayMode::Stacked,
