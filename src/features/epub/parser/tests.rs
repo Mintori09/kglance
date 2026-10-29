@@ -1075,6 +1075,10 @@ fn test_convert_html_li_with_newline_and_span() {
     <li>
       <span class="staffrole">Development Editor:</span> Jeff Bleiel
     </li>
+    <li>
+      <span class="staffrole">Production Editor:</span>
+       Gregory Hyman
+    </li>
   </ul>"#;
 
     let md = convert_html_to_markdown(html);
@@ -1084,7 +1088,7 @@ fn test_convert_html_li_with_newline_and_span() {
     match &blocks[0] {
         Block::List { items, ordered, .. } => {
             assert!(!ordered);
-            assert_eq!(items.len(), 2);
+            assert_eq!(items.len(), 3);
             let item0_text = flatten_inlines(&items[0].content);
             assert!(
                 item0_text.contains("Acquisitions Editor: Amanda Quinn"),
@@ -1094,6 +1098,11 @@ fn test_convert_html_li_with_newline_and_span() {
             assert!(
                 item1_text.contains("Development Editor: Jeff Bleiel"),
                 "Expected item 1 to contain full text without split, got: {item1_text}"
+            );
+            let item2_text = flatten_inlines(&items[2].content);
+            assert!(
+                item2_text.contains("Production Editor: Gregory Hyman"),
+                "Expected item 2 to contain full text without split, got: {item2_text}"
             );
         }
         _ => panic!("Expected List block, got: {:?}", blocks[0]),
