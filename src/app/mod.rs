@@ -1220,14 +1220,20 @@ impl KglanceApp {
             crate::app::messages::SystemMsg::WindowResized(size.width, size.height).into()
         });
 
-        let global_event_sub = iced::event::listen_with(|event, _status, _window_id| match event {
+        let global_event_sub = iced::event::listen_with(|event, status, _window_id| match event {
             iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, modifiers, .. }) => {
-                Some(crate::app::messages::SystemMsg::KeyPressed(key, modifiers).into())
+                if matches!(status, iced::event::Status::Captured) {
+                    None
+                } else {
+                    Some(crate::app::messages::SystemMsg::KeyPressed(key, modifiers).into())
+                }
             }
             iced::Event::Keyboard(iced::keyboard::Event::KeyReleased {
                 key, modifiers, ..
             }) => {
-                if matches!(
+                if matches!(status, iced::event::Status::Captured) {
+                    None
+                } else if matches!(
                     key,
                     iced::keyboard::Key::Named(iced::keyboard::key::Named::Shift)
                 ) {
@@ -1248,7 +1254,11 @@ impl KglanceApp {
                 Some(Message::MouseMoved(position.x, position.y))
             }
             iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Left)) => {
-                Some(Message::MousePressed(0.0, 0.0))
+                if matches!(status, iced::event::Status::Captured) {
+                    None
+                } else {
+                    Some(Message::MousePressed(0.0, 0.0))
+                }
             }
             iced::Event::Mouse(iced::mouse::Event::ButtonReleased(iced::mouse::Button::Left)) => {
                 Some(Message::MouseReleased)
