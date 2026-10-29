@@ -1108,3 +1108,42 @@ fn test_convert_html_li_with_newline_and_span() {
         _ => panic!("Expected List block, got: {:?}", blocks[0]),
     }
 }
+
+#[test]
+fn test_code_tags_ending_with_consonant_not_corrupted_by_normalize_nfc() {
+    let html = r#"<p>The <code>.editor</code> command is one of many REPL commands that you can see by<a data-type="indexterm" id="id458"></a> typing the <code>.help</code> command:</p>"#;
+
+    let md = convert_html_to_markdown(html);
+    assert!(
+        md.contains("`.editor`"),
+        "`.editor` must preserve its closing backtick, got: {md}"
+    );
+    assert!(
+        md.contains("`.help`"),
+        "`.help` must preserve its closing backtick, got: {md}"
+    );
+
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            // Check that .editor is parsed as Inline::Code
+            let has_editor_code = inlines
+                .iter()
+                .any(|inline| matches!(inline, crate::parsers::markdown::Inline::Code(c) if c == ".editor"));
+            assert!(
+                has_editor_code,
+                "Expected Inline::Code(\".editor\") in inlines: {inlines:?}"
+            );
+
+            let has_help_code = inlines
+                .iter()
+                .any(|inline| matches!(inline, crate::parsers::markdown::Inline::Code(c) if c == ".help"));
+            assert!(
+                has_help_code,
+                "Expected Inline::Code(\".help\") in inlines: {inlines:?}"
+            );
+        }
+        _ => panic!("Expected Paragraph block, got: {:?}", blocks[0]),
+    }
+}

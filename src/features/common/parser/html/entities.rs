@@ -48,8 +48,37 @@ pub fn decode_html_entities(text: &str) -> String {
     normalize_nfc(&result)
 }
 
+pub fn is_vietnamese_vowel(c: char) -> bool {
+    matches!(
+        c,
+        'a' | 'ă'
+            | 'â'
+            | 'e'
+            | 'ê'
+            | 'i'
+            | 'o'
+            | 'ô'
+            | 'ơ'
+            | 'u'
+            | 'ư'
+            | 'y'
+            | 'A'
+            | 'Ă'
+            | 'Â'
+            | 'E'
+            | 'Ê'
+            | 'I'
+            | 'O'
+            | 'Ô'
+            | 'Ơ'
+            | 'U'
+            | 'Ư'
+            | 'Y'
+    )
+}
+
 pub fn normalize_nfc(text: &str) -> String {
-    if !text.contains('´') && !text.contains('`') && !text.contains("ộ") {
+    if !text.contains('´') && !text.contains('`') && !text.contains('ộ') {
         return text.to_string();
     }
     let preprocessed = text.replace("ộ\u{0301}", "ối").replace("ộ´", "ối");
@@ -58,8 +87,10 @@ pub fn normalize_nfc(text: &str) -> String {
     let mut prev_char: Option<char> = None;
     for c in preprocessed.chars() {
         match c {
-            '´' => transformed.push('\u{0301}'),
-            '`' if prev_char.is_some_and(|p| p.is_alphabetic() && p != '`') => {
+            '´' if prev_char.is_some_and(is_vietnamese_vowel) => {
+                transformed.push('\u{0301}');
+            }
+            '`' if prev_char.is_some_and(is_vietnamese_vowel) => {
                 transformed.push('\u{0300}');
             }
             other => transformed.push(other),
