@@ -273,35 +273,11 @@ pub fn intrinsic_block_height(
             height,
             ..
         } => {
-            let max_w = lc::IMAGE_MAX_WIDTH;
             let pad_v = (lc::IMAGE_PADDING_V * 2) as f32;
-            if let Some(&(w, h)) = image_sizes.get(path) {
-                let eff_target_w = width.map(|val| val as f32).unwrap_or(w as f32);
-                let display_w = if eff_target_w > max_w {
-                    max_w
-                } else {
-                    eff_target_w
-                };
-                let display_h = if let Some(explicit_h) = height {
-                    *explicit_h as f32
-                } else if w > 0 {
-                    (h as f32 * display_w) / (w as f32)
-                } else {
-                    0.0
-                };
-                display_h + pad_v
-            } else if let Some(explicit_h) = height {
-                *explicit_h as f32 + pad_v
-            } else if let Some(explicit_w) = width {
-                let display_w = if *explicit_w as f32 > max_w {
-                    max_w
-                } else {
-                    *explicit_w as f32
-                };
-                display_w + pad_v
-            } else {
-                0.0
-            }
+            let cached_size = image_sizes.get(path).copied();
+            let (_dw, dh) =
+                lc::compute_image_display_size(cached_size, *width, *height, lc::IMAGE_MAX_WIDTH);
+            dh.unwrap_or(0.0) + pad_v
         }
         Block::Mermaid { .. } => 250.0,
         Block::Html(_) => {
