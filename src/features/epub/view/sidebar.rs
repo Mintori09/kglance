@@ -100,6 +100,50 @@ fn build_resize_button<'a>(
         .into()
 }
 
+pub const CHAPTER_ROW_HEIGHT: f32 = 28.0;
+pub const CHAPTER_SCROLL_CENTER_OFFSET: f32 = 100.0;
+
+/// Calculates the target scroll offset in the chapter sidebar to keep the active chapter centered.
+pub fn calculate_chapter_target_scroll_y(state: &EpubState, active_idx: usize) -> f32 {
+    let mut visible_row_count = 0usize;
+    let mut skip_until_level: Option<u8> = None;
+
+    for (index, chapter) in state.chapters.iter().enumerate() {
+        if let Some(target_level) = skip_until_level {
+            if chapter.level > target_level {
+                if index == active_idx {
+                    // Even if collapsed, return current visible row position
+                    return (visible_row_count as f32 * CHAPTER_ROW_HEIGHT
+                        - CHAPTER_SCROLL_CENTER_OFFSET)
+                        .max(0.0);
+                }
+                continue;
+            }
+            skip_until_level = None;
+        }
+
+        if index == active_idx {
+            return (visible_row_count as f32 * CHAPTER_ROW_HEIGHT - CHAPTER_SCROLL_CENTER_OFFSET)
+                .max(0.0);
+        }
+
+        let has_children = state
+            .chapters
+            .get(index + 1)
+            .map(|next| next.level > chapter.level)
+            .unwrap_or(false);
+
+        let is_collapsed = state.collapsed_chapters.contains(&index);
+        if is_collapsed && has_children {
+            skip_until_level = Some(chapter.level);
+        }
+
+        visible_row_count += 1;
+    }
+
+    (visible_row_count as f32 * CHAPTER_ROW_HEIGHT - CHAPTER_SCROLL_CENTER_OFFSET).max(0.0)
+}
+
 fn build_sidebar_chapter_list<'a>(
     state: &'a EpubState,
     theme: AppTheme,

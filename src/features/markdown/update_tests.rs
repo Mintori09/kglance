@@ -1041,3 +1041,93 @@ fn test_handle_search_next_prev_navigation() {
     assert_eq!(app.state.markdown.search_info, "2/3");
     assert_eq!(app.state.markdown.smooth_scroll.target_y(), 100.0);
 }
+
+#[test]
+fn test_sync_epub_active_chapter_continuous_subheadings_and_auto_expand() {
+    use crate::app::test_util::test_app;
+    use crate::core::types::EpubChapterInfo;
+
+    let mut app = test_app(None);
+    let chapters = vec![
+        EpubChapterInfo {
+            title: "Chapter 1 (Parent)".into(),
+            level: 1,
+            anchor: None,
+            file_href: "ch1.xhtml".into(),
+            blocks: vec![
+                Block::Heading {
+                    level: 1,
+                    content: vec![],
+                }, // block 0
+                Block::Paragraph(vec![]), // block 1
+            ],
+        },
+        EpubChapterInfo {
+            title: "Subheading 1.1".into(),
+            level: 2,
+            anchor: Some("sec1".into()),
+            file_href: "ch1.xhtml".into(),
+            blocks: vec![],
+        },
+        EpubChapterInfo {
+            title: "Subheading 1.2".into(),
+            level: 2,
+            anchor: Some("sec2".into()),
+            file_href: "ch1.xhtml".into(),
+            blocks: vec![],
+        },
+        EpubChapterInfo {
+            title: "Chapter 2".into(),
+            level: 1,
+            anchor: None,
+            file_href: "ch2.xhtml".into(),
+            blocks: vec![
+                Block::Heading {
+                    level: 1,
+                    content: vec![],
+                }, // block 6
+            ],
+        },
+    ];
+
+    app.current_content = Some(PreviewData::Epub {
+        title: "Test".into(),
+        author: "Author".into(),
+        chapters: chapters.clone(),
+        active_chapter: 0,
+        images: std::collections::HashMap::new(),
+    });
+    app.state.epub.reading_mode = crate::core::config::EpubReadingMode::Continuous;
+    app.state.epub.chapters = chapters;
+    // Mock target offsets: Ch1 -> block 0, Sub 1.1 -> block 2, Sub 1.2 -> block 4, Ch2 -> block 6
+    app.state.epub.chapter_block_offsets = vec![0, 0, 0, 6];
+    app.state.epub.chapter_target_offsets = vec![0, 2, 4, 6];
+    app.state.epub.markdown_state.block_y_offsets = vec![
+        0.0,    // 0: Ch1
+        200.0,  // 1: Ch1 content
+        400.0,  // 2: Sub 1.1
+        600.0,  // 3: Sub 1.1 content
+        800.0,  // 4: Sub 1.2
+        1000.0, // 5: Sub 1.2 content
+        1200.0, // 6: Ch2
+    ];
+
+    // Initially parent Chapter 1 (index 0) is collapsed
+    app.state.epub.collapsed_chapters.insert(0);
+    app.state.epub.active_chapter = 0;
+
+    // Scroll to y=450.0 (inside Subheading 1.1)
+    let _ = sync_epub_active_chapter_on_scroll(&mut app, 450.0);
+    // Active chapter must be Subheading 1.1 (index 1), NOT Subheading 1.2 (index 2)!
+    assert_eq!(app.state.epub.active_chapter, 1);
+    // Parent chapter 0 must be auto-expanded!
+    assert!(!app.state.epub.collapsed_chapters.contains(&0));
+
+    // Scroll to y=850.0 (inside Subheading 1.2)
+    let _ = sync_epub_active_chapter_on_scroll(&mut app, 850.0);
+    assert_eq!(app.state.epub.active_chapter, 2);
+
+    // Scroll to y=50.0 (back to Chapter 1)
+    let _ = sync_epub_active_chapter_on_scroll(&mut app, 50.0);
+    assert_eq!(app.state.epub.active_chapter, 0);
+}
