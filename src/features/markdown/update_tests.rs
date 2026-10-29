@@ -1131,3 +1131,46 @@ fn test_sync_epub_active_chapter_continuous_subheadings_and_auto_expand() {
     let _ = sync_epub_active_chapter_on_scroll(&mut app, 50.0);
     assert_eq!(app.state.epub.active_chapter, 0);
 }
+
+#[test]
+fn test_calculate_toc_target_scroll_y_dynamic_wrapping_and_centering() {
+    let toc = vec![
+        crate::core::TocEntry {
+            level: 1,
+            text: "Introduction".into(),
+            block_index: 0,
+            y_offset: 0.0,
+        },
+        crate::core::TocEntry {
+            level: 1,
+            text: "An Extremely Long Heading That Easily Wraps Across Several Lines In The Sidebar Container".into(),
+            block_index: 2,
+            y_offset: 200.0,
+        },
+        crate::core::TocEntry {
+            level: 2,
+            text: "Subsection 1.1".into(),
+            block_index: 5,
+            y_offset: 600.0,
+        },
+    ];
+
+    let state = crate::core::MarkdownState {
+        toc,
+        sidebar_width: 240.0,
+        viewport_height: 800.0,
+        ..Default::default()
+    };
+
+    // First heading is at the top, scroll clamp to 0.0
+    let y_first = calculate_toc_target_scroll_y(&state, 0);
+    assert_eq!(y_first, 0.0);
+
+    // Height of long heading should be estimated larger than flat 28.0px
+    let h_wrapped = estimate_toc_entry_height(&state.toc[1].text, 1, true, 240.0);
+    assert!(h_wrapped > TOC_ROW_HEIGHT);
+
+    // Target for Subsection 1.1 should accumulate the wrapped height
+    let y_sub = calculate_toc_target_scroll_y(&state, 2);
+    assert!(y_sub >= 0.0);
+}

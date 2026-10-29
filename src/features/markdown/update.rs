@@ -5,42 +5,129 @@ use crate::parsers::markdown::Block;
 use iced::Task;
 use iced::widget::operation;
 
-/// Lookahead offset in pixels for active TOC item and EPUB chapter detection.
+/// Dynamic lookahead offset in pixels for active TOC item and EPUB chapter detection.
 ///
-/// Prevents jitter and activates a heading slightly before it scrolls out of view or
-/// as it approaches the top viewing zone (~2 lines of text).
-pub(crate) const HEADING_ACTIVE_DETECTION_OFFSET_Y: f32 = 50.0;
+/// Scales with the user's active font size so heading activation stays visually aligned
+/// at ~2-3 lines of text regardless of zoom level or display density.
+pub(crate) fn heading_active_detection_offset_y(font_size: f32) -> f32 {
+    (font_size * 2.5).clamp(40.0, 100.0)
+}
 
 /// Estimated height of an item row in the Table of Contents sidebar.
-const TOC_ROW_HEIGHT: f32 = 28.0;
+pub(crate) const TOC_ROW_HEIGHT: f32 = 28.0;
 
-/// Scroll offset applied to the TOC sidebar to keep the active item vertically centered.
-const TOC_SCROLL_CENTER_OFFSET: f32 = 100.0;
+/// Estimates the rendered visual height of a TOC heading button in the markdown sidebar.
+pub(crate) fn estimate_toc_entry_height(
+    text: &str,
+    level: u8,
+    has_subheadings: bool,
+    sidebar_width: f32,
+) -> f32 {
+    let indent = if has_subheadings {
+        (level.saturating_sub(1) as f32) * crate::ui::components::sidebar::INDENT_PER_LEVEL
+    } else {
+        0.0
+    };
+    let font_size = crate::ui::components::sidebar::SIDEBAR_ENTRY_FONT_SIZE;
+    // Reserved horizontal space: container padding (8*2) + entry padding (4*2) + indent + chevron/placeholder (15 + 4)
+    let extra_w = 16.0 + 8.0 + indent + if has_subheadings { 19.0 } else { 0.0 };
+    let available_w = (sidebar_width - extra_w).max(80.0);
+
+    let avg_char_w = font_size * 0.54;
+    let approx_text_w = text.chars().count() as f32 * avg_char_w;
+    let lines = (approx_text_w / available_w).ceil().max(1.0);
+
+    let line_height = font_size * 1.35;
+    let content_h = lines * line_height;
+    (8.0 + content_h).max(TOC_ROW_HEIGHT)
+}
 
 /// Calculates the target scroll offset in the TOC container for an active entry position.
-pub(crate) fn calculate_toc_target_scroll_y(active_pos: usize) -> f32 {
-    (active_pos as f32 * TOC_ROW_HEIGHT - TOC_SCROLL_CENTER_OFFSET).max(0.0)
+pub(crate) fn calculate_toc_target_scroll_y(
+    state: &crate::core::MarkdownState,
+    active_pos: usize,
+) -> f32 {
+    let sidebar_w = if state.sidebar_width > 0.0 {
+        state.sidebar_width
+    } else {
+        240.0
+    };
+    let vh = state.viewport_height;
+    let center_offset = if vh > 0.0 {
+        (vh * 0.40).max(60.0)
+    } else {
+        100.0
+    };
+
+    let has_subheadings = state.toc.iter().any(|entry| {
+        state
+            .toc
+            .iter()
+            .skip_while(|e| e.block_index != entry.block_index)
+            .nth(1)
+            .map(|next_entry| next_entry.level > entry.level)
+            .unwrap_or(false)
+    });
+
+    let mut accumulated_y = 8.0; // container_padding
+    let mut skip_until_level: Option<u8> = None;
+
+    for (index, entry) in state.toc.iter().enumerate() {
+        if let Some(target_level) = skip_until_level {
+            if entry.level > target_level {
+                if index == active_pos {
+                    return (accumulated_y - center_offset).max(0.0);
+                }
+                continue;
+            }
+            skip_until_level = None;
+        }
+
+        let entry_h =
+            estimate_toc_entry_height(&entry.text, entry.level, has_subheadings, sidebar_w);
+
+        if index == active_pos {
+            let entry_center = accumulated_y + (entry_h * 0.5);
+            return (entry_center - center_offset).max(0.0);
+        }
+
+        let has_children = state
+            .toc
+            .get(index + 1)
+            .map(|next| next.level > entry.level)
+            .unwrap_or(false);
+
+        let is_collapsed = state.collapsed_headings.contains(&entry.block_index);
+        if is_collapsed && has_children {
+            skip_until_level = Some(entry.level);
+        }
+
+        accumulated_y += entry_h + crate::ui::components::sidebar::SIDEBAR_ITEM_SPACING;
+    }
+
+    (accumulated_y - center_offset).max(0.0)
 }
 
 /// Finds the index of the currently active TOC entry corresponding to `scroll_y`.
 pub(crate) fn find_active_toc_index(
     toc: &[crate::core::types::TocEntry],
     scroll_y: f32,
+    detection_offset: f32,
 ) -> Option<usize> {
     toc.iter()
-        .rposition(|e| e.y_offset <= scroll_y + HEADING_ACTIVE_DETECTION_OFFSET_Y)
+        .rposition(|e| e.y_offset <= scroll_y + detection_offset)
 }
 
 fn scroll_toc_to_active(
-    toc_visible: bool,
-    toc: &[crate::core::types::TocEntry],
+    state: &crate::core::MarkdownState,
     scroll_y: f32,
+    detection_offset: f32,
 ) -> Task<Message> {
-    if !toc_visible || toc.is_empty() {
+    if !state.toc_visible || state.toc.is_empty() {
         return Task::none();
     }
-    if let Some(active_pos) = find_active_toc_index(toc, scroll_y) {
-        let target_y = calculate_toc_target_scroll_y(active_pos);
+    if let Some(active_pos) = find_active_toc_index(&state.toc, scroll_y, detection_offset) {
+        let target_y = calculate_toc_target_scroll_y(state, active_pos);
         operation::scroll_to(
             "toc_scroll",
             operation::AbsoluteOffset {
@@ -128,6 +215,7 @@ pub fn handle_toc_toggle_collapse(app: &mut KglanceApp, idx: usize) -> Task<Mess
 }
 
 pub fn handle_toc_heading_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message> {
+    let font_size = app.state.font_size;
     let state = active_markdown_state_mut(app);
     let y = state
         .block_y_offsets
@@ -156,7 +244,8 @@ pub fn handle_toc_heading_clicked(app: &mut KglanceApp, idx: usize) -> Task<Mess
     if !state.smooth_scroll.is_animating {
         let new_y = state.smooth_scroll.position_y();
         state.scroll_y = new_y;
-        let toc_task = scroll_toc_to_active(state.toc_visible, &state.toc, new_y);
+        let detection_offset = heading_active_detection_offset_y(font_size);
+        let toc_task = scroll_toc_to_active(state, new_y, detection_offset);
         app.record_read_position();
         let scroll_task = operation::scroll_to(
             "content_scroll",
@@ -177,6 +266,7 @@ pub fn handle_markdown_scrolled(
     if app.ctrl_held {
         return Task::none();
     }
+    let font_size = app.state.font_size;
     let is_epub = matches!(app.current_content, Some(PreviewData::Epub { .. }));
     let (is_epub_continuous, toc_target_y) = {
         let state = active_markdown_state_mut(app);
@@ -210,7 +300,9 @@ pub fn handle_markdown_scrolled(
         state.scroll_y = y;
 
         let toc_y = if state.toc_visible && !state.toc.is_empty() {
-            find_active_toc_index(&state.toc, y).map(calculate_toc_target_scroll_y)
+            let detection_offset = heading_active_detection_offset_y(font_size);
+            find_active_toc_index(&state.toc, y, detection_offset)
+                .map(|pos| calculate_toc_target_scroll_y(state, pos))
         } else {
             None
         };
@@ -648,6 +740,7 @@ pub fn handle_smooth_wheel_scrolled(
         return Task::none();
     }
 
+    let font_size = app.state.font_size;
     let state = active_markdown_state_mut(app);
     if state.viewport_height <= 0.0 {
         return Task::none();
@@ -676,7 +769,8 @@ pub fn handle_smooth_wheel_scrolled(
                             "content_scroll",
                             iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
                         );
-                        let toc_task = scroll_toc_to_active(state.toc_visible, &state.toc, new_y);
+                        let detection_offset = heading_active_detection_offset_y(font_size);
+                        let toc_task = scroll_toc_to_active(state, new_y, detection_offset);
                         let epub_task = sync_epub_active_chapter_on_scroll(app, new_y);
                         app.record_read_position();
                         return Task::batch([scroll_task, toc_task, epub_task]);
@@ -704,10 +798,15 @@ pub fn handle_smooth_wheel_scrolled(
             state.scroll_y = new_y;
             state.smooth_scroll.stop(new_y);
 
-            iced::widget::operation::scroll_to(
+            let scroll_task = iced::widget::operation::scroll_to(
                 "content_scroll",
                 iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
-            )
+            );
+            let detection_offset = heading_active_detection_offset_y(font_size);
+            let toc_task = scroll_toc_to_active(state, new_y, detection_offset);
+            let epub_task = sync_epub_active_chapter_on_scroll(app, new_y);
+            app.record_read_position();
+            Task::batch([scroll_task, toc_task, epub_task])
         }
     }
 }
@@ -721,7 +820,8 @@ pub(crate) fn sync_epub_active_chapter_on_scroll(
         && !app.state.epub.chapter_block_offsets.is_empty()
     {
         let offsets = &app.state.epub.markdown_state.block_y_offsets;
-        let target_y = current_y + HEADING_ACTIVE_DETECTION_OFFSET_Y;
+        let detection_offset = heading_active_detection_offset_y(app.state.font_size);
+        let target_y = current_y + detection_offset;
         let visible_block_idx = match offsets.binary_search_by(|probe| {
             probe
                 .partial_cmp(&target_y)
@@ -780,6 +880,7 @@ pub(crate) fn sync_epub_active_chapter_on_scroll(
 }
 
 pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) -> Task<Message> {
+    let font_size = app.state.font_size;
     let state = active_markdown_state_mut(app);
     let extent = crate::core::scroll::ViewportExtent {
         content_height: state.total_content_height,
@@ -815,7 +916,8 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             )
         };
 
-        let toc_task = scroll_toc_to_active(state.toc_visible, &state.toc, next_y);
+        let detection_offset = heading_active_detection_offset_y(font_size);
+        let toc_task = scroll_toc_to_active(state, next_y, detection_offset);
         let epub_task = sync_epub_active_chapter_on_scroll(app, next_y);
 
         if is_finished {
@@ -858,7 +960,8 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             )
         };
 
-        let toc_task = scroll_toc_to_active(state.toc_visible, &state.toc, next_y);
+        let detection_offset = heading_active_detection_offset_y(font_size);
+        let toc_task = scroll_toc_to_active(state, next_y, detection_offset);
         let epub_task = sync_epub_active_chapter_on_scroll(app, next_y);
 
         if is_finished {
