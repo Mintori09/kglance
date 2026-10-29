@@ -81,7 +81,11 @@ pub(crate) fn build_epub_content<'a>(
                 &state.markdown_state,
                 &block_ctx,
             );
-            let margin_bottom = crate::features::markdown::view::block_margin(block, ctx.font_size);
+            let margin_bottom = crate::features::markdown::view::block_margin_with_next(
+                block,
+                chapter_blocks.get(i + 1),
+                ctx.font_size,
+            );
             let block = container(inner)
                 .padding(Padding {
                     top: 0.0,
@@ -138,8 +142,11 @@ pub(crate) fn build_epub_content<'a>(
                     &state.markdown_state,
                     &block_ctx,
                 );
-                let margin_bottom =
-                    crate::features::markdown::view::block_margin(block, ctx.font_size);
+                let margin_bottom = crate::features::markdown::view::block_margin_with_next(
+                    block,
+                    chapter_blocks.get(i + 1),
+                    ctx.font_size,
+                );
                 container(inner)
                     .padding(Padding {
                         top: 0.0,

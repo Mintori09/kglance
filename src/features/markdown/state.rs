@@ -1,7 +1,7 @@
 use crate::core::types::{KglanceState, MarkdownState};
 use crate::parsers::markdown::layout_constants as lc;
 use crate::parsers::markdown::{
-    Block, BlockLayout, estimated_block_height, extract_toc, flatten_inlines,
+    Block, BlockLayout, estimated_block_height_with_next, extract_toc, flatten_inlines,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -43,11 +43,19 @@ pub fn compute_block_layouts(
 
     if num_blocks > 1000 {
         use rayon::prelude::*;
-        let heights: Vec<f32> = blocks
-            .par_iter()
-            .enumerate()
-            .map(|(i, block)| {
-                estimated_block_height(block, font_size, i, image_sizes, content_width)
+        let heights: Vec<f32> = (0..num_blocks)
+            .into_par_iter()
+            .map(|i| {
+                let block = &blocks[i];
+                let next_block = blocks.get(i + 1);
+                estimated_block_height_with_next(
+                    block,
+                    next_block,
+                    font_size,
+                    i,
+                    image_sizes,
+                    content_width,
+                )
             })
             .collect();
 
@@ -62,7 +70,14 @@ pub fn compute_block_layouts(
         let mut y: f32 = 0.0;
         for (i, block) in blocks.iter().enumerate() {
             offsets.push(y);
-            let est_h = estimated_block_height(block, font_size, i, image_sizes, content_width);
+            let est_h = estimated_block_height_with_next(
+                block,
+                blocks.get(i + 1),
+                font_size,
+                i,
+                image_sizes,
+                content_width,
+            );
             layouts.push(BlockLayout::new(est_h));
             y += est_h;
         }

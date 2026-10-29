@@ -88,8 +88,9 @@ fn markdown_block_y_offset(
         if i == target_index {
             return y;
         }
-        y += crate::parsers::markdown::estimated_block_height(
+        y += crate::parsers::markdown::estimated_block_height_with_next(
             block,
+            blocks.get(i + 1),
             font_size,
             i,
             image_sizes,
