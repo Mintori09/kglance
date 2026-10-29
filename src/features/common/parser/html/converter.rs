@@ -43,6 +43,7 @@ pub struct HtmlToMarkdownConverter {
     in_figure: bool,
     in_figure_caption: bool,
     in_callout_heading: bool,
+    li_just_started: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -93,6 +94,7 @@ impl HtmlToMarkdownConverter {
             in_figure: false,
             in_figure_caption: false,
             in_callout_heading: false,
+            li_just_started: false,
         }
     }
 
@@ -437,6 +439,7 @@ impl HtmlToMarkdownConverter {
                 } else {
                     self.append_str("- ");
                 }
+                self.li_just_started = true;
             }
             "b" | "strong" => {
                 if let Some(id) = extract_id_or_name(e) {
@@ -844,8 +847,18 @@ impl HtmlToMarkdownConverter {
             return;
         }
 
+        let actual_text = if self.li_just_started {
+            if text.trim().is_empty() {
+                return;
+            }
+            self.li_just_started = false;
+            text.trim_start()
+        } else {
+            text
+        };
+
         if self.in_pre {
-            self.pre_buffer.push_str(text);
+            self.pre_buffer.push_str(actual_text);
             return;
         }
 
@@ -853,9 +866,9 @@ impl HtmlToMarkdownConverter {
             if self.in_math_annotation_tex {
                 self.math_annotation_tex
                     .get_or_insert_with(String::new)
-                    .push_str(text);
+                    .push_str(actual_text);
             } else {
-                self.math_buffer.push_str(text);
+                self.math_buffer.push_str(actual_text);
             }
             return;
         }
@@ -865,27 +878,27 @@ impl HtmlToMarkdownConverter {
                 return;
             }
             if self.in_rt {
-                self.ruby_text.push_str(text);
+                self.ruby_text.push_str(actual_text);
                 return;
             }
             if !self.ruby_text.is_empty() {
                 self.flush_ruby_pair();
             }
-            self.ruby_base.push_str(text);
+            self.ruby_base.push_str(actual_text);
             return;
         }
 
         if self.in_cell {
-            self.current_cell.push_str(text);
+            self.current_cell.push_str(actual_text);
             return;
         }
 
         if self.sup_depth > 0 {
-            self.sup_buffer.push_str(text);
+            self.sup_buffer.push_str(actual_text);
             return;
         }
 
-        self.append_str(text);
+        self.append_str(actual_text);
     }
 
     fn flush_ruby_pair(&mut self) {
@@ -1155,6 +1168,18 @@ fn clean_markdown_output(text: &str) -> String {
         let is_quote_line = trimmed_start.starts_with("> ") || trimmed == ">";
         let is_table_row = trimmed.starts_with('|') && trimmed.ends_with('|');
         let custom_bullet_rest = is_custom_bullet_start(trimmed_start);
+        let is_empty_bullet = trimmed == "-"
+            || trimmed == "*"
+            || trimmed == "+"
+            || (trimmed_start
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_digit())
+                && trimmed_start.ends_with('.')
+                && !trimmed_start.contains(' '));
+        if is_empty_bullet {
+            continue;
+        }
         let is_list_item = custom_bullet_rest.is_some()
             || trimmed_start.starts_with("- ")
             || trimmed_start.starts_with("* ")
