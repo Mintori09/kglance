@@ -862,13 +862,46 @@ impl HtmlToMarkdownConverter {
             return;
         }
 
+        let normalized_storage: String;
+        let text_to_append = if actual_text.contains('\n') || actual_text.contains('\r') {
+            let has_leading = actual_text.starts_with(|c: char| c.is_whitespace() || c == '\u{a0}');
+            let has_trailing = actual_text.ends_with(|c: char| c.is_whitespace() || c == '\u{a0}');
+            let mut words = actual_text.split_whitespace();
+            if let Some(first_word) = words.next() {
+                let mut buf = String::with_capacity(actual_text.len());
+                if has_leading {
+                    buf.push(' ');
+                }
+                buf.push_str(first_word);
+                for word in words {
+                    buf.push(' ');
+                    buf.push_str(word);
+                }
+                if has_trailing {
+                    buf.push(' ');
+                }
+                normalized_storage = buf;
+                normalized_storage.as_str()
+            } else if has_leading || has_trailing {
+                " "
+            } else {
+                ""
+            }
+        } else {
+            actual_text
+        };
+
+        if text_to_append.is_empty() {
+            return;
+        }
+
         if self.in_math {
             if self.in_math_annotation_tex {
                 self.math_annotation_tex
                     .get_or_insert_with(String::new)
-                    .push_str(actual_text);
+                    .push_str(text_to_append);
             } else {
-                self.math_buffer.push_str(actual_text);
+                self.math_buffer.push_str(text_to_append);
             }
             return;
         }
@@ -878,27 +911,27 @@ impl HtmlToMarkdownConverter {
                 return;
             }
             if self.in_rt {
-                self.ruby_text.push_str(actual_text);
+                self.ruby_text.push_str(text_to_append);
                 return;
             }
             if !self.ruby_text.is_empty() {
                 self.flush_ruby_pair();
             }
-            self.ruby_base.push_str(actual_text);
+            self.ruby_base.push_str(text_to_append);
             return;
         }
 
         if self.in_cell {
-            self.current_cell.push_str(actual_text);
+            self.current_cell.push_str(text_to_append);
             return;
         }
 
         if self.sup_depth > 0 {
-            self.sup_buffer.push_str(actual_text);
+            self.sup_buffer.push_str(text_to_append);
             return;
         }
 
-        self.append_str(actual_text);
+        self.append_str(text_to_append);
     }
 
     fn flush_ruby_pair(&mut self) {
