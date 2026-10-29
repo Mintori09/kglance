@@ -1,7 +1,9 @@
 use crate::app::KglanceApp;
 use crate::app::messages::Message;
+use crate::core::PreviewData;
 use crate::features::markdown::update as markdown;
 use iced::Task;
+use iced::widget::operation;
 use url::Url;
 
 pub fn handle_copy_text(app: &mut KglanceApp, text: String) -> Task<Message> {
@@ -13,6 +15,10 @@ pub fn handle_copy_text(app: &mut KglanceApp, text: String) -> Task<Message> {
 }
 
 pub fn handle_open_link(app: &mut KglanceApp, url: String) -> Task<Message> {
+    if let Some(anchor) = url.strip_prefix('#') {
+        return handle_anchor_jump(app, anchor);
+    }
+
     if !is_allowed_link(&url) {
         return Task::none();
     }
@@ -23,6 +29,96 @@ pub fn handle_open_link(app: &mut KglanceApp, url: String) -> Task<Message> {
     }
 
     app.show_toast(format!("Opening {url}"))
+}
+
+fn handle_anchor_jump(app: &mut KglanceApp, anchor: &str) -> Task<Message> {
+    if anchor.is_empty() {
+        return Task::none();
+    }
+
+    if matches!(app.current_content, Some(PreviewData::Epub { .. })) {
+        let active_chapter = app.state.epub.active_chapter;
+        let target_block_idx =
+            if app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
+                crate::features::epub::parser::find_block_index(
+                    &app.state.epub.continuous_blocks,
+                    Some(anchor),
+                    None,
+                )
+            } else if let Some(ch) = app.state.epub.chapters.get(active_chapter) {
+                crate::features::epub::parser::find_block_index(&ch.blocks, Some(anchor), None)
+            } else {
+                None
+            };
+
+        if let Some(block_idx) = target_block_idx {
+            let state = &mut app.state.epub.markdown_state;
+            let target_y = state.block_y_offsets.get(block_idx).copied().unwrap_or(0.0);
+
+            let max_y = crate::core::scroll::max_scroll_y(
+                state.total_content_height,
+                state.viewport_height,
+            );
+            state.scroll_controller.stop(state.scroll_y);
+            state
+                .smooth_scroll
+                .start_navigation(state.scroll_y, target_y, max_y);
+
+            if !state.smooth_scroll.is_animating {
+                let new_y = state.smooth_scroll.position_y();
+                state.scroll_y = new_y;
+                app.record_read_position();
+                return operation::scroll_to(
+                    "content_scroll",
+                    operation::AbsoluteOffset { x: 0.0, y: new_y },
+                );
+            }
+            return Task::none();
+        }
+    } else if matches!(app.current_content, Some(PreviewData::Markdown { .. })) {
+        let block_idx = if let Some(PreviewData::Markdown { blocks, .. }) = &app.current_content {
+            crate::features::epub::parser::find_block_index(blocks, Some(anchor), None)
+        } else {
+            None
+        };
+
+        if let Some(block_idx) = block_idx {
+            let state = &mut app.state.markdown;
+            let target_y = state
+                .block_y_offsets
+                .get(block_idx)
+                .map(|&block_y| {
+                    if block_idx == 0 {
+                        0.0
+                    } else {
+                        crate::parsers::markdown::layout_constants::CONTENT_PADDING + block_y
+                    }
+                })
+                .unwrap_or(0.0);
+
+            let max_y = crate::core::scroll::max_scroll_y(
+                state.total_content_height,
+                state.viewport_height,
+            );
+            state.scroll_controller.stop(state.scroll_y);
+            state
+                .smooth_scroll
+                .start_navigation(state.scroll_y, target_y, max_y);
+
+            if !state.smooth_scroll.is_animating {
+                let new_y = state.smooth_scroll.position_y();
+                state.scroll_y = new_y;
+                app.record_read_position();
+                return operation::scroll_to(
+                    "content_scroll",
+                    operation::AbsoluteOffset { x: 0.0, y: new_y },
+                );
+            }
+            return Task::none();
+        }
+    }
+
+    Task::none()
 }
 
 fn is_allowed_link(link: &str) -> bool {

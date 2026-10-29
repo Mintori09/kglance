@@ -1545,6 +1545,10 @@ fn test_anchor_tag_stripping() {
         strip_anchor_tags("Condition: a < b && c > d"),
         "Condition: a < b && c > d"
     );
+    assert_eq!(
+        strip_anchor_tags(r#"module<a id="id899"></a> <a id="id900"></a>  has"#),
+        "module has"
+    );
 }
 
 #[test]

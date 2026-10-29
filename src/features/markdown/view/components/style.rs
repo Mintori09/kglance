@@ -42,6 +42,7 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
     image: ImageStyle {
         max_width: 600.0,
         padding: [4, 0],
+        border_radius: radius::MD,
     },
     mermaid: MermaidStyle {
         image_padding: 14,
@@ -140,6 +141,7 @@ pub(crate) struct QuoteStyle {
 pub(crate) struct ImageStyle {
     pub max_width: f32,
     pub padding: [u16; 2],
+    pub border_radius: f32,
 }
 
 #[derive(Clone, Copy)]

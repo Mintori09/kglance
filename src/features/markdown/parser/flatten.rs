@@ -131,6 +131,10 @@ pub fn strip_anchor_tags(s: &str) -> String {
             continue;
         }
         if let Some(ch) = remainder.chars().next() {
+            if ch == ' ' && out.ends_with(' ') {
+                remainder = &remainder[ch.len_utf8()..];
+                continue;
+            }
             out.push(ch);
             remainder = &remainder[ch.len_utf8()..];
         } else {

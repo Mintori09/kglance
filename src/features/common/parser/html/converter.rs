@@ -44,6 +44,9 @@ pub struct HtmlToMarkdownConverter {
     in_figure_caption: bool,
     in_callout_heading: bool,
     li_just_started: bool,
+    in_dl: bool,
+    in_dt: bool,
+    in_dd: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -95,6 +98,9 @@ impl HtmlToMarkdownConverter {
             in_figure_caption: false,
             in_callout_heading: false,
             li_just_started: false,
+            in_dl: false,
+            in_dt: false,
+            in_dd: false,
         }
     }
 
@@ -316,12 +322,37 @@ impl HtmlToMarkdownConverter {
                     self.ensure_newline();
                 }
             }
-            "p" | "section" | "article" | "header" | "footer" | "figcaption" | "main" | "body"
-            | "dt" | "dd" => {
+            "dl" => {
+                self.in_dl = true;
                 if let Some(id) = extract_id_or_name(e) {
                     self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n"));
                 }
                 self.ensure_newline();
+            }
+            "dt" => {
+                self.in_dt = true;
+                if let Some(id) = extract_id_or_name(e) {
+                    self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n"));
+                }
+                self.ensure_newline();
+                self.append_str("- **");
+            }
+            "dd" => {
+                self.in_dd = true;
+                if let Some(id) = extract_id_or_name(e) {
+                    self.append_str(&format!("<a id=\"{id}\"></a> "));
+                }
+                self.li_just_started = true;
+            }
+            "p" | "section" | "article" | "header" | "footer" | "figcaption" | "main" | "body" => {
+                if let Some(id) = extract_id_or_name(e) {
+                    self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n"));
+                }
+                if self.in_dd {
+                    self.li_just_started = true;
+                } else {
+                    self.ensure_newline();
+                }
             }
             "a" => {
                 let mut href = None;
@@ -739,6 +770,18 @@ impl HtmlToMarkdownConverter {
                     self.ensure_newline();
                 }
             }
+            "dl" => {
+                self.in_dl = false;
+                self.ensure_newline();
+            }
+            "dt" => {
+                self.in_dt = false;
+                self.append_str("**: ");
+            }
+            "dd" => {
+                self.in_dd = false;
+                self.ensure_newline();
+            }
             "p" | "section" | "article" => {
                 if self.in_ruby {
                     self.in_ruby = false;
@@ -752,7 +795,7 @@ impl HtmlToMarkdownConverter {
                             current_quote.push_str("\n\n");
                         }
                     }
-                } else {
+                } else if !self.in_dd {
                     self.ensure_newline();
                 }
             }
@@ -868,7 +911,7 @@ impl HtmlToMarkdownConverter {
             let mut words = actual_text.split_whitespace();
             if let Some(first_word) = words.next() {
                 let mut buf = String::with_capacity(actual_text.len());
-                if has_leading {
+                if has_leading && !self.output.ends_with(' ') && !self.output.ends_with('\n') {
                     buf.push(' ');
                 }
                 buf.push_str(first_word);
@@ -882,7 +925,11 @@ impl HtmlToMarkdownConverter {
                 normalized_storage = buf;
                 normalized_storage.as_str()
             } else if has_leading || has_trailing {
-                " "
+                if !self.output.ends_with(' ') && !self.output.ends_with('\n') {
+                    " "
+                } else {
+                    ""
+                }
             } else {
                 ""
             }
