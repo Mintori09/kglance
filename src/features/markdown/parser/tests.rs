@@ -1690,3 +1690,38 @@ fn test_image_margin_with_caption_and_text() {
     let margin_none = block_margin_with_next(&img, None, font_size);
     assert_eq!(margin_none, 16.0);
 }
+
+#[test]
+fn test_compute_image_display_size_proportional_aspect_ratio() {
+    use crate::features::markdown::parser::layout_constants::compute_image_display_size;
+
+    // Case 1: Large image with explicit dims exceeding max_width (1728 x 769, max_w = 600.0)
+    let (w, h) = compute_image_display_size(Some((1728, 769)), Some(1728), Some(769), 600.0);
+    assert_eq!(w, Some(600.0));
+    assert!((h.unwrap() - 267.01).abs() < 1e-2);
+
+    // Case 2: Large image without cached size but with explicit dims (1728 x 769, max_w = 600.0)
+    let (w2, h2) = compute_image_display_size(None, Some(1728), Some(769), 600.0);
+    assert_eq!(w2, Some(600.0));
+    assert!((h2.unwrap() - 267.01).abs() < 1e-2);
+
+    // Case 3: Small image (300 x 200, max_w = 600.0)
+    let (w3, h3) = compute_image_display_size(Some((300, 200)), None, None, 600.0);
+    assert_eq!(w3, Some(300.0));
+    assert_eq!(h3, Some(200.0));
+
+    // Case 4: Image intrinsic height estimation matches proportional display height
+    let block = Block::Image {
+        path: "assets/enjs_0204.png".to_string(),
+        alt: "enjs 0204".to_string(),
+        width: Some(1728),
+        height: Some(769),
+        link_url: None,
+    };
+    let mut image_sizes = std::collections::HashMap::new();
+    image_sizes.insert("assets/enjs_0204.png".to_string(), (1728, 769));
+
+    let est_h = intrinsic_block_height(&block, 14.0, 0, &image_sizes, 800.0);
+    // 267.01 + IMAGE_PADDING_V * 2 (8.0) = ~275.01
+    assert!((est_h - 275.01).abs() < 1e-2);
+}

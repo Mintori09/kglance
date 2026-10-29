@@ -32,6 +32,43 @@ pub const PARAGRAPH_PADDING_TOP: f32 = 3.0;
 pub const MAX_IMAGE_CAPTION_GAP: f32 = 8.0;
 pub const MAX_IMAGE_TEXT_GAP: f32 = 16.0;
 
+/// Calculates the display dimensions `(width, height)` for an image constrained by `max_width`.
+///
+/// Preserves the aspect ratio when explicit or cached dimensions exceed `max_width`.
+#[inline]
+pub fn compute_image_display_size(
+    cached_size: Option<(u32, u32)>,
+    explicit_width: Option<u32>,
+    explicit_height: Option<u32>,
+    max_width: f32,
+) -> (Option<f32>, Option<f32>) {
+    // Determine the reference dimensions and aspect ratio
+    let (ref_w, ref_h) = match (cached_size, explicit_width, explicit_height) {
+        (Some((cw, ch)), _, _) if cw > 0 && ch > 0 => (Some(cw as f32), Some(ch as f32)),
+        (_, Some(ew), Some(eh)) if ew > 0 && eh > 0 => (Some(ew as f32), Some(eh as f32)),
+        _ => (
+            explicit_width.map(|w| w as f32),
+            explicit_height.map(|h| h as f32),
+        ),
+    };
+
+    match (ref_w, ref_h) {
+        (Some(w), Some(h)) if w > 0.0 => {
+            let target_w = explicit_width.map(|ew| ew as f32).unwrap_or(w);
+            let display_w = target_w.min(max_width);
+            let display_h = (h * display_w) / w;
+            (Some(display_w), Some(display_h))
+        }
+        (Some(w), None) => {
+            let target_w = explicit_width.map(|ew| ew as f32).unwrap_or(w);
+            let display_w = target_w.min(max_width);
+            (Some(display_w), None)
+        }
+        (None, Some(h)) => (None, Some(h)),
+        _ => (None, None),
+    }
+}
+
 // HR
 pub const HR_PADDING_V: u16 = 4; // [4, 0][0]
 

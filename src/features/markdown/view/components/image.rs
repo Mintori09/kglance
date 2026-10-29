@@ -18,17 +18,23 @@ pub(crate) fn render_inline_image<'a>(
         return container(column![]).into();
     };
 
+    let cached_size = state.cached_image_sizes.get(path).copied();
+    let (display_w, display_h) =
+        crate::parsers::markdown::layout_constants::compute_image_display_size(
+            cached_size,
+            explicit_width,
+            explicit_height,
+            STYLE.image.max_width,
+        );
+
     let img = image(handle.clone());
-    let img = match explicit_height {
-        Some(h) => img.height(Length::Fixed(h as f32)),
+    let img = match display_h {
+        Some(h) => img.height(Length::Fixed(h)),
         None => img.height(Length::Shrink),
     };
-    let img = match (explicit_width, state.cached_image_sizes.get(path)) {
-        (Some(w), _) => img.width(Length::Fixed(w as f32)),
-        (None, Some((width, _))) if *width as f32 > STYLE.image.max_width => {
-            img.width(Length::Fixed(STYLE.image.max_width))
-        }
-        _ => img.width(Length::Shrink),
+    let img = match display_w {
+        Some(w) => img.width(Length::Fixed(w)),
+        None => img.width(Length::Shrink),
     };
 
     let content: Element<'a, Message> = if let Some(url) = link_url {
