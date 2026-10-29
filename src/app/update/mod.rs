@@ -566,6 +566,21 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::EpubMsg::SidebarResized(w) => {
                 misc::handle_epub_sidebar_resized(app, w)
             }
+            crate::app::messages::EpubMsg::SearchQueryChanged(q) => {
+                crate::features::epub::update::handle_search_query_changed(app, q)
+            }
+            crate::app::messages::EpubMsg::SearchNext => {
+                crate::features::epub::update::handle_search_next(app)
+            }
+            crate::app::messages::EpubMsg::SearchPrev => {
+                crate::features::epub::update::handle_search_prev(app)
+            }
+            crate::app::messages::EpubMsg::SearchClear => {
+                crate::features::epub::update::handle_search_clear(app)
+            }
+            crate::app::messages::EpubMsg::SearchResultClicked(idx) => {
+                crate::features::epub::update::handle_search_result_clicked(app, idx)
+            }
         },
         Message::Json(msg) => match msg {
             crate::app::messages::JsonMsg::ToggleMode => {

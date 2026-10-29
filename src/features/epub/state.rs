@@ -289,6 +289,7 @@ pub fn populate_state(
         sidebar_drag_start_width: 240.0,
         scroll_y,
         collapsed_chapters: old_collapsed,
+        search: state.epub.search.clone(),
         markdown_state,
     };
     state
