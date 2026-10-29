@@ -47,6 +47,9 @@ release:
     cargo build --release
     notify-send "Build successfully!"
 
+deploy:
+    ./scripts/deploy-daemon.sh
+
 tags version:
     #!/usr/bin/env bash
     set -euo pipefail

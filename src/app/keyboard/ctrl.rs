@@ -355,6 +355,12 @@ impl KglanceApp {
                 }
             }
 
+            Some(PreviewData::Epub { .. }) => {
+                // Ensure sidebar is open when opening search
+                self.state.epub.sidebar_visible = true;
+                Some(iced::widget::operation::focus("epub_sidebar_search_input"))
+            }
+
             Some(PreviewData::Spreadsheet { .. }) => {
                 self.state.spreadsheet.search_visible = !self.state.spreadsheet.search_visible;
 

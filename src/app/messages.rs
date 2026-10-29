@@ -234,6 +234,11 @@ pub enum EpubMsg {
     ChapterClicked(usize),
     ChapterToggleCollapse(usize),
     SidebarResized(f32),
+    SearchQueryChanged(String),
+    SearchNext,
+    SearchPrev,
+    SearchClear,
+    SearchResultClicked(usize),
 }
 
 #[derive(Debug, Clone)]

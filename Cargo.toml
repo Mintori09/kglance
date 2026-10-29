@@ -200,6 +200,10 @@ harness = false
 name = "epub_toc_heading_bench"
 harness = false
 
+[[bench]]
+name = "epub_search_bench"
+harness = false
+
 [[bin]]
 name = "kglance"
 path = "src/main.rs"

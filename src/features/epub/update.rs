@@ -374,6 +374,232 @@ pub fn handle_reading_mode_changed(
     )
 }
 
+pub fn handle_search_query_changed(app: &mut KglanceApp, query: String) -> Task<Message> {
+    app.state.epub.search.query = query.clone();
+    app.state.epub.search.active_match_index = 0;
+    app.state.epub.markdown_state.search_query = query.clone();
+    app.state.epub.markdown_state.search_match_index = 0;
+
+    if query.trim().is_empty() {
+        app.state.epub.search.matches.clear();
+        app.state.epub.markdown_state.search_match_count = 0;
+        app.state.epub.markdown_state.search_match_blocks.clear();
+        app.state.epub.markdown_state.search_info.clear();
+        return Task::none();
+    }
+
+    let matches = super::search::search_epub_chapters(&app.state.epub.chapters, &query);
+    let total = matches.len();
+
+    // Map match blocks for current view highlighting
+    let mut match_blocks = Vec::new();
+    let is_continuous =
+        app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous;
+    for m in &matches {
+        if is_continuous {
+            let start = app
+                .state
+                .epub
+                .chapter_block_offsets
+                .get(m.chapter_index)
+                .copied()
+                .unwrap_or(0);
+            match_blocks.push(start + m.block_index);
+        } else if m.chapter_index == app.state.epub.active_chapter {
+            match_blocks.push(m.block_index);
+        }
+    }
+
+    app.state.epub.search.matches = matches;
+    app.state.epub.markdown_state.search_match_count = total;
+    app.state.epub.markdown_state.search_match_blocks = match_blocks;
+    app.state.epub.markdown_state.search_info = if total > 0 {
+        format!("1/{total}")
+    } else {
+        String::new()
+    };
+
+    Task::none()
+}
+
+pub fn handle_search_next(app: &mut KglanceApp) -> Task<Message> {
+    let total = app.state.epub.search.total_matches();
+    if total == 0 {
+        return Task::none();
+    }
+    let next_idx = (app.state.epub.search.active_match_index + 1) % total;
+    jump_to_search_match(app, next_idx)
+}
+
+pub fn handle_search_prev(app: &mut KglanceApp) -> Task<Message> {
+    let total = app.state.epub.search.total_matches();
+    if total == 0 {
+        return Task::none();
+    }
+    let prev_idx = if app.state.epub.search.active_match_index == 0 {
+        total - 1
+    } else {
+        app.state.epub.search.active_match_index - 1
+    };
+    jump_to_search_match(app, prev_idx)
+}
+
+pub fn handle_search_clear(app: &mut KglanceApp) -> Task<Message> {
+    app.state.epub.search.clear();
+    app.state.epub.markdown_state.search_query.clear();
+    app.state.epub.markdown_state.search_match_count = 0;
+    app.state.epub.markdown_state.search_match_index = 0;
+    app.state.epub.markdown_state.search_match_blocks.clear();
+    app.state.epub.markdown_state.search_info.clear();
+    Task::none()
+}
+
+pub fn handle_search_result_clicked(app: &mut KglanceApp, match_idx: usize) -> Task<Message> {
+    jump_to_search_match(app, match_idx)
+}
+
+fn jump_to_search_match(app: &mut KglanceApp, match_idx: usize) -> Task<Message> {
+    let Some(m) = app.state.epub.search.matches.get(match_idx).cloned() else {
+        return Task::none();
+    };
+
+    app.state.epub.search.active_match_index = match_idx;
+    app.state.epub.markdown_state.search_match_index = match_idx;
+    app.state.epub.markdown_state.search_info = format!(
+        "{}/{}",
+        match_idx + 1,
+        app.state.epub.search.total_matches()
+    );
+
+    if app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
+        let ch_start = app
+            .state
+            .epub
+            .chapter_block_offsets
+            .get(m.chapter_index)
+            .copied()
+            .unwrap_or(0);
+        let target_block = ch_start + m.block_index;
+        let raw_block_y = app
+            .state
+            .epub
+            .markdown_state
+            .block_y_offsets
+            .get(target_block)
+            .copied()
+            .unwrap_or(0.0);
+
+        let vh = app.state.epub.markdown_state.viewport_height;
+        let offset_padding = if vh > 0.0 {
+            (vh * 0.25).max(40.0)
+        } else {
+            40.0
+        };
+        let target_y = (raw_block_y - offset_padding).max(0.0);
+
+        let max_y = crate::core::scroll::max_scroll_y(
+            app.state.epub.markdown_state.total_content_height,
+            vh,
+        );
+        let clamped_y = if max_y > 0.0 {
+            target_y.clamp(0.0, max_y)
+        } else {
+            target_y
+        };
+
+        app.state.epub.active_chapter = m.chapter_index;
+        let current_y = app.state.epub.markdown_state.scroll_y;
+        app.state.epub.markdown_state.scroll_y = clamped_y;
+        app.state
+            .epub
+            .markdown_state
+            .scroll_controller
+            .stop(clamped_y);
+        app.state
+            .epub
+            .markdown_state
+            .smooth_scroll
+            .start_navigation(current_y, clamped_y, max_y);
+
+        // Pre-synchronize virtual window to clamped_y so target_block is immediately in DOM
+        crate::features::markdown::view::window::sync_window(
+            &mut app.state.epub.markdown_state.virtual_window,
+            &app.state.epub.markdown_state.block_y_offsets,
+            clamped_y,
+            vh,
+            crate::features::epub::view::content::VIRTUAL_THRESHOLD,
+        );
+
+        operation::scroll_to(
+            "content_scroll",
+            operation::AbsoluteOffset {
+                x: 0.0,
+                y: clamped_y,
+            },
+        )
+    } else {
+        if m.chapter_index != app.state.epub.active_chapter {
+            ensure_chapter_loaded(app, m.chapter_index);
+            app.state.epub.active_chapter = m.chapter_index;
+        }
+        let raw_block_y = app
+            .state
+            .epub
+            .markdown_state
+            .block_y_offsets
+            .get(m.block_index)
+            .copied()
+            .unwrap_or(0.0);
+
+        let vh = app.state.epub.markdown_state.viewport_height;
+        let offset_padding = if vh > 0.0 {
+            (vh * 0.25).max(40.0)
+        } else {
+            40.0
+        };
+        let target_y = (raw_block_y - offset_padding).max(0.0);
+
+        let max_y = crate::core::scroll::max_scroll_y(
+            app.state.epub.markdown_state.total_content_height,
+            vh,
+        );
+        let clamped_y = if max_y > 0.0 {
+            target_y.clamp(0.0, max_y)
+        } else {
+            target_y
+        };
+
+        let current_y = app.state.epub.markdown_state.scroll_y;
+        app.state.epub.markdown_state.scroll_y = clamped_y;
+        app.state
+            .epub
+            .markdown_state
+            .scroll_controller
+            .stop(clamped_y);
+        app.state
+            .epub
+            .markdown_state
+            .smooth_scroll
+            .start_navigation(current_y, clamped_y, max_y);
+
+        crate::features::markdown::view::window::sync_window(
+            &mut app.state.epub.markdown_state.virtual_window,
+            &app.state.epub.markdown_state.block_y_offsets,
+            clamped_y,
+            vh,
+            crate::features::epub::view::content::VIRTUAL_THRESHOLD,
+        );
+
+        operation::scroll_to(
+            "content_scroll",
+            operation::AbsoluteOffset {
+                x: 0.0,
+                y: clamped_y,
+            },
+        )
+    }
+}
+
 #[cfg(test)]
 #[path = "update_tests.rs"]
 mod tests;

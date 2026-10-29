@@ -954,3 +954,34 @@ fn test_reading_mode_changed_with_existing_read_positions() {
         Some(crate::core::config::EpubReadingMode::Continuous)
     );
 }
+
+#[test]
+fn test_jump_to_search_match_positions_correctly() {
+    let mut app = test_app(Some(epub_content(&[
+        "Chapter 1 content with unique keyword.",
+        "Chapter 2 content also mentioning unique keyword.",
+    ])));
+
+    app.state.epub.reading_mode = crate::core::config::EpubReadingMode::Continuous;
+    app.state.epub.chapter_block_offsets = vec![0, 1];
+    app.state.epub.markdown_state.block_y_offsets = vec![0.0, 500.0];
+    app.state.epub.markdown_state.total_content_height = 1200.0;
+    app.state.epub.markdown_state.viewport_height = 400.0;
+
+    let _ = handle_search_query_changed(&mut app, "unique keyword".to_string());
+    assert_eq!(app.state.epub.search.total_matches(), 2);
+
+    // Click on second match (in Chapter 2, block 1, block_y = 500.0)
+    let _ = handle_search_result_clicked(&mut app, 1);
+    assert_eq!(app.state.epub.search.active_match_index, 1);
+    assert_eq!(app.state.epub.markdown_state.search_match_index, 1);
+
+    // Target Y should have viewport padding (500.0 - (400.0 * 0.25) = 400.0)
+    let expected_target_y = 500.0 - 100.0;
+    assert_eq!(app.state.epub.markdown_state.scroll_y, expected_target_y);
+    assert_eq!(
+        app.state.epub.markdown_state.smooth_scroll.target_y,
+        expected_target_y
+    );
+    assert_eq!(app.state.epub.active_chapter, 1);
+}

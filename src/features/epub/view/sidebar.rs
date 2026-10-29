@@ -1,4 +1,4 @@
-use iced::widget::{button, column, container, row, text};
+use iced::widget::{button, column, container, row, text, text_input};
 use iced::{Border, Color, Element, Font, Length, Padding, Shadow};
 
 use crate::app::Message;
@@ -18,6 +18,7 @@ use crate::ui::components::sidebar::{
     collapse_arrow, sidebar_entry_style,
 };
 use crate::ui::theme::color::primitive;
+use crate::ui::theme::default_text_input;
 
 use crate::ui::theme::AppTheme;
 
@@ -30,11 +31,17 @@ pub fn render_chapter_sidebar<'a>(
     let main_font_bold = crate::ui::theme::font::get_main_font_bold(font_family);
     let palette = theme.palette().base;
     let sidebar_header = build_sidebar_header(state, palette.text, main_font, main_font_bold);
-    let chapter_list = build_sidebar_chapter_list(state, theme, main_font);
+    let search_bar = build_sidebar_search_bar(state, main_font, theme);
+
+    let body_list = if !state.search.is_empty() {
+        build_sidebar_search_results(state, theme, main_font)
+    } else {
+        build_sidebar_chapter_list(state, theme, main_font)
+    };
 
     iced::widget::opaque(
         container(
-            column![sidebar_header, chapter_list]
+            column![sidebar_header, search_bar, body_list]
                 .width(state.sidebar_width)
                 .height(Length::Fill),
         )
@@ -50,6 +57,208 @@ pub fn render_chapter_sidebar<'a>(
             ..Default::default()
         }),
     )
+}
+
+fn build_sidebar_search_bar<'a>(
+    state: &'a EpubState,
+    main_font: Font,
+    theme: AppTheme,
+) -> Element<'a, Message> {
+    let palette = theme.palette().base;
+    let is_searching = !state.search.is_empty();
+
+    let input = text_input("Search in book...", &state.search.query)
+        .id("epub_sidebar_search_input")
+        .on_input(|q| crate::app::messages::EpubMsg::SearchQueryChanged(q).into())
+        .on_submit(crate::app::messages::EpubMsg::SearchNext.into())
+        .size(12)
+        .font(main_font)
+        .padding([5, 8])
+        .style(default_text_input);
+
+    let mut row_items = row![input].spacing(4).align_y(iced::Alignment::Center);
+
+    if is_searching {
+        let total = state.search.total_matches();
+        let count_str = if total >= crate::features::epub::search::MAX_SEARCH_RESULTS {
+            format!("{}/{}+", state.search.active_match_index + 1, total)
+        } else {
+            format!("{}/{}", state.search.active_match_index + 1, total)
+        };
+        let count_badge = text(count_str)
+            .size(11)
+            .font(main_font)
+            .color(palette.text_dim);
+
+        let text_color = palette.text;
+        let text_dim_color = palette.text_dim;
+
+        let prev_btn = button(text("▲").size(10).font(main_font))
+            .on_press(crate::app::messages::EpubMsg::SearchPrev.into())
+            .padding([2, 5])
+            .style(move |_, _| button::Style {
+                background: None,
+                text_color,
+                ..Default::default()
+            });
+
+        let next_btn = button(text("▼").size(10).font(main_font))
+            .on_press(crate::app::messages::EpubMsg::SearchNext.into())
+            .padding([2, 5])
+            .style(move |_, _| button::Style {
+                background: None,
+                text_color,
+                ..Default::default()
+            });
+
+        let clear_btn = button(text("✕").size(11).font(main_font))
+            .on_press(crate::app::messages::EpubMsg::SearchClear.into())
+            .padding([2, 5])
+            .style(move |_, _| button::Style {
+                background: None,
+                text_color: text_dim_color,
+                ..Default::default()
+            });
+
+        row_items = row_items
+            .push(count_badge)
+            .push(prev_btn)
+            .push(next_btn)
+            .push(clear_btn);
+    }
+
+    container(row_items)
+        .padding(Padding {
+            top: 4.0,
+            right: 8.0,
+            bottom: 8.0,
+            left: 8.0,
+        })
+        .width(Length::Fill)
+        .into()
+}
+
+fn build_sidebar_search_results<'a>(
+    state: &'a EpubState,
+    theme: AppTheme,
+    main_font: Font,
+) -> Element<'a, Message> {
+    let palette = theme.palette().base;
+    let mut elements: Vec<Element<'a, Message>> = Vec::new();
+
+    if state.search.matches.is_empty() {
+        elements.push(
+            container(
+                text("No matches found")
+                    .size(12)
+                    .font(main_font)
+                    .color(palette.text_dim),
+            )
+            .padding(16)
+            .into(),
+        );
+    } else {
+        let mut last_chapter: Option<usize> = None;
+
+        for (match_idx, m) in state.search.matches.iter().enumerate() {
+            if last_chapter != Some(m.chapter_index) {
+                last_chapter = Some(m.chapter_index);
+                let ch_title = state
+                    .chapters
+                    .get(m.chapter_index)
+                    .map(|c| c.title.as_str())
+                    .unwrap_or("Chapter");
+
+                elements.push(
+                    container(
+                        text(ch_title)
+                            .size(11)
+                            .font(crate::ui::theme::font::get_main_font_bold(None))
+                            .color(palette.text_dim),
+                    )
+                    .padding(Padding {
+                        top: 8.0,
+                        right: 8.0,
+                        bottom: 2.0,
+                        left: 8.0,
+                    })
+                    .into(),
+                );
+            }
+
+            let is_active = match_idx == state.search.active_match_index;
+            let card_bg = if is_active {
+                Color::from_rgba(0.23, 0.51, 0.96, 0.2)
+            } else {
+                Color::from_rgba(palette.surface.r, palette.surface.g, palette.surface.b, 0.4)
+            };
+
+            let card = button(
+                text(&m.snippet)
+                    .size(11)
+                    .font(main_font)
+                    .color(if is_active {
+                        palette.text
+                    } else {
+                        palette.text_dim
+                    }),
+            )
+            .on_press(crate::app::messages::EpubMsg::SearchResultClicked(match_idx).into())
+            .padding([6, 8])
+            .width(Length::Fill)
+            .style(move |_, status| button::Style {
+                background: Some(match status {
+                    button::Status::Hovered => Color::from_rgba(0.23, 0.51, 0.96, 0.15).into(),
+                    _ => card_bg.into(),
+                }),
+                text_color: if is_active {
+                    palette.text
+                } else {
+                    palette.text_dim
+                },
+                border: Border {
+                    width: if is_active { 1.0 } else { 0.5 },
+                    color: if is_active {
+                        Color::from_rgb(0.23, 0.51, 0.96)
+                    } else {
+                        palette.border
+                    },
+                    radius: 4.0.into(),
+                },
+                shadow: Shadow::default(),
+                snap: false,
+            });
+
+            elements.push(card.into());
+        }
+
+        if state.search.matches.len() >= crate::features::epub::search::MAX_SEARCH_RESULTS {
+            elements.push(
+                container(
+                    text(format!(
+                        "Showing first {} matches. Refine query for more.",
+                        crate::features::epub::search::MAX_SEARCH_RESULTS
+                    ))
+                    .size(11)
+                    .font(main_font)
+                    .color(palette.text_dim),
+                )
+                .padding(Padding {
+                    top: 10.0,
+                    right: 8.0,
+                    bottom: 10.0,
+                    left: 8.0,
+                })
+                .into(),
+            );
+        }
+    }
+
+    scroll_pane(
+        "search_scroll",
+        column(elements).spacing(4).padding(CHAPTER_LIST_PADDING),
+    )
+    .build()
 }
 
 fn build_sidebar_header<'a>(

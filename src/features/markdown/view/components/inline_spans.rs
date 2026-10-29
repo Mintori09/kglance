@@ -180,38 +180,13 @@ fn highlight_search_in_text(
     normal_color: Option<Color>,
 ) -> Vec<CachedSpan> {
     let mut spans = Vec::new();
-    let lower = text.to_lowercase();
-    let query_lower = span_ctx.search_query.to_lowercase();
-    let mut pos = 0;
-
-    while let Some(match_pos) = lower[pos..].find(&query_lower) {
-        let abs_pos = pos + match_pos;
-        let end_pos = abs_pos + query_lower.len();
-
-        if abs_pos > pos {
-            spans.push(CachedSpan {
-                text: text[pos..abs_pos].to_string(),
-                font,
-                color: normal_color,
-                background: None,
-                size: None,
-                strikethrough: false,
-                underline: false,
-                link_url: None,
-                ruby: None,
-                tooltip: None,
-            });
-        }
-
-        let bg = search_highlight_color(
-            span_ctx.counter.get() == span_ctx.active_match,
-            span_ctx.theme,
-        );
+    let query = span_ctx.search_query.trim();
+    if query.is_empty() {
         spans.push(CachedSpan {
-            text: text[abs_pos..end_pos].to_string(),
+            text: text.to_string(),
             font,
             color: normal_color,
-            background: Some(bg),
+            background: None,
             size: None,
             strikethrough: false,
             underline: false,
@@ -219,14 +194,78 @@ fn highlight_search_in_text(
             ruby: None,
             tooltip: None,
         });
-
-        span_ctx.counter.set(span_ctx.counter.get() + 1);
-        pos = end_pos;
+        return spans;
     }
 
-    if pos < text.len() {
+    // Unicode-safe case-insensitive match finding directly mapping to `text` char indices
+    let query_lower = query.to_lowercase();
+    let query_len = query_lower.chars().count();
+    let text_chars: Vec<(usize, char)> = text.char_indices().collect();
+    let text_chars_len = text_chars.len();
+
+    let mut char_idx = 0;
+    let mut last_byte_pos = 0;
+
+    while char_idx + query_len <= text_chars_len {
+        let is_match = text_chars[char_idx..char_idx + query_len]
+            .iter()
+            .map(|(_, c)| c)
+            .flat_map(|c| c.to_lowercase())
+            .zip(query_lower.chars())
+            .all(|(a, b)| a == b);
+
+        if is_match {
+            let start_byte = text_chars[char_idx].0;
+            let end_char_idx = char_idx + query_len;
+            let end_byte = if end_char_idx < text_chars_len {
+                text_chars[end_char_idx].0
+            } else {
+                text.len()
+            };
+
+            if start_byte > last_byte_pos {
+                spans.push(CachedSpan {
+                    text: text[last_byte_pos..start_byte].to_string(),
+                    font,
+                    color: normal_color,
+                    background: None,
+                    size: None,
+                    strikethrough: false,
+                    underline: false,
+                    link_url: None,
+                    ruby: None,
+                    tooltip: None,
+                });
+            }
+
+            let bg = search_highlight_color(
+                span_ctx.counter.get() == span_ctx.active_match,
+                span_ctx.theme,
+            );
+            spans.push(CachedSpan {
+                text: text[start_byte..end_byte].to_string(),
+                font,
+                color: normal_color,
+                background: Some(bg),
+                size: None,
+                strikethrough: false,
+                underline: false,
+                link_url: None,
+                ruby: None,
+                tooltip: None,
+            });
+
+            span_ctx.counter.set(span_ctx.counter.get() + 1);
+            char_idx += query_len;
+            last_byte_pos = end_byte;
+        } else {
+            char_idx += 1;
+        }
+    }
+
+    if last_byte_pos < text.len() {
         spans.push(CachedSpan {
-            text: text[pos..].to_string(),
+            text: text[last_byte_pos..].to_string(),
             font,
             color: normal_color,
             background: None,

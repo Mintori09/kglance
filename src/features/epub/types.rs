@@ -29,6 +29,7 @@ pub struct EpubState {
     pub sidebar_drag_start_width: f32,
     pub scroll_y: f32,
     pub collapsed_chapters: HashSet<usize>,
+    pub search: super::search::EpubSearchState,
     pub markdown_state: MarkdownState,
 }
 
@@ -62,6 +63,7 @@ impl Default for EpubState {
             sidebar_drag_start_width: 240.0,
             scroll_y: 0.0,
             collapsed_chapters: HashSet::new(),
+            search: super::search::EpubSearchState::default(),
             markdown_state: MarkdownState::default(),
         }
     }
