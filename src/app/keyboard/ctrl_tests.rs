@@ -751,3 +751,44 @@ fn ctrl_c_copies_selection_menu_result_full_content_when_no_selection() {
     let task = app.handle_ctrl_copy();
     assert!(task.is_some());
 }
+
+#[test]
+fn subscription_ignores_captured_keyboard_and_mouse_events() {
+    let key_event = iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
+        key: iced::keyboard::Key::Character("a".into()),
+        modifiers: iced::keyboard::Modifiers::CTRL,
+        location: iced::keyboard::Location::Standard,
+        text: None,
+        modified_key: iced::keyboard::Key::Character("a".into()),
+        physical_key: iced::keyboard::key::Physical::Code(iced::keyboard::key::Code::KeyA),
+        repeat: false,
+    });
+
+    let mouse_event =
+        iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Left));
+
+    let filter = |event: iced::Event, status: iced::event::Status| -> Option<crate::app::Message> {
+        match event {
+            iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, modifiers, .. }) => {
+                if matches!(status, iced::event::Status::Captured) {
+                    None
+                } else {
+                    Some(crate::app::messages::SystemMsg::KeyPressed(key, modifiers).into())
+                }
+            }
+            iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Left)) => {
+                if matches!(status, iced::event::Status::Captured) {
+                    None
+                } else {
+                    Some(crate::app::Message::MousePressed(0.0, 0.0))
+                }
+            }
+            _ => None,
+        }
+    };
+
+    assert!(filter(key_event.clone(), iced::event::Status::Captured).is_none());
+    assert!(filter(key_event, iced::event::Status::Ignored).is_some());
+    assert!(filter(mouse_event.clone(), iced::event::Status::Captured).is_none());
+    assert!(filter(mouse_event, iced::event::Status::Ignored).is_some());
+}
