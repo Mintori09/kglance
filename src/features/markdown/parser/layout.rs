@@ -328,8 +328,51 @@ pub fn estimated_block_height(
     image_sizes: &HashMap<String, (u32, u32)>,
     content_width: f32,
 ) -> f32 {
-    let margin = block_margin(block, font_size);
+    estimated_block_height_with_next(
+        block,
+        None,
+        font_size,
+        block_index,
+        image_sizes,
+        content_width,
+    )
+}
+
+pub fn estimated_block_height_with_next(
+    block: &Block,
+    next_block: Option<&Block>,
+    font_size: f32,
+    block_index: usize,
+    image_sizes: &HashMap<String, (u32, u32)>,
+    content_width: f32,
+) -> f32 {
+    let margin = block_margin_with_next(block, next_block, font_size);
     intrinsic_block_height(block, font_size, block_index, image_sizes, content_width) + margin
+}
+
+/// Checks whether a block is a caption paragraph.
+///
+/// A paragraph is recognized as a caption if:
+/// 1. It contains exclusively italic text (e.g. `[Inline::Italic(_)]`), or
+/// 2. Its plain text content starts with `"Figure "`, `"Hình "`, `"Ảnh "`, or `"Table "`.
+pub fn is_caption_paragraph(block: &Block) -> bool {
+    let Block::Paragraph(inlines) = block else {
+        return false;
+    };
+    if inlines.is_empty() {
+        return false;
+    }
+
+    if inlines.len() == 1 && matches!(inlines[0], super::Inline::Italic(_)) {
+        return true;
+    }
+
+    let flat = super::flatten::flatten_inlines(inlines);
+    let trimmed = flat.trim_start();
+    trimmed.starts_with("Figure ")
+        || trimmed.starts_with("Hình ")
+        || trimmed.starts_with("Ảnh ")
+        || trimmed.starts_with("Table ")
 }
 
 /// Returns the bottom margin for a block, matching the view-layer spacing.
@@ -337,8 +380,27 @@ pub fn estimated_block_height(
 /// Defined here (mirroring `view::blocks::block_margin`) so that the parser
 /// can estimate block heights without importing from the UI layer.
 pub fn block_margin(block: &Block, font_size: f32) -> f32 {
+    block_margin_with_next(block, None, font_size)
+}
+
+/// Returns the bottom margin for a block considering the upcoming block.
+///
+/// Specifically caps the visual distance between an image and following caption/text
+/// paragraphs so the total gap does not exceed design limits.
+pub fn block_margin_with_next(block: &Block, next_block: Option<&Block>, font_size: f32) -> f32 {
     if super::flatten::is_standalone_anchor_block(block) {
         return 0.0;
+    }
+
+    if let (Block::Image { .. }, Some(Block::Paragraph(_))) = (block, next_block) {
+        let next = next_block.unwrap();
+        let max_gap = if is_caption_paragraph(next) {
+            scale_size(lc::MAX_IMAGE_CAPTION_GAP, font_size)
+        } else {
+            scale_size(lc::MAX_IMAGE_TEXT_GAP, font_size)
+        };
+        let pad_deduction = lc::IMAGE_PADDING_BOTTOM + lc::PARAGRAPH_PADDING_TOP;
+        return (max_gap - pad_deduction).max(0.0);
     }
 
     let base = match block {
@@ -420,7 +482,14 @@ pub fn extract_toc(
                 y_offset: y,
             });
         }
-        y += estimated_block_height(block, font_size, i, image_sizes, content_width);
+        y += estimated_block_height_with_next(
+            block,
+            blocks.get(i + 1),
+            font_size,
+            i,
+            image_sizes,
+            content_width,
+        );
     }
     toc
 }
@@ -442,7 +511,14 @@ pub fn rescale_markdown_scroll_y(
     let mut progress = 0.0;
 
     for (i, block) in blocks.iter().enumerate() {
-        let h = estimated_block_height(block, old_font_size, i, image_sizes, content_width);
+        let h = estimated_block_height_with_next(
+            block,
+            blocks.get(i + 1),
+            old_font_size,
+            i,
+            image_sizes,
+            content_width,
+        );
         if old_scroll_y < current_y + h || i == blocks.len() - 1 {
             target_block_idx = i;
             let offset_inside_block = (old_scroll_y - current_y).max(0.0);
@@ -458,7 +534,14 @@ pub fn rescale_markdown_scroll_y(
 
     let mut new_y = 0.0;
     for (i, block) in blocks.iter().enumerate() {
-        let new_h = estimated_block_height(block, new_font_size, i, image_sizes, content_width);
+        let new_h = estimated_block_height_with_next(
+            block,
+            blocks.get(i + 1),
+            new_font_size,
+            i,
+            image_sizes,
+            content_width,
+        );
         if i == target_block_idx {
             return (new_y + progress * new_h).max(0.0);
         }

@@ -58,4 +58,4 @@ pub(crate) fn render_block<'a>(
     }
 }
 
-pub(crate) use crate::parsers::markdown::block_margin;
+pub(crate) use crate::parsers::markdown::block_margin_with_next;

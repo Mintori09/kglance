@@ -112,7 +112,7 @@ pub(crate) fn build_selectable_with_links<'a>(
     attach_selection_callbacks(widget, block_index, result_popup)
 }
 
-pub(crate) use blocks::{block_margin, render_block};
+pub(crate) use blocks::{block_margin_with_next, render_block};
 pub(crate) use components::STYLE;
 pub(crate) mod window;
 pub const VIRTUAL_THRESHOLD: usize = 60;
@@ -240,7 +240,7 @@ fn build_scrollable_content<'a>(
                 ..*ctx
             };
             let element = render_block(i, block, state, &block_ctx);
-            let margin = block_margin(block, ctx.font_size);
+            let margin = block_margin_with_next(block, blocks.get(i + 1), ctx.font_size);
             let block = container(element)
                 .padding(Padding {
                     top: 0.0,
@@ -288,7 +288,7 @@ fn build_scrollable_content<'a>(
                     ..*ctx
                 };
                 let element = render_block(index, block, state, &block_ctx);
-                let margin = block_margin(block, ctx.font_size);
+                let margin = block_margin_with_next(block, blocks.get(index + 1), ctx.font_size);
                 container(element)
                     .padding(Padding {
                         top: 0.0,

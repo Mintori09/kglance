@@ -27,6 +27,10 @@ pub const QUOTE_CONTENT_PADDING_V: u16 = 6; // [6, 14][0]
 // Image
 pub const IMAGE_MAX_WIDTH: f32 = 600.0;
 pub const IMAGE_PADDING_V: u16 = 4; // [4, 0][0]
+pub const IMAGE_PADDING_BOTTOM: f32 = 4.0;
+pub const PARAGRAPH_PADDING_TOP: f32 = 3.0;
+pub const MAX_IMAGE_CAPTION_GAP: f32 = 8.0;
+pub const MAX_IMAGE_TEXT_GAP: f32 = 16.0;
 
 // HR
 pub const HR_PADDING_V: u16 = 4; // [4, 0][0]

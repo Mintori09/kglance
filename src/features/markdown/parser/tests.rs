@@ -1649,3 +1649,44 @@ fn parses_inline_underline_html_tag() {
         _ => panic!("expected paragraph block"),
     }
 }
+
+#[test]
+fn test_image_margin_with_caption_and_text() {
+    let img = Block::Image {
+        path: "test.png".to_string(),
+        alt: "Diagram".to_string(),
+        width: None,
+        height: None,
+        link_url: None,
+    };
+    let italic_caption = Block::Paragraph(vec![Inline::Italic(vec![Inline::Text(
+        "Figure 1. Architecture".to_string(),
+    )])]);
+    let prefix_caption =
+        Block::Paragraph(vec![Inline::Text("Hình 1: Mô hình dữ liệu".to_string())]);
+    let normal_text = Block::Paragraph(vec![Inline::Text(
+        "This is normal body text following the image.".to_string(),
+    )]);
+    let hr = Block::HorizontalRule;
+
+    let font_size = 14.0;
+    // With italic caption: Max 8.0 - 4.0 - 3.0 = 1.0
+    let margin_caption1 = block_margin_with_next(&img, Some(&italic_caption), font_size);
+    assert_eq!(margin_caption1, 1.0);
+
+    // With prefix caption: Max 8.0 - 4.0 - 3.0 = 1.0
+    let margin_caption2 = block_margin_with_next(&img, Some(&prefix_caption), font_size);
+    assert_eq!(margin_caption2, 1.0);
+
+    // With normal text: Max 16.0 - 4.0 - 3.0 = 9.0
+    let margin_text = block_margin_with_next(&img, Some(&normal_text), font_size);
+    assert_eq!(margin_text, 9.0);
+
+    // With other block (HR): Standard image margin = 16.0
+    let margin_hr = block_margin_with_next(&img, Some(&hr), font_size);
+    assert_eq!(margin_hr, 16.0);
+
+    // Without next block: Standard image margin = 16.0
+    let margin_none = block_margin_with_next(&img, None, font_size);
+    assert_eq!(margin_none, 16.0);
+}
