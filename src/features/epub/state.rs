@@ -251,6 +251,7 @@ pub fn populate_state(
     }
 
     let chapter_target_offsets = if reading_mode == EpubReadingMode::Continuous {
+        let mut prev_target = 0;
         loaded_chapters
             .iter()
             .enumerate()
@@ -262,7 +263,9 @@ pub fn populate_state(
                     Some(&ch.title),
                 )
                 .unwrap_or(0);
-                start_idx + local_offset
+                let target = (start_idx + local_offset).max(prev_target);
+                prev_target = target;
+                target
             })
             .collect()
     } else {

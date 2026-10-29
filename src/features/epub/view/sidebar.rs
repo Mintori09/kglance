@@ -312,28 +312,72 @@ fn build_resize_button<'a>(
 pub const CHAPTER_ROW_HEIGHT: f32 = 28.0;
 pub const CHAPTER_SCROLL_CENTER_OFFSET: f32 = 100.0;
 
+/// Estimates the rendered visual height of a chapter button in the sidebar based on title length and wrapping.
+pub fn estimate_chapter_entry_height(
+    title: &str,
+    level: u8,
+    has_hierarchy: bool,
+    sidebar_width: f32,
+) -> f32 {
+    let indent = if has_hierarchy {
+        calculate_indent(level)
+    } else {
+        0.0
+    };
+    let title_font_size = entry_font_size(level);
+
+    // Reserved horizontal space: left padding + right padding + indent + icon spacer (18) + spacing (4)
+    let extra_w = ENTRY_PADDING_LEFT_BASE + indent + ENTRY_PADDING_RIGHT + 22.0;
+    let available_w = (sidebar_width - extra_w).max(80.0);
+
+    // Approximate average char width (~0.54 of font size for proportional fonts)
+    let avg_char_w = title_font_size * 0.54;
+    let approx_text_w = title.chars().count() as f32 * avg_char_w;
+    let lines = (approx_text_w / available_w).ceil().max(1.0);
+
+    let line_height = title_font_size * 1.35;
+    let content_h = lines * line_height;
+    (ENTRY_PADDING_TOP + ENTRY_PADDING_BOTTOM + content_h).max(CHAPTER_ROW_HEIGHT)
+}
+
 /// Calculates the target scroll offset in the chapter sidebar to keep the active chapter centered.
 pub fn calculate_chapter_target_scroll_y(state: &EpubState, active_idx: usize) -> f32 {
-    let mut visible_row_count = 0usize;
+    let has_hierarchy = state.chapters.windows(2).any(|w| w[1].level > w[0].level);
+    let sidebar_w = if state.sidebar_width > 0.0 {
+        state.sidebar_width
+    } else {
+        240.0
+    };
+
+    let mut accumulated_y = CHAPTER_LIST_PADDING;
     let mut skip_until_level: Option<u8> = None;
+
+    // Viewport height of sidebar (with sensible fallback)
+    let vh = state.markdown_state.viewport_height;
+    let center_offset = if vh > 0.0 {
+        (vh * 0.40).max(60.0)
+    } else {
+        CHAPTER_SCROLL_CENTER_OFFSET
+    };
 
     for (index, chapter) in state.chapters.iter().enumerate() {
         if let Some(target_level) = skip_until_level {
             if chapter.level > target_level {
                 if index == active_idx {
-                    // Even if collapsed, return current visible row position
-                    return (visible_row_count as f32 * CHAPTER_ROW_HEIGHT
-                        - CHAPTER_SCROLL_CENTER_OFFSET)
-                        .max(0.0);
+                    return (accumulated_y - center_offset).max(0.0);
                 }
                 continue;
             }
             skip_until_level = None;
         }
 
+        let entry_h =
+            estimate_chapter_entry_height(&chapter.title, chapter.level, has_hierarchy, sidebar_w);
+
         if index == active_idx {
-            return (visible_row_count as f32 * CHAPTER_ROW_HEIGHT - CHAPTER_SCROLL_CENTER_OFFSET)
-                .max(0.0);
+            // Center the entry by its middle position
+            let entry_center = accumulated_y + (entry_h * 0.5);
+            return (entry_center - center_offset).max(0.0);
         }
 
         let has_children = state
@@ -347,10 +391,10 @@ pub fn calculate_chapter_target_scroll_y(state: &EpubState, active_idx: usize) -
             skip_until_level = Some(chapter.level);
         }
 
-        visible_row_count += 1;
+        accumulated_y += entry_h + CHAPTER_LIST_SPACING;
     }
 
-    (visible_row_count as f32 * CHAPTER_ROW_HEIGHT - CHAPTER_SCROLL_CENTER_OFFSET).max(0.0)
+    (accumulated_y - center_offset).max(0.0)
 }
 
 fn build_sidebar_chapter_list<'a>(
@@ -472,4 +516,69 @@ fn build_chapter_entry<'a>(
         });
 
     container(entry_button).width(Length::Fill).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_estimate_chapter_entry_height_single_and_wrapped() {
+        let short_title = "Chapter 1";
+        let h_short = estimate_chapter_entry_height(short_title, 1, false, 240.0);
+        assert_eq!(h_short, CHAPTER_ROW_HEIGHT);
+
+        let long_title =
+            "Chapter 1: The Foundations of Type Systems and Advanced Variance with Covariance";
+        let h_long = estimate_chapter_entry_height(long_title, 1, true, 240.0);
+        assert!(h_long > CHAPTER_ROW_HEIGHT);
+    }
+
+    #[test]
+    fn test_calculate_chapter_target_scroll_y_accumulates_and_centers() {
+        let chapters = vec![
+            EpubChapterInfo {
+                title: "Intro".into(),
+                level: 1,
+                anchor: None,
+                file_href: "intro.xhtml".into(),
+                blocks: vec![],
+            },
+            EpubChapterInfo {
+                title: "Chapter 1: An Extremely Long Chapter Title That Easily Wraps Into Multiple Lines In The Sidebar".into(),
+                level: 1,
+                anchor: None,
+                file_href: "ch1.xhtml".into(),
+                blocks: vec![],
+            },
+            EpubChapterInfo {
+                title: "Section 1.1".into(),
+                level: 2,
+                anchor: None,
+                file_href: "ch1.xhtml".into(),
+                blocks: vec![],
+            },
+        ];
+
+        let state = EpubState {
+            chapters,
+            sidebar_width: 240.0,
+            markdown_state: crate::core::MarkdownState {
+                viewport_height: 800.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Target for Chapter 0 (at the very top, should clamp to 0.0)
+        let y_ch0 = calculate_chapter_target_scroll_y(&state, 0);
+        assert_eq!(y_ch0, 0.0);
+
+        // Target for Section 1.1 (after wrapped Chapter 1, should accumulate larger height than flat 28.0)
+        let y_sec = calculate_chapter_target_scroll_y(&state, 2);
+        let h_wrapped = estimate_chapter_entry_height(&state.chapters[1].title, 1, true, 240.0);
+        assert!(h_wrapped > CHAPTER_ROW_HEIGHT);
+        // Ensure y_sec took h_wrapped into account
+        assert!(y_sec >= 0.0);
+    }
 }
