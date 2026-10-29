@@ -106,7 +106,11 @@ fn test_convert_html_custom_bullet_list() {
 <p class="block_4">♦<span class="text_">&nbsp;2,5 giờ dành cho giải trí</span></p>
 <p class="block_4">Ý đồ của thử nghiệm này rất đơn giản</p>"#;
     let md = convert_html_to_markdown(html);
+    println!("DEBUG OREILLY MD:\n{md}");
     let blocks = parse_to_blocks(&md);
+    for (i, b) in blocks.iter().enumerate() {
+        println!("OREILLY BLOCK {i}: {b:?}");
+    }
     assert_eq!(blocks.len(), 3);
     match &blocks[1] {
         Block::List { ordered, items, .. } => {
@@ -182,7 +186,11 @@ fn test_extract_blocks_styles_list_desync_prevention() {
 <p class="block_left">♦ Item 3</p>
 <p class="block_center">Should remain center aligned</p>"#;
     let md = convert_html_to_markdown(html);
+    println!("DEBUG OREILLY MD:\n{md}");
     let blocks = parse_to_blocks(&md);
+    for (i, b) in blocks.iter().enumerate() {
+        println!("OREILLY BLOCK {i}: {b:?}");
+    }
     assert_eq!(blocks.len(), 3); // Intro, List (3 items), Center paragraph
 
     let mut stylesheet = HashMap::new();
@@ -960,4 +968,100 @@ fn test_epub_parser_preamble_spine_items_before_ncx() {
     }
 
     let _ = std::fs::remove_file(test_epub_path);
+}
+
+#[test]
+fn test_convert_html_oreilly_callout_alerts() {
+    use crate::parsers::markdown::AlertKind;
+
+    let html = r#"<div data-type="note" epub:type="note"><h6>Note</h6>
+<p>Throughout the book, I use the term <em>Node</em> instead of <em>Node.js</em> for brevity.</p>
+</div>
+<div data-type="tip"><h6>Tip</h6>
+<p>I decided to give Node a spin and learn more about it.</p>
+</div>
+<div data-type="warning" epub:type="warning"><h6>Warning</h6>
+<p>Add-ons are not supported with ES module imports.</p>
+</div>"#;
+
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 3);
+
+    match &blocks[0] {
+        Block::Alert { kind, content } => {
+            assert_eq!(*kind, AlertKind::Note);
+            assert!(format!("{content:?}").contains("Throughout the book, I use the term"));
+            assert!(format!("{content:?}").contains("Node"));
+        }
+        _ => panic!("Expected Alert block for note, got: {:?}", blocks[0]),
+    }
+
+    match &blocks[1] {
+        Block::Alert { kind, content } => {
+            assert_eq!(*kind, AlertKind::Tip);
+            assert!(format!("{content:?}").contains("I decided to give Node a spin"));
+        }
+        _ => panic!("Expected Alert block for tip, got: {:?}", blocks[1]),
+    }
+
+    match &blocks[2] {
+        Block::Alert { kind, content } => {
+            assert_eq!(*kind, AlertKind::Warning);
+            assert!(format!("{content:?}").contains("Add-ons are not supported"));
+        }
+        _ => panic!("Expected Alert block for warning, got: {:?}", blocks[2]),
+    }
+}
+
+#[test]
+fn test_convert_html_oreilly_sidebar() {
+    let html = r#"<aside data-type="sidebar" epub:type="sidebar"><div class="sidebar" id="id222">
+<h1>Node on Windows</h1>
+<p>All the examples are designed for a macOS environment.</p>
+</div></aside>"#;
+
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1);
+
+    match &blocks[0] {
+        Block::Quote(sub_blocks) => {
+            assert!(!sub_blocks.is_empty());
+            assert!(format!("{sub_blocks:?}").contains("Node on Windows"));
+            assert!(format!("{sub_blocks:?}").contains("macOS environment"));
+        }
+        _ => panic!("Expected Quote block for sidebar, got: {:?}", blocks[0]),
+    }
+}
+
+#[test]
+fn test_convert_html_figure_caption() {
+    let html = r#"<figure><div id="fig_101" class="figure">
+<img src="assets/enjs_0101.png" alt="enjs 0101" width="1728" height="531"/>
+<h6><span class="label">Figure 1-1. </span>Node’s REPL mode</h6>
+</div></figure>"#;
+
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+    // Block 0: <a id="fig_101"></a> anchor, Block 1: Image, Block 2: Caption
+    assert_eq!(blocks.len(), 3);
+
+    match &blocks[1] {
+        Block::Image { path, .. } => {
+            assert_eq!(path, "assets/enjs_0101.png");
+        }
+        _ => panic!("Expected Image block, got: {:?}", blocks[1]),
+    }
+
+    match &blocks[2] {
+        Block::Paragraph(inlines) => {
+            let text = flatten_inlines(inlines);
+            assert!(text.contains("Figure 1-1. Node’s REPL mode"));
+        }
+        _ => panic!(
+            "Expected Paragraph block with caption, got: {:?}",
+            blocks[2]
+        ),
+    }
 }

@@ -39,6 +39,10 @@ pub struct HtmlToMarkdownConverter {
     in_rp: bool,
     quote_stack: Vec<String>,
     span_format_stack: Vec<&'static str>,
+    div_callout_stack: Vec<Option<&'static str>>,
+    in_figure: bool,
+    in_figure_caption: bool,
+    in_callout_heading: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -85,6 +89,10 @@ impl HtmlToMarkdownConverter {
             in_rp: false,
             quote_stack: Vec::new(),
             span_format_stack: Vec::new(),
+            div_callout_stack: Vec::new(),
+            in_figure: false,
+            in_figure_caption: false,
+            in_callout_heading: false,
         }
     }
 
@@ -213,6 +221,15 @@ impl HtmlToMarkdownConverter {
                 }
             }
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
+                if self.div_callout_stack.last().copied().flatten().is_some() {
+                    self.in_callout_heading = true;
+                    return;
+                }
+                if name == "h6" && self.in_figure {
+                    self.in_figure_caption = true;
+                    self.append_str("\n\n*");
+                    return;
+                }
                 let hashes = match name {
                     "h1" => "#",
                     "h2" => "##",
@@ -236,8 +253,70 @@ impl HtmlToMarkdownConverter {
                 self.ensure_newline();
                 self.quote_stack.push(String::with_capacity(256));
             }
-            "p" | "div" | "section" | "article" | "header" | "footer" | "aside" | "figure"
-            | "figcaption" | "main" | "body" | "dt" | "dd" => {
+            "figure" => {
+                self.in_figure = true;
+                if let Some(id) = extract_id_or_name(e) {
+                    self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n"));
+                }
+                self.ensure_newline();
+            }
+            "aside" => {
+                let is_sidebar = has_class_or_attr(e, "data-type", "sidebar")
+                    || has_class_or_attr(e, "epub:type", "sidebar")
+                    || has_class_or_attr(e, "class", "sidebar");
+                if is_sidebar {
+                    if let Some(id) = extract_id_or_name(e) {
+                        self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n"));
+                    }
+                    self.ensure_newline();
+                    self.quote_stack.push(String::with_capacity(256));
+                } else {
+                    if let Some(id) = extract_id_or_name(e) {
+                        self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n"));
+                    }
+                    self.ensure_newline();
+                }
+            }
+            "div" => {
+                let mut callout_kind = None;
+                for attr in e.attributes().flatten() {
+                    let key = attr.key.as_ref();
+                    if key.eq_ignore_ascii_case("data-type")
+                        || key.eq_ignore_ascii_case("epub:type")
+                    {
+                        let val = attr.value.to_ascii_lowercase();
+                        let token = match val.as_str() {
+                            "note" => Some("NOTE"),
+                            "tip" => Some("TIP"),
+                            "warning" => Some("WARNING"),
+                            "caution" => Some("CAUTION"),
+                            "important" => Some("IMPORTANT"),
+                            _ => None,
+                        };
+                        if token.is_some() {
+                            callout_kind = token;
+                            break;
+                        }
+                    }
+                }
+                self.div_callout_stack.push(callout_kind);
+                if let Some(kind) = callout_kind {
+                    if let Some(id) = extract_id_or_name(e) {
+                        self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n"));
+                    }
+                    self.ensure_newline();
+                    let mut q = String::with_capacity(256);
+                    q.push_str(&format!("[!{kind}]\n"));
+                    self.quote_stack.push(q);
+                } else {
+                    if let Some(id) = extract_id_or_name(e) {
+                        self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n"));
+                    }
+                    self.ensure_newline();
+                }
+            }
+            "p" | "section" | "article" | "header" | "footer" | "figcaption" | "main" | "body"
+            | "dt" | "dd" => {
                 if let Some(id) = extract_id_or_name(e) {
                     self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n"));
                 }
@@ -577,6 +656,15 @@ impl HtmlToMarkdownConverter {
                 }
             }
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
+                if self.in_callout_heading {
+                    self.in_callout_heading = false;
+                    return;
+                }
+                if name == "h6" && self.in_figure_caption {
+                    self.in_figure_caption = false;
+                    self.append_str("*\n\n");
+                    return;
+                }
                 if self.in_ruby {
                     self.in_ruby = false;
                     self.flush_ruby_pair();
@@ -584,7 +672,11 @@ impl HtmlToMarkdownConverter {
                 self.ensure_newline();
                 self.append_str("\n");
             }
-            "blockquote" => {
+            "figure" => {
+                self.in_figure = false;
+                self.ensure_newline();
+            }
+            "blockquote" | "aside" => {
                 if let Some(quote_content) = self.quote_stack.pop() {
                     let trimmed = quote_content.trim();
                     if !trimmed.is_empty() {
@@ -606,7 +698,46 @@ impl HtmlToMarkdownConverter {
                 }
                 self.ensure_newline();
             }
-            "p" | "div" | "section" | "article" => {
+            "div" => {
+                let callout_kind = self.div_callout_stack.pop().flatten();
+                if callout_kind.is_some()
+                    && let Some(quote_content) = self.quote_stack.pop()
+                {
+                    let trimmed = quote_content.trim();
+                    if !trimmed.is_empty() {
+                        let mut formatted = String::with_capacity(trimmed.len() + 32);
+                        formatted.push_str("\n\n");
+                        for line in trimmed.lines() {
+                            let line_trim = line.trim();
+                            if line_trim.is_empty() {
+                                formatted.push_str(">\n");
+                            } else {
+                                formatted.push_str("> ");
+                                formatted.push_str(line_trim);
+                                formatted.push('\n');
+                            }
+                        }
+                        formatted.push('\n');
+                        self.append_str(&formatted);
+                    }
+                }
+                if self.in_ruby {
+                    self.in_ruby = false;
+                    self.flush_ruby_pair();
+                }
+                if let Some(current_quote) = self.quote_stack.last_mut() {
+                    if !current_quote.is_empty() && !current_quote.ends_with("\n\n") {
+                        if current_quote.ends_with('\n') {
+                            current_quote.push('\n');
+                        } else {
+                            current_quote.push_str("\n\n");
+                        }
+                    }
+                } else {
+                    self.ensure_newline();
+                }
+            }
+            "p" | "section" | "article" => {
                 if self.in_ruby {
                     self.in_ruby = false;
                     self.flush_ruby_pair();
@@ -709,7 +840,7 @@ impl HtmlToMarkdownConverter {
     }
 
     fn handle_text(&mut self, text: &str) {
-        if self.skip_depth > 0 {
+        if self.skip_depth > 0 || self.in_callout_heading {
             return;
         }
 
