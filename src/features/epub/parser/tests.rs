@@ -1065,3 +1065,37 @@ fn test_convert_html_figure_caption() {
         ),
     }
 }
+
+#[test]
+fn test_convert_html_li_with_newline_and_span() {
+    let html = r#"<ul class="stafflist">
+    <li>
+      <span class="staffrole">Acquisitions Editor:</span> Amanda Quinn
+    </li>
+    <li>
+      <span class="staffrole">Development Editor:</span> Jeff Bleiel
+    </li>
+  </ul>"#;
+
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1);
+
+    match &blocks[0] {
+        Block::List { items, ordered, .. } => {
+            assert!(!ordered);
+            assert_eq!(items.len(), 2);
+            let item0_text = flatten_inlines(&items[0].content);
+            assert!(
+                item0_text.contains("Acquisitions Editor: Amanda Quinn"),
+                "Expected item 0 to contain full text without split, got: {item0_text}"
+            );
+            let item1_text = flatten_inlines(&items[1].content);
+            assert!(
+                item1_text.contains("Development Editor: Jeff Bleiel"),
+                "Expected item 1 to contain full text without split, got: {item1_text}"
+            );
+        }
+        _ => panic!("Expected List block, got: {:?}", blocks[0]),
+    }
+}
