@@ -1185,3 +1185,60 @@ fn test_code_tags_ending_with_vowel_not_corrupted_into_grave_accent() {
         _ => panic!("Expected Paragraph block, got: {:?}", blocks[0]),
     }
 }
+
+#[test]
+fn test_convert_html_definition_list() {
+    let html = r#"
+<dl>
+  <dt>Arrange</dt>
+  <dd><p>This section is the setup. It's where we prepare the environment.</p></dd>
+  <dt>Act</dt>
+  <dd><p>This is where the actual action takes place.</p></dd>
+  <dt>Assert</dt>
+  <dd><p>This is where we check the result.</p></dd>
+</dl>
+"#;
+
+    let md = convert_html_to_markdown(html);
+    assert!(
+        md.contains("- **Arrange**: This section is the setup."),
+        "Expected formatted bullet definition, got:\n{md}"
+    );
+    assert!(
+        md.contains("- **Act**: This is where the actual action takes place."),
+        "Expected formatted bullet definition, got:\n{md}"
+    );
+    assert!(
+        md.contains("- **Assert**: This is where we check the result."),
+        "Expected formatted bullet definition, got:\n{md}"
+    );
+
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1, "Should parse into a single List block");
+    match &blocks[0] {
+        Block::List { items, ordered, .. } => {
+            assert!(!ordered);
+            assert_eq!(items.len(), 3);
+        }
+        _ => panic!("Expected List block, got: {:?}", blocks[0]),
+    }
+}
+
+#[test]
+fn test_epub_find_block_index_image_anchor() {
+    let blocks = vec![
+        Block::Paragraph(vec![crate::parsers::markdown::Inline::Text(
+            "Intro paragraph".to_string(),
+        )]),
+        Block::Image {
+            alt: "Figure 8-1: Node test runner architecture".to_string(),
+            path: "images/fig_801.png".to_string(),
+            link_url: Some("#fig_801".to_string()),
+            width: Some(600),
+            height: Some(400),
+        },
+    ];
+
+    let found = super::find_block_index(&blocks, Some("fig_801"), None);
+    assert_eq!(found, Some(1));
+}

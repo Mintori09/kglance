@@ -37,9 +37,18 @@ pub(crate) fn render_inline_image<'a>(
         None => img.width(Length::Shrink),
     };
 
+    let image_card = container(img).style(move |_theme: &iced::Theme| container::Style {
+        border: Border {
+            color: Color::from_rgba(1.0, 1.0, 1.0, 0.08),
+            width: 1.0,
+            radius: STYLE.image.border_radius.into(),
+        },
+        ..Default::default()
+    });
+
     let content: Element<'a, Message> = if let Some(url) = link_url {
         let url_clone = url.to_string();
-        button(img)
+        button(image_card)
             .on_press(crate::app::messages::SystemMsg::OpenLink(url_clone).into())
             .style(
                 |_theme: &iced::Theme, _status: button::Status| button::Style {
@@ -57,7 +66,7 @@ pub(crate) fn render_inline_image<'a>(
             .padding(0)
             .into()
     } else {
-        img.into()
+        image_card.into()
     };
 
     container(content)

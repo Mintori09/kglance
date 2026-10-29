@@ -731,6 +731,16 @@ fn block_contains_anchor(block: &Block, anchor: &str) -> bool {
                 })
             })
         }
+        Block::Image {
+            alt,
+            path,
+            link_url,
+            ..
+        } => {
+            alt.contains(anchor)
+                || path.contains(anchor)
+                || link_url.as_deref().is_some_and(|u| u.contains(anchor))
+        }
         _ => false,
     }
 }
