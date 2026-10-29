@@ -1,8 +1,9 @@
 use unicode_normalization::UnicodeNormalization;
 
-pub fn decode_html_entities(text: &str) -> String {
+/// Decodes HTML entities (e.g. `&quot;`, `&#x201C;`) without running NFC accent normalization.
+pub fn decode_html_entities_only(text: &str) -> String {
     if !text.contains('&') {
-        return normalize_nfc(text);
+        return text.to_string();
     }
 
     let mut result = String::with_capacity(text.len());
@@ -45,7 +46,12 @@ pub fn decode_html_entities(text: &str) -> String {
         }
     }
 
-    normalize_nfc(&result)
+    result
+}
+
+pub fn decode_html_entities(text: &str) -> String {
+    let decoded = decode_html_entities_only(text);
+    normalize_nfc(&decoded)
 }
 
 pub fn is_vietnamese_vowel(c: char) -> bool {

@@ -1147,3 +1147,41 @@ fn test_code_tags_ending_with_consonant_not_corrupted_by_normalize_nfc() {
         _ => panic!("Expected Paragraph block, got: {:?}", blocks[0]),
     }
 }
+
+#[test]
+fn test_code_tags_ending_with_vowel_not_corrupted_into_grave_accent() {
+    let html = r#"<p>run it with the <code>node</code> command, <code>file</code>, <code>date</code>, and <code>true</code>.</p>"#;
+
+    let md = convert_html_to_markdown(html);
+    assert!(
+        md.contains("`node`"),
+        "`node` must not be corrupted to `nodè, got: {md}"
+    );
+    assert!(
+        md.contains("`file`"),
+        "`file` must not be corrupted to `filè, got: {md}"
+    );
+    assert!(
+        md.contains("`date`"),
+        "`date` must not be corrupted to `datè, got: {md}"
+    );
+    assert!(
+        md.contains("`true`"),
+        "`true` must not be corrupted to `truè, got: {md}"
+    );
+
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            let has_node_code = inlines.iter().any(
+                |inline| matches!(inline, crate::parsers::markdown::Inline::Code(c) if c == "node"),
+            );
+            assert!(
+                has_node_code,
+                "Expected Inline::Code(\"node\") in inlines: {inlines:?}"
+            );
+        }
+        _ => panic!("Expected Paragraph block, got: {:?}", blocks[0]),
+    }
+}

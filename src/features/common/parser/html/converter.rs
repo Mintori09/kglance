@@ -1,7 +1,7 @@
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 
-use super::entities::{decode_html_entities, normalize_nfc};
+use super::entities::{decode_html_entities, decode_html_entities_only, normalize_nfc};
 use super::extract::extract_id_or_name;
 
 pub fn convert_html_to_markdown(html: &str) -> String {
@@ -147,12 +147,11 @@ impl HtmlToMarkdownConverter {
             buf.clear();
         }
 
-        let decoded = decode_html_entities(&self.output);
-        let normalized = normalize_nfc(&decoded);
-        let cleaned = if normalized.contains("\\-") {
-            normalized.replace("\\-", "-")
+        let decoded = decode_html_entities_only(&self.output);
+        let cleaned = if decoded.contains("\\-") {
+            decoded.replace("\\-", "-")
         } else {
-            normalized
+            decoded
         };
 
         clean_markdown_output(&cleaned)
@@ -894,6 +893,17 @@ impl HtmlToMarkdownConverter {
         if text_to_append.is_empty() {
             return;
         }
+
+        let normalized_text_storage: String;
+        let text_to_append = if text_to_append.contains('´')
+            || text_to_append.contains('`')
+            || text_to_append.contains('ộ')
+        {
+            normalized_text_storage = normalize_nfc(text_to_append);
+            normalized_text_storage.as_str()
+        } else {
+            text_to_append
+        };
 
         if self.in_math {
             if self.in_math_annotation_tex {
