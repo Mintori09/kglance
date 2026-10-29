@@ -217,9 +217,11 @@ pub fn handle_markdown_scrolled(
         (is_epub, toc_y)
     };
 
-    if is_epub_continuous {
-        sync_epub_active_chapter_on_scroll(app, y);
-    }
+    let epub_task = if is_epub_continuous {
+        sync_epub_active_chapter_on_scroll(app, y)
+    } else {
+        Task::none()
+    };
 
     let toc_task = if let Some(target_y) = toc_target_y {
         operation::scroll_to(
@@ -233,7 +235,7 @@ pub fn handle_markdown_scrolled(
         Task::none()
     };
     app.record_read_position();
-    toc_task
+    Task::batch([toc_task, epub_task])
 }
 
 pub fn handle_search_toggle(app: &mut KglanceApp) -> Task<Message> {
@@ -675,9 +677,9 @@ pub fn handle_smooth_wheel_scrolled(
                             iced::widget::operation::AbsoluteOffset { x: 0.0, y: new_y },
                         );
                         let toc_task = scroll_toc_to_active(state.toc_visible, &state.toc, new_y);
-                        sync_epub_active_chapter_on_scroll(app, new_y);
+                        let epub_task = sync_epub_active_chapter_on_scroll(app, new_y);
                         app.record_read_position();
-                        return Task::batch([scroll_task, toc_task]);
+                        return Task::batch([scroll_task, toc_task, epub_task]);
                     }
                 }
             }
@@ -710,7 +712,10 @@ pub fn handle_smooth_wheel_scrolled(
     }
 }
 
-pub(crate) fn sync_epub_active_chapter_on_scroll(app: &mut KglanceApp, current_y: f32) {
+pub(crate) fn sync_epub_active_chapter_on_scroll(
+    app: &mut KglanceApp,
+    current_y: f32,
+) -> Task<Message> {
     if matches!(app.current_content, Some(PreviewData::Epub { .. }))
         && app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous
         && !app.state.epub.chapter_block_offsets.is_empty()
@@ -725,15 +730,53 @@ pub(crate) fn sync_epub_active_chapter_on_scroll(app: &mut KglanceApp, current_y
             Ok(idx) => idx,
             Err(idx) => idx.saturating_sub(1),
         };
-        let chapter_offsets = &app.state.epub.chapter_block_offsets;
-        let ch_idx = chapter_offsets
-            .iter()
-            .rposition(|&offset| offset <= visible_block_idx)
-            .unwrap_or(0);
+
+        let target_offsets = if !app.state.epub.chapter_target_offsets.is_empty() {
+            &app.state.epub.chapter_target_offsets
+        } else {
+            &app.state.epub.chapter_block_offsets
+        };
+
+        let next_idx = target_offsets.partition_point(|&offset| offset <= visible_block_idx);
+        let ch_idx = next_idx
+            .saturating_sub(1)
+            .min(app.state.epub.chapters.len().saturating_sub(1));
+
+        let prev_active = app.state.epub.active_chapter;
+        app.state.epub.active_chapter = ch_idx;
+
+        // Auto-expand ancestors if newly active or previously collapsed
         if ch_idx < app.state.epub.chapters.len() {
-            app.state.epub.active_chapter = ch_idx;
+            let mut curr_level = app.state.epub.chapters[ch_idx].level;
+            for parent_idx in (0..ch_idx).rev() {
+                let p_level = app.state.epub.chapters[parent_idx].level;
+                if p_level < curr_level {
+                    app.state.epub.collapsed_chapters.remove(&parent_idx);
+                    curr_level = p_level;
+                    if p_level <= 1 {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Only dispatch sidebar scroll when active chapter changes or sidebar is visible
+        if prev_active != ch_idx && app.state.epub.sidebar_visible {
+            let target_sidebar_y =
+                crate::features::epub::view::sidebar::calculate_chapter_target_scroll_y(
+                    &app.state.epub,
+                    ch_idx,
+                );
+            return operation::scroll_to(
+                "chapter_scroll",
+                operation::AbsoluteOffset {
+                    x: 0.0,
+                    y: target_sidebar_y,
+                },
+            );
         }
     }
+    Task::none()
 }
 
 pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) -> Task<Message> {
@@ -772,18 +815,14 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             )
         };
 
-        let toc_task = if is_finished {
-            scroll_toc_to_active(state.toc_visible, &state.toc, next_y)
-        } else {
-            Task::none()
-        };
+        let toc_task = scroll_toc_to_active(state.toc_visible, &state.toc, next_y);
+        let epub_task = sync_epub_active_chapter_on_scroll(app, next_y);
 
         if is_finished {
-            sync_epub_active_chapter_on_scroll(app, next_y);
             app.record_read_position();
         }
 
-        return Task::batch([scroll_task, toc_task]);
+        return Task::batch([scroll_task, toc_task, epub_task]);
     }
 
     // 2. Check SmoothScroller (smooth lines and keyboard navigation)
@@ -819,18 +858,14 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
             )
         };
 
-        let toc_task = if is_finished {
-            scroll_toc_to_active(state.toc_visible, &state.toc, next_y)
-        } else {
-            Task::none()
-        };
+        let toc_task = scroll_toc_to_active(state.toc_visible, &state.toc, next_y);
+        let epub_task = sync_epub_active_chapter_on_scroll(app, next_y);
 
         if is_finished {
-            sync_epub_active_chapter_on_scroll(app, next_y);
             app.record_read_position();
         }
 
-        Task::batch([scroll_task, toc_task])
+        Task::batch([scroll_task, toc_task, epub_task])
     } else {
         Task::none()
     }

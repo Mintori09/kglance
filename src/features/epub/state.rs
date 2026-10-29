@@ -107,17 +107,24 @@ pub fn build_continuous_blocks(chapters: &[EpubChapterInfo]) -> (Vec<Block>, Vec
         if !ch.file_href.is_empty()
             && let Some(&existing_offset) = seen_file_offsets.get(ch.file_href.as_str())
         {
-            chapter_block_offsets.push(existing_offset);
+            let local_anchor_offset = crate::features::epub::parser::find_block_index(
+                &ch.blocks,
+                ch.anchor.as_deref(),
+                Some(&ch.title),
+            )
+            .unwrap_or(0);
+            let target_block_idx = existing_offset + local_anchor_offset;
+            chapter_block_offsets.push(target_block_idx);
             continue;
         }
 
         let start_idx = all_blocks.len();
-        chapter_block_offsets.push(start_idx);
         if !ch.file_href.is_empty() {
             seen_file_offsets.insert(&ch.file_href, start_idx);
         }
 
         if ch.blocks.is_empty() {
+            chapter_block_offsets.push(start_idx);
             continue;
         }
 
@@ -127,6 +134,7 @@ pub fn build_continuous_blocks(chapters: &[EpubChapterInfo]) -> (Vec<Block>, Vec
             all_blocks.push(Block::HorizontalRule);
         }
 
+        chapter_block_offsets.push(start_idx);
         all_blocks.extend(ch.blocks.iter().cloned());
     }
 
@@ -242,6 +250,25 @@ pub fn populate_state(
         }
     }
 
+    let chapter_target_offsets = if reading_mode == EpubReadingMode::Continuous {
+        loaded_chapters
+            .iter()
+            .enumerate()
+            .map(|(idx, ch)| {
+                let start_idx = chapter_block_offsets.get(idx).copied().unwrap_or(0);
+                let local_offset = crate::features::epub::parser::find_block_index(
+                    &ch.blocks,
+                    ch.anchor.as_deref(),
+                    Some(&ch.title),
+                )
+                .unwrap_or(0);
+                start_idx + local_offset
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+
     state.epub = EpubState {
         title: title.to_string(),
         author: author.to_string(),
@@ -249,6 +276,7 @@ pub fn populate_state(
         active_chapter,
         reading_mode,
         chapter_block_offsets,
+        chapter_target_offsets,
         continuous_blocks: effective_blocks,
         sidebar_visible: old_sidebar,
         sidebar_width: if old_sidebar_width > 0.0 {

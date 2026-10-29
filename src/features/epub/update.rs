@@ -132,21 +132,14 @@ pub fn handle_chapter_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message>
             app.state.epub.active_chapter = idx;
             app.record_read_position();
 
-            let chapter = &app.state.epub.chapters[idx];
-            let start_block_idx = app
+            let target_block_idx = app
                 .state
                 .epub
-                .chapter_block_offsets
+                .chapter_target_offsets
                 .get(idx)
+                .or_else(|| app.state.epub.chapter_block_offsets.get(idx))
                 .copied()
                 .unwrap_or(0);
-            let local_block_offset = crate::features::epub::parser::find_block_index(
-                &chapter.blocks,
-                chapter.anchor.as_deref(),
-                Some(&chapter.title),
-            )
-            .unwrap_or(0);
-            let target_block_idx = start_block_idx + local_block_offset;
             let target_y = app
                 .state
                 .epub
