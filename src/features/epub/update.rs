@@ -127,12 +127,20 @@ pub fn ensure_chapter_loaded(app: &mut KglanceApp, idx: usize) {
 }
 
 pub fn handle_chapter_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message> {
+    handle_chapter_and_anchor_jump(app, idx, None)
+}
+
+pub fn handle_chapter_and_anchor_jump(
+    app: &mut KglanceApp,
+    idx: usize,
+    anchor: Option<&str>,
+) -> Task<Message> {
     if idx < app.state.epub.chapters.len() {
         if app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
             app.state.epub.active_chapter = idx;
             app.record_read_position();
 
-            let target_block_idx = app
+            let base_block_idx = app
                 .state
                 .epub
                 .chapter_target_offsets
@@ -140,6 +148,18 @@ pub fn handle_chapter_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message>
                 .or_else(|| app.state.epub.chapter_block_offsets.get(idx))
                 .copied()
                 .unwrap_or(0);
+
+            let target_block_idx = if let Some(anc) = anchor {
+                crate::features::epub::parser::find_block_index(
+                    &app.state.epub.continuous_blocks,
+                    Some(anc),
+                    None,
+                )
+                .unwrap_or(base_block_idx)
+            } else {
+                base_block_idx
+            };
+
             let target_y = app
                 .state
                 .epub
@@ -180,7 +200,18 @@ pub fn handle_chapter_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message>
         app.record_read_position();
 
         let chapter = &app.state.epub.chapters[idx];
-        let target_y = if let Some(block_idx) = crate::features::epub::parser::find_block_index(
+        let target_y = if let Some(anc) = anchor {
+            crate::features::epub::parser::find_block_index(&chapter.blocks, Some(anc), None)
+                .and_then(|b_idx| {
+                    app.state
+                        .epub
+                        .markdown_state
+                        .block_y_offsets
+                        .get(b_idx)
+                        .copied()
+                })
+                .unwrap_or(0.0)
+        } else if let Some(block_idx) = crate::features::epub::parser::find_block_index(
             &chapter.blocks,
             chapter.anchor.as_deref(),
             Some(&chapter.title),
