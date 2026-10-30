@@ -1,6 +1,7 @@
 pub mod constants;
 pub mod content;
 pub mod helpers;
+pub mod lightbox;
 pub mod sidebar;
 
 use std::cell::Cell;

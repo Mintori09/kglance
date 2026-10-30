@@ -12,6 +12,21 @@ pub struct EpubChapterInfo {
     pub blocks: Vec<Block>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EpubSidebarTab {
+    #[default]
+    Toc,
+    Gallery,
+}
+
+#[derive(Debug, Clone)]
+pub struct EpubLightboxState {
+    pub active_path: String,
+    pub all_image_paths: Vec<String>,
+    pub current_index: usize,
+    pub image_state: crate::features::image::ImageState,
+}
+
 #[derive(Debug, Clone)]
 pub struct EpubState {
     pub title: String,
@@ -31,6 +46,8 @@ pub struct EpubState {
     pub collapsed_chapters: HashSet<usize>,
     pub search: super::search::EpubSearchState,
     pub markdown_state: MarkdownState,
+    pub sidebar_tab: EpubSidebarTab,
+    pub lightbox: Option<EpubLightboxState>,
 }
 
 impl EpubState {
@@ -65,6 +82,8 @@ impl Default for EpubState {
             collapsed_chapters: HashSet::new(),
             search: super::search::EpubSearchState::default(),
             markdown_state: MarkdownState::default(),
+            sidebar_tab: EpubSidebarTab::default(),
+            lightbox: None,
         }
     }
 }

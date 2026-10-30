@@ -985,3 +985,118 @@ fn test_jump_to_search_match_positions_correctly() {
     );
     assert_eq!(app.state.epub.active_chapter, 1);
 }
+
+#[test]
+fn test_epub_image_lightbox_open_close_and_navigate() {
+    use crate::core::types::EpubChapterInfo;
+    use crate::features::markdown::Block;
+
+    let mut images = std::collections::HashMap::new();
+    let img1_bytes = vec![137, 80, 78, 71, 13, 10, 26, 10]; // mock png 1
+    let img2_bytes = vec![137, 80, 78, 71, 13, 10, 26, 11]; // mock png 2
+    images.insert("images/fig1.png".to_string(), img1_bytes);
+    images.insert("images/fig2.png".to_string(), img2_bytes);
+
+    let chapters = vec![
+        EpubChapterInfo {
+            title: "Chapter 1".into(),
+            level: 1,
+            anchor: None,
+            file_href: "ch1.xhtml".into(),
+            blocks: vec![Block::Image {
+                path: "images/fig1.png".into(),
+                link_url: None,
+                width: None,
+                height: None,
+                alt: "Fig 1".into(),
+            }],
+        },
+        EpubChapterInfo {
+            title: "Chapter 2".into(),
+            level: 1,
+            anchor: None,
+            file_href: "ch2.xhtml".into(),
+            blocks: vec![Block::Image {
+                path: "images/fig2.png".into(),
+                link_url: None,
+                width: None,
+                height: None,
+                alt: "Fig 2".into(),
+            }],
+        },
+    ];
+
+    let mut app = test_app(Some(crate::core::PreviewData::Epub {
+        title: "Test Lightbox".into(),
+        author: "Author".into(),
+        chapters: chapters.clone(),
+        active_chapter: 0,
+        images,
+    }));
+
+    app.state.epub.chapters = chapters;
+
+    assert!(app.state.epub.lightbox.is_none());
+
+    // 1. Open Lightbox on fig1
+    let _ = handle_open_image_lightbox(&mut app, "images/fig1.png".to_string());
+    assert!(app.state.epub.lightbox.is_some());
+    let lb = app.state.epub.lightbox.as_ref().unwrap();
+    assert_eq!(lb.active_path, "images/fig1.png");
+    assert_eq!(lb.current_index, 0);
+    assert!(lb.all_image_paths.contains(&"images/fig1.png".to_string()));
+    assert!(lb.all_image_paths.contains(&"images/fig2.png".to_string()));
+
+    // 2. Navigate Next -> fig2
+    let _ = handle_next_lightbox_image(&mut app);
+    let lb = app.state.epub.lightbox.as_ref().unwrap();
+    assert_eq!(lb.current_index, 1);
+    assert_eq!(lb.active_path, "images/fig2.png");
+
+    // 3. Navigate Next wraps -> fig1
+    let _ = handle_next_lightbox_image(&mut app);
+    let lb = app.state.epub.lightbox.as_ref().unwrap();
+    assert_eq!(lb.current_index, 0);
+    assert_eq!(lb.active_path, "images/fig1.png");
+
+    // 4. Navigate Prev wraps -> fig2
+    let _ = handle_prev_lightbox_image(&mut app);
+    let lb = app.state.epub.lightbox.as_ref().unwrap();
+    assert_eq!(lb.current_index, 1);
+    assert_eq!(lb.active_path, "images/fig2.png");
+
+    // 5. Close Lightbox
+    let _ = handle_close_image_lightbox(&mut app);
+    assert!(app.state.epub.lightbox.is_none());
+
+    // 6. Direct click on 2nd image (fig2)
+    let _ = handle_open_image_lightbox(&mut app, "images/fig2.png".to_string());
+    assert!(app.state.epub.lightbox.is_some());
+    let lb = app.state.epub.lightbox.as_ref().unwrap();
+    assert_eq!(lb.active_path, "images/fig2.png");
+    assert_eq!(lb.current_index, 1);
+}
+
+#[test]
+fn test_epub_sidebar_tab_changed() {
+    let mut app = test_app(Some(epub_content(&["Ch 1"])));
+    assert_eq!(
+        app.state.epub.sidebar_tab,
+        crate::features::epub::types::EpubSidebarTab::Toc
+    );
+
+    let _ = handle_sidebar_tab_changed(
+        &mut app,
+        crate::features::epub::types::EpubSidebarTab::Gallery,
+    );
+    assert_eq!(
+        app.state.epub.sidebar_tab,
+        crate::features::epub::types::EpubSidebarTab::Gallery
+    );
+
+    let _ = handle_sidebar_tab_changed(&mut app, crate::features::epub::types::EpubSidebarTab::Toc);
+    assert_eq!(
+        app.state.epub.sidebar_tab,
+        crate::features::epub::types::EpubSidebarTab::Toc
+    );
+}

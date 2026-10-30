@@ -444,6 +444,12 @@ pub fn view_window<'a>(
 
     let mut stack = Stack::new().push(base);
 
+    if state.epub.lightbox.is_some() {
+        stack = stack.push(crate::features::epub::view::lightbox::render_lightbox(
+            &state.epub,
+        ));
+    }
+
     if let Some(selection_layer) =
         crate::ui::components::selection_menu::render_selection_menu_layer(state)
     {

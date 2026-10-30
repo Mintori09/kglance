@@ -35,7 +35,14 @@ pub(crate) fn render_block<'a>(
             width,
             height,
             alt: _,
-        } => render_inline_image(path, link_url.as_deref(), *width, *height, state),
+        } => render_inline_image(
+            path,
+            link_url.as_deref(),
+            *width,
+            *height,
+            state,
+            ctx.is_epub,
+        ),
         Block::List {
             ordered,
             start_number,

@@ -294,6 +294,8 @@ pub fn populate_state(
         collapsed_chapters: old_collapsed,
         search: state.epub.search.clone(),
         markdown_state,
+        sidebar_tab: state.epub.sidebar_tab,
+        lightbox: None,
     };
     state
         .epub

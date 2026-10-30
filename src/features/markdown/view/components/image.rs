@@ -13,6 +13,7 @@ pub(crate) fn render_inline_image<'a>(
     explicit_width: Option<u32>,
     explicit_height: Option<u32>,
     state: &'a crate::core::MarkdownState,
+    is_epub: bool,
 ) -> Element<'a, Message> {
     let Some(handle) = state.cached_image_handles.get(path) else {
         return container(column![]).into();
@@ -46,7 +47,31 @@ pub(crate) fn render_inline_image<'a>(
         ..Default::default()
     });
 
-    let content: Element<'a, Message> = if let Some(url) = link_url {
+    let content: Element<'a, Message> = if is_epub {
+        let path_clone = path.to_string();
+        button(image_card)
+            .on_press(crate::app::messages::EpubMsg::OpenImageLightbox(path_clone).into())
+            .style(|_theme: &iced::Theme, status: button::Status| {
+                let border_color = match status {
+                    button::Status::Hovered => Color::from_rgba(0.4, 0.7, 1.0, 0.4),
+                    button::Status::Pressed => Color::from_rgba(0.4, 0.7, 1.0, 0.7),
+                    _ => Color::TRANSPARENT,
+                };
+                button::Style {
+                    background: None,
+                    text_color: Color::TRANSPARENT,
+                    border: Border {
+                        width: 1.0,
+                        color: border_color,
+                        radius: STYLE.image.border_radius.into(),
+                    },
+                    shadow: Shadow::default(),
+                    snap: false,
+                }
+            })
+            .padding(0)
+            .into()
+    } else if let Some(url) = link_url {
         let url_clone = url.to_string();
         button(image_card)
             .on_press(crate::app::messages::SystemMsg::OpenLink(url_clone).into())

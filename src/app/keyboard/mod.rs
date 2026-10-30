@@ -125,6 +125,33 @@ impl super::KglanceApp {
             return Task::none();
         }
 
+        if self.state.epub.lightbox.is_some() {
+            match &key {
+                iced::keyboard::Key::Named(Named::Escape) => {
+                    return self.update(crate::app::messages::EpubMsg::CloseImageLightbox.into());
+                }
+                iced::keyboard::Key::Named(Named::ArrowRight) => {
+                    return self.update(crate::app::messages::EpubMsg::NextLightboxImage.into());
+                }
+                iced::keyboard::Key::Named(Named::ArrowLeft) => {
+                    return self.update(crate::app::messages::EpubMsg::PrevLightboxImage.into());
+                }
+                iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("l") => {
+                    return self.update(crate::app::messages::EpubMsg::NextLightboxImage.into());
+                }
+                iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("h") => {
+                    return self.update(crate::app::messages::EpubMsg::PrevLightboxImage.into());
+                }
+                iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("r") => {
+                    return self.update(crate::app::messages::ImageMsg::RotateRight.into());
+                }
+                iced::keyboard::Key::Character(c) if c == "=" || c.eq_ignore_ascii_case("f") => {
+                    return self.update(crate::app::messages::ImageMsg::FitToWindow.into());
+                }
+                _ => {}
+            }
+        }
+
         if self.state.image.show_info && matches!(key, iced::keyboard::Key::Named(Named::Escape)) {
             return self.update(crate::app::messages::ImageMsg::CloseInfo.into());
         }
