@@ -49,6 +49,61 @@ pub fn chapter_header_blocks_count(chapters: &[EpubChapterInfo], ch_idx: usize) 
     }
 }
 
+pub fn parse_link_target(url: &str) -> (Option<&str>, Option<&str>) {
+    if let Some(anchor) = url.strip_prefix('#') {
+        return (None, Some(anchor));
+    }
+
+    if let Some((file, anchor)) = url.split_once('#') {
+        let f = if file.is_empty() { None } else { Some(file) };
+        let a = if anchor.is_empty() {
+            None
+        } else {
+            Some(anchor)
+        };
+        (f, a)
+    } else if !url.is_empty() {
+        (Some(url), None)
+    } else {
+        (None, None)
+    }
+}
+pub fn find_chapter_index_by_file(
+    chapters: &[EpubChapterInfo],
+    target_file: &str,
+) -> Option<usize> {
+    let target_clean = target_file.trim_start_matches('/');
+    if target_clean.is_empty() {
+        return None;
+    }
+    let target_name = target_clean.split('/').next_back().unwrap_or(target_clean);
+
+    // 1. Exact match on full file_href
+    for (idx, ch) in chapters.iter().enumerate() {
+        if ch.file_href == target_clean {
+            return Some(idx);
+        }
+    }
+
+    // 2. Suffix match (e.g. OEBPS/chapter.xhtml vs chapter.xhtml)
+    for (idx, ch) in chapters.iter().enumerate() {
+        let ch_clean = ch.file_href.trim_start_matches('/');
+        if ch_clean.ends_with(target_clean) || target_clean.ends_with(ch_clean) {
+            return Some(idx);
+        }
+    }
+
+    // 3. Filename match
+    for (idx, ch) in chapters.iter().enumerate() {
+        let ch_name = ch.file_href.split('/').next_back().unwrap_or(&ch.file_href);
+        if ch_name == target_name {
+            return Some(idx);
+        }
+    }
+
+    None
+}
+
 /// Returns the global block start index and synthetic header count for a given chapter.
 pub fn continuous_chapter_start_and_header(
     chapters: &[EpubChapterInfo],

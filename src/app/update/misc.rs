@@ -15,6 +15,24 @@ pub fn handle_copy_text(app: &mut KglanceApp, text: String) -> Task<Message> {
 }
 
 pub fn handle_open_link(app: &mut KglanceApp, url: String) -> Task<Message> {
+    if matches!(app.current_content, Some(PreviewData::Epub { .. })) {
+        let (file_part, anchor_part) = crate::features::epub::anchor::parse_link_target(&url);
+        if let Some(target_file) = file_part {
+            if let Some(ch_idx) = crate::features::epub::anchor::find_chapter_index_by_file(
+                &app.state.epub.chapters,
+                target_file,
+            ) {
+                return crate::features::epub::update::handle_chapter_and_anchor_jump(
+                    app,
+                    ch_idx,
+                    anchor_part,
+                );
+            }
+        } else if let Some(anchor) = anchor_part {
+            return handle_anchor_jump(app, anchor);
+        }
+    }
+
     if let Some(anchor) = url.strip_prefix('#') {
         return handle_anchor_jump(app, anchor);
     }
@@ -830,141 +848,5 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::app::test_util::{epub_content, test_app};
-    use crate::features::markdown::update::handle_selection_drag_start;
-
-    #[test]
-    fn drag_start_sets_resizing_and_clears_anchor() {
-        let mut app = test_app(None);
-        let _ = handle_sidebar_drag_started(&mut app);
-        assert!(app.state.markdown.sidebar_resizing);
-        assert!(app.state.markdown.sidebar_drag_start_x.is_none());
-        assert!(app.state.epub.sidebar_resizing);
-        assert!(app.state.epub.sidebar_drag_start_x.is_none());
-        assert!(app.state.text.sidebar_resizing);
-        assert!(app.state.text.sidebar_drag_start_x.is_none());
-        assert!(app.state.pdf.sidebar_resizing);
-        assert!(app.state.pdf.sidebar_drag_start_x.is_none());
-    }
-
-    #[test]
-    fn mouse_moved_anchors_on_first_move_without_resizing() {
-        let mut app = test_app(None);
-        app.state.epub.sidebar_width = 200.0;
-        let _ = handle_sidebar_drag_started(&mut app);
-        let _ = handle_mouse_moved(&mut app, 250.0, 100.0);
-        assert_eq!(app.state.epub.sidebar_drag_start_x, Some(250.0));
-        assert_eq!(app.state.epub.sidebar_drag_start_width, 200.0);
-        assert_eq!(app.state.epub.sidebar_width, 200.0);
-    }
-
-    #[test]
-    fn mouse_moved_applies_delta_after_anchor() {
-        let mut app = test_app(None);
-        app.state.epub.sidebar_width = 200.0;
-        let _ = handle_sidebar_drag_started(&mut app);
-        let _ = handle_mouse_moved(&mut app, 250.0, 100.0);
-        let _ = handle_mouse_moved(&mut app, 270.0, 100.0);
-        assert_eq!(app.state.epub.sidebar_width, 220.0);
-        assert_eq!(app.state.epub.sidebar_drag_start_x, Some(250.0));
-    }
-
-    #[test]
-    fn mouse_moved_resizes_text_sidebar() {
-        let mut app = test_app(None);
-        app.state.text.sidebar_width = 250.0;
-        let _ = handle_sidebar_drag_started(&mut app);
-        let _ = handle_mouse_moved(&mut app, 300.0, 100.0);
-        let _ = handle_mouse_moved(&mut app, 350.0, 100.0);
-        assert_eq!(app.state.text.sidebar_width, 300.0);
-        assert_eq!(app.state.text.sidebar_drag_start_x, Some(300.0));
-    }
-
-    #[test]
-    fn mouse_moved_clamps_epub_width() {
-        let mut app = test_app(None);
-        app.state.epub.sidebar_width = 200.0;
-        let _ = handle_sidebar_drag_started(&mut app);
-        let _ = handle_mouse_moved(&mut app, 0.0, 100.0);
-        let _ = handle_mouse_moved(&mut app, -1000.0, 100.0);
-        assert_eq!(app.state.epub.sidebar_width, 140.0);
-    }
-
-    #[test]
-    fn drag_end_clears_resizing() {
-        let mut app = test_app(None);
-        let _ = handle_sidebar_drag_started(&mut app);
-        let _ = handle_sidebar_drag_ended(&mut app);
-        assert!(!app.state.markdown.sidebar_resizing);
-        assert!(!app.state.epub.sidebar_resizing);
-        assert!(!app.state.text.sidebar_resizing);
-        assert!(!app.state.pdf.sidebar_resizing);
-    }
-
-    #[test]
-    fn epub_mouse_moved_sets_auto_scroll_on_epub_state() {
-        let mut app = test_app(Some(epub_content(&["hello"])));
-        let _ = handle_selection_drag_start(&mut app, 0, 0);
-        app.state.current_window_size.height = 200.0;
-        let _ = handle_mouse_moved(&mut app, 50.0, 9999.0);
-        assert!(app.state.epub.markdown_state.auto_scroll_delta.is_some());
-        assert!(app.state.markdown.auto_scroll_delta.is_none());
-    }
-
-    #[test]
-    fn mouse_moved_clamps_pdf_width() {
-        let mut app = test_app(None);
-        app.state.pdf.sidebar_width = 300.0;
-        let _ = handle_sidebar_drag_started(&mut app);
-        let _ = handle_mouse_moved(&mut app, 100.0, 100.0);
-        let _ = handle_mouse_moved(&mut app, -1000.0, 100.0);
-        assert_eq!(app.state.pdf.sidebar_width, 120.0);
-        assert!(app.state.pdf.sidebar_resizing);
-        assert!(app.state.pdf.sidebar_drag_start_x.is_some());
-    }
-
-    #[test]
-    fn pdf_mouse_moved_sets_auto_scroll_and_updates_selection() {
-        let mut app = test_app(None);
-        app.state.pdf.is_selecting = true;
-        app.state.current_window_size.height = 200.0;
-        let _ = handle_mouse_moved(&mut app, 100.0, 500.0);
-        assert!(app.state.pdf.auto_scroll_delta.is_some());
-        let delta = app.state.pdf.auto_scroll_delta.unwrap();
-        assert!(delta > 0.0);
-
-        let _ = handle_mouse_released(&mut app);
-        assert!(!app.state.pdf.is_selecting);
-        assert!(app.state.pdf.auto_scroll_delta.is_none());
-    }
-
-    #[test]
-    fn test_update_current_window_size_respects_remember_window_size() {
-        let mut app = test_app(None);
-        app.state.window_width = 800.0;
-        app.state.window_height = 600.0;
-        app.state.window_default_size = iced::Size::new(800.0, 600.0);
-        app.state.remember_window_size = false;
-
-        let _ = update_current_window_size(&mut app, 1200.0, 900.0);
-        assert_eq!(app.state.window_width, 1200.0);
-        assert_eq!(app.state.window_height, 900.0);
-        assert_eq!(app.state.window_default_size, iced::Size::new(800.0, 600.0));
-
-        app.state.remember_window_size = true;
-        let _ = update_current_window_size(&mut app, 1400.0, 1000.0);
-        assert_eq!(app.state.window_width, 1400.0);
-        assert_eq!(app.state.window_height, 1000.0);
-        assert_eq!(
-            app.state.window_default_size,
-            iced::Size::new(1400.0, 1000.0)
-        );
-
-        // Test clamping to min size
-        app.state.window_min_size = iced::Size::new(800.0, 600.0);
-        let _ = update_current_window_size(&mut app, 400.0, 300.0);
-        assert_eq!(app.state.window_default_size, iced::Size::new(800.0, 600.0));
-    }
-}
+#[path = "misc_tests.rs"]
+mod tests;
