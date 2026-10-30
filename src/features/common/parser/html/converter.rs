@@ -864,6 +864,15 @@ impl HtmlToMarkdownConverter {
         }
 
         if !src.is_empty() {
+            // Check if this is an inline callout badge (e.g. inside a <dt> or <pre> callout link)
+            let is_callout_context = self.in_dt
+                || !self.link_stack.is_empty()
+                || (width.is_some_and(|w| w <= 24) && height.is_some_and(|h| h <= 24));
+            if is_callout_context && let Some(symbol) = to_callout_symbol(&alt, &src) {
+                self.append_str(&symbol);
+                return;
+            }
+
             if width.is_some() || height.is_some() {
                 let w_attr = width.map(|w| format!(" width=\"{w}\"")).unwrap_or_default();
                 let h_attr = height
@@ -1387,6 +1396,66 @@ fn is_footnote_label(s: &str) -> bool {
     trimmed
         .chars()
         .all(|c| c.is_alphanumeric() || c == '*' || c == '†' || c == '‡')
+}
+
+fn to_callout_symbol(alt: &str, src: &str) -> Option<String> {
+    let trimmed_alt = alt.trim();
+    if !trimmed_alt.is_empty()
+        && let Ok(n) = trimmed_alt.parse::<u32>()
+    {
+        return Some(format_circled_number(n));
+    }
+
+    let file_stem = src
+        .split('/')
+        .next_back()
+        .unwrap_or(src)
+        .split('.')
+        .next()
+        .unwrap_or("");
+    let num_part = file_stem
+        .strip_prefix("callout_")
+        .or_else(|| file_stem.strip_prefix("callout-"))
+        .or_else(|| file_stem.strip_prefix("co_"))
+        .or_else(|| file_stem.strip_prefix("co-"))
+        .unwrap_or(file_stem);
+
+    if let Ok(n) = num_part.parse::<u32>() {
+        return Some(format_circled_number(n));
+    }
+
+    if !trimmed_alt.is_empty() {
+        Some(format!("({trimmed_alt})"))
+    } else {
+        None
+    }
+}
+
+fn format_circled_number(n: u32) -> String {
+    match n {
+        1..=20 => {
+            if let Some(ch) = char::from_u32(0x2460 + n - 1) {
+                ch.to_string()
+            } else {
+                format!("({n})")
+            }
+        }
+        21..=35 => {
+            if let Some(ch) = char::from_u32(0x3251 + n - 21) {
+                ch.to_string()
+            } else {
+                format!("({n})")
+            }
+        }
+        36..=50 => {
+            if let Some(ch) = char::from_u32(0x32B1 + n - 36) {
+                ch.to_string()
+            } else {
+                format!("({n})")
+            }
+        }
+        _ => format!("({n})"),
+    }
 }
 
 fn to_superscript_unicode(s: &str) -> String {

@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::app::test_util::{epub_content, test_app};
 use crate::features::markdown::update::handle_selection_drag_start;
