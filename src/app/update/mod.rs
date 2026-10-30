@@ -168,28 +168,100 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
         },
         Message::Image(msg) => match msg {
             crate::app::messages::ImageMsg::Zoom { factor, cursor } => {
-                crate::features::image::update::handle_zoom(app, factor, cursor)
+                if let Some(lightbox) = &mut app.state.epub.lightbox {
+                    let win = app.state.current_window_size;
+                    let canvas_height = (win.height - 40.0).max(1.0);
+                    let viewport = iced::Size::new(win.width, canvas_height);
+                    crate::features::image::ViewerController::zoom(
+                        &mut lightbox.image_state.camera,
+                        factor,
+                        cursor,
+                        viewport,
+                    );
+                    Task::none()
+                } else {
+                    crate::features::image::update::handle_zoom(app, factor, cursor)
+                }
             }
             crate::app::messages::ImageMsg::PanDelta(dx, dy) => {
-                crate::features::image::update::handle_pan(app, dx, dy)
+                if let Some(lightbox) = &mut app.state.epub.lightbox {
+                    crate::features::image::ViewerController::pan(
+                        &mut lightbox.image_state.camera,
+                        dx,
+                        dy,
+                    );
+                    Task::none()
+                } else {
+                    crate::features::image::update::handle_pan(app, dx, dy)
+                }
             }
             crate::app::messages::ImageMsg::FitToWindow => {
-                crate::features::image::update::handle_fit_to_window(app)
+                if let Some(lightbox) = &mut app.state.epub.lightbox {
+                    crate::features::image::ViewerController::reset(
+                        &mut lightbox.image_state.camera,
+                    );
+                    Task::none()
+                } else {
+                    crate::features::image::update::handle_fit_to_window(app)
+                }
             }
             crate::app::messages::ImageMsg::DoubleClick => {
-                crate::features::image::update::handle_double_click(app)
+                if let Some(lightbox) = &mut app.state.epub.lightbox {
+                    let win = app.state.current_window_size;
+                    let viewport = iced::Size::new(win.width, (win.height - 40.0).max(1.0));
+                    let img_size = iced::Size::new(
+                        lightbox.image_state.display_width as f32,
+                        lightbox.image_state.display_height as f32,
+                    );
+                    crate::features::image::ViewerController::double_click_zoom(
+                        &mut lightbox.image_state.camera,
+                        viewport,
+                        img_size,
+                    );
+                    Task::none()
+                } else {
+                    crate::features::image::update::handle_double_click(app)
+                }
             }
             crate::app::messages::ImageMsg::RotateRight => {
-                crate::features::image::update::handle_rotate_right(app)
+                if let Some(lightbox) = &mut app.state.epub.lightbox {
+                    crate::features::image::ViewerController::rotate_right(
+                        &mut lightbox.image_state.camera,
+                    );
+                    Task::none()
+                } else {
+                    crate::features::image::update::handle_rotate_right(app)
+                }
             }
             crate::app::messages::ImageMsg::RotateLeft => {
-                crate::features::image::update::handle_rotate_left(app)
+                if let Some(lightbox) = &mut app.state.epub.lightbox {
+                    crate::features::image::ViewerController::rotate_left(
+                        &mut lightbox.image_state.camera,
+                    );
+                    Task::none()
+                } else {
+                    crate::features::image::update::handle_rotate_left(app)
+                }
             }
             crate::app::messages::ImageMsg::FlipHorizontal => {
-                crate::features::image::update::handle_flip_horizontal(app)
+                if let Some(lightbox) = &mut app.state.epub.lightbox {
+                    crate::features::image::ViewerController::flip_horizontal(
+                        &mut lightbox.image_state.camera,
+                    );
+                    Task::none()
+                } else {
+                    crate::features::image::update::handle_flip_horizontal(app)
+                }
             }
             crate::app::messages::ImageMsg::FlipVertical => {
-                crate::features::image::update::handle_flip_vertical(app)
+                if let Some(lightbox) = &mut app.state.epub.lightbox {
+                    crate::features::image::ViewerController::flip_vertical(
+                        &mut lightbox.image_state.camera,
+                    );
+                    Task::none()
+                } else {
+                    crate::features::image::update::handle_flip_vertical(app)
+                }
             }
             crate::app::messages::ImageMsg::Decoded {
                 load_id,
@@ -580,6 +652,21 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::EpubMsg::SearchResultClicked(idx) => {
                 crate::features::epub::update::handle_search_result_clicked(app, idx)
+            }
+            crate::app::messages::EpubMsg::OpenImageLightbox(path) => {
+                crate::features::epub::update::handle_open_image_lightbox(app, path)
+            }
+            crate::app::messages::EpubMsg::CloseImageLightbox => {
+                crate::features::epub::update::handle_close_image_lightbox(app)
+            }
+            crate::app::messages::EpubMsg::NextLightboxImage => {
+                crate::features::epub::update::handle_next_lightbox_image(app)
+            }
+            crate::app::messages::EpubMsg::PrevLightboxImage => {
+                crate::features::epub::update::handle_prev_lightbox_image(app)
+            }
+            crate::app::messages::EpubMsg::SidebarTabChanged(tab) => {
+                crate::features::epub::update::handle_sidebar_tab_changed(app, tab)
             }
         },
         Message::Json(msg) => match msg {

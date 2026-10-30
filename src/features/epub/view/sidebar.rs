@@ -7,7 +7,6 @@ use crate::features::epub::view::constants::{
     CHAPTER_ENTRY_SPACING, CHAPTER_LIST_PADDING, ENTRY_PADDING_BOTTOM, ENTRY_PADDING_LEFT_BASE,
     ENTRY_PADDING_RIGHT, ENTRY_PADDING_TOP, HEADER_SPACING, RESIZE_BUTTON_FONT_SIZE,
     SIDEBAR_HEADER_PADDING_HORIZONTAL, SIDEBAR_HEADER_PADDING_VERTICAL, SIDEBAR_RESIZE_STEP,
-    SIDEBAR_TOGGLE_FONT_SIZE,
 };
 use crate::features::epub::view::helpers::{
     calculate_indent, entry_font_size, entry_font_weight, entry_text_color,
@@ -35,6 +34,8 @@ pub fn render_chapter_sidebar<'a>(
 
     let body_list = if !state.search.is_empty() {
         build_sidebar_search_results(state, theme, main_font)
+    } else if state.sidebar_tab == crate::features::epub::types::EpubSidebarTab::Gallery {
+        build_sidebar_gallery(state, theme, main_font)
     } else {
         build_sidebar_chapter_list(state, theme, main_font)
     };
@@ -267,16 +268,81 @@ fn build_sidebar_header<'a>(
     main_font: Font,
     main_font_bold: Font,
 ) -> Element<'a, Message> {
-    let title = text("Chapters")
-        .size(SIDEBAR_TOGGLE_FONT_SIZE)
-        .font(main_font_bold)
-        .color(text_color);
+    use crate::features::epub::types::EpubSidebarTab;
+
+    let is_toc = state.sidebar_tab == EpubSidebarTab::Toc;
+    let is_gallery = state.sidebar_tab == EpubSidebarTab::Gallery;
+
+    let toc_btn =
+        button(
+            text("Contents")
+                .size(11)
+                .font(if is_toc { main_font_bold } else { main_font }),
+        )
+        .on_press(crate::app::messages::EpubMsg::SidebarTabChanged(EpubSidebarTab::Toc).into())
+        .padding([3, 8])
+        .style(move |_, status| {
+            let bg = if is_toc {
+                Some(Color::from_rgba(1.0, 1.0, 1.0, 0.1).into())
+            } else if matches!(status, button::Status::Hovered) {
+                Some(Color::from_rgba(1.0, 1.0, 1.0, 0.05).into())
+            } else {
+                None
+            };
+            button::Style {
+                background: bg,
+                text_color: if is_toc {
+                    text_color
+                } else {
+                    Color::from_rgba(0.7, 0.75, 0.8, 0.7)
+                },
+                border: Border {
+                    radius: 4.0.into(),
+                    width: 0.0,
+                    color: Color::TRANSPARENT,
+                },
+                shadow: Shadow::default(),
+                snap: false,
+            }
+        });
+
+    let gallery_btn = button(text("Images").size(11).font(if is_gallery {
+        main_font_bold
+    } else {
+        main_font
+    }))
+    .on_press(crate::app::messages::EpubMsg::SidebarTabChanged(EpubSidebarTab::Gallery).into())
+    .padding([3, 8])
+    .style(move |_, status| {
+        let bg = if is_gallery {
+            Some(Color::from_rgba(1.0, 1.0, 1.0, 0.1).into())
+        } else if matches!(status, button::Status::Hovered) {
+            Some(Color::from_rgba(1.0, 1.0, 1.0, 0.05).into())
+        } else {
+            None
+        };
+        button::Style {
+            background: bg,
+            text_color: if is_gallery {
+                text_color
+            } else {
+                Color::from_rgba(0.7, 0.75, 0.8, 0.7)
+            },
+            border: Border {
+                radius: 4.0.into(),
+                width: 0.0,
+                color: Color::TRANSPARENT,
+            },
+            shadow: Shadow::default(),
+            snap: false,
+        }
+    });
 
     let current_width = state.sidebar_width;
 
     container(
         row![
-            title,
+            row![toc_btn, gallery_btn].spacing(4),
             iced::widget::Space::new().width(Length::Fill),
             build_resize_button("−", current_width - SIDEBAR_RESIZE_STEP, main_font),
             build_resize_button("+", current_width + SIDEBAR_RESIZE_STEP, main_font),
@@ -307,6 +373,122 @@ fn build_resize_button<'a>(
             snap: false,
         })
         .into()
+}
+
+fn build_sidebar_gallery<'a>(
+    state: &'a EpubState,
+    theme: AppTheme,
+    main_font: Font,
+) -> Element<'a, Message> {
+    let palette = theme.palette().base;
+    let mut elements: Vec<Element<'a, Message>> = Vec::new();
+
+    let mut all_image_paths = Vec::new();
+    if state.reading_mode == crate::core::config::EpubReadingMode::Continuous {
+        all_image_paths =
+            crate::features::epub::parser::extract_images_from_blocks(&state.continuous_blocks);
+    } else {
+        for ch in &state.chapters {
+            for p in crate::features::epub::parser::extract_images_from_blocks(&ch.blocks) {
+                if !all_image_paths.contains(&p) {
+                    all_image_paths.push(p);
+                }
+            }
+        }
+    }
+
+    if all_image_paths.is_empty() {
+        return container(
+            text("No images found")
+                .size(12)
+                .font(main_font)
+                .color(palette.text_dim),
+        )
+        .padding(16)
+        .center_x(Length::Fill)
+        .into();
+    }
+
+    let mut current_row: Vec<Element<'a, Message>> = Vec::new();
+
+    for path in all_image_paths {
+        let path_clone = path.clone();
+        let filename = std::path::Path::new(&path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(&path)
+            .to_string();
+
+        let thumb: Element<'a, Message> = if let Some(handle) = state
+            .markdown_state
+            .cached_image_handles
+            .get(&path)
+            .or_else(|| {
+                state
+                    .markdown_state
+                    .cached_image_handles
+                    .get(filename.as_str())
+            }) {
+            iced::widget::image(handle.clone())
+                .width(Length::Fixed(90.0))
+                .height(Length::Fixed(90.0))
+                .into()
+        } else {
+            container(text("🖼️").size(24))
+                .width(Length::Fixed(90.0))
+                .height(Length::Fixed(90.0))
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .into()
+        };
+
+        let caption = text(filename)
+            .size(10)
+            .font(main_font)
+            .color(palette.text_dim);
+
+        let card_content = column![thumb, caption]
+            .spacing(4)
+            .align_x(iced::Alignment::Center);
+
+        let btn = button(card_content)
+            .on_press(crate::app::messages::EpubMsg::OpenImageLightbox(path_clone).into())
+            .padding(6)
+            .style(move |_, status| {
+                let border_color = match status {
+                    button::Status::Hovered => Color::from_rgba(0.4, 0.7, 1.0, 0.4),
+                    button::Status::Pressed => Color::from_rgba(0.4, 0.7, 1.0, 0.7),
+                    _ => Color::from_rgba(1.0, 1.0, 1.0, 0.08),
+                };
+                button::Style {
+                    background: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.03).into()),
+                    border: Border {
+                        radius: 6.0.into(),
+                        width: 1.0,
+                        color: border_color,
+                    },
+                    shadow: Shadow::default(),
+                    text_color: Color::WHITE,
+                    snap: false,
+                }
+            });
+
+        current_row.push(btn.into());
+
+        if current_row.len() == 2 {
+            elements.push(row(std::mem::take(&mut current_row)).spacing(8).into());
+        }
+    }
+
+    if !current_row.is_empty() {
+        elements.push(row(current_row).spacing(8).into());
+    }
+
+    scroll_pane(
+        "gallery_scroll",
+        column(elements).spacing(8).padding(CHAPTER_LIST_PADDING),
+    )
+    .build()
 }
 
 pub const CHAPTER_ROW_HEIGHT: f32 = 28.0;

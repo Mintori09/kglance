@@ -239,6 +239,11 @@ pub enum EpubMsg {
     SearchPrev,
     SearchClear,
     SearchResultClicked(usize),
+    OpenImageLightbox(String),
+    CloseImageLightbox,
+    NextLightboxImage,
+    PrevLightboxImage,
+    SidebarTabChanged(crate::features::epub::types::EpubSidebarTab),
 }
 
 #[derive(Debug, Clone)]
