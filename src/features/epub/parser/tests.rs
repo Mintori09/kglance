@@ -1225,6 +1225,37 @@ fn test_convert_html_definition_list() {
 }
 
 #[test]
+fn test_convert_html_callout_list_images() {
+    let html = r##"
+<dl class="calloutlist">
+<dt><a class="co" id="callout_CO1-1" href="#co_CO1-1"><img src="assets/1.png" alt="1" width="12" height="12"/></a></dt>
+<dd><p>Updates the package lists.</p></dd>
+<dt><a class="co" id="callout_CO1-2" href="#co_CO1-2"><img src="assets/2.png" alt="2" width="12" height="12"/></a></dt>
+<dd><p>Installs required tools.</p></dd>
+</dl>
+"##;
+
+    let md = convert_html_to_markdown(html);
+    assert!(
+        md.contains("[①](#co_CO1-1)**: Updates the package lists."),
+        "Expected callout circle symbol ① in bullet list item, got:\n{md}"
+    );
+    assert!(
+        md.contains("[②](#co_CO1-2)**: Installs required tools."),
+        "Expected callout circle symbol ② in bullet list item, got:\n{md}"
+    );
+
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::List { items, .. } => {
+            assert_eq!(items.len(), 2);
+        }
+        _ => panic!("Expected List block, got: {:?}", blocks[0]),
+    }
+}
+
+#[test]
 fn test_epub_find_block_index_image_anchor() {
     let blocks = vec![
         Block::Paragraph(vec![crate::parsers::markdown::Inline::Text(
