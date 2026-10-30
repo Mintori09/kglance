@@ -12,7 +12,7 @@ fn test_decode_html_entities() {
 
 #[test]
 fn test_convert_html_to_markdown() {
-    let html = "<h1>Header 1</h1><p>&#x201C;Hello&#x201D; \\-World</p>";
+    let html = "<h1>Header 1</h1><p>&#x201C;Hello&#x201D; -World</p>";
     let md = convert_html_to_markdown(html);
     assert_eq!(md, "# Header 1\n\n“Hello” -World");
 }
@@ -1241,4 +1241,38 @@ fn test_epub_find_block_index_image_anchor() {
 
     let found = super::find_block_index(&blocks, Some("fig_801"), None);
     assert_eq!(found, Some(1));
+}
+
+#[test]
+fn test_dialogue_dash_paragraph_not_converted_to_bullet_list() {
+    let html = r#"<p class="calibre3">Nhóm dịch: Tiên Huyễn</p>
+<p class="calibre3">- Bản đế?</p>
+<p class="calibre3">Lý Nhiên và Nhạc Kiếm Ly liếc nhìn nhau, trái tim đột nhiên nhảy dựng..</p>
+<p class="calibre3">- Xin hỏi rốt cuộc Ngài là ai?</p>"#;
+
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 4, "Expected 4 separate paragraphs, not List");
+
+    match &blocks[1] {
+        Block::Paragraph(inlines) => {
+            let t = flatten_inlines(inlines);
+            assert!(
+                t.starts_with("- "),
+                "Must preserve dash in dialogue, got: {t}"
+            );
+        }
+        other => panic!("Expected Paragraph for dialogue dash, got: {other:?}"),
+    }
+
+    match &blocks[3] {
+        Block::Paragraph(inlines) => {
+            let t = flatten_inlines(inlines);
+            assert!(
+                t.starts_with("- "),
+                "Must preserve dash in dialogue, got: {t}"
+            );
+        }
+        other => panic!("Expected Paragraph for dialogue dash, got: {other:?}"),
+    }
 }

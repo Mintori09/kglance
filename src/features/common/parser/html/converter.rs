@@ -44,6 +44,7 @@ pub struct HtmlToMarkdownConverter {
     in_figure_caption: bool,
     in_callout_heading: bool,
     li_just_started: bool,
+    p_just_started: bool,
     in_dl: bool,
     in_dt: bool,
     in_dd: bool,
@@ -98,6 +99,7 @@ impl HtmlToMarkdownConverter {
             in_figure_caption: false,
             in_callout_heading: false,
             li_just_started: false,
+            p_just_started: false,
             in_dl: false,
             in_dt: false,
             in_dd: false,
@@ -154,13 +156,7 @@ impl HtmlToMarkdownConverter {
         }
 
         let decoded = decode_html_entities_only(&self.output);
-        let cleaned = if decoded.contains("\\-") {
-            decoded.replace("\\-", "-")
-        } else {
-            decoded
-        };
-
-        clean_markdown_output(&cleaned)
+        clean_markdown_output(&decoded)
     }
 
     fn handle_start_tag(&mut self, name: &str, e: &quick_xml::events::BytesStart) {
@@ -352,6 +348,9 @@ impl HtmlToMarkdownConverter {
                     self.li_just_started = true;
                 } else {
                     self.ensure_newline();
+                    if self.list_stack.is_empty() {
+                        self.p_just_started = true;
+                    }
                 }
             }
             "a" => {
@@ -783,6 +782,7 @@ impl HtmlToMarkdownConverter {
                 self.ensure_newline();
             }
             "p" | "section" | "article" => {
+                self.p_just_started = false;
                 if self.in_ruby {
                     self.in_ruby = false;
                     self.flush_ruby_pair();
@@ -986,6 +986,24 @@ impl HtmlToMarkdownConverter {
         if self.sup_depth > 0 {
             self.sup_buffer.push_str(text_to_append);
             return;
+        }
+
+        if self.p_just_started {
+            if text_to_append.trim().is_empty() {
+                self.append_str(text_to_append);
+                return;
+            }
+            self.p_just_started = false;
+            let trimmed_start = text_to_append.trim_start();
+            if trimmed_start.starts_with("- ")
+                || trimmed_start.starts_with("+ ")
+                || trimmed_start.starts_with("* ")
+            {
+                let leading_ws = &text_to_append[..text_to_append.len() - trimmed_start.len()];
+                let escaped = format!("{leading_ws}\\{trimmed_start}");
+                self.append_str(&escaped);
+                return;
+            }
         }
 
         self.append_str(text_to_append);
