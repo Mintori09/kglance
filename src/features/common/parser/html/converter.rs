@@ -344,7 +344,7 @@ impl HtmlToMarkdownConverter {
                 if let Some(id) = extract_id_or_name(e) {
                     self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n"));
                 }
-                if self.in_dd {
+                if self.in_dd || !self.list_stack.is_empty() {
                     self.li_just_started = true;
                 } else {
                     self.ensure_newline();
@@ -795,7 +795,7 @@ impl HtmlToMarkdownConverter {
                             current_quote.push_str("\n\n");
                         }
                     }
-                } else if !self.in_dd {
+                } else if !self.in_dd && self.list_stack.is_empty() {
                     self.ensure_newline();
                 }
             }

@@ -1307,3 +1307,46 @@ fn test_dialogue_dash_paragraph_not_converted_to_bullet_list() {
         other => panic!("Expected Paragraph for dialogue dash, got: {other:?}"),
     }
 }
+
+#[test]
+fn test_pre_with_callout_links() {
+    let html = r##"<pre translate="no" data-type="programlisting" data-code-language="js"><code class="kr">const</code><code> </code><code class="nx">saveNewPassword</code><code> </code><code class="o">=</code><code> </code><code class="p">(</code><code class="nx">password</code><code class="p">)</code><code> </code><code class="o">=&gt;</code><code> </code><code class="p">{</code><code>
+  </code><code class="nx">mockDB</code><code class="p">.</code><code class="nx">hash</code><code> </code><code class="o">=</code><code> </code><code class="nx">bcrypt</code><code class="p">.</code><code class="nx">hashSync</code><code class="p">(</code><code class="nx">password</code><code class="p">,</code><code> </code><code class="mi">10</code><code class="p">)</code><code class="p">;</code><code> </code><a class="co" id="co_build_a_secure_local_password_manager_CO4-1" href="#callout_build_a_secure_local_password_manager_CO4-1"><img src="assets/1.png" alt="1" width="12" height="12"/></a><code>
+  </code><code class="nx">console</code><code class="p">.</code><code class="nx">log</code><code class="p">(</code><code class="s2">&quot;Password has been saved!&quot;</code><code class="p">)</code><code class="p">;</code><code> </code><a class="co" id="co_build_a_secure_local_password_manager_CO4-2" href="#callout_build_a_secure_local_password_manager_CO4-2"><img src="assets/2.png" alt="2" width="12" height="12"/></a><code>
+</code><code class="p">}</code><code class="p">;</code></pre>"##;
+    let md = convert_html_to_markdown(html);
+    eprintln!("MD RESULT:\n{md}");
+}
+
+#[test]
+fn test_ol_with_p_conversion() {
+    let html = r#"<ol>
+<li>
+<p>Download the appropriate installer for your Mac.</p>
+</li>
+<li>
+<p>Open the downloaded file and drag the VS Code icon to the <em>Applications</em> folder.</p>
+</li>
+<li>
+<p>Open VS Code from the <em>Applications</em> folder.</p>
+</li>
+</ol>"#;
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1, "Expected single ordered List block");
+    match &blocks[0] {
+        Block::List {
+            ordered: true,
+            start_number: 1,
+            items,
+        } => {
+            assert_eq!(items.len(), 3);
+            assert!(
+                flatten_inlines(&items[0].content).contains("Download the appropriate installer")
+            );
+            assert!(flatten_inlines(&items[1].content).contains("Open the downloaded file"));
+            assert!(flatten_inlines(&items[2].content).contains("Open VS Code"));
+        }
+        other => panic!("Expected List block, got: {other:?}"),
+    }
+}
