@@ -18,15 +18,40 @@ impl KglanceApp {
             _ => return None,
         };
 
+        let shift_active = self.shift_held || modifiers.shift();
+
         match c {
             "c" | "C" | "\u{3}" => self.handle_ctrl_copy(),
             "," => self.handle_toggle_settings(),
             "a" | "A" | "\u{1}" => self.handle_ctrl_a(),
             "t" | "T" | "\u{14}" => self.handle_toggle_theme(),
-            "+" | "=" => self.handle_zoom_or_font(1.0),
-            "-" => self.handle_zoom_or_font(-1.0),
-            "0" => {
-                if matches!(self.current_content, Some(PreviewData::Image { .. })) {
+            "+" | "=" => {
+                if shift_active && self.is_markdown_or_epub() {
+                    crate::features::markdown::update::zoom_markdown_page_width(
+                        self,
+                        crate::features::markdown::update::PAGE_WIDTH_STEP,
+                    )
+                } else {
+                    self.handle_zoom_or_font(1.0)
+                }
+            }
+            "-" | "_" => {
+                if shift_active && self.is_markdown_or_epub() {
+                    crate::features::markdown::update::zoom_markdown_page_width(
+                        self,
+                        -crate::features::markdown::update::PAGE_WIDTH_STEP,
+                    )
+                } else {
+                    self.handle_zoom_or_font(-1.0)
+                }
+            }
+            "0" | ")" => {
+                if shift_active && self.is_markdown_or_epub() {
+                    crate::features::markdown::update::rescale_markdown_page_width(
+                        self,
+                        crate::features::markdown::update::DEFAULT_PAGE_WIDTH,
+                    )
+                } else if matches!(self.current_content, Some(PreviewData::Image { .. })) {
                     crate::features::image::update::handle_image_reset(self)
                 } else {
                     self.handle_font_shortcuts(

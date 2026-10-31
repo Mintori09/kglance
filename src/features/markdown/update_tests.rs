@@ -489,6 +489,82 @@ fn test_shift_zero_resets_page_width() {
 }
 
 #[test]
+fn test_ctrl_shift_resize_page_width_markdown_and_epub() {
+    use crate::app::test_util::{markdown_content, test_app};
+    use crate::core::types::EpubChapterInfo;
+
+    // 1. Markdown: Ctrl + Shift + '+' (or '=') increases page width by 40px
+    let mut app = test_app(Some(markdown_content("# Heading\n\nContent paragraph.")));
+    app.state.max_text_width = Some(820.0);
+
+    let plus_key = iced::keyboard::Key::Character("+".into());
+    let ctrl_shift = iced::keyboard::Modifiers::CTRL | iced::keyboard::Modifiers::SHIFT;
+    let _ = app.handle_key_pressed(plus_key, ctrl_shift);
+    assert_eq!(app.state.max_text_width, Some(860.0));
+
+    // Also test '=' with Shift
+    let equal_key = iced::keyboard::Key::Character("=".into());
+    let _ = app.handle_key_pressed(equal_key, ctrl_shift);
+    assert_eq!(app.state.max_text_width, Some(900.0));
+
+    // Ctrl + Shift + '-' decreases page width by 40px
+    let minus_key = iced::keyboard::Key::Character("-".into());
+    let _ = app.handle_key_pressed(minus_key, ctrl_shift);
+    assert_eq!(app.state.max_text_width, Some(860.0));
+
+    // Also test '_' with Shift
+    let underscore_key = iced::keyboard::Key::Character("_".into());
+    let _ = app.handle_key_pressed(underscore_key, ctrl_shift);
+    assert_eq!(app.state.max_text_width, Some(820.0));
+
+    // Ctrl + Shift + '0' resets page width to DEFAULT_PAGE_WIDTH (820px)
+    app.state.max_text_width = Some(1200.0);
+    let zero_key = iced::keyboard::Key::Character("0".into());
+    let _ = app.handle_key_pressed(zero_key, ctrl_shift);
+    assert_eq!(app.state.max_text_width, Some(DEFAULT_PAGE_WIDTH));
+
+    // 2. EPUB: test resize and reset
+    let mut epub_app = test_app(None);
+    let blocks = vec![
+        Block::Heading {
+            level: 1,
+            content: vec![],
+        },
+        Block::Paragraph(vec![]),
+    ];
+    let chapters = vec![EpubChapterInfo {
+        title: "Chapter 1".into(),
+        level: 1,
+        anchor: None,
+        file_href: "ch1.xhtml".into(),
+        blocks,
+    }];
+    epub_app.state.epub.chapters = chapters.clone();
+    epub_app.state.epub.active_chapter = 0;
+    epub_app.current_content = Some(crate::core::PreviewData::Epub {
+        title: "Test Book".into(),
+        author: "Author".into(),
+        chapters,
+        active_chapter: 0,
+        images: std::collections::HashMap::new(),
+    });
+    epub_app.state.max_text_width = Some(820.0);
+
+    let plus_key = iced::keyboard::Key::Character("+".into());
+    let _ = epub_app.handle_key_pressed(plus_key, ctrl_shift);
+    assert_eq!(epub_app.state.max_text_width, Some(860.0));
+
+    let minus_key = iced::keyboard::Key::Character("-".into());
+    let _ = epub_app.handle_key_pressed(minus_key, ctrl_shift);
+    assert_eq!(epub_app.state.max_text_width, Some(820.0));
+
+    epub_app.state.max_text_width = Some(1500.0);
+    let zero_key = iced::keyboard::Key::Character("0".into());
+    let _ = epub_app.handle_key_pressed(zero_key, ctrl_shift);
+    assert_eq!(epub_app.state.max_text_width, Some(DEFAULT_PAGE_WIDTH));
+}
+
+#[test]
 fn test_epub_page_width_resize_anchoring() {
     use crate::app::test_util::test_app;
     use crate::core::types::EpubChapterInfo;
