@@ -68,10 +68,10 @@ pub(crate) fn highlight_code<'a>(
     let mut highlighter = HighlightLines::new(syntax, syntect_theme);
     let mut result = Vec::new();
     let mut cached_ranges: HighlightSpanRanges = Vec::new();
-
-    let base_ptr = code.as_ptr() as usize;
+    let mut line_offset = 0;
 
     for line in LinesWithEndings::from(code) {
+        let line_len = line.len();
         let ranges = highlighter
             .highlight_line(line, ss)
             .unwrap_or_else(|_| vec![]);
@@ -79,26 +79,32 @@ pub(crate) fn highlight_code<'a>(
         if ranges.is_empty() {
             let fg = app_theme.resolve_code_fg(syntect_theme);
             let t = line.strip_suffix('\n').unwrap_or(line);
-            let start = t.as_ptr() as usize - base_ptr;
+            let start = line_offset;
             let end = start + t.len();
 
             result.push(vec![(fg, t)]);
             cached_ranges.push(vec![(fg, start, end)]);
+            line_offset += line_len;
             continue;
         }
 
         let mut line_spans = Vec::new();
         let mut line_cached_ranges = Vec::new();
+        let mut col_offset = 0;
         for (style, text) in ranges {
+            let span_len = text.len();
             let t = text.strip_suffix('\n').unwrap_or(text);
             let color = syntect_to_iced_color(style.foreground);
-            let start = t.as_ptr() as usize - base_ptr;
+            let start = line_offset + col_offset;
             let end = start + t.len();
+            col_offset += span_len;
+
             line_spans.push((color, t));
             line_cached_ranges.push((color, start, end));
         }
         result.push(line_spans);
         cached_ranges.push(line_cached_ranges);
+        line_offset += line_len;
     }
 
     if let Ok(mut cache) = highlight_cache().lock() {

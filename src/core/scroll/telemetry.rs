@@ -157,6 +157,12 @@ fn percentile(sorted: &[f32], p: f32) -> f32 {
     if sorted.is_empty() {
         return 0.0;
     }
-    let idx = ((sorted.len() as f32 - 1.0) * p).round() as usize;
-    sorted[idx.min(sorted.len() - 1)]
+    let p_clamped = if p.is_finite() {
+        p.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let max_idx = sorted.len().saturating_sub(1);
+    let idx = (max_idx as f32 * p_clamped).round() as usize;
+    sorted[idx.min(max_idx)]
 }

@@ -112,7 +112,7 @@ pub async fn process_page_loading<F>(
                 break;
             }
 
-            remaining.sort_by_key(|&idx| (idx as isize - current_page as isize).abs());
+            remaining.sort_by_key(|&idx| idx.abs_diff(current_page));
             unrendered_pages = remaining;
         }
 
@@ -148,7 +148,7 @@ fn find_unrendered_window_pages(
         .filter(|&page_index| page_index < rendered_pages.len() && !rendered_pages[page_index])
         .collect();
 
-    pages.sort_by_key(|&page_index| (page_index as isize - current_page as isize).abs());
+    pages.sort_by_key(|&page_index| page_index.abs_diff(current_page));
     pages
 }
 
@@ -296,7 +296,7 @@ pub async fn process_thumbnail_loading<F>(
                 break;
             }
 
-            remaining.sort_by_key(|&idx| (idx as isize - current_thumb as isize).abs());
+            remaining.sort_by_key(|&idx| idx.abs_diff(current_thumb));
             unrendered = remaining;
         }
 
