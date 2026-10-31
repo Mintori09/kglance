@@ -354,6 +354,9 @@ impl HtmlToMarkdownConverter {
                 }
             }
             "a" => {
+                if self.in_pre {
+                    return;
+                }
                 let mut href = None;
                 for attr in e.attributes().flatten() {
                     if attr.key.as_ref().eq_ignore_ascii_case("href") {
@@ -364,7 +367,9 @@ impl HtmlToMarkdownConverter {
                     }
                 }
                 if let Some(id) = extract_id_or_name(e) {
-                    if self.output.ends_with('\n') || self.output.is_empty() {
+                    if self.in_dt {
+                        self.append_str(&format!("<a id=\"{id}\"></a>"));
+                    } else if self.output.ends_with('\n') || self.output.is_empty() {
                         self.append_str(&format!("<a id=\"{id}\"></a>\n\n"));
                     } else {
                         self.append_str(&format!("<a id=\"{id}\"></a> "));
@@ -377,7 +382,9 @@ impl HtmlToMarkdownConverter {
             }
             "span" => {
                 if let Some(id) = extract_id_or_name(e) {
-                    if self.output.ends_with('\n') || self.output.is_empty() {
+                    if self.in_dt {
+                        self.append_str(&format!("<a id=\"{id}\"></a>"));
+                    } else if self.output.ends_with('\n') || self.output.is_empty() {
                         self.append_str(&format!("<a id=\"{id}\"></a>\n\n"));
                     } else {
                         self.append_str(&format!("<a id=\"{id}\"></a> "));
@@ -524,7 +531,9 @@ impl HtmlToMarkdownConverter {
             "img" | "image" => self.handle_img_tag(e),
             _ => {
                 if let Some(id) = extract_id_or_name(e) {
-                    if self.output.ends_with('\n') || self.output.is_empty() {
+                    if self.in_dt {
+                        self.append_str(&format!("<a id=\"{id}\"></a>"));
+                    } else if self.output.ends_with('\n') || self.output.is_empty() {
                         self.append_str(&format!("<a id=\"{id}\"></a>\n\n"));
                     } else {
                         self.append_str(&format!("<a id=\"{id}\"></a> "));
@@ -607,7 +616,9 @@ impl HtmlToMarkdownConverter {
                 }
             }
             "a" => {
-                if let Some(href) = self.link_stack.pop() {
+                if !self.in_pre
+                    && let Some(href) = self.link_stack.pop()
+                {
                     self.append_str(&format!("]({href})"));
                 }
             }
@@ -815,7 +826,9 @@ impl HtmlToMarkdownConverter {
             return;
         }
 
-        if let Some(id) = extract_id_or_name(e) {
+        if !self.in_pre
+            && let Some(id) = extract_id_or_name(e)
+        {
             if self.output.ends_with('\n') || self.output.is_empty() {
                 self.append_str(&format!("<a id=\"{id}\"></a>\n\n"));
             } else {
@@ -865,11 +878,21 @@ impl HtmlToMarkdownConverter {
 
         if !src.is_empty() {
             // Check if this is an inline callout badge (e.g. inside a <dt> or <pre> callout link)
-            let is_callout_context = self.in_dt
+            let is_callout_context = self.in_pre
+                || self.in_dt
                 || !self.link_stack.is_empty()
                 || (width.is_some_and(|w| w <= 24) && height.is_some_and(|h| h <= 24));
             if is_callout_context && let Some(symbol) = to_callout_symbol(&alt, &src) {
-                self.append_str(&symbol);
+                if self.in_pre {
+                    self.pre_buffer.push(' ');
+                    self.pre_buffer.push_str(&symbol);
+                } else {
+                    self.append_str(&symbol);
+                }
+                return;
+            }
+
+            if self.in_pre {
                 return;
             }
 
