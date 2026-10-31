@@ -175,6 +175,23 @@ fn toc_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Eleme
                 .padding([2, 6])
                 .into(),
         )
+    } else if (file_has_extension(state, "pdf") || state.file_type_text.contains("PDF"))
+        && !state.pdf.outline.is_empty()
+    {
+        let is_active =
+            state.pdf.sidebar_visible && state.pdf.sidebar_mode == crate::core::PdfSidebarMode::Toc;
+        let style = if is_active {
+            iced::widget::button::primary
+        } else {
+            iced::widget::button::secondary
+        };
+        Some(
+            button(text("📑 Outline").size(typography::CAPTION).font(font))
+                .on_press(crate::app::messages::PdfMsg::SidebarToggled.into())
+                .style(style)
+                .padding([2, 6])
+                .into(),
+        )
     } else if !state.text.symbols.is_empty() {
         let style = if state.text.outline_visible {
             iced::widget::button::primary

@@ -140,3 +140,72 @@ fn test_handle_goto_page_workflow() {
     let _ = handle_goto_page_close(&mut app);
     assert!(!app.state.pdf.goto_page.is_visible);
 }
+
+#[test]
+fn test_handle_toc_item_clicked_updates_page_and_scroll() {
+    let mut app = test_app(None);
+    app.current_content = Some(crate::core::PreviewData::Pdf {
+        page_count: 5,
+        current_page: 0,
+        data: Vec::new(),
+        width: 100,
+        height: 100,
+        outline: vec![
+            crate::features::pdf::parser::PdfTocEntry {
+                title: "Chapter 1".to_string(),
+                page: 0,
+                level: 1,
+            },
+            crate::features::pdf::parser::PdfTocEntry {
+                title: "Chapter 2".to_string(),
+                page: 2,
+                level: 1,
+            },
+        ],
+        page_dimensions: Vec::new(),
+        first_page_text: None,
+    });
+    app.state.pdf.page_count = 5;
+    app.state.pdf.page_y_offsets = vec![0.0, 500.0, 1000.0, 1500.0, 2000.0];
+    app.state.pdf.page_ends = vec![500.0, 1000.0, 1500.0, 2000.0, 2500.0];
+    app.state.pdf.total_content_height = 2500.0;
+    app.state.pdf.viewport_height = 600.0;
+    app.state.pdf.current_page = 0;
+    app.state
+        .pdf
+        .visible_page
+        .store(0, std::sync::atomic::Ordering::Relaxed);
+    app.state.pdf.outline_state = crate::features::pdf::outline::PdfOutlineState::new(vec![
+        crate::features::pdf::outline::PdfOutlineNode {
+            title: "Chapter 1".to_string(),
+            page: 0,
+            depth: 0,
+            is_expanded: true,
+            children: None,
+        },
+        crate::features::pdf::outline::PdfOutlineNode {
+            title: "Chapter 2".to_string(),
+            page: 2,
+            depth: 0,
+            is_expanded: true,
+            children: None,
+        },
+    ]);
+
+    // Click TOC item for page 2
+    let _ = handle_toc_item_clicked(&mut app, 2);
+
+    assert_eq!(app.state.pdf.current_page, 2);
+    assert_eq!(
+        app.state
+            .pdf
+            .visible_page
+            .load(std::sync::atomic::Ordering::Relaxed),
+        2
+    );
+    assert_eq!(app.state.pdf.scroll_y, 1000.0);
+    assert_eq!(app.state.pdf.scroll_controller.position_y(), 1000.0);
+
+    // Toggle outline node expansion
+    let _ = handle_toggle_outline_node(&mut app, 0, "Chapter 1".to_string());
+}

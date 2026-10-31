@@ -581,7 +581,12 @@ pub fn handle_thumb_ready(
 }
 
 pub fn handle_sidebar_toggled(app: &mut KglanceApp) -> Task<Message> {
-    let is_now_visible = !app.state.pdf.sidebar_visible;
+    let pdf_state = active_pdf_state_mut(app);
+    // If outline exists and user toggles, default to Toc mode if currently in Thumbnails and not visible
+    if !pdf_state.sidebar_visible && !pdf_state.outline.is_empty() {
+        pdf_state.sidebar_mode = crate::core::PdfSidebarMode::Toc;
+    }
+    let is_now_visible = !pdf_state.sidebar_visible;
     if is_now_visible {
         app.state.file_tree.visible = false;
     }
@@ -686,6 +691,16 @@ pub fn handle_toc_item_clicked(app: &mut KglanceApp, page_index: usize) -> Task<
     scroll_to_page(app, page_index)
 }
 
+pub fn handle_toggle_outline_node(
+    app: &mut KglanceApp,
+    page: usize,
+    title: String,
+) -> Task<Message> {
+    let pdf_state = active_pdf_state_mut(app);
+    pdf_state.outline_state.toggle_expanded(page, &title);
+    Task::none()
+}
+
 fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
     let pdf_state = active_pdf_state_mut(app);
 
@@ -694,6 +709,7 @@ fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
         return Task::none();
     }
     let target = page_index.min(count - 1);
+    pdf_state.current_page = target;
     pdf_state
         .visible_page
         .store(target, std::sync::atomic::Ordering::Relaxed);

@@ -337,23 +337,7 @@ fn extract_outline_nodes(
 ) {
     for node in nodes {
         let title = node.title.clone();
-        let page = if let Some(ref uri) = node.uri {
-            if let Ok(Some(dest)) = doc.resolve_link(uri) {
-                dest.loc.page_number as usize
-            } else if let Some(stripped) = uri.strip_prefix('#') {
-                if let Ok(num) = stripped.parse::<usize>() {
-                    num.saturating_sub(1)
-                } else if let Some(page_str) = stripped.strip_prefix("page=") {
-                    page_str.parse::<usize>().unwrap_or(1).saturating_sub(1)
-                } else {
-                    0
-                }
-            } else {
-                0
-            }
-        } else {
-            0
-        };
+        let page = crate::features::pdf::outline::resolve_outline_page(node, doc);
         if !title.is_empty() {
             out.push(PdfTocEntry { title, page, level });
         }

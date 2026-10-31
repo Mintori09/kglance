@@ -131,6 +131,10 @@ pub enum PdfMsg {
     SetSidebarMode(crate::core::PdfSidebarMode),
     ThumbnailClicked(usize),
     TocItemClicked(usize),
+    ToggleOutlineNode {
+        page: usize,
+        title: String,
+    },
     SidebarResized(f32),
     WheelScrolled(iced::mouse::ScrollDelta),
     SelectionDragStart(crate::features::pdf::PdfPosition),

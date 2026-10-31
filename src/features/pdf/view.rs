@@ -6,7 +6,7 @@ use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::sidebar::{sidebar_entry_style, with_sidebar_layout};
 use crate::ui::theme::tokens::{radius, spacing, typography};
 use iced::widget::{button, column, container, image, row, text};
-use iced::{Alignment, Border, Element, Length, Padding};
+use iced::{Alignment, Border, Element, Length};
 
 const PAGE_SPACING: f32 = spacing::S;
 
@@ -576,65 +576,11 @@ fn render_toc_list<'a>(
     state: &'a PdfState,
     theme: crate::ui::theme::AppTheme,
 ) -> Element<'a, Message> {
-    if state.outline.is_empty() {
-        return container(text("No TOC available").size(typography::BODY))
-            .padding(spacing::M)
-            .center_x(Length::Fill)
-            .into();
-    }
-
     let current_page = state
         .visible_page
         .load(std::sync::atomic::Ordering::Relaxed);
 
-    let active_idx = state
-        .outline
-        .iter()
-        .rposition(|entry| entry.page <= current_page);
-
-    let p = theme.palette().base;
-    let mut toc_col = column![].spacing(spacing::XXS).padding(spacing::XS + 2.0);
-
-    for (idx, entry) in state.outline.iter().enumerate() {
-        let is_active = active_idx == Some(idx);
-        let indent = (entry.level.saturating_sub(1) as f32) * 12.0;
-
-        let title_text = text(&entry.title)
-            .size(typography::BODY)
-            .width(Length::Fill);
-
-        let page_label = text(format!("{}", entry.page + 1))
-            .size(typography::CAPTION)
-            .style(move |_| iced::widget::text::Style {
-                color: Some(p.text_dim),
-            });
-
-        let row_content = row![title_text, page_label]
-            .spacing(spacing::S)
-            .align_y(Alignment::Center)
-            .width(Length::Fill);
-
-        let btn = button(row_content)
-            .on_press(crate::app::messages::PdfMsg::TocItemClicked(entry.page).into())
-            .width(Length::Fill)
-            .style(move |iced_theme, status| {
-                sidebar_entry_style(iced_theme, status, is_active, theme)
-            })
-            .padding([5, 8]);
-
-        let row_item = container(btn)
-            .padding(Padding {
-                top: 0.0,
-                right: 0.0,
-                bottom: 0.0,
-                left: indent,
-            })
-            .width(Length::Fill);
-
-        toc_col = toc_col.push(row_item);
-    }
-
-    scroll_pane("pdf_toc_scroll", toc_col).build()
+    crate::features::pdf::outline::render_pdf_outline(&state.outline_state, current_page, theme)
 }
 
 fn render_empty_state<'a>(scroll_id: &'static str) -> Element<'a, Message> {

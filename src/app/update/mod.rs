@@ -433,6 +433,9 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::PdfMsg::TocItemClicked(idx) => {
                 crate::features::pdf::update::handle_toc_item_clicked(app, idx)
             }
+            crate::app::messages::PdfMsg::ToggleOutlineNode { page, title } => {
+                crate::features::pdf::update::handle_toggle_outline_node(app, page, title)
+            }
             crate::app::messages::PdfMsg::SidebarResized(w) => {
                 crate::features::pdf::update::handle_sidebar_resized(app, w)
             }

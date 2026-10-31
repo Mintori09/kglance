@@ -473,8 +473,8 @@ fn test_text_gt_shortcut_toggles_outline() {
     let mut app = test_app(Some(text_content(code, "rs")));
     assert!(!app.state.text.outline_visible);
 
-    let g_key = iced::keyboard::Key::Character("g".into());
-    let t_key = iced::keyboard::Key::Character("t".into());
+    let g_key: iced::keyboard::Key = iced::keyboard::Key::Character("g".into());
+    let t_key: iced::keyboard::Key = iced::keyboard::Key::Character("t".into());
     let modifiers = iced::keyboard::Modifiers::default();
 
     let _ = app.handle_scroll_shortcuts(&g_key, modifiers);
@@ -486,6 +486,54 @@ fn test_text_gt_shortcut_toggles_outline() {
 
     let _ = app.update(crate::app::messages::TextMsg::ToggleOutline.into());
     assert!(app.state.text.outline_visible);
+}
+
+#[test]
+fn test_pdf_gt_shortcut_toggles_outline_sidebar() {
+    let mut app = test_app(Some(crate::core::PreviewData::Pdf {
+        page_count: 5,
+        current_page: 0,
+        data: Vec::new(),
+        width: 100,
+        height: 100,
+        outline: vec![crate::features::pdf::parser::PdfTocEntry {
+            title: "Chapter 1".to_string(),
+            page: 0,
+            level: 1,
+        }],
+        page_dimensions: Vec::new(),
+        first_page_text: None,
+    }));
+    app.state.pdf.page_count = 5;
+    app.state.pdf.outline = vec![crate::features::pdf::parser::PdfTocEntry {
+        title: "Chapter 1".to_string(),
+        page: 0,
+        level: 1,
+    }];
+    assert!(!app.state.pdf.sidebar_visible);
+
+    let t_key: iced::keyboard::Key = iced::keyboard::Key::Character("t".into());
+    let modifiers = iced::keyboard::Modifiers::default();
+
+    // 1. Manually set pending_g = true (as if 'g' was pressed or sequence initiated)
+    app.pending_g = true;
+
+    // 2. Press 't' with pending_g -> toggle_sidebar returns Task
+    let task = app.handle_scroll_shortcuts(&t_key, modifiers);
+    assert!(task.is_some());
+    assert!(!app.pending_g);
+
+    // 3. Process the resulting SidebarToggled message
+    let _ = app.update(crate::app::messages::PdfMsg::SidebarToggled.into());
+    assert!(app.state.pdf.sidebar_visible);
+    assert_eq!(app.state.pdf.sidebar_mode, crate::core::PdfSidebarMode::Toc);
+
+    // 4. Toggle again -> closes sidebar
+    app.pending_g = true;
+    let task = app.handle_scroll_shortcuts(&t_key, modifiers);
+    assert!(task.is_some());
+    let _ = app.update(crate::app::messages::PdfMsg::SidebarToggled.into());
+    assert!(!app.state.pdf.sidebar_visible);
 }
 
 #[test]

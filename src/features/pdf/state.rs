@@ -26,7 +26,9 @@ pub fn populate_state(
     } else {
         220.0
     };
-    state.pdf.outline = outline;
+    state.pdf.outline = outline.clone();
+    state.pdf.outline_state =
+        crate::features::pdf::outline::PdfOutlineState::from_toc_entries(&outline);
     state.pdf.page_dimensions = page_dimensions.clone();
 
     let win_w = if state.current_window_size.width > 0.0 {

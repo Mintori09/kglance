@@ -6,6 +6,7 @@ pub mod goto_dialog;
 pub mod handler;
 pub mod layout;
 pub mod lazy_handler;
+pub mod outline;
 pub mod page_view;
 pub mod parser;
 pub mod rich_text;
@@ -21,6 +22,10 @@ pub use cache::PdfDiskCache;
 pub use goto_dialog::{GotoPageState, view_goto_dialog};
 pub use handler::lazy_load_thumbnails;
 pub use lazy_handler::lazy_load_pages;
+pub use outline::{
+    PdfOutlineNode, PdfOutlineState, build_outline_tree, collect_visible_outline_nodes,
+    render_pdf_outline, resolve_outline_page,
+};
 pub use page_view::PdfPageWidget;
 pub use parser::*;
 pub use rich_text::extract_selected_content;
