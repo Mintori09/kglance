@@ -154,13 +154,17 @@ impl SyntaxCache {
             return result;
         }
 
+        static DEFAULT_THEME: std::sync::LazyLock<syntect::highlighting::Theme> =
+            std::sync::LazyLock::new(syntect::highlighting::Theme::default);
+
         let syntax = find_syntax_for_extension(&self.extension);
         let ts = global_theme_set();
         let syntect_theme = ts
             .themes
             .get(theme.syntect_theme())
             .or_else(|| ts.themes.get("base16-ocean.dark"))
-            .unwrap_or_else(|| ts.themes.values().next().unwrap());
+            .or_else(|| ts.themes.values().next())
+            .unwrap_or(&DEFAULT_THEME);
 
         let highlighter = Highlighter::new(syntect_theme);
         let ss = global_syntax_set();
