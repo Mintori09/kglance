@@ -463,17 +463,17 @@ fn build_lazy_chapters_from_ncx<R: Read + Seek>(
                     if item_path.to_ascii_lowercase().contains("cover")
                         || item_path.to_ascii_lowercase().contains("titlepage")
                     {
-                        "Bìa sách".to_string()
+                        "Cover".to_string()
                     } else {
-                        format!("Mở đầu {}", idx + 1)
+                        format!("Section {}", idx + 1)
                     }
                 })
         } else if item_path.to_ascii_lowercase().contains("cover")
             || item_path.to_ascii_lowercase().contains("titlepage")
         {
-            "Bìa sách".to_string()
+            "Cover".to_string()
         } else {
-            format!("Mở đầu {}", idx + 1)
+            format!("Section {}", idx + 1)
         };
 
         chapters.push((title, 1, None, item_path, blocks));

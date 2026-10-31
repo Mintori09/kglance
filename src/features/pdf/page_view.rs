@@ -325,7 +325,7 @@ where
             );
         }
 
-        // 2. Draw selection highlights (bôi đen)
+        // 2. Draw selection highlights
         if let (Some(selection), Some(page_text)) = (self.selection, self.page_text)
             && !selection.is_collapsed()
         {
