@@ -17,6 +17,13 @@ impl super::KglanceApp {
             || self.state.file_type_text.contains("EPUB")
     }
 
+    pub(super) fn is_markdown_or_epub(&self) -> bool {
+        matches!(
+            self.current_content,
+            Some(PreviewData::Markdown { .. } | PreviewData::Epub { .. })
+        ) || self.is_epub_content()
+    }
+
     pub fn handle_key_pressed(
         &mut self,
         key: iced::keyboard::Key,
