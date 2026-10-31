@@ -49,9 +49,14 @@ pub fn hash_spans(spans: &[Span<'_, (), Font>]) -> u64 {
     hasher.finish()
 }
 
+const DEFAULT_CACHE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(1024) {
+    Some(val) => val,
+    None => unreachable!(),
+};
+
 thread_local! {
     static PARAGRAPH_CACHE: RefCell<LruCache<ParagraphKey, CachedParagraph>> =
-        RefCell::new(LruCache::new(NonZeroUsize::new(1024).unwrap()));
+        RefCell::new(LruCache::new(DEFAULT_CACHE_CAPACITY));
 }
 
 #[inline]

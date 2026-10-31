@@ -152,7 +152,7 @@ impl PageCache {
         if cached_indices.len() > Self::MAX_COUNT || self.accounted_decoded_bytes > Self::MAX_BYTES
         {
             cached_indices.sort_by_key(|&idx| {
-                let dist = (idx as isize - anchor_page as isize).abs();
+                let dist = idx.abs_diff(anchor_page);
                 (std::cmp::Reverse(dist), std::cmp::Reverse(idx))
             });
 
@@ -263,7 +263,7 @@ impl ThumbnailCache {
         if cached_indices.len() > Self::MAX_COUNT || self.accounted_decoded_bytes > Self::MAX_BYTES
         {
             cached_indices.sort_by_key(|&idx| {
-                let dist = (idx as isize - anchor_page as isize).abs();
+                let dist = idx.abs_diff(anchor_page);
                 (std::cmp::Reverse(dist), std::cmp::Reverse(idx))
             });
 

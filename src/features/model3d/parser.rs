@@ -265,6 +265,13 @@ pub fn parse_obj(path: &Path) -> Result<ParsedContent, ParseError> {
                     (chunk[2] + vertex_offset) as usize,
                 );
 
+                if i0 * 6 + 5 >= vertices.len()
+                    || i1 * 6 + 5 >= vertices.len()
+                    || i2 * 6 + 5 >= vertices.len()
+                {
+                    continue;
+                }
+
                 let p0 = [vertices[i0 * 6], vertices[i0 * 6 + 1], vertices[i0 * 6 + 2]];
                 let p1 = [vertices[i1 * 6], vertices[i1 * 6 + 1], vertices[i1 * 6 + 2]];
                 let p2 = [vertices[i2 * 6], vertices[i2 * 6 + 1], vertices[i2 * 6 + 2]];
@@ -279,6 +286,9 @@ pub fn parse_obj(path: &Path) -> Result<ParsedContent, ParseError> {
 
             // Normalize accumulated vertex normals
             for i in (vertex_offset as usize)..(vertex_offset as usize + num_verts) {
+                if i * 6 + 5 >= vertices.len() {
+                    break;
+                }
                 let norm = normalize([
                     vertices[i * 6 + 3],
                     vertices[i * 6 + 4],
