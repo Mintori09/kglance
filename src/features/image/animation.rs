@@ -18,11 +18,12 @@ pub struct AnimatedGif {
 
 impl AnimatedGif {
     pub fn current_frame(&self, elapsed_ms: u64) -> &iced::widget::image::Handle {
-        if self.frames.is_empty() {
-            panic!("AnimatedGif must have at least one frame");
-        }
-        if self.frames.len() == 1 || self.total_duration_ms == 0 {
-            return &self.frames[0].handle;
+        if self.frames.len() <= 1 || self.total_duration_ms == 0 {
+            return self
+                .frames
+                .first()
+                .map(|f| &f.handle)
+                .expect("AnimatedGif must have at least one frame");
         }
         let pos = elapsed_ms % self.total_duration_ms;
         let mut acc = 0;
@@ -32,7 +33,10 @@ impl AnimatedGif {
                 return &frame.handle;
             }
         }
-        &self.frames.last().unwrap().handle
+        self.frames
+            .last()
+            .map(|f| &f.handle)
+            .expect("AnimatedGif must have at least one frame")
     }
 }
 

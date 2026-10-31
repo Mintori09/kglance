@@ -42,7 +42,10 @@ pub fn parse_stl(path: &Path) -> Result<ParsedContent, ParseError> {
     if file_size >= 84 {
         let mut header = [0u8; 84];
         if file.read_exact(&mut header).is_ok() {
-            let num_triangles = u32::from_le_bytes(header[80..84].try_into().unwrap()) as u64;
+            let Some(count_bytes) = header.get(80..84).and_then(|b| b.try_into().ok()) else {
+                return parse_ascii_stl(path);
+            };
+            let num_triangles = u32::from_le_bytes(count_bytes) as u64;
             let expected_size = 84 + num_triangles * 50;
             if file_size == expected_size {
                 return parse_binary_stl(&mut file, num_triangles as usize);
@@ -78,27 +81,18 @@ fn parse_binary_stl<R: Read>(
 
     let mut idx = 0u32;
     for chunk in buf.as_chunks::<50>().0 {
-        let n = [
-            f32::from_le_bytes(chunk[0..4].try_into().unwrap()),
-            f32::from_le_bytes(chunk[4..8].try_into().unwrap()),
-            f32::from_le_bytes(chunk[8..12].try_into().unwrap()),
-        ];
+        let read_f32 = |offset: usize| -> Result<f32, ParseError> {
+            chunk
+                .get(offset..offset + 4)
+                .and_then(|b| b.try_into().ok())
+                .map(f32::from_le_bytes)
+                .ok_or_else(|| ParseError::ParseFailed("Truncated binary STL chunk".to_string()))
+        };
 
-        let v1 = [
-            f32::from_le_bytes(chunk[12..16].try_into().unwrap()),
-            f32::from_le_bytes(chunk[16..20].try_into().unwrap()),
-            f32::from_le_bytes(chunk[20..24].try_into().unwrap()),
-        ];
-        let v2 = [
-            f32::from_le_bytes(chunk[24..28].try_into().unwrap()),
-            f32::from_le_bytes(chunk[28..32].try_into().unwrap()),
-            f32::from_le_bytes(chunk[32..36].try_into().unwrap()),
-        ];
-        let v3 = [
-            f32::from_le_bytes(chunk[36..40].try_into().unwrap()),
-            f32::from_le_bytes(chunk[40..44].try_into().unwrap()),
-            f32::from_le_bytes(chunk[44..48].try_into().unwrap()),
-        ];
+        let n = [read_f32(0)?, read_f32(4)?, read_f32(8)?];
+        let v1 = [read_f32(12)?, read_f32(16)?, read_f32(20)?];
+        let v2 = [read_f32(24)?, read_f32(28)?, read_f32(32)?];
+        let v3 = [read_f32(36)?, read_f32(40)?, read_f32(44)?];
 
         bounds.add_point(v1);
         bounds.add_point(v2);
