@@ -3,7 +3,7 @@ use crate::core::PdfState;
 use crate::core::preview::compute_pdf_page_offsets;
 use crate::core::types::PdfSidebarMode;
 use crate::ui::components::scroll_pane::scroll_pane;
-use crate::ui::components::sidebar::{drag_handle, sidebar_entry_style};
+use crate::ui::components::sidebar::{sidebar_entry_style, with_sidebar_layout};
 use crate::ui::theme::tokens::{radius, spacing, typography};
 use iced::widget::{button, column, container, image, row, text};
 use iced::{Alignment, Border, Element, Length, Padding};
@@ -120,16 +120,14 @@ pub fn view_pdf<'a>(
         crate::app::messages::PdfMsg::Scrolled(vp).into()
     });
 
-    if state.sidebar_visible {
-        let sidebar = render_pdf_sidebar(state, theme);
-        let d_handle = drag_handle(state.sidebar_resizing, theme, Message::SidebarDragStarted);
-        row![sidebar, d_handle, pages_view]
-            .spacing(0)
-            .height(Length::Fill)
-            .into()
-    } else {
-        pages_view
-    }
+    with_sidebar_layout(
+        state.sidebar_visible,
+        state.sidebar_resizing,
+        theme,
+        || render_pdf_sidebar(state, theme),
+        pages_view,
+        Message::SidebarDragStarted,
+    )
 }
 
 pub fn view_pdf_pages<'a>(
