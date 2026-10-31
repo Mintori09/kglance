@@ -1,6 +1,7 @@
 use iced::widget::{button, column, container, pick_list, row, slider, text};
 use iced::{Alignment, Element, Font, Theme};
 
+use super::build_setting_row;
 use crate::app::messages::{Message, SettingsMsg};
 use crate::core::config::{ConfigManager, UiConfig};
 use crate::ui::theme::color::{AppTheme, BaseColors};
@@ -271,38 +272,4 @@ fn build_theme_card<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> El
         .padding(spacing::M)
         .style(default_card)
         .into()
-}
-
-fn build_setting_row<'a>(
-    title: &'static str,
-    desc: &'static str,
-    control: impl Into<Element<'a, Message>>,
-    main_font: Font,
-    text_color: iced::Color,
-    dim_color: iced::Color,
-) -> Element<'a, Message> {
-    row![
-        column![
-            text(title)
-                .size(13)
-                .font(main_font)
-                .style(move |_| iced::widget::text::Style {
-                    color: Some(text_color)
-                }),
-            text(desc)
-                .size(11)
-                .font(main_font)
-                .style(move |_| iced::widget::text::Style {
-                    color: Some(dim_color)
-                }),
-        ]
-        .spacing(spacing::XXS)
-        .width(iced::Length::Fill),
-        container(control)
-            .width(250.0)
-            .align_x(iced::alignment::Horizontal::Right),
-    ]
-    .align_y(Alignment::Center)
-    .spacing(spacing::M)
-    .into()
 }

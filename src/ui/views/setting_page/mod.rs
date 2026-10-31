@@ -1,5 +1,5 @@
 use iced::widget::{button, column, container, row, text};
-use iced::{Alignment, Element, Theme};
+use iced::{Alignment, Element, Font, Theme};
 use std::process::Command;
 use std::sync::OnceLock;
 
@@ -17,6 +17,40 @@ pub mod previews;
 pub mod window;
 
 pub use appearance::AVAILABLE_THEMES;
+
+pub(super) fn build_setting_row<'a>(
+    title: &'static str,
+    desc: &'static str,
+    control: impl Into<Element<'a, Message>>,
+    main_font: Font,
+    text_color: iced::Color,
+    dim_color: iced::Color,
+) -> Element<'a, Message> {
+    row![
+        column![
+            text(title)
+                .size(13)
+                .font(main_font)
+                .style(move |_| iced::widget::text::Style {
+                    color: Some(text_color)
+                }),
+            text(desc)
+                .size(11)
+                .font(main_font)
+                .style(move |_| iced::widget::text::Style {
+                    color: Some(dim_color)
+                }),
+        ]
+        .spacing(spacing::XXS)
+        .width(iced::Length::Fill),
+        container(control)
+            .width(250.0)
+            .align_x(iced::alignment::Horizontal::Right),
+    ]
+    .align_y(Alignment::Center)
+    .spacing(spacing::M)
+    .into()
+}
 
 const TITLE_FONT_SIZE: f32 = 16.0;
 

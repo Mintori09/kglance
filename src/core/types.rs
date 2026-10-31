@@ -251,6 +251,23 @@ impl Default for KglanceState {
 }
 
 impl KglanceState {
+    pub fn for_each_text_state_mut(&mut self, mut f: impl FnMut(&mut TextState)) {
+        f(&mut self.text);
+        f(&mut self.json.raw_text);
+        f(&mut self.typst.source_text);
+    }
+
+    pub fn set_playlist(&mut self, playlist: Vec<String>, target_path: &str) {
+        if !playlist.is_empty() {
+            self.playlist = playlist;
+            self.current_index = self
+                .playlist
+                .iter()
+                .position(|p| p == target_path)
+                .unwrap_or(0);
+        }
+    }
+
     pub fn reset_content_state(&mut self) {
         self.selection_menu.hide();
         self.file_name.clear();
