@@ -594,22 +594,27 @@ impl KglanceApp {
     }
 
     fn move_json_selection(&mut self, visible: &[usize], delta: isize) {
+        if visible.is_empty() {
+            return;
+        }
+
         let current_pos = self
             .state
             .json
             .active_node
             .and_then(|curr| visible.iter().position(|&idx| idx == curr));
 
+        let max_idx = visible.len().saturating_sub(1);
         let new_pos = match current_pos {
             Some(pos) => {
                 let target = pos as isize + delta;
-                target.clamp(0, (visible.len() - 1) as isize) as usize
+                target.clamp(0, max_idx as isize) as usize
             }
             None => {
                 if delta > 0 {
                     0
                 } else {
-                    visible.len() - 1
+                    max_idx
                 }
             }
         };
