@@ -34,19 +34,41 @@ pub fn entry_font_size(level: u8) -> f32 {
     }
 }
 
-pub fn entry_text_color(is_active: bool, is_light_background: bool, level: u8) -> Option<Color> {
-    if is_active {
-        return None;
-    }
-    if is_light_background {
-        if level == 1 {
-            Some(primitive::EPUB_CHAPTER_TEXT_L1_LIGHT)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntryVisualState {
+    Active,
+    InactiveLight,
+    InactiveDark,
+}
+
+impl EntryVisualState {
+    pub fn new(is_active: bool, is_light_background: bool) -> Self {
+        if is_active {
+            Self::Active
+        } else if is_light_background {
+            Self::InactiveLight
         } else {
-            Some(primitive::EPUB_CHAPTER_TEXT_L2_LIGHT)
+            Self::InactiveDark
         }
-    } else if level == 1 {
-        Some(primitive::EPUB_CHAPTER_TEXT_L1_DARK)
-    } else {
-        Some(primitive::EPUB_CHAPTER_TEXT_L2_DARK)
+    }
+}
+
+pub fn entry_text_color(state: EntryVisualState, level: u8) -> Option<Color> {
+    match state {
+        EntryVisualState::Active => None,
+        EntryVisualState::InactiveLight => {
+            if level == 1 {
+                Some(primitive::EPUB_CHAPTER_TEXT_L1_LIGHT)
+            } else {
+                Some(primitive::EPUB_CHAPTER_TEXT_L2_LIGHT)
+            }
+        }
+        EntryVisualState::InactiveDark => {
+            if level == 1 {
+                Some(primitive::EPUB_CHAPTER_TEXT_L1_DARK)
+            } else {
+                Some(primitive::EPUB_CHAPTER_TEXT_L2_DARK)
+            }
+        }
     }
 }

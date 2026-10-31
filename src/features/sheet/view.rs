@@ -566,6 +566,11 @@ fn render_table_rows<'a>(
             let is_primary = state
                 .selection
                 .is_some_and(|s| s.start.row == row_idx && s.start.col == col_idx);
+            let selection_state = match (is_selected, is_primary) {
+                (true, true) => CellSelectionState::Primary,
+                (true, false) => CellSelectionState::Selected,
+                _ => CellSelectionState::None,
+            };
 
             let text_align = match col_meta.col_type {
                 ColumnType::Integer | ColumnType::Float => alignment::Horizontal::Right,
@@ -590,7 +595,7 @@ fn render_table_rows<'a>(
             .height(Length::Fill);
 
             let cell_container = container(cell_content)
-                .style(move |_: &Theme| grid_data_cell_style(theme, is_selected, is_primary))
+                .style(move |_: &Theme| grid_data_cell_style(theme, selection_state))
                 .clip(true)
                 .width(Length::Fixed(col_w))
                 .height(Length::Fixed(row_h))
@@ -715,16 +720,29 @@ fn grid_row_num_style(theme: AppTheme, is_selected: bool) -> container::Style {
     }
 }
 
-fn grid_data_cell_style(theme: AppTheme, is_selected: bool, is_primary: bool) -> container::Style {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CellSelectionState {
+    None,
+    Selected,
+    Primary,
+}
+
+fn grid_data_cell_style(theme: AppTheme, selection_state: CellSelectionState) -> container::Style {
     let p = theme.palette().base;
     let role = theme.palette().roles;
 
-    let (bg, border_color, border_width) = if is_selected {
-        let mut active_bg = role.accent;
-        active_bg.a = if is_primary { 0.28 } else { 0.18 };
-        (Some(active_bg.into()), role.accent, 1.5)
-    } else {
-        (Some(p.bg.into()), p.border, 1.0)
+    let (bg, border_color, border_width) = match selection_state {
+        CellSelectionState::None => (Some(p.bg.into()), p.border, 1.0),
+        CellSelectionState::Selected => {
+            let mut active_bg = role.accent;
+            active_bg.a = 0.18;
+            (Some(active_bg.into()), role.accent, 1.5)
+        }
+        CellSelectionState::Primary => {
+            let mut active_bg = role.accent;
+            active_bg.a = 0.28;
+            (Some(active_bg.into()), role.accent, 1.5)
+        }
     };
 
     container::Style {
