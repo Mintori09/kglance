@@ -6,9 +6,10 @@ use crate::features::text::view::outline::render_outline_sidebar;
 use crate::ui::components::code_viewer::VirtualCodeViewer;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::search_bar::{SearchKind, goto_line_bar, search_bar};
+use crate::ui::components::sidebar::with_sidebar_layout;
 use crate::ui::theme::font::get_code_font;
 use iced::Element;
-use iced::widget::{column, row};
+use iced::widget::column;
 
 use crate::ui::theme::tokens::spacing;
 
@@ -75,26 +76,21 @@ pub fn view_text<'a>(
 
     main_content = main_content.push(scrollable_viewer);
 
-    if state.outline_visible {
-        let sidebar = render_outline_sidebar(
-            &state.symbols,
-            theme,
-            state.sidebar_width,
-            state.scroll_y,
-            &state.display_map,
-            font_family,
-        );
-        let drag = crate::ui::components::sidebar::drag_handle(
-            state.sidebar_resizing,
-            theme,
-            Message::SidebarDragStarted,
-        );
-        row![sidebar, drag, main_content]
-            .spacing(0)
-            .width(iced::Length::Fill)
-            .height(iced::Length::Fill)
-            .into()
-    } else {
-        main_content.into()
-    }
+    with_sidebar_layout(
+        state.outline_visible,
+        state.sidebar_resizing,
+        theme,
+        || {
+            render_outline_sidebar(
+                &state.symbols,
+                theme,
+                state.sidebar_width,
+                state.scroll_y,
+                &state.display_map,
+                font_family,
+            )
+        },
+        main_content.into(),
+        Message::SidebarDragStarted,
+    )
 }

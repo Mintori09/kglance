@@ -61,6 +61,26 @@ pub fn drag_handle<'a, Message: 'static + Clone>(
     .into()
 }
 
+pub fn with_sidebar_layout<'a, Message: 'static + Clone>(
+    is_visible: bool,
+    is_resizing: bool,
+    theme: AppTheme,
+    sidebar: impl FnOnce() -> Element<'a, Message>,
+    main_content: Element<'a, Message>,
+    on_drag_press: Message,
+) -> Element<'a, Message> {
+    if is_visible {
+        let drag = drag_handle(is_resizing, theme, on_drag_press);
+        iced::widget::row![sidebar(), drag, main_content]
+            .spacing(0)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    } else {
+        main_content
+    }
+}
+
 pub fn collapse_arrow<'a, Message: 'static + Clone>(
     is_collapsed: bool,
     app_theme: AppTheme,

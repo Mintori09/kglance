@@ -14,9 +14,9 @@ use crate::ui::components::content_layout::scrollable_content;
 use crate::ui::components::measured::Measured;
 use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::components::selectable_text::SelectableText;
-use crate::ui::components::sidebar::drag_handle;
+use crate::ui::components::sidebar::with_sidebar_layout;
 use crate::ui::types::RenderContext;
-use iced::widget::{column, container, row};
+use iced::widget::{column, container};
 use iced::{Element, Length, Padding};
 
 #[allow(clippy::too_many_arguments)]
@@ -321,24 +321,20 @@ fn build_content_area<'a>(
     scroll_content: Element<'a, Message>,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
-    if state.toc_visible && !state.toc.is_empty() {
-        let sidebar = render_toc_sidebar(
-            &state.toc,
-            state,
-            state.scroll_y,
-            ctx.theme,
-            ctx.font_family,
-        );
-        let drag_handle = drag_handle(
-            state.sidebar_resizing,
-            ctx.theme,
-            Message::SidebarDragStarted,
-        );
-        row![sidebar, drag_handle, scroll_content]
-            .spacing(0)
-            .height(Length::Fill)
-            .into()
-    } else {
-        scroll_content
-    }
+    with_sidebar_layout(
+        state.toc_visible && !state.toc.is_empty(),
+        state.sidebar_resizing,
+        ctx.theme,
+        || {
+            render_toc_sidebar(
+                &state.toc,
+                state,
+                state.scroll_y,
+                ctx.theme,
+                ctx.font_family,
+            )
+        },
+        scroll_content,
+        Message::SidebarDragStarted,
+    )
 }

@@ -6,7 +6,7 @@ pub mod sidebar;
 
 use std::cell::Cell;
 
-use iced::widget::{column, row};
+use iced::widget::column;
 use iced::{Element, Length};
 
 use crate::app::Message;
@@ -15,7 +15,7 @@ use crate::features::epub::view::content::build_epub_content;
 use crate::features::epub::view::helpers::clamp_active_chapter;
 use crate::features::epub::view::sidebar::render_chapter_sidebar;
 use crate::features::markdown::Block;
-use crate::ui::components::sidebar::drag_handle;
+use crate::ui::components::sidebar::with_sidebar_layout;
 use crate::ui::types::RenderContext;
 
 pub fn view_epub<'a>(
@@ -71,14 +71,12 @@ pub fn view_epub<'a>(
     let main_content = build_epub_content(state, active_chapter, &ctx, max_text_width);
     let main_view = column![main_content].height(Length::Fill);
 
-    if state.sidebar_visible && !state.chapters.is_empty() {
-        let sidebar = render_chapter_sidebar(state, theme, font_family);
-        let drag = drag_handle(state.sidebar_resizing, theme, Message::SidebarDragStarted);
-        row![sidebar, drag, main_view]
-            .spacing(0)
-            .height(Length::Fill)
-            .into()
-    } else {
-        main_view.into()
-    }
+    with_sidebar_layout(
+        state.sidebar_visible && !state.chapters.is_empty(),
+        state.sidebar_resizing,
+        theme,
+        || render_chapter_sidebar(state, theme, font_family),
+        main_view.into(),
+        Message::SidebarDragStarted,
+    )
 }
