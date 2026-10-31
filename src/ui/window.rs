@@ -82,10 +82,14 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         page_counter,
         epub_counter,
         toc_btn,
-        text(left)
-            .size(typography::CAPTION)
-            .font(main_font)
-            .style(metadata_style),
+        container(
+            text(left)
+                .size(typography::CAPTION)
+                .font(main_font)
+                .style(metadata_style)
+                .wrapping(text::Wrapping::None)
+        )
+        .clip(true),
     ]
     .spacing(spacing::S)
     .align_y(Alignment::Center);
@@ -103,9 +107,13 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     .align_y(Alignment::Center);
 
     container(
-        row![left_row, Space::new().width(Length::Fill), right_row]
-            .align_y(Alignment::Center)
-            .padding([4, 12]),
+        row![
+            container(left_row).width(Length::Fill),
+            Space::new().width(spacing::M),
+            right_row
+        ]
+        .align_y(Alignment::Center)
+        .padding([4, 12]),
     )
     .width(Length::Fill)
     .style(default_raised)

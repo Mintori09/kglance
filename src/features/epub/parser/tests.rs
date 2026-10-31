@@ -1315,7 +1315,39 @@ fn test_pre_with_callout_links() {
   </code><code class="nx">console</code><code class="p">.</code><code class="nx">log</code><code class="p">(</code><code class="s2">&quot;Password has been saved!&quot;</code><code class="p">)</code><code class="p">;</code><code> </code><a class="co" id="co_build_a_secure_local_password_manager_CO4-2" href="#callout_build_a_secure_local_password_manager_CO4-2"><img src="assets/2.png" alt="2" width="12" height="12"/></a><code>
 </code><code class="p">}</code><code class="p">;</code></pre>"##;
     let md = convert_html_to_markdown(html);
-    eprintln!("MD RESULT:\n{md}");
+    assert!(!md.starts_with("<a id="));
+    assert!(md.contains("mockDB.hash = bcrypt.hashSync(password, 10);  ①"));
+    assert!(md.contains("console.log(\"Password has been saved!\");  ②"));
+}
+
+#[test]
+fn test_calloutlist_spacing() {
+    let html = r##"<dl class="calloutlist">
+<dt><a class="co" id="callout_1" href="#co_1"><img src="assets/1.png" alt="1" width="12" height="12"/></a></dt>
+<dd><p>This is the name of your project.</p></dd>
+<dt><a class="co" id="callout_2" href="#co_2"><img src="assets/2.png" alt="2" width="12" height="12"/></a></dt>
+<dd><p><em>index.js</em> is where your application will start.</p></dd>
+</dl>"##;
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1, "Expected single List block");
+    match &blocks[0] {
+        Block::List {
+            ordered: false,
+            items,
+            ..
+        } => {
+            assert_eq!(items.len(), 2);
+            let item1 = flatten_inlines(&items[0].content);
+            assert!(item1.contains("①"));
+            assert!(item1.contains("This is the name of your project."));
+            let item2 = flatten_inlines(&items[1].content);
+            assert!(item2.contains("②"));
+            assert!(item2.contains("index.js"));
+            assert!(item2.contains("where your application will start."));
+        }
+        other => panic!("Expected List block, got: {other:?}"),
+    }
 }
 
 #[test]
