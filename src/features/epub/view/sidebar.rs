@@ -9,7 +9,7 @@ use crate::features::epub::view::constants::{
     SIDEBAR_HEADER_PADDING_HORIZONTAL, SIDEBAR_HEADER_PADDING_VERTICAL, SIDEBAR_RESIZE_STEP,
 };
 use crate::features::epub::view::helpers::{
-    calculate_indent, entry_font_size, entry_font_weight, entry_text_color,
+    EntryVisualState, calculate_indent, entry_font_size, entry_font_weight, entry_text_color,
 };
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::sidebar::{
@@ -654,7 +654,8 @@ fn build_chapter_entry<'a>(
     };
     let font_weight = entry_font_weight(chapter.level);
     let title_font_size = entry_font_size(chapter.level);
-    let text_color = entry_text_color(is_active, is_light_background, chapter.level);
+    let visual_state = EntryVisualState::new(is_active, is_light_background);
+    let text_color = entry_text_color(visual_state, chapter.level);
 
     let label = text(&chapter.title).size(title_font_size).font(Font {
         weight: font_weight,
