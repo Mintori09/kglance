@@ -52,6 +52,10 @@ impl KglanceApp {
             return Some(self.open_folder_search());
         }
 
+        if self.is_pdf_search_available() {
+            return Some(crate::features::pdf::update::handle_search_open(self));
+        }
+
         if self.is_grid_view() {
             return Some(self.open_grid_search_without_query());
         }
@@ -83,7 +87,9 @@ impl KglanceApp {
             Some(PreviewData::Markdown { .. }) => self.state.markdown.search_visible,
             Some(PreviewData::Spreadsheet { .. }) => self.state.spreadsheet.search_visible,
             Some(PreviewData::Folder { .. }) => self.state.folder.search_visible,
-            Some(PreviewData::Pdf { .. }) => self.state.pdf.goto_page.is_visible,
+            Some(PreviewData::Pdf { .. }) => {
+                self.state.pdf.goto_page.is_visible || self.state.pdf.search.is_visible
+            }
             _ => false,
         }
     }
@@ -142,8 +148,13 @@ impl KglanceApp {
             Some(PreviewData::Folder { .. }) if self.state.folder.search_visible => {
                 self.close_folder_search();
             }
-            Some(PreviewData::Pdf { .. }) if self.state.pdf.goto_page.is_visible => {
-                self.state.pdf.goto_page.close();
+            Some(PreviewData::Pdf { .. }) => {
+                if self.state.pdf.goto_page.is_visible {
+                    self.state.pdf.goto_page.close();
+                }
+                if self.state.pdf.search.is_visible {
+                    return crate::features::pdf::update::handle_search_close(self);
+                }
             }
             _ => {}
         }
@@ -195,6 +206,11 @@ impl KglanceApp {
     fn is_json_search_available(&self) -> bool {
         matches!(self.current_content, Some(PreviewData::Json { .. }))
             && !self.state.json.search_visible
+    }
+
+    fn is_pdf_search_available(&self) -> bool {
+        matches!(self.current_content, Some(PreviewData::Pdf { .. }))
+            && !self.state.pdf.search.is_visible
     }
 
     fn is_grid_search_active(&self) -> bool {

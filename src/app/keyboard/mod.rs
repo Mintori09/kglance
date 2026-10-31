@@ -109,6 +109,15 @@ impl super::KglanceApp {
         }
 
         if matches!(key, iced::keyboard::Key::Named(Named::Enter)) {
+            if matches!(self.current_content, Some(PreviewData::Pdf { .. }))
+                && self.state.pdf.search.is_visible
+            {
+                if self.shift_held || modifiers.shift() {
+                    return self.update(crate::app::messages::PdfMsg::SearchPrev.into());
+                } else {
+                    return self.update(crate::app::messages::PdfMsg::SearchNext.into());
+                }
+            }
             return self.handle_open_clicked();
         }
 

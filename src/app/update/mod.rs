@@ -466,6 +466,21 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::PdfMsg::GotoPageSubmit => {
                 crate::features::pdf::update::handle_goto_page_submit(app)
             }
+            crate::app::messages::PdfMsg::SearchOpen => {
+                crate::features::pdf::update::handle_search_open(app)
+            }
+            crate::app::messages::PdfMsg::SearchClose => {
+                crate::features::pdf::update::handle_search_close(app)
+            }
+            crate::app::messages::PdfMsg::SearchQueryChanged(q) => {
+                crate::features::pdf::update::handle_search_query_changed(app, q)
+            }
+            crate::app::messages::PdfMsg::SearchNext => {
+                crate::features::pdf::update::handle_search_next(app)
+            }
+            crate::app::messages::PdfMsg::SearchPrev => {
+                crate::features::pdf::update::handle_search_prev(app)
+            }
         },
         Message::Typst(msg) => match msg {
             crate::app::messages::TypstMsg::Scrolled(vp) => {

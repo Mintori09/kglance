@@ -397,6 +397,14 @@ impl KglanceApp {
                 }
             }
 
+            Some(PreviewData::Pdf { .. }) => {
+                if self.state.pdf.search.is_visible {
+                    Some(crate::features::pdf::update::handle_search_close(self))
+                } else {
+                    Some(crate::features::pdf::update::handle_search_open(self))
+                }
+            }
+
             None => match &self.state.view_mode {
                 crate::core::ViewMode::Grid(_) => {
                     self.state.grid_search_visible = !self.state.grid_search_visible;

@@ -355,6 +355,7 @@ pub struct PdfState {
     pub drag_last_x: f32,
     pub drag_last_y: f32,
     pub goto_page: crate::features::pdf::goto_dialog::GotoPageState,
+    pub search: crate::features::pdf::search::PdfSearchState,
 }
 
 impl PdfState {
@@ -431,6 +432,7 @@ impl Default for PdfState {
             drag_last_x: 0.0,
             drag_last_y: 0.0,
             goto_page: crate::features::pdf::goto_dialog::GotoPageState::default(),
+            search: crate::features::pdf::search::PdfSearchState::default(),
         }
     }
 }

@@ -142,6 +142,11 @@ pub enum PdfMsg {
     GotoPageClose,
     GotoPageInputChanged(String),
     GotoPageSubmit,
+    SearchOpen,
+    SearchClose,
+    SearchQueryChanged(String),
+    SearchNext,
+    SearchPrev,
 }
 
 #[derive(Debug, Clone)]

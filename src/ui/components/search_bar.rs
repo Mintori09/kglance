@@ -19,6 +19,7 @@ pub enum SearchKind {
     Spreadsheet,
     Grid,
     Folder,
+    Pdf,
 }
 
 struct SearchMessages {
@@ -37,6 +38,7 @@ impl SearchKind {
             Self::Spreadsheet => "Search spreadsheet...",
             Self::Grid => "Search files...",
             Self::Folder => "Search files and folders...",
+            Self::Pdf => "Search PDF...",
         }
     }
 
@@ -48,6 +50,7 @@ impl SearchKind {
             Self::Spreadsheet => "ss_search_input",
             Self::Grid => "grid_search_input",
             Self::Folder => "folder_search_input",
+            Self::Pdf => crate::features::pdf::SEARCH_INPUT_ID,
         }
     }
 
@@ -89,6 +92,12 @@ impl SearchKind {
                 on_prev: None,
                 on_close: crate::app::messages::FolderMsg::SearchClosed.into(),
             },
+            Self::Pdf => SearchMessages {
+                on_query: |q| crate::app::messages::PdfMsg::SearchQueryChanged(q).into(),
+                on_next: Some(crate::app::messages::PdfMsg::SearchNext.into()),
+                on_prev: Some(crate::app::messages::PdfMsg::SearchPrev.into()),
+                on_close: crate::app::messages::PdfMsg::SearchClose.into(),
+            },
         }
     }
 }
@@ -101,14 +110,17 @@ pub fn search_bar<'a>(
     let messages = kind.messages();
     let input_id = kind.input_id();
 
-    let query_input: Element<'a, Message> = text_input(kind.placeholder(), query)
+    let mut query_input = text_input(kind.placeholder(), query)
         .id(input_id)
         .on_input(messages.on_query)
         .style(default_text_input)
-        .width(Length::Fill)
-        .into();
+        .width(Length::Fill);
 
-    let mut elements: Vec<Element<'a, Message>> = vec![query_input];
+    if let Some(next_msg) = messages.on_next.clone() {
+        query_input = query_input.on_submit(next_msg);
+    }
+
+    let mut elements: Vec<Element<'a, Message>> = vec![query_input.into()];
 
     if let Some(next_msg) = messages.on_next {
         elements.push(build_action_button(LABEL_NEXT, next_msg));

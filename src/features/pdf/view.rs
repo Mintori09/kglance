@@ -129,21 +129,58 @@ pub fn view_pdf<'a>(
         Message::SidebarDragStarted,
     );
 
+    let mut content_stack = iced::widget::Stack::new().push(main_view);
+
+    if state.search.is_visible {
+        let search_bar_elem = crate::ui::components::search_bar::search_bar(
+            crate::ui::components::search_bar::SearchKind::Pdf,
+            &state.search.query,
+            if state.search.info.is_empty() {
+                None
+            } else {
+                Some(&state.search.info)
+            },
+        );
+
+        let p = theme.palette().base;
+        let overlay = theme.palette().overlay;
+        let search_container = container(search_bar_elem)
+            .width(Length::Fixed(420.0))
+            .style(move |_| container::Style {
+                background: Some(p.surface.into()),
+                text_color: Some(p.text),
+                border: Border {
+                    color: overlay.floating_border,
+                    width: 1.0,
+                    radius: radius::LG.into(),
+                },
+                shadow: crate::ui::theme::tokens::elevation::floating_pill(overlay.floating_shadow),
+                snap: false,
+            });
+
+        let search_layer = container(search_container)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Right)
+            .align_y(iced::alignment::Vertical::Top)
+            .padding([spacing::M, spacing::XL]);
+
+        content_stack = content_stack.push(search_layer);
+    }
+
     if state.goto_page.is_visible {
         let goto_layer = crate::features::pdf::goto_dialog::view_goto_dialog(
             &state.goto_page,
             state.page_count,
             font_size,
         );
-        iced::widget::Stack::new()
-            .push(main_view)
-            .push(goto_layer)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
-    } else {
-        main_view
+        content_stack = content_stack.push(goto_layer);
     }
+
+    content_stack
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
 }
 
 pub fn view_pdf_pages<'a>(
@@ -232,6 +269,23 @@ pub fn view_pdf_pages<'a>(
         let handle_opt = state.pages.get(page_index).map(|e| &e.handle);
         let page_text = state.page_texts.get(page_index).and_then(|t| t.as_ref());
 
+        let active_match = state.search.current_match();
+        let page_matches_slice: &[crate::features::pdf::PdfSearchMatch] =
+            if state.search.is_visible && !state.search.matches.is_empty() {
+                // Find slice of matches for this page if any (matches are ordered by page_index)
+                let start = state
+                    .search
+                    .matches
+                    .partition_point(|m| m.page_index < page_index);
+                let end = state
+                    .search
+                    .matches
+                    .partition_point(|m| m.page_index <= page_index);
+                &state.search.matches[start..end]
+            } else {
+                &[]
+            };
+
         let page_widget = crate::features::pdf::page_view::PdfPageWidget::new(
             page_index,
             handle_opt,
@@ -243,6 +297,7 @@ pub fn view_pdf_pages<'a>(
         .selection(state.selection)
         .is_selecting(state.is_selecting)
         .selection_color(selection_color)
+        .search_matches(page_matches_slice, active_match)
         .on_drag_start(|pos| crate::app::messages::PdfMsg::SelectionDragStart(pos).into())
         .on_drag_update(|pos| crate::app::messages::PdfMsg::SelectionDragUpdate(pos).into())
         .on_drag_end(|| crate::app::messages::PdfMsg::SelectionDragEnd.into())

@@ -31,6 +31,8 @@ where
     selection: Option<PdfSelection>,
     selection_color: Color,
     is_selecting: bool,
+    search_matches: &'a [crate::features::pdf::search::PdfSearchMatch],
+    active_search_match: Option<&'a crate::features::pdf::search::PdfSearchMatch>,
     on_drag_start: Option<Box<dyn Fn(PdfPosition) -> Message + 'a>>,
     on_drag_update: Option<Box<dyn Fn(PdfPosition) -> Message + 'a>>,
     on_drag_end: Option<Box<dyn Fn() -> Message + 'a>>,
@@ -60,6 +62,8 @@ where
             selection: None,
             selection_color: crate::ui::theme::color::primitive::SELECTION_DARK_BG,
             is_selecting: false,
+            search_matches: &[],
+            active_search_match: None,
             on_drag_start: None,
             on_drag_update: None,
             on_drag_end: None,
@@ -80,6 +84,16 @@ where
 
     pub fn selection_color(mut self, color: Color) -> Self {
         self.selection_color = color;
+        self
+    }
+
+    pub fn search_matches(
+        mut self,
+        matches: &'a [crate::features::pdf::search::PdfSearchMatch],
+        active_match: Option<&'a crate::features::pdf::search::PdfSearchMatch>,
+    ) -> Self {
+        self.search_matches = matches;
+        self.active_search_match = active_match;
         self
     }
 
@@ -354,6 +368,57 @@ where
                         },
                         Background::Color(self.selection_color),
                     );
+                }
+            });
+        }
+
+        // 3. Draw search highlight boxes
+        if !self.search_matches.is_empty() {
+            let scale = (self.width / self.page_dimensions.width_pts.max(1.0)).max(0.001);
+            let normal_color = Color::from_rgba(1.0, 0.84, 0.0, 0.38); // Warm yellow
+            let active_color = Color::from_rgba(1.0, 0.55, 0.0, 0.65); // Warm amber
+            let active_border_color = Color::from_rgba(1.0, 0.4, 0.0, 0.95);
+
+            renderer.with_layer(bounds, |renderer| {
+                for m in self.search_matches {
+                    let rect = crate::features::pdf::search::match_to_screen_rect(
+                        &m.rect, scale, bounds.x, bounds.y,
+                    );
+                    let is_active = self.active_search_match.is_some_and(|active| {
+                        active.line_index == m.line_index
+                            && active.char_start == m.char_start
+                            && active.char_end == m.char_end
+                    });
+
+                    if is_active {
+                        renderer.fill_quad(
+                            renderer::Quad {
+                                bounds: rect,
+                                border: Border {
+                                    radius: crate::ui::theme::tokens::radius::XS.into(),
+                                    width: 1.5,
+                                    color: active_border_color,
+                                },
+                                shadow: Shadow::default(),
+                                snap: false,
+                            },
+                            Background::Color(active_color),
+                        );
+                    } else {
+                        renderer.fill_quad(
+                            renderer::Quad {
+                                bounds: rect,
+                                border: Border {
+                                    radius: crate::ui::theme::tokens::radius::XS.into(),
+                                    width: 0.0,
+                                    color: Color::TRANSPARENT,
+                                },
+                                shadow: Shadow::default(),
+                                snap: false,
+                            },
+                            Background::Color(normal_color),
+                        );
+                    }
                 }
             });
         }

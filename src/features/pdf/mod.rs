@@ -9,6 +9,7 @@ pub mod lazy_handler;
 pub mod page_view;
 pub mod parser;
 pub mod rich_text;
+pub mod search;
 pub mod selection;
 pub mod state;
 pub mod types;
@@ -23,6 +24,7 @@ pub use lazy_handler::lazy_load_pages;
 pub use page_view::PdfPageWidget;
 pub use parser::*;
 pub use rich_text::extract_selected_content;
+pub use search::{PdfSearchMatch, PdfSearchState, SEARCH_INPUT_ID};
 pub use selection::{
     PdfChar, PdfLine, PdfPageText, PdfPosition, PdfSelection, compute_selection_rects,
     extract_selected_text,
