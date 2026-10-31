@@ -80,7 +80,11 @@ fn strip_rust_fn_modifiers(mut s: &str) -> &str {
         if let Some(rest) = s.strip_prefix("async ") {
             s = rest.trim_start();
         } else if s.starts_with("const fn ") || s.starts_with("const unsafe ") {
-            s = s.strip_prefix("const ").unwrap().trim_start();
+            if let Some(rest) = s.strip_prefix("const ") {
+                s = rest.trim_start();
+            } else {
+                break;
+            }
         } else if let Some(rest) = s.strip_prefix("unsafe ") {
             s = rest.trim_start();
         } else if let Some(rest) = s.strip_prefix("extern ") {

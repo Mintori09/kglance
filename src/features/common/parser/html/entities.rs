@@ -20,7 +20,9 @@ pub fn decode_html_entities_only(text: &str) -> String {
                     found_semi = true;
                     break;
                 } else if next_ch.is_alphanumeric() || next_ch == '#' {
-                    entity_buf.push(chars.next().unwrap());
+                    if let Some(ch) = chars.next() {
+                        entity_buf.push(ch);
+                    }
                     if entity_buf.len() > 16 {
                         break;
                     }
