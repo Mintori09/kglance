@@ -160,6 +160,17 @@ fn update_file_metadata(state: &mut KglanceState) {
 }
 
 impl PreviewData {
+    pub fn supports_sidebar(&self) -> bool {
+        matches!(
+            self,
+            PreviewData::Markdown { .. }
+                | PreviewData::Epub { .. }
+                | PreviewData::Pdf { .. }
+                | PreviewData::Typst { .. }
+                | PreviewData::Text { .. }
+        )
+    }
+
     pub fn populate_state(&self, state: &mut KglanceState) {
         update_file_metadata(state);
 

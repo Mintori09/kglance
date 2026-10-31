@@ -483,20 +483,28 @@ impl KglanceApp {
         self.reset_scroll_pending();
         self.state.file_tree.visible = false;
 
-        match self.current_content {
-            Some(PreviewData::Markdown { .. }) => Some(Task::done(
+        match self.current_content.as_ref()? {
+            PreviewData::Markdown { .. } => Some(Task::done(
                 crate::app::messages::MarkdownMsg::TocToggled.into(),
             )),
-            Some(PreviewData::Epub { .. }) => Some(Task::done(
+            PreviewData::Epub { .. } => Some(Task::done(
                 crate::app::messages::EpubMsg::SidebarToggled.into(),
             )),
-            Some(PreviewData::Pdf { .. }) | Some(PreviewData::Typst { .. }) => Some(Task::done(
+            PreviewData::Pdf { .. } | PreviewData::Typst { .. } => Some(Task::done(
                 crate::app::messages::PdfMsg::SidebarToggled.into(),
             )),
-            Some(PreviewData::Text { .. }) => Some(Task::done(
+            PreviewData::Text { .. } => Some(Task::done(
                 crate::app::messages::TextMsg::ToggleOutline.into(),
             )),
-            _ => None,
+            PreviewData::Image { .. }
+            | PreviewData::Audio { .. }
+            | PreviewData::Media { .. }
+            | PreviewData::Folder { .. }
+            | PreviewData::Spreadsheet { .. }
+            | PreviewData::Json { .. }
+            | PreviewData::Font { .. }
+            | PreviewData::Model3d(_)
+            | PreviewData::Error(_) => None,
         }
     }
 
