@@ -59,6 +59,8 @@ pub fn trim_process_memory() {
             unsafe extern "C" {
                 fn malloc_trim(pad: usize) -> i32;
             }
+            // SAFETY: `malloc_trim` is a standard GNU C library extension function that releases
+            // free memory back to the operating system; passing 0 is always well-defined.
             unsafe {
                 malloc_trim(0);
             }

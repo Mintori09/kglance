@@ -110,7 +110,10 @@ unsafe extern "C" {
 
 pub fn empty_mupdf_store() {
     let ctx = mupdf::Context::get();
+    // SAFETY: MuPDF's `Context` struct contains a single raw pointer field wrapping `fz_context`.
+    // Transmuting to `*mut c_void` matches the memory representation of the inner C context.
     let raw_ctx: *mut std::ffi::c_void = unsafe { std::mem::transmute(ctx) };
+    // SAFETY: Calling `fz_empty_store` on a valid initialized MuPDF context drops cached resources in MuPDF's store.
     unsafe {
         fz_empty_store(raw_ctx);
     }

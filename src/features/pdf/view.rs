@@ -120,14 +120,30 @@ pub fn view_pdf<'a>(
         crate::app::messages::PdfMsg::Scrolled(vp).into()
     });
 
-    with_sidebar_layout(
+    let main_view = with_sidebar_layout(
         state.sidebar_visible,
         state.sidebar_resizing,
         theme,
         || render_pdf_sidebar(state, theme),
         pages_view,
         Message::SidebarDragStarted,
-    )
+    );
+
+    if state.goto_page.is_visible {
+        let goto_layer = crate::features::pdf::goto_dialog::view_goto_dialog(
+            &state.goto_page,
+            state.page_count,
+            font_size,
+        );
+        iced::widget::Stack::new()
+            .push(main_view)
+            .push(goto_layer)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    } else {
+        main_view
+    }
 }
 
 pub fn view_pdf_pages<'a>(

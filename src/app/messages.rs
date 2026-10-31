@@ -138,6 +138,10 @@ pub enum PdfMsg {
     SelectionDragEnd,
     SelectionClear,
     AutoScrollTick,
+    GotoPageOpen,
+    GotoPageClose,
+    GotoPageInputChanged(String),
+    GotoPageSubmit,
 }
 
 #[derive(Debug, Clone)]

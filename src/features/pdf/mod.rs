@@ -2,6 +2,7 @@ pub mod cache;
 pub mod compress;
 pub mod dimensions;
 pub mod geometry;
+pub mod goto_dialog;
 pub mod handler;
 pub mod layout;
 pub mod lazy_handler;
@@ -16,6 +17,7 @@ pub mod view;
 pub mod viewport;
 
 pub use cache::PdfDiskCache;
+pub use goto_dialog::{GotoPageState, view_goto_dialog};
 pub use handler::lazy_load_thumbnails;
 pub use lazy_handler::lazy_load_pages;
 pub use page_view::PdfPageWidget;

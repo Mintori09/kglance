@@ -30,6 +30,8 @@ impl MmapFile {
             });
         }
 
+        // SAFETY: The file descriptor is owned and valid for the duration of the mapping.
+        // Reading memory-mapped files is safe when external truncation or concurrent modification is absent or handled.
         match unsafe { memmap2::MmapOptions::new().map(&file) } {
             Ok(mmap) => Ok(Self {
                 storage: MmapStorage::Mapped(mmap),

@@ -166,7 +166,9 @@ struct Uniforms {
     _pad: [f32; 8],
 }
 
+// SAFETY: Uniforms is `#[repr(C)]`, composed strictly of `f32` primitives with no uninit bytes, references, or padding invariants.
 unsafe impl bytemuck::Pod for Uniforms {}
+// SAFETY: All fields of Uniforms are valid when all zero bytes.
 unsafe impl bytemuck::Zeroable for Uniforms {}
 
 pub struct Model3dPipeline {

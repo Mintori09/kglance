@@ -421,6 +421,9 @@ impl KglanceApp {
             Some(PreviewData::Text { .. }) => {
                 Some(crate::features::text::update::handle_goto_line_toggle(self))
             }
+            Some(PreviewData::Pdf { .. }) => {
+                Some(crate::features::pdf::update::handle_goto_page_open(self))
+            }
             _ => None,
         }
     }

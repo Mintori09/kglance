@@ -850,6 +850,40 @@ pub fn reset_pdf_width(pdf: &mut crate::core::PdfState, window_width: f32) -> Ta
     )
 }
 
+pub fn handle_goto_page_open(app: &mut KglanceApp) -> Task<Message> {
+    let pdf_state = active_pdf_state_mut(app);
+    let current_page = pdf_state
+        .visible_page
+        .load(std::sync::atomic::Ordering::Relaxed);
+    pdf_state.goto_page.open(current_page);
+    iced::widget::operation::focus(crate::features::pdf::goto_dialog::GOTO_PAGE_INPUT_ID)
+}
+
+pub fn handle_goto_page_close(app: &mut KglanceApp) -> Task<Message> {
+    let pdf_state = active_pdf_state_mut(app);
+    pdf_state.goto_page.close();
+    Task::none()
+}
+
+pub fn handle_goto_page_input_changed(app: &mut KglanceApp, input: String) -> Task<Message> {
+    let pdf_state = active_pdf_state_mut(app);
+    pdf_state.goto_page.set_input(input);
+    Task::none()
+}
+
+pub fn handle_goto_page_submit(app: &mut KglanceApp) -> Task<Message> {
+    let pdf_state = active_pdf_state_mut(app);
+    let total_pages = pdf_state.page_count;
+    if let Some(target_page) = pdf_state.goto_page.parse_target_page(total_pages) {
+        pdf_state.current_page = target_page;
+        pdf_state.goto_page.close();
+        scroll_to_page(app, target_page)
+    } else {
+        pdf_state.goto_page.has_error = true;
+        Task::none()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -935,5 +969,64 @@ mod tests {
 
         let _ = handle_auto_scroll_tick(&mut app);
         assert_eq!(app.state.pdf.scroll_y, 120.0);
+    }
+
+    #[test]
+    fn test_handle_goto_page_workflow() {
+        let mut app = test_app(None);
+        app.current_content = Some(crate::core::PreviewData::Pdf {
+            page_count: 5,
+            current_page: 0,
+            data: Vec::new(),
+            width: 100,
+            height: 100,
+            outline: Vec::new(),
+            page_dimensions: Vec::new(),
+            first_page_text: None,
+        });
+        app.state.pdf.page_count = 5;
+        app.state.pdf.page_y_offsets = vec![0.0, 500.0, 1000.0, 1500.0, 2000.0];
+        app.state.pdf.page_ends = vec![500.0, 1000.0, 1500.0, 2000.0, 2500.0];
+        app.state.pdf.total_content_height = 2500.0;
+        app.state.pdf.viewport_height = 600.0;
+        app.state.pdf.current_page = 0;
+        app.state
+            .pdf
+            .visible_page
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+
+        // 1. Open goto page
+        let _ = handle_goto_page_open(&mut app);
+        assert!(app.state.pdf.goto_page.is_visible);
+        assert_eq!(app.state.pdf.goto_page.input_value, "1");
+
+        // 2. Change input to "4"
+        let _ = handle_goto_page_input_changed(&mut app, "4".to_string());
+        assert_eq!(app.state.pdf.goto_page.input_value, "4");
+
+        // 3. Submit valid page
+        let _ = handle_goto_page_submit(&mut app);
+        assert!(!app.state.pdf.goto_page.is_visible);
+        assert_eq!(app.state.pdf.current_page, 3);
+        assert_eq!(
+            app.state
+                .pdf
+                .visible_page
+                .load(std::sync::atomic::Ordering::Relaxed),
+            3
+        );
+        assert_eq!(app.state.pdf.scroll_y, 1500.0);
+        assert_eq!(app.state.pdf.scroll_controller.position_y(), 1500.0);
+
+        // 4. Invalid input submits error
+        let _ = handle_goto_page_open(&mut app);
+        let _ = handle_goto_page_input_changed(&mut app, "99".to_string());
+        let _ = handle_goto_page_submit(&mut app);
+        assert!(app.state.pdf.goto_page.is_visible);
+        assert!(app.state.pdf.goto_page.has_error);
+
+        // 5. Close dialog
+        let _ = handle_goto_page_close(&mut app);
+        assert!(!app.state.pdf.goto_page.is_visible);
     }
 }

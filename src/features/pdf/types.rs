@@ -354,6 +354,7 @@ pub struct PdfState {
     pub auto_scroll_delta: Option<f32>,
     pub drag_last_x: f32,
     pub drag_last_y: f32,
+    pub goto_page: crate::features::pdf::goto_dialog::GotoPageState,
 }
 
 impl PdfState {
@@ -429,6 +430,7 @@ impl Default for PdfState {
             auto_scroll_delta: None,
             drag_last_x: 0.0,
             drag_last_y: 0.0,
+            goto_page: crate::features::pdf::goto_dialog::GotoPageState::default(),
         }
     }
 }

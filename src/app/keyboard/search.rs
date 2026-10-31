@@ -83,6 +83,7 @@ impl KglanceApp {
             Some(PreviewData::Markdown { .. }) => self.state.markdown.search_visible,
             Some(PreviewData::Spreadsheet { .. }) => self.state.spreadsheet.search_visible,
             Some(PreviewData::Folder { .. }) => self.state.folder.search_visible,
+            Some(PreviewData::Pdf { .. }) => self.state.pdf.goto_page.is_visible,
             _ => false,
         }
     }
@@ -140,6 +141,9 @@ impl KglanceApp {
             }
             Some(PreviewData::Folder { .. }) if self.state.folder.search_visible => {
                 self.close_folder_search();
+            }
+            Some(PreviewData::Pdf { .. }) if self.state.pdf.goto_page.is_visible => {
+                self.state.pdf.goto_page.close();
             }
             _ => {}
         }

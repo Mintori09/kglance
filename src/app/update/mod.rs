@@ -454,6 +454,18 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::PdfMsg::AutoScrollTick => {
                 crate::features::pdf::update::handle_auto_scroll_tick(app)
             }
+            crate::app::messages::PdfMsg::GotoPageOpen => {
+                crate::features::pdf::update::handle_goto_page_open(app)
+            }
+            crate::app::messages::PdfMsg::GotoPageClose => {
+                crate::features::pdf::update::handle_goto_page_close(app)
+            }
+            crate::app::messages::PdfMsg::GotoPageInputChanged(input) => {
+                crate::features::pdf::update::handle_goto_page_input_changed(app, input)
+            }
+            crate::app::messages::PdfMsg::GotoPageSubmit => {
+                crate::features::pdf::update::handle_goto_page_submit(app)
+            }
         },
         Message::Typst(msg) => match msg {
             crate::app::messages::TypstMsg::Scrolled(vp) => {

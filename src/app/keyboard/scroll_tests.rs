@@ -606,3 +606,38 @@ fn test_pdf_wheel_scrolled_when_smooth_scroll_disabled() {
     assert!(!app.state.pdf.smooth_scroll.is_animating());
     assert_eq!(app.state.pdf.smooth_scroll.position_y(), 0.0);
 }
+
+#[test]
+fn test_pdf_g_shortcut_opens_goto_page_dialog() {
+    let mut app = test_app(Some(crate::core::PreviewData::Pdf {
+        page_count: 10,
+        current_page: 2,
+        data: Vec::new(),
+        width: 100,
+        height: 100,
+        outline: Vec::new(),
+        page_dimensions: Vec::new(),
+        first_page_text: None,
+    }));
+    app.state.pdf.page_count = 10;
+    app.state.pdf.current_page = 2;
+    app.state
+        .pdf
+        .visible_page
+        .store(2, std::sync::atomic::Ordering::Relaxed);
+    assert!(!app.state.pdf.goto_page.is_visible);
+
+    let g_key = iced::keyboard::Key::Character("g".into());
+    let modifiers = iced::keyboard::Modifiers::default();
+
+    // 1. Press 'g' in PDF -> opens goto page dialog immediately
+    let _ = app.handle_key_pressed(g_key, modifiers);
+    assert!(app.state.pdf.goto_page.is_visible);
+    assert_eq!(app.state.pdf.goto_page.input_value, "3");
+    assert!(!app.pending_g);
+
+    // 2. Press Escape closes dialog
+    let esc_key = iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape);
+    let _ = app.handle_key_pressed(esc_key, modifiers);
+    assert!(!app.state.pdf.goto_page.is_visible);
+}
