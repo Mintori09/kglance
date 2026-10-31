@@ -14,30 +14,12 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             app.state.theme_setting = t.clone();
             app.state.app_theme = ConfigManager::resolve_theme(&t);
             let theme = app.state.app_theme;
-            let text_scroll = app.state.text.scroll_y;
-            app.state.text.syntax_cache.clear();
-            app.state.text.cached_tokens.clear();
-            crate::features::text::update_tokens_for_viewport(
-                &mut app.state.text,
-                text_scroll,
-                theme,
-            );
-            let json_scroll = app.state.json.raw_text.scroll_y;
-            app.state.json.raw_text.syntax_cache.clear();
-            app.state.json.raw_text.cached_tokens.clear();
-            crate::features::text::update_tokens_for_viewport(
-                &mut app.state.json.raw_text,
-                json_scroll,
-                theme,
-            );
-            let typst_scroll = app.state.typst.source_text.scroll_y;
-            app.state.typst.source_text.syntax_cache.clear();
-            app.state.typst.source_text.cached_tokens.clear();
-            crate::features::text::update_tokens_for_viewport(
-                &mut app.state.typst.source_text,
-                typst_scroll,
-                theme,
-            );
+            app.state.for_each_text_state_mut(|st| {
+                let scroll = st.scroll_y;
+                st.syntax_cache.clear();
+                st.cached_tokens.clear();
+                crate::features::text::update_tokens_for_viewport(st, scroll, theme);
+            });
             let _ = app.save_current_config();
             Task::none()
         }
@@ -48,30 +30,11 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             let theme = app.state.app_theme;
             let word_wrap = app.state.word_wrap;
 
-            crate::features::text::rescale_text_geometry(
-                &mut app.state.text,
-                old_size,
-                s,
-                word_wrap,
-                win_w,
-                theme,
-            );
-            crate::features::text::rescale_text_geometry(
-                &mut app.state.json.raw_text,
-                old_size,
-                s,
-                word_wrap,
-                win_w,
-                theme,
-            );
-            crate::features::text::rescale_text_geometry(
-                &mut app.state.typst.source_text,
-                old_size,
-                s,
-                word_wrap,
-                win_w,
-                theme,
-            );
+            app.state.for_each_text_state_mut(|st| {
+                crate::features::text::rescale_text_geometry(
+                    st, old_size, s, word_wrap, win_w, theme,
+                );
+            });
             if let Some(crate::core::PreviewData::Markdown { blocks, .. }) = &app.current_content {
                 let content_width = app.state.markdown_content_width();
                 crate::features::markdown::rescale_and_update_markdown_layout(
@@ -174,30 +137,11 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             let theme = app.state.app_theme;
             let word_wrap = app.state.word_wrap;
 
-            crate::features::text::rescale_text_geometry(
-                &mut app.state.text,
-                old_size,
-                s,
-                word_wrap,
-                win_w,
-                theme,
-            );
-            crate::features::text::rescale_text_geometry(
-                &mut app.state.json.raw_text,
-                old_size,
-                s,
-                word_wrap,
-                win_w,
-                theme,
-            );
-            crate::features::text::rescale_text_geometry(
-                &mut app.state.typst.source_text,
-                old_size,
-                s,
-                word_wrap,
-                win_w,
-                theme,
-            );
+            app.state.for_each_text_state_mut(|st| {
+                crate::features::text::rescale_text_geometry(
+                    st, old_size, s, word_wrap, win_w, theme,
+                );
+            });
             let _ = app.save_current_config();
             Task::none()
         }
@@ -671,30 +615,17 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             };
             let theme = app.state.app_theme;
             let word_wrap = app.state.word_wrap;
-            crate::features::text::rescale_text_geometry(
-                &mut app.state.text,
-                old_size,
-                default_config.ui.font_size,
-                word_wrap,
-                win_w,
-                theme,
-            );
-            crate::features::text::rescale_text_geometry(
-                &mut app.state.json.raw_text,
-                old_size,
-                default_config.ui.font_size,
-                word_wrap,
-                win_w,
-                theme,
-            );
-            crate::features::text::rescale_text_geometry(
-                &mut app.state.typst.source_text,
-                old_size,
-                default_config.ui.font_size,
-                word_wrap,
-                win_w,
-                theme,
-            );
+            let target_size = default_config.ui.font_size;
+            app.state.for_each_text_state_mut(|st| {
+                crate::features::text::rescale_text_geometry(
+                    st,
+                    old_size,
+                    target_size,
+                    word_wrap,
+                    win_w,
+                    theme,
+                );
+            });
             crate::features::sheet::update::rescale_spreadsheet_geometry(
                 &mut app.state.spreadsheet,
                 old_size,

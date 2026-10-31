@@ -68,6 +68,11 @@ impl Default for KglanceApp {
 }
 
 impl KglanceApp {
+    #[inline]
+    pub fn is_window_active(&self) -> bool {
+        !self.is_daemon || self.window_id.is_some()
+    }
+
     pub fn current_config(&self) -> crate::core::config::AppConfig {
         crate::core::config::AppConfig {
             ui: crate::core::config::UiConfig {

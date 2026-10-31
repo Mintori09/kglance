@@ -1,6 +1,7 @@
 use iced::widget::{button, column, container, pick_list, row, text, text_input, toggler};
 use iced::{Alignment, Element, Font, Theme};
 
+use super::build_setting_row;
 use crate::app::messages::{CustomActionEditorMsg, Message, SettingsMsg};
 use crate::core::config::{EpubReadingMode, RubyDisplayMode, UiConfig};
 use crate::core::selection_action::{CustomActionEditorState, SelectionMenuConfig};
@@ -551,38 +552,4 @@ pub fn previews_tab<'a>(
     column![doc_card, selection_card, code_card, trash_card]
         .spacing(spacing::M)
         .into()
-}
-
-fn build_setting_row<'a>(
-    title: &'static str,
-    desc: &'static str,
-    control: impl Into<Element<'a, Message>>,
-    main_font: Font,
-    text_color: iced::Color,
-    dim_color: iced::Color,
-) -> Element<'a, Message> {
-    row![
-        column![
-            text(title)
-                .size(13)
-                .font(main_font)
-                .style(move |_| iced::widget::text::Style {
-                    color: Some(text_color)
-                }),
-            text(desc)
-                .size(11)
-                .font(main_font)
-                .style(move |_| iced::widget::text::Style {
-                    color: Some(dim_color)
-                }),
-        ]
-        .spacing(spacing::XXS)
-        .width(iced::Length::Fill),
-        container(control)
-            .width(250.0)
-            .align_x(iced::alignment::Horizontal::Right),
-    ]
-    .align_y(Alignment::Center)
-    .spacing(spacing::M)
-    .into()
 }

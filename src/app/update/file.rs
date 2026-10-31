@@ -71,14 +71,7 @@ pub fn handle_daemon_open_with_playlist(
     app.state.trash_config = config.trash;
     app.state.keybinding_config = config.keybindings;
 
-    if !playlist.is_empty() {
-        app.state.playlist = playlist;
-        if let Some(pos) = app.state.playlist.iter().position(|p| p == &path) {
-            app.state.current_index = pos;
-        } else {
-            app.state.current_index = 0;
-        }
-    }
+    app.state.set_playlist(playlist, &path);
     let file_task = app.handle_file_loaded(path, content);
     let window_tasks = Task::batch(app.prepare_window_tasks());
     Task::batch(vec![file_task, window_tasks])
@@ -89,7 +82,7 @@ pub fn handle_daemon_update_window(
     path: String,
     content: PreviewData,
 ) -> Task<Message> {
-    if app.is_daemon && app.window_id.is_none() {
+    if !app.is_window_active() {
         return Task::none();
     }
     app.state.file_tree.update_external_path(Path::new(&path));
@@ -110,7 +103,7 @@ pub fn handle_daemon_update_with_playlist(
     content: PreviewData,
     playlist: Vec<String>,
 ) -> Task<Message> {
-    if app.is_daemon && app.window_id.is_none() {
+    if !app.is_window_active() {
         return Task::none();
     }
     handle_daemon_open_with_playlist(app, path, content, playlist)
@@ -129,14 +122,7 @@ pub fn handle_daemon_open_loading(
     app.current_content = None;
     app.state.reset_content_state_for_loading(path.clone());
 
-    if !playlist.is_empty() {
-        app.state.playlist = playlist;
-        if let Some(pos) = app.state.playlist.iter().position(|p| p == &path) {
-            app.state.current_index = pos;
-        } else {
-            app.state.current_index = 0;
-        }
-    }
+    app.state.set_playlist(playlist, &path);
 
     let load_task = crate::app::update::navigation::load_file_task(app, path, |err_path| {
         crate::app::messages::SystemMsg::FilePreviewError(err_path).into()
@@ -150,7 +136,7 @@ pub fn handle_daemon_update_loading(
     path: String,
     playlist: Vec<String>,
 ) -> Task<Message> {
-    if app.is_daemon && app.window_id.is_none() {
+    if !app.is_window_active() {
         return Task::none();
     }
     handle_daemon_open_loading(app, path, playlist)
@@ -166,7 +152,7 @@ pub fn handle_file_preview_error(app: &mut KglanceApp, path: String) -> Task<Mes
 }
 
 pub fn handle_active_file_modified(app: &mut KglanceApp, path: String) -> Task<Message> {
-    if app.is_daemon && app.window_id.is_none() {
+    if !app.is_window_active() {
         return Task::none();
     }
 
@@ -185,7 +171,7 @@ pub fn handle_active_file_modified(app: &mut KglanceApp, path: String) -> Task<M
 }
 
 pub fn handle_active_file_deleted(app: &mut KglanceApp, path: String) -> Task<Message> {
-    if app.is_daemon && app.window_id.is_none() {
+    if !app.is_window_active() {
         return Task::none();
     }
 
@@ -209,7 +195,7 @@ pub fn handle_active_file_deleted(app: &mut KglanceApp, path: String) -> Task<Me
 }
 
 pub fn handle_directory_changed(app: &mut KglanceApp, dir: std::path::PathBuf) -> Task<Message> {
-    if app.is_daemon && app.window_id.is_none() {
+    if !app.is_window_active() {
         return Task::none();
     }
 
@@ -256,7 +242,7 @@ pub fn handle_directory_sync_completed(
     new_playlist: Vec<String>,
     generation_id: usize,
 ) -> Task<Message> {
-    if app.is_daemon && app.window_id.is_none() {
+    if !app.is_window_active() {
         return Task::none();
     }
 
