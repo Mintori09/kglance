@@ -656,7 +656,7 @@ fn test_pdf_wheel_scrolled_when_smooth_scroll_disabled() {
 }
 
 #[test]
-fn test_pdf_g_shortcut_opens_goto_page_dialog() {
+fn test_pdf_ctrl_g_and_gg_behavior() {
     let mut app = test_app(Some(crate::core::PreviewData::Pdf {
         page_count: 10,
         current_page: 2,
@@ -676,16 +676,26 @@ fn test_pdf_g_shortcut_opens_goto_page_dialog() {
     assert!(!app.state.pdf.goto_page.is_visible);
 
     let g_key = iced::keyboard::Key::Character("g".into());
-    let modifiers = iced::keyboard::Modifiers::default();
+    let default_modifiers = iced::keyboard::Modifiers::default();
+    let ctrl_modifiers = iced::keyboard::Modifiers::CTRL;
 
-    // 1. Press 'g' in PDF -> opens goto page dialog immediately
-    let _ = app.handle_key_pressed(g_key, modifiers);
+    // 1. Press 'g' once in PDF -> sets pending_g, does NOT open goto page
+    let _ = app.handle_key_pressed(g_key.clone(), default_modifiers);
+    assert!(app.pending_g);
+    assert!(!app.state.pdf.goto_page.is_visible);
+
+    // 2. Press 'g' again in PDF -> gg snaps to top and clears pending_g
+    let _ = app.handle_key_pressed(g_key.clone(), default_modifiers);
+    assert!(!app.pending_g);
+    assert!(!app.state.pdf.goto_page.is_visible);
+
+    // 3. Press Ctrl+G in PDF -> opens goto page dialog
+    let _ = app.handle_key_pressed(g_key, ctrl_modifiers);
     assert!(app.state.pdf.goto_page.is_visible);
     assert_eq!(app.state.pdf.goto_page.input_value, "3");
-    assert!(!app.pending_g);
 
-    // 2. Press Escape closes dialog
+    // 4. Press Escape closes dialog
     let esc_key = iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape);
-    let _ = app.handle_key_pressed(esc_key, modifiers);
+    let _ = app.handle_key_pressed(esc_key, default_modifiers);
     assert!(!app.state.pdf.goto_page.is_visible);
 }

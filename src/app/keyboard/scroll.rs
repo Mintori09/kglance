@@ -367,11 +367,6 @@ impl KglanceApp {
     fn handle_g_shortcut(&mut self) -> Option<Task<Message>> {
         self.pending_home = false;
 
-        if matches!(self.current_content, Some(PreviewData::Pdf { .. })) {
-            self.pending_g = false;
-            return Some(crate::features::pdf::update::handle_goto_page_open(self));
-        }
-
         if self.pending_g {
             self.pending_g = false;
             Some(self.snap_to_top())
