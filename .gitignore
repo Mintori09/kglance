@@ -16,3 +16,13 @@ roadmap.md
 repomix.config.json
 repomix-output.*
 assets_test/*
+.agy_logs/
+
+# Agent & workflow scripts/artifacts
+.agents/
+prd.json*
+progress.txt
+prompt.md
+ralph.sh
+
+
