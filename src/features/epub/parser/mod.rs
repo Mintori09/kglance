@@ -253,8 +253,10 @@ pub fn load_all_chapters_and_images_from_epub(
             }
             if !blocks.is_empty() {
                 if ch_idx > 0
-                    && crate::features::epub::anchor::chapter_header_blocks_count(chapters, ch_idx)
-                        > 0
+                    && crate::features::epub::anchor::chapter_header_blocks_count(
+                        &loaded_chapters,
+                        loaded_chapters.len(),
+                    ) > 0
                 {
                     // Block::HorizontalRule is inserted
                     continuous_block_offset += 1;
@@ -554,9 +556,18 @@ fn build_lazy_chapters_from_spine<R: Read + Seek>(
                                 last_end = end;
                                 blocks[start_idx..end].to_vec()
                             }
-                            _ => {
+                            Some(_) => {
+                                // end <= start_idx: invalid or inverted offset, take slice until next valid boundary or start_idx
+                                blocks[start_idx..start_idx].to_vec()
+                            }
+                            None if h_idx + 1 == total_headings => {
+                                // Truly the last heading in file, consume to the end
                                 last_end = blocks.len();
                                 blocks[start_idx..].to_vec()
+                            }
+                            None => {
+                                // Intermediate heading missing subsequent end_idx: preserve blocks for next headings
+                                blocks[start_idx..start_idx].to_vec()
                             }
                         };
 
@@ -712,7 +723,7 @@ fn block_contains_anchor(block: &Block, anchor: &str) -> bool {
         Block::Html(h) => html_contains_anchor(h, anchor),
         Block::Heading { content, .. } | Block::Paragraph(content) => {
             let text = flatten_inlines(content);
-            html_contains_anchor(&text, anchor) || text.contains(anchor)
+            html_contains_anchor(&text, anchor)
         }
         Block::Quote(sub) | Block::Alert { content: sub, .. } => {
             sub.iter().any(|b| block_contains_anchor(b, anchor))
@@ -720,7 +731,6 @@ fn block_contains_anchor(block: &Block, anchor: &str) -> bool {
         Block::List { items, .. } => items.iter().any(|item| {
             let text = flatten_inlines(&item.content);
             html_contains_anchor(&text, anchor)
-                || text.contains(anchor)
                 || item
                     .sub_blocks
                     .iter()
@@ -729,11 +739,11 @@ fn block_contains_anchor(block: &Block, anchor: &str) -> bool {
         Block::Table(table) => {
             table.headers.iter().any(|h| {
                 let text = flatten_inlines(&h.content);
-                html_contains_anchor(&text, anchor) || text.contains(anchor)
+                html_contains_anchor(&text, anchor)
             }) || table.rows.iter().any(|row| {
                 row.iter().any(|cell| {
                     let text = flatten_inlines(&cell.content);
-                    html_contains_anchor(&text, anchor) || text.contains(anchor)
+                    html_contains_anchor(&text, anchor)
                 })
             })
         }
