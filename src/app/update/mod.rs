@@ -111,6 +111,36 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 }
                 iced::Task::none()
             }
+            crate::app::messages::SystemMsg::FrameRendered(_at) => {
+                if let Some(start_time) = app.bench_start_time
+                    && app.state.content_ready
+                    && app.current_content.is_some()
+                {
+                    let elapsed = start_time.elapsed();
+                    app.bench_start_time = None;
+                    let ms = elapsed.as_secs_f64() * 1000.0;
+                    let tier = match ms {
+                        t if t < 100.0 => "\x1b[32m🟢 [FAST] (< 100ms)\x1b[0m",
+                        t if t <= 300.0 => "\x1b[33m🟡 [ACCEPTABLE] (100-300ms)\x1b[0m",
+                        _ => "\x1b[31m🔴 [SLOW] (> 300ms)\x1b[0m",
+                    };
+
+                    if let Some(ref tx) = app.perf_tx {
+                        let _ = tx.try_send(crate::dbus::PreviewDisplayedEvent {
+                            file_path: app.state.file_name.clone(),
+                            render_time_ms: ms.round() as u64,
+                        });
+                    }
+
+                    if app.is_bench_mode {
+                        println!("\n[BENCHMARK] Target: {}", app.state.file_name);
+                        println!("  Status:              {}", tier);
+                        println!("  Time-to-First-Frame: {:.2} ms\n", ms);
+                        std::process::exit(0);
+                    }
+                }
+                iced::Task::none()
+            }
         },
         Message::Navigation(msg) => match msg {
             crate::app::messages::NavigationMsg::PrevFileClicked => {

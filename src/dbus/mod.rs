@@ -10,6 +10,28 @@ pub const DEFAULT_DBUS_NAME: &str = "org.mintori.Kglance";
 pub const DEFAULT_DBUS_PATH: &str = "/org/mintori/Kglance";
 pub const DEFAULT_DBUS_INTERFACE: &str = "org.mintori.Kglance";
 
+#[derive(Debug, Clone)]
+pub struct PreviewDisplayedEvent {
+    pub file_path: String,
+    pub render_time_ms: u64,
+}
+
+pub fn quit_via_dbus() -> Result<(), Box<dyn std::error::Error>> {
+    quit_via_dbus_to(DEFAULT_DBUS_NAME)
+}
+
+pub fn quit_via_dbus_to(service_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let conn = zbus::blocking::Connection::session()?;
+    let _ = conn.call_method(
+        Some(service_name),
+        DEFAULT_DBUS_PATH,
+        Some(DEFAULT_DBUS_INTERFACE),
+        "Quit",
+        &(),
+    );
+    Ok(())
+}
+
 pub fn send_via_dbus(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     send_via_dbus_to(DEFAULT_DBUS_NAME, path)
 }
@@ -154,8 +176,9 @@ pub async fn run_zbus(
     registry: Arc<ParserRegistry>,
     tx: tokio::sync::mpsc::Sender<DaemonCommand>,
     is_gui_open: Arc<std::sync::atomic::AtomicBool>,
+    perf_rx: Option<tokio::sync::mpsc::Receiver<PreviewDisplayedEvent>>,
 ) -> Result<(), String> {
-    run_zbus_with_name(DEFAULT_DBUS_NAME, registry, tx, is_gui_open).await
+    run_zbus_with_name(DEFAULT_DBUS_NAME, registry, tx, is_gui_open, perf_rx).await
 }
 
 pub async fn run_zbus_with_name(
@@ -163,10 +186,11 @@ pub async fn run_zbus_with_name(
     registry: Arc<ParserRegistry>,
     tx: tokio::sync::mpsc::Sender<DaemonCommand>,
     is_gui_open: Arc<std::sync::atomic::AtomicBool>,
+    perf_rx: Option<tokio::sync::mpsc::Receiver<PreviewDisplayedEvent>>,
 ) -> Result<(), String> {
     log_info!("DBus: Starting zbus connection setup for {service_name}...");
     let service = DaemonService::new(registry, tx, is_gui_open);
-    let _conn = zbus::connection::Builder::session()
+    let conn = zbus::connection::Builder::session()
         .map_err(|e| {
             log_error!("DBus error during session build: {e}");
             format!("session: {e}")
@@ -189,6 +213,19 @@ pub async fn run_zbus_with_name(
         })?;
 
     log_info!("DBus: zbus service successfully running and serving {service_name}");
+
+    if let Some(mut rx) = perf_rx {
+        let emitter = zbus::object_server::SignalEmitter::new(&conn, DEFAULT_DBUS_PATH)
+            .map_err(|e| format!("emitter: {e}"))?;
+        tokio::spawn(async move {
+            while let Some(evt) = rx.recv().await {
+                let _ =
+                    DaemonService::preview_displayed(&emitter, &evt.file_path, evt.render_time_ms)
+                        .await;
+            }
+        });
+    }
+
     std::future::pending::<()>().await;
 
     Ok(())

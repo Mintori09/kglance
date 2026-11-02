@@ -17,6 +17,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     let is_standalone = args.iter().any(|s| s == "--standalone" || s == "-s");
+    let is_bench = args
+        .iter()
+        .any(|s| s == "--bench" || s == "--profile-startup");
+    let is_force_daemon = args.iter().any(|s| s == "--daemon" || s == "-d");
+
+    if is_bench {
+        if file_paths.is_empty() {
+            eprintln!("Usage: kglance --bench [--daemon|--standalone] <file-path>");
+            std::process::exit(1);
+        }
+        if is_force_daemon {
+            return run_bench_daemon(&file_paths[0]);
+        } else {
+            return run_bench_standalone(&file_paths[0]);
+        }
+    }
 
     match args.get(1).map(|s| s.as_str()) {
         Some("version" | "-v" | "--version") => {
@@ -126,6 +142,7 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     log_info!("Initializing daemon...");
     let registry = Arc::new(build_registry());
     let (tx, rx) = tokio::sync::mpsc::channel::<dbus::DaemonCommand>(100);
+    let (perf_tx, perf_rx) = tokio::sync::mpsc::channel::<kglance::dbus::PreviewDisplayedEvent>(32);
 
     let is_gui_open = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let daemon_gui_open = is_gui_open.clone();
@@ -140,7 +157,12 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
                 return;
             }
         };
-        if let Err(e) = rt.block_on(dbus::run_zbus(zbus_registry, tx, daemon_gui_open)) {
+        if let Err(e) = rt.block_on(dbus::run_zbus(
+            zbus_registry,
+            tx,
+            daemon_gui_open,
+            Some(perf_rx),
+        )) {
             log_error!("zbus daemon error: {e}");
         }
     });
@@ -159,8 +181,20 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     log_info!("Running Iced daemon (no initial window)...");
     let reg = registry.clone();
     let rx = std::cell::Cell::new(Some(rx));
+    let daemon_config = config.clone();
     iced::daemon(
-        move || KglanceApp::new(reg.clone(), rx.take(), &[], true, is_gui_open.clone()),
+        move || {
+            let (mut app, task) = KglanceApp::new(
+                reg.clone(),
+                rx.take(),
+                &[],
+                true,
+                is_gui_open.clone(),
+                Some(daemon_config.clone()),
+            );
+            app.perf_tx = Some(perf_tx.clone());
+            (app, task)
+        },
         KglanceApp::update,
         KglanceApp::view_daemon,
     )
@@ -175,8 +209,16 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    run_standalone_internal(paths, None)
+}
+
+fn run_standalone_internal(
+    paths: &[String],
+    bench_start_time: Option<std::time::Instant>,
+) -> Result<(), Box<dyn std::error::Error>> {
     log_info!("Running standalone preview for: {:?}", paths);
-    let start_time = std::time::Instant::now();
+    let start_time = bench_start_time.unwrap_or_else(std::time::Instant::now);
+    let is_bench = bench_start_time.is_some();
     let registry = std::sync::Arc::new(build_registry());
 
     let owned_paths: Vec<String> = paths.to_vec();
@@ -220,10 +262,21 @@ fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     log_info!("Running Iced GUI in standalone mode...");
     let reg = registry.clone();
     let is_gui_open = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let standalone_config = config.clone();
     iced::application(
         move || {
-            let (app, task) =
-                KglanceApp::new(reg.clone(), None, &owned_paths, false, is_gui_open.clone());
+            let (mut app, task) = KglanceApp::new(
+                reg.clone(),
+                None,
+                &owned_paths,
+                false,
+                is_gui_open.clone(),
+                Some(standalone_config.clone()),
+            );
+            if is_bench {
+                app.is_bench_mode = true;
+                app.bench_start_time = Some(start_time);
+            }
             let duration = start_time.elapsed();
             log_info!("[PERF] PreviewWindow GUI initialized in: {:?}", duration);
             (app, task)
@@ -251,4 +304,103 @@ fn run_standalone(paths: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
     log_info!("Standalone event loop quit.");
     Ok(())
+}
+
+fn run_bench_standalone(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let paths = vec![path.to_string()];
+    run_standalone_internal(&paths, Some(std::time::Instant::now()))
+}
+
+fn run_bench_daemon(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let t0 = std::time::Instant::now();
+    let mut _temp_guard = None;
+
+    if dbus::is_gui_open().is_err() {
+        println!("[BENCH] Daemon is not running. Spawning temporary daemon...");
+        let current_exe = std::env::current_exe()?;
+        let mut cmd = std::process::Command::new(current_exe);
+        cmd.arg("daemon");
+
+        #[cfg(target_os = "linux")]
+        unsafe {
+            use std::os::unix::process::CommandExt;
+            cmd.pre_exec(|| {
+                libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+                Ok(())
+            });
+        }
+
+        let child = cmd.spawn()?;
+        struct TempDaemon(std::process::Child);
+        impl Drop for TempDaemon {
+            fn drop(&mut self) {
+                let _ = kglance::dbus::quit_via_dbus();
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+        _temp_guard = Some(TempDaemon(child));
+
+        let wait_start = std::time::Instant::now();
+        while dbus::is_gui_open().is_err() {
+            if wait_start.elapsed() > std::time::Duration::from_secs(4) {
+                return Err("Timeout waiting for temporary daemon to acquire DBus name".into());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(15));
+        }
+    }
+
+    println!("[BENCH] Connecting to DBus Session Bus...");
+    let conn = zbus::blocking::Connection::session()?;
+    let proxy: zbus::blocking::Proxy = zbus::blocking::Proxy::new(
+        &conn,
+        kglance::dbus::DEFAULT_DBUS_NAME,
+        kglance::dbus::DEFAULT_DBUS_PATH,
+        kglance::dbus::DEFAULT_DBUS_INTERFACE,
+    )?;
+
+    let mut signal_iterator = proxy.receive_signal("PreviewDisplayed")?;
+    let start_bench = std::time::Instant::now();
+    let _ = kglance::dbus::send_via_dbus(path);
+
+    // Wait for signal with 5-second timeout
+    let timeout = std::time::Duration::from_secs(5);
+    let wait_start = std::time::Instant::now();
+
+    while wait_start.elapsed() < timeout {
+        if let Some(msg) = signal_iterator.next() {
+            let total_dur = start_bench.elapsed();
+            let (_file, daemon_ms): (String, u64) = msg.body().deserialize().unwrap_or_default();
+            let total_ms = total_dur.as_secs_f64() * 1000.0;
+            let tier = match total_ms {
+                t if t < 100.0 => "\x1b[32m🟢 [FAST] (< 100ms)\x1b[0m",
+                t if t <= 300.0 => "\x1b[33m🟡 [ACCEPTABLE] (100-300ms)\x1b[0m",
+                _ => "\x1b[31m🔴 [SLOW] (> 300ms)\x1b[0m",
+            };
+
+            println!("\n[BENCHMARK] Mode: Daemon | Target: {path}");
+            println!("  Status:              {tier}");
+            println!(
+                "  Time-to-First-Frame: {:.2} ms (Daemon render: {daemon_ms} ms)",
+                total_ms
+            );
+            println!(
+                "  Overall Duration:    {:.2} ms\n",
+                t0.elapsed().as_secs_f64() * 1000.0
+            );
+
+            // Clean up: hide/close window on daemon
+            let _ = conn.call_method(
+                Some(kglance::dbus::DEFAULT_DBUS_NAME),
+                kglance::dbus::DEFAULT_DBUS_PATH,
+                Some(kglance::dbus::DEFAULT_DBUS_INTERFACE),
+                "HidePreview",
+                &(),
+            );
+            return Ok(());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+
+    Err("Timed out waiting for PreviewDisplayed DBus signal".into())
 }
