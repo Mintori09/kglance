@@ -143,6 +143,13 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
         },
         Message::Navigation(msg) => match msg {
+            crate::app::messages::NavigationMsg::TriggerDelayedPreload => {
+                if app.current_content.is_none() {
+                    iced::Task::none()
+                } else {
+                    app.trigger_preload()
+                }
+            }
             crate::app::messages::NavigationMsg::PrevFileClicked => {
                 navigation::handle_prev_file(app)
             }
