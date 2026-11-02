@@ -24,7 +24,8 @@ pub fn extract_ncx_navpoints(ncx_xml: &str) -> Vec<NcxNavPoint> {
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(ref e)) => {
-                if e.name().as_ref().eq_ignore_ascii_case("navpoint") {
+                let tag_name = e.local_name();
+                if tag_name.as_ref().eq_ignore_ascii_case("navpoint") {
                     let level = (stack.len() as u8 + 1).max(1);
                     stack.push(NavPointFrame {
                         level,
@@ -32,15 +33,25 @@ pub fn extract_ncx_navpoints(ncx_xml: &str) -> Vec<NcxNavPoint> {
                         src: None,
                         emitted: false,
                     });
-                } else if e.name().as_ref().eq_ignore_ascii_case("text") {
+                } else if tag_name.as_ref().eq_ignore_ascii_case("text") {
                     inside_label_text = true;
                     current_text.clear();
+                } else if tag_name.as_ref().eq_ignore_ascii_case("content") {
+                    for attr in e.attributes().flatten() {
+                        if attr.key.local_name().as_ref().eq_ignore_ascii_case("src")
+                            && let Some(frame) = stack.last_mut()
+                        {
+                            frame.src = Some(attr.value.to_string());
+                            try_emit_navpoint(frame, &mut entries);
+                        }
+                    }
                 }
             }
             Ok(Event::Empty(ref e)) => {
-                if e.name().as_ref().eq_ignore_ascii_case("content") {
+                let tag_name = e.local_name();
+                if tag_name.as_ref().eq_ignore_ascii_case("content") {
                     for attr in e.attributes().flatten() {
-                        if attr.key.as_ref().eq_ignore_ascii_case("src")
+                        if attr.key.local_name().as_ref().eq_ignore_ascii_case("src")
                             && let Some(frame) = stack.last_mut()
                         {
                             frame.src = Some(attr.value.to_string());
@@ -50,18 +61,24 @@ pub fn extract_ncx_navpoints(ncx_xml: &str) -> Vec<NcxNavPoint> {
                 }
             }
             Ok(Event::End(ref e)) => {
-                if e.name().as_ref().eq_ignore_ascii_case("text") {
+                let tag_name = e.local_name();
+                if tag_name.as_ref().eq_ignore_ascii_case("text") {
                     inside_label_text = false;
                     let clean = current_text.trim().to_string();
                     if let Some(frame) = stack.last_mut() {
                         frame.label = Some(clean);
                         try_emit_navpoint(frame, &mut entries);
                     }
-                } else if e.name().as_ref().eq_ignore_ascii_case("navpoint") {
+                } else if tag_name.as_ref().eq_ignore_ascii_case("navpoint") {
                     stack.pop();
                 }
             }
             Ok(Event::Text(ref e)) => {
+                if inside_label_text {
+                    current_text.push_str(e.as_ref());
+                }
+            }
+            Ok(Event::CData(ref e)) => {
                 if inside_label_text {
                     current_text.push_str(e.as_ref());
                 }
@@ -83,13 +100,22 @@ pub fn decode_url_component(s: &str) -> String {
         if b == b'%' {
             let h1 = chars.next();
             let h2 = chars.next();
-            if let (Some(h1), Some(h2)) = (h1, h2)
+            if let (Some(h1_b), Some(h2_b)) = (h1, h2)
                 && let Ok(val) =
-                    u8::from_str_radix(std::str::from_utf8(&[h1, h2]).unwrap_or(""), 16)
+                    u8::from_str_radix(std::str::from_utf8(&[h1_b, h2_b]).unwrap_or(""), 16)
             {
                 bytes.push(val);
                 continue;
             }
+            // Invalid percent encoding: push '%' and restore any consumed characters
+            bytes.push(b'%');
+            if let Some(h1_b) = h1 {
+                bytes.push(h1_b);
+            }
+            if let Some(h2_b) = h2 {
+                bytes.push(h2_b);
+            }
+            continue;
         }
         bytes.push(b);
     }
@@ -104,7 +130,8 @@ fn try_emit_navpoint(frame: &mut NavPointFrame, entries: &mut Vec<NcxNavPoint>) 
         && !label.is_empty()
     {
         let mut parts = src.split('#');
-        let file_part = parts.next().unwrap_or(src).to_string();
+        let raw_file = parts.next().unwrap_or(src);
+        let file_part = decode_url_component(raw_file);
         let anchor = parts
             .next()
             .map(|a| decode_url_component(a.trim_start_matches('#')));
@@ -132,22 +159,23 @@ pub fn extract_epub3_navpoints(nav_html: &str) -> Vec<NcxNavPoint> {
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(ref e)) => {
-                if e.name().as_ref().eq_ignore_ascii_case("nav") {
+                let tag_name = e.local_name();
+                if tag_name.as_ref().eq_ignore_ascii_case("nav") {
                     for attr in e.attributes().flatten() {
                         if attr.value.to_ascii_lowercase().contains("toc") {
                             inside_toc_nav = true;
                         }
                     }
                 } else if inside_toc_nav {
-                    if e.name().as_ref().eq_ignore_ascii_case("ol")
-                        || e.name().as_ref().eq_ignore_ascii_case("ul")
+                    if tag_name.as_ref().eq_ignore_ascii_case("ol")
+                        || tag_name.as_ref().eq_ignore_ascii_case("ul")
                     {
                         list_depth += 1;
-                    } else if e.name().as_ref().eq_ignore_ascii_case("a") {
+                    } else if tag_name.as_ref().eq_ignore_ascii_case("a") {
                         inside_a = true;
                         current_text.clear();
                         for attr in e.attributes().flatten() {
-                            if attr.key.as_ref().eq_ignore_ascii_case("href") {
+                            if attr.key.local_name().as_ref().eq_ignore_ascii_case("href") {
                                 current_href = Some(attr.value.to_string());
                             }
                         }
@@ -155,21 +183,23 @@ pub fn extract_epub3_navpoints(nav_html: &str) -> Vec<NcxNavPoint> {
                 }
             }
             Ok(Event::End(ref e)) => {
-                if e.name().as_ref().eq_ignore_ascii_case("nav") && inside_toc_nav {
+                let tag_name = e.local_name();
+                if tag_name.as_ref().eq_ignore_ascii_case("nav") && inside_toc_nav {
                     inside_toc_nav = false;
                 } else if inside_toc_nav {
-                    if (e.name().as_ref().eq_ignore_ascii_case("ol")
-                        || e.name().as_ref().eq_ignore_ascii_case("ul"))
+                    if (tag_name.as_ref().eq_ignore_ascii_case("ol")
+                        || tag_name.as_ref().eq_ignore_ascii_case("ul"))
                         && list_depth > 0
                     {
                         list_depth -= 1;
-                    } else if e.name().as_ref().eq_ignore_ascii_case("a") && inside_a {
+                    } else if tag_name.as_ref().eq_ignore_ascii_case("a") && inside_a {
                         inside_a = false;
                         if let Some(href) = current_href.take() {
                             let clean_label = current_text.trim().to_string();
                             if !clean_label.is_empty() {
                                 let mut parts = href.split('#');
-                                let file_part = parts.next().unwrap_or(&href).to_string();
+                                let raw_file = parts.next().unwrap_or(&href);
+                                let file_part = decode_url_component(raw_file);
                                 let anchor = parts
                                     .next()
                                     .map(|a| decode_url_component(a.trim_start_matches('#')));
@@ -181,6 +211,11 @@ pub fn extract_epub3_navpoints(nav_html: &str) -> Vec<NcxNavPoint> {
                 }
             }
             Ok(Event::Text(ref e)) => {
+                if inside_toc_nav && inside_a {
+                    current_text.push_str(e.as_ref());
+                }
+            }
+            Ok(Event::CData(ref e)) => {
                 if inside_toc_nav && inside_a {
                     current_text.push_str(e.as_ref());
                 }
