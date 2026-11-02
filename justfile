@@ -1,6 +1,7 @@
 git_root := `git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git$||'`
 export CARGO_TARGET_DIR := env_var_or_default("CARGO_TARGET_DIR", git_root + "/target")
 export RUSTFLAGS := "-C link-arg=-fuse-ld=mold " + env_var_or_default("RUSTFLAGS", "")
+export LIBCLANG_PATH := env_var_or_default("LIBCLANG_PATH", "/usr/lib")
 
 all: build test clippy fmt-check kglance
 
@@ -15,7 +16,11 @@ push: ci
 
 build:
     cargo build --all
-    notify-send "Build successfully!"
+    -cargo sweep -m 12GB
+    -notify-send "Build successfully!"
+
+sweep size="12GB":
+    cargo sweep -m {{size}}
 
 test *ARGS:
     cargo nextest run --test-threads 3 {{ARGS}}
@@ -51,7 +56,8 @@ restart-daemon:
 
 release:
     cargo build --release
-    notify-send "Build successfully!"
+    -cargo sweep -m 12GB
+    -notify-send "Build successfully!"
 
 deploy:
     ./scripts/deploy-daemon.sh
