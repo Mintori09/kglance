@@ -224,6 +224,7 @@ pub fn handle_epub_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task<Mes
     let new_w = width.clamp(DEFAULT_MIN_SIDEBAR_WIDTH, DEFAULT_MAX_SIDEBAR_WIDTH);
     if (app.state.epub.sidebar_width - new_w).abs() > 1.0 {
         app.state.epub.sidebar_width = new_w;
+        crate::features::epub::view::sidebar::rebuild_chapter_y_offsets(&mut app.state.epub);
         let content_width = app.state.epub_content_width();
         let old_y = app.state.epub.markdown_state.scroll_y;
         if app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
