@@ -64,14 +64,22 @@ pub fn handle_sibling_files_loaded(app: &mut KglanceApp, files: Vec<String>) -> 
             let (updated_thumbnails, thumb_tasks) =
                 crate::app::update::grid::sync_grid_thumbnails(old_thumbnails, &app.state.playlist);
             app.state.view_mode = crate::core::ViewMode::Grid(updated_thumbnails);
-            let preload_task = app.trigger_preload();
             let mut tasks = thumb_tasks;
-            tasks.push(preload_task);
+            tasks.push(schedule_delayed_preload());
             return Task::batch(tasks);
         }
-        return app.trigger_preload();
+        return schedule_delayed_preload();
     }
     Task::none()
+}
+
+fn schedule_delayed_preload() -> Task<Message> {
+    Task::perform(
+        async {
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        },
+        |_| crate::app::messages::NavigationMsg::TriggerDelayedPreload.into(),
+    )
 }
 
 fn transition_to_file(app: &mut KglanceApp, path: String) -> Task<Message> {

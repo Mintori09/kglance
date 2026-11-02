@@ -27,6 +27,7 @@ pub enum NavigationMsg {
     FileClicked(usize),
     FolderScrolled(iced::widget::scrollable::Viewport),
     OpenPath(String),
+    TriggerDelayedPreload,
 }
 
 #[derive(Debug, Clone)]
