@@ -137,9 +137,11 @@ pub fn is_slow_to_parse(path: &Path) -> bool {
         // Audio & Video
         "mp4" | "mkv" | "avi" | "mov" | "wmv" | "webm" | "mp3" | "wav" | "flac" | "ogg" | "aac"
         | "m4a" | "opus" => true,
+        // Database files (avoid blocking synchronous preview)
+        "sqlite" | "sqlite3" | "db" => true,
         _ => {
             if let Ok(meta) = path.metadata() {
-                meta.len() > 512 * 1024
+                meta.len() > 128 * 1024
             } else {
                 false
             }

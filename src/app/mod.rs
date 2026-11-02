@@ -41,6 +41,9 @@ pub struct KglanceApp {
     pub file_watcher: Option<crate::core::file_watcher::FileWatcher>,
     pub config_path: Option<std::path::PathBuf>,
     pub read_positions_path: Option<std::path::PathBuf>,
+    pub bench_start_time: Option<std::time::Instant>,
+    pub is_bench_mode: bool,
+    pub perf_tx: Option<tokio::sync::mpsc::Sender<crate::dbus::PreviewDisplayedEvent>>,
 }
 
 impl Default for KglanceApp {
@@ -63,6 +66,9 @@ impl Default for KglanceApp {
             file_watcher: None,
             config_path: None,
             read_positions_path: None,
+            bench_start_time: None,
+            is_bench_mode: false,
+            perf_tx: None,
         }
     }
 }
@@ -157,11 +163,13 @@ impl KglanceApp {
         initial_paths: &[String],
         is_daemon: bool,
         is_gui_open: Arc<std::sync::atomic::AtomicBool>,
+        preloaded_config: Option<crate::core::config::AppConfig>,
     ) -> (Self, Task<Message>) {
         let file_watcher = crate::core::file_watcher::FileWatcher::new().ok();
 
         let config_path = crate::core::config::ConfigManager::get_config_path();
-        let config = crate::core::config::ConfigManager::load_from_path(&config_path);
+        let config = preloaded_config
+            .unwrap_or_else(|| crate::core::config::ConfigManager::load_from_path(&config_path));
         let theme_setting = crate::core::config::ConfigManager::get_theme_setting(&config);
         let app_theme = crate::core::config::ConfigManager::resolve_theme(&theme_setting);
         let read_positions_path = crate::core::read_positions::ReadPositions::file_path();
@@ -206,9 +214,6 @@ impl KglanceApp {
         state.json.tree_mode = config.ui.json_tree_view;
         state.apply_scroll_config(&config.scroll);
 
-        // Pre-warm system fonts cache in background to avoid blocking first UI render of settings
-        std::thread::spawn(crate::ui::views::setting_page::get_system_fonts);
-
         if !initial_paths.is_empty() {
             state.playlist = initial_paths.to_vec();
             state.current_index = 0;
@@ -238,6 +243,9 @@ impl KglanceApp {
             file_watcher,
             config_path: Some(config_path),
             read_positions_path: Some(read_positions_path),
+            bench_start_time: None,
+            is_bench_mode: false,
+            perf_tx: None,
         };
 
         let task = if !initial_paths.is_empty() {
@@ -1393,6 +1401,13 @@ impl KglanceApp {
             Subscription::none()
         };
 
+        let bench_frame_sub = if self.bench_start_time.is_some() {
+            iced::window::frames()
+                .map(|now| crate::app::messages::SystemMsg::FrameRendered(now).into())
+        } else {
+            Subscription::none()
+        };
+
         Subscription::batch(vec![
             dbus_sub,
             event_sub,
@@ -1411,6 +1426,7 @@ impl KglanceApp {
             markdown_anim_sub,
             image_anim_sub,
             model3d_anim_sub,
+            bench_frame_sub,
         ])
     }
 
@@ -1519,6 +1535,9 @@ pub(crate) mod test_util {
             file_watcher: None,
             config_path: None,
             read_positions_path: None,
+            bench_start_time: None,
+            is_bench_mode: false,
+            perf_tx: None,
         }
     }
 

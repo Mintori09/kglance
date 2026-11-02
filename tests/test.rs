@@ -19,7 +19,7 @@ async fn setup_mock_daemon(
 
     tokio::spawn(async move {
         let is_gui_open = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let _ = run_zbus_with_name(&name, registry, tx, is_gui_open).await;
+        let _ = run_zbus_with_name(&name, registry, tx, is_gui_open, None).await;
     });
 
     let start_wait = std::time::Instant::now();

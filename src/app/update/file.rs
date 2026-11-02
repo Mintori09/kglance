@@ -64,6 +64,7 @@ pub fn handle_daemon_open_with_playlist(
     content: PreviewData,
     playlist: Vec<String>,
 ) -> Task<Message> {
+    app.bench_start_time = Some(std::time::Instant::now());
     let config = app.load_config();
     app.state.apply_scroll_config(&config.scroll);
     app.state.file_tree.update_external_path(Path::new(&path));
@@ -114,6 +115,7 @@ pub fn handle_daemon_open_loading(
     path: String,
     playlist: Vec<String>,
 ) -> Task<Message> {
+    app.bench_start_time = Some(std::time::Instant::now());
     let config = app.load_config();
     app.state.apply_scroll_config(&config.scroll);
     app.state.file_tree.update_external_path(Path::new(&path));

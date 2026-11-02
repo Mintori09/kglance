@@ -83,6 +83,13 @@ impl DaemonService {
 
 #[interface(name = "org.mintori.Kglance")]
 impl DaemonService {
+    #[zbus(signal)]
+    pub async fn preview_displayed(
+        emitter: &zbus::object_server::SignalEmitter<'_>,
+        file_path: &str,
+        render_time_ms: u64,
+    ) -> zbus::Result<()>;
+
     async fn is_gui_open(&self) -> zbus::fdo::Result<bool> {
         Ok(self.is_gui_open.load(std::sync::atomic::Ordering::Acquire))
     }
@@ -355,6 +362,11 @@ impl DaemonService {
                 zbus::fdo::Error::Failed("Internal error".into())
             })?;
         Ok(())
+    }
+
+    async fn quit(&mut self) -> zbus::fdo::Result<()> {
+        log_info!("DaemonService: quit request received");
+        std::process::exit(0);
     }
 }
 
