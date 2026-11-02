@@ -1617,21 +1617,21 @@ fn test_paragraph_height_estimation_prose() {
         "Nhìn thấy thông báo này, lời từ chối bên mép hắn lại một lần nữa biến thành sự thỏa hiệp bất đắc dĩ.".to_string(),
     )]);
     let h1 = estimated_block_height(&p1, font_size, 0, &image_sizes, content_width);
-    // 1 line * (14.0 * 1.5) + pad_v (6.0) + margin (10.0) = 37.0
-    assert_eq!(h1, 37.0);
+    // 1 line * (14.0 * 1.55 = 21.7) + pad_v (6.0) + margin (10.0) = 37.7
+    assert!((h1 - 37.7).abs() < 1e-3, "Expected ~37.7, got {h1}");
 
     // Short single line
     let p2 = Block::Paragraph(vec![Inline::Text("“Được rồi.”".to_string())]);
     let h2 = estimated_block_height(&p2, font_size, 1, &image_sizes, content_width);
-    assert_eq!(h2, 37.0);
+    assert!((h2 - 37.7).abs() < 1e-3, "Expected ~37.7, got {h2}");
 
     // Multi-line paragraph exceeding single line capacity
     let p3 = Block::Paragraph(vec![Inline::Text(
         "Cố Thành Minh thầm nghĩ trong lòng: Ngay cả ngươi cũng hối thúc bản thảo mãnh liệt thế này thì làm sao ta nỡ từ chối được chứ?".to_string(),
     )]);
     let h3 = estimated_block_height(&p3, font_size, 2, &image_sizes, content_width);
-    // 2 lines * 21.0 + 16.0 = 58.0
-    assert_eq!(h3, 58.0);
+    // 2 lines * 21.7 + 16.0 = 59.4
+    assert!((h3 - 59.4).abs() < 1e-3, "Expected ~59.4, got {h3}");
 }
 
 #[test]

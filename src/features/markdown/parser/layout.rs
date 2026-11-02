@@ -91,7 +91,7 @@ pub fn intrinsic_block_height(
     content_width: f32,
 ) -> f32 {
     let scale = |s: f32| scale_size(s, font_size);
-    let line = font_size * 1.5;
+    let line = font_size * 1.55;
     let effective_width = if content_width > 0.0 {
         content_width
     } else {

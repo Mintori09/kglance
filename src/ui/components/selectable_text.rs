@@ -516,7 +516,7 @@ where
                     state.plain_text.push_str(&span.text);
                 }
 
-                let line_height_val = if self.rubies.is_empty() { 1.5 } else { 1.85 };
+                let line_height_val = if self.rubies.is_empty() { 1.55 } else { 1.90 };
                 let text_input = Text {
                     content: &self.spans[..],
                     bounds: Size::new(max_width, f32::INFINITY),
