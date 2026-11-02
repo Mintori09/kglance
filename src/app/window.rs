@@ -62,6 +62,12 @@ impl KglanceApp {
             self.save_current_config_logged("close");
         }
 
+        if let Some(ref watcher) = self.file_watcher {
+            let _ = watcher
+                .cmd_tx
+                .send(crate::core::file_watcher::WatchCommand::Unwatch);
+        }
+
         self.clear_media();
         self.current_content = None;
         self.state.reset_content_state();
@@ -266,6 +272,12 @@ impl KglanceApp {
     }
 
     fn handle_window_close_requested(&mut self, window_id: window::Id) -> Task<Message> {
+        if let Some(ref watcher) = self.file_watcher {
+            let _ = watcher
+                .cmd_tx
+                .send(crate::core::file_watcher::WatchCommand::Unwatch);
+        }
+
         self.clear_media();
         if self.is_daemon {
             if self.state.remember_window_size {
