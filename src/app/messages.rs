@@ -339,6 +339,7 @@ pub enum SystemMsg {
     ReadPositionsTick,
     SpinnerTick,
     FrameRendered(std::time::Instant),
+    PrewarmWindowOpened(iced::window::Id),
 }
 
 #[derive(Debug, Clone)]
