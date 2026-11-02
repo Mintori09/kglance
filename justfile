@@ -36,6 +36,12 @@ watch +COMMAND='test':
 run +arg=".":
     cargo run --bin kglance -- --standalone "{{arg}}"
 
+run-release +arg=".":
+    cargo run --release --bin kglance -- --standalone "{{arg}}"
+
+run-bench +arg=".":
+    cargo run --release --bin kglance -- --daemon --bench "{{arg}}"
+
 dev +arg=".":
     cargo run --bin kglance -- "{{arg}}"
 

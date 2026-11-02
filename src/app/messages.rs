@@ -27,6 +27,7 @@ pub enum NavigationMsg {
     FileClicked(usize),
     FolderScrolled(iced::widget::scrollable::Viewport),
     OpenPath(String),
+    TriggerDelayedPreload,
 }
 
 #[derive(Debug, Clone)]
@@ -337,6 +338,7 @@ pub enum SystemMsg {
     WindowResized(f32, f32),
     ReadPositionsTick,
     SpinnerTick,
+    FrameRendered(std::time::Instant),
 }
 
 #[derive(Debug, Clone)]

@@ -19,7 +19,7 @@ async fn test_dbus_full_lifecycle_ipc() {
     let name_clone = service_name.clone();
 
     tokio::spawn(async move {
-        let _ = run_zbus_with_name(&name_clone, registry, tx, is_gui_open_clone).await;
+        let _ = run_zbus_with_name(&name_clone, registry, tx, is_gui_open_clone, None).await;
     });
 
     // Wait for DBus daemon to register on session bus

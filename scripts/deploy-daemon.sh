@@ -9,7 +9,7 @@ INSTALL_DEST="/usr/bin/kglance"
 
 echo "==> Building kglance (release mode)..."
 cd "$PROJECT_ROOT"
-cargo build --release
+just release
 
 if [ ! -f "$TARGET_RELEASE" ]; then
     echo "Error: Release binary not found at $TARGET_RELEASE" >&2
