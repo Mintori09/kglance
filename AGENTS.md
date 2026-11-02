@@ -15,9 +15,10 @@ You are a senior Rust engineer developing Kglance (Oxiview), a high-performance 
 # General Rules
 
 - Check for and read `AGENTS.local.md` (if present) at the start of any session or task for local context, preferences, and guidelines.
+- Always prefer using `just` recipes defined in `justfile` instead of raw `cargo` commands (e.g. `just build`, `just test`, `just clippy`, `just fmt-check`, `just release`, `just sweep`), as `justfile` configures essential environment variables (`LIBCLANG_PATH`, `mold` linker, target cache sweep, etc.).
 - Never run `cargo clean`.
 - Never auto commit except i tell you do it.
-- Use cargo nextest instead of cargo test with under 3 thread per run.
+- Use `just test` (or cargo nextest with under 3 threads per run) instead of cargo test.
 - Run `just build` after finishing (normally takes 2m30s).
 - Never poll a backgrounded job (`sleep` / `ps` / `pgrep` / `top` / status polling loops) — do other work or stop calling tools/end your reply; the harness will wake you with its output when finished.
 
