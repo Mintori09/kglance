@@ -48,6 +48,7 @@ pub struct EpubState {
     pub markdown_state: MarkdownState,
     pub sidebar_tab: EpubSidebarTab,
     pub lightbox: Option<EpubLightboxState>,
+    pub chapter_y_offsets: Vec<f32>,
 }
 
 impl EpubState {
@@ -84,6 +85,7 @@ impl Default for EpubState {
             markdown_state: MarkdownState::default(),
             sidebar_tab: EpubSidebarTab::default(),
             lightbox: None,
+            chapter_y_offsets: Vec::new(),
         }
     }
 }

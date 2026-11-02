@@ -512,9 +512,20 @@ pub fn estimate_chapter_entry_height(
     let extra_w = ENTRY_PADDING_LEFT_BASE + indent + ENTRY_PADDING_RIGHT + 22.0;
     let available_w = (sidebar_width - extra_w).max(80.0);
 
-    // Approximate average char width (~0.54 of font size for proportional fonts)
-    let avg_char_w = title_font_size * 0.54;
-    let approx_text_w = title.chars().count() as f32 * avg_char_w;
+    // Approximate char width (~0.54 for proportional Latin/ASCII, ~1.0 for CJK/Fullwidth)
+    let approx_text_w: f32 = title
+        .chars()
+        .map(|c| {
+            let cp = c as u32;
+            if (0x0300..=0x036F).contains(&cp) || cp == 0x200B || cp == 0xFEFF {
+                0.0
+            } else if cp >= 0x2E80 {
+                title_font_size * 1.0
+            } else {
+                title_font_size * 0.54
+            }
+        })
+        .sum();
     let lines = (approx_text_w / available_w).ceil().max(1.0);
 
     let line_height = title_font_size * 1.35;
@@ -522,8 +533,8 @@ pub fn estimate_chapter_entry_height(
     (ENTRY_PADDING_TOP + ENTRY_PADDING_BOTTOM + content_h).max(CHAPTER_ROW_HEIGHT)
 }
 
-/// Calculates the target scroll offset in the chapter sidebar to keep the active chapter centered.
-pub fn calculate_chapter_target_scroll_y(state: &EpubState, active_idx: usize) -> f32 {
+/// Rebuilds precomputed center Y coordinates for every chapter in the sidebar.
+pub fn rebuild_chapter_y_offsets(state: &mut EpubState) {
     let has_hierarchy = state.chapters.windows(2).any(|w| w[1].level > w[0].level);
     let sidebar_w = if state.sidebar_width > 0.0 {
         state.sidebar_width
@@ -531,23 +542,16 @@ pub fn calculate_chapter_target_scroll_y(state: &EpubState, active_idx: usize) -
         240.0
     };
 
+    let mut offsets = Vec::with_capacity(state.chapters.len());
     let mut accumulated_y = CHAPTER_LIST_PADDING;
     let mut skip_until_level: Option<u8> = None;
-
-    // Viewport height of sidebar (with sensible fallback)
-    let vh = state.markdown_state.viewport_height;
-    let center_offset = if vh > 0.0 {
-        (vh * 0.40).max(60.0)
-    } else {
-        CHAPTER_SCROLL_CENTER_OFFSET
-    };
+    let mut last_visible_center = accumulated_y;
 
     for (index, chapter) in state.chapters.iter().enumerate() {
         if let Some(target_level) = skip_until_level {
             if chapter.level > target_level {
-                if index == active_idx {
-                    return (accumulated_y - center_offset).max(0.0);
-                }
+                // If collapsed, store the parent's center so scrolling here centers on the parent
+                offsets.push(last_visible_center);
                 continue;
             }
             skip_until_level = None;
@@ -555,12 +559,9 @@ pub fn calculate_chapter_target_scroll_y(state: &EpubState, active_idx: usize) -
 
         let entry_h =
             estimate_chapter_entry_height(&chapter.title, chapter.level, has_hierarchy, sidebar_w);
-
-        if index == active_idx {
-            // Center the entry by its middle position
-            let entry_center = accumulated_y + (entry_h * 0.5);
-            return (entry_center - center_offset).max(0.0);
-        }
+        let entry_center = accumulated_y + (entry_h * 0.5);
+        last_visible_center = entry_center;
+        offsets.push(entry_center);
 
         let has_children = state
             .chapters
@@ -576,7 +577,23 @@ pub fn calculate_chapter_target_scroll_y(state: &EpubState, active_idx: usize) -
         accumulated_y += entry_h + CHAPTER_LIST_SPACING;
     }
 
-    (accumulated_y - center_offset).max(0.0)
+    state.chapter_y_offsets = offsets;
+}
+
+/// Calculates the target scroll offset in the chapter sidebar to keep the active chapter centered.
+pub fn calculate_chapter_target_scroll_y(state: &EpubState, active_idx: usize) -> f32 {
+    let vh = state.markdown_state.viewport_height;
+    let center_offset = if vh > 0.0 {
+        (vh * 0.40).max(60.0)
+    } else {
+        CHAPTER_SCROLL_CENTER_OFFSET
+    };
+
+    if let Some(&entry_center) = state.chapter_y_offsets.get(active_idx) {
+        (entry_center - center_offset).max(0.0)
+    } else {
+        0.0
+    }
 }
 
 fn build_sidebar_chapter_list<'a>(
@@ -743,7 +760,7 @@ mod tests {
             },
         ];
 
-        let state = EpubState {
+        let mut state = EpubState {
             chapters,
             sidebar_width: 240.0,
             markdown_state: crate::core::MarkdownState {
@@ -752,6 +769,7 @@ mod tests {
             },
             ..Default::default()
         };
+        rebuild_chapter_y_offsets(&mut state);
 
         // Target for Chapter 0 (at the very top, should clamp to 0.0)
         let y_ch0 = calculate_chapter_target_scroll_y(&state, 0);
@@ -763,5 +781,10 @@ mod tests {
         assert!(h_wrapped > CHAPTER_ROW_HEIGHT);
         // Ensure y_sec took h_wrapped into account
         assert!(y_sec >= 0.0);
+
+        // Test collapse behavior: when chapter 1 is collapsed, section 1.1 should target chapter 1's center
+        state.collapsed_chapters.insert(1);
+        rebuild_chapter_y_offsets(&mut state);
+        assert_eq!(state.chapter_y_offsets[1], state.chapter_y_offsets[2]);
     }
 }

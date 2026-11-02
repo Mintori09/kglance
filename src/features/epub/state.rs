@@ -296,7 +296,9 @@ pub fn populate_state(
         markdown_state,
         sidebar_tab: state.epub.sidebar_tab,
         lightbox: None,
+        chapter_y_offsets: Vec::new(),
     };
+    crate::features::epub::view::sidebar::rebuild_chapter_y_offsets(&mut state.epub);
     state
         .epub
         .markdown_state
