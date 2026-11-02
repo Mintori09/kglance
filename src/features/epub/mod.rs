@@ -1,4 +1,5 @@
 pub mod anchor;
+pub mod lightbox_ops;
 pub mod parser;
 pub mod search;
 pub mod state;
