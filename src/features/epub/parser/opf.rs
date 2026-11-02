@@ -3,10 +3,17 @@ use std::path::Path;
 use super::html::extract_attribute;
 
 pub fn extract_opf_path(xml: &str) -> Option<String> {
-    let tag = "full-path=\"";
-    let start_idx = xml.find(tag)? + tag.len();
-    let length = xml[start_idx..].find('"')?;
-    Some(xml[start_idx..start_idx + length].to_string())
+    if let Some(idx) = xml.find("full-path=\"") {
+        let start_idx = idx + "full-path=\"".len();
+        let length = xml[start_idx..].find('"')?;
+        return Some(xml[start_idx..start_idx + length].to_string());
+    }
+    if let Some(idx) = xml.find("full-path='") {
+        let start_idx = idx + "full-path='".len();
+        let length = xml[start_idx..].find('\'')?;
+        return Some(xml[start_idx..start_idx + length].to_string());
+    }
+    None
 }
 
 pub fn extract_ncx_href(opf_xml: &str) -> Option<String> {
@@ -18,9 +25,14 @@ pub fn extract_ncx_href(opf_xml: &str) -> Option<String> {
 
         let is_ncx = tag.contains("application/x-dtbncx+xml")
             || tag.contains("id=\"ncx\"")
-            || tag.contains("id=\"toc\"");
+            || tag.contains("id='ncx'")
+            || tag.contains("id=\"toc\"")
+            || tag.contains("id='toc'");
 
-        if is_ncx && let Some(href) = extract_attribute(tag, "href=\"") {
+        if is_ncx
+            && let Some(href) =
+                extract_attribute(tag, "href=\"").or_else(|| extract_attribute(tag, "href='"))
+        {
             return Some(href);
         }
         search_str = &search_str[idx + tag_end..];
@@ -36,11 +48,18 @@ pub fn extract_nav_href(opf_xml: &str) -> Option<String> {
         let tag = &search_str[idx..idx + tag_end];
 
         let is_nav = tag.contains("properties=\"nav\"")
+            || tag.contains("properties='nav'")
             || tag.contains("properties=\"toc\"")
+            || tag.contains("properties='toc'")
             || tag.contains("id=\"nav\"")
-            || tag.contains("id=\"toc\"");
+            || tag.contains("id='nav'")
+            || tag.contains("id=\"toc\"")
+            || tag.contains("id='toc'");
 
-        if is_nav && let Some(href) = extract_attribute(tag, "href=\"") {
+        if is_nav
+            && let Some(href) =
+                extract_attribute(tag, "href=\"").or_else(|| extract_attribute(tag, "href='"))
+        {
             return Some(href);
         }
         search_str = &search_str[idx + tag_end..];
@@ -121,21 +140,30 @@ pub fn extract_spine_items(xml: &str) -> Vec<String> {
         let tag_end = search_str[idx..].find('>').unwrap_or(0);
         let tag = &search_str[idx..idx + tag_end];
 
-        if let Some(idref) = extract_attribute(tag, "idref=\"") {
+        if let Some(idref) =
+            extract_attribute(tag, "idref=\"").or_else(|| extract_attribute(tag, "idref='"))
+        {
             item_refs.push(idref);
         }
-        search_str = &search_str[idx + tag_end..];
+        search_str = &search_str[idx + tag_end.max(1)..];
     }
 
     let mut hrefs = Vec::new();
     for ref_id in item_refs {
-        let pattern = format!("id=\"{}\"", ref_id);
-        if let Some(idx) = xml.find(&pattern) {
+        let pattern_double = format!("id=\"{}\"", ref_id);
+        let pattern_single = format!("id='{}'", ref_id);
+        let found_idx = xml
+            .find(&pattern_double)
+            .or_else(|| xml.find(&pattern_single));
+
+        if let Some(idx) = found_idx {
             let tag_start = xml[..idx].rfind("<item").unwrap_or(0);
             let tag_end = xml[idx..].find('>').unwrap_or(0) + idx;
             let tag_content = &xml[tag_start..tag_end];
 
-            if let Some(href) = extract_attribute(tag_content, "href=\"") {
+            if let Some(href) = extract_attribute(tag_content, "href=\"")
+                .or_else(|| extract_attribute(tag_content, "href='"))
+            {
                 hrefs.push(href);
             }
         }

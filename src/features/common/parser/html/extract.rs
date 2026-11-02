@@ -29,7 +29,13 @@ pub fn extract_tag_content(xml: &str, tag_name: &str) -> Option<String> {
 pub fn extract_attribute(text: &str, attr_prefix: &str) -> Option<String> {
     let idx = text.find(attr_prefix)?;
     let start = idx + attr_prefix.len();
-    let end = text[start..].find('"')?;
+    let quote = attr_prefix.chars().last()?;
+    let quote_char = if quote == '\'' || quote == '"' {
+        quote
+    } else {
+        '"'
+    };
+    let end = text[start..].find(quote_char)?;
     Some(text[start..start + end].to_string())
 }
 
