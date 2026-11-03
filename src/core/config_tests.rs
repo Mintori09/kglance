@@ -233,6 +233,19 @@ fn test_theme_resolution() {
     );
     assert_eq!(ConfigManager::resolve_theme("Dracula"), AppTheme::Dracula);
     assert_eq!(ConfigManager::resolve_theme("dracula"), AppTheme::Dracula);
+    assert_eq!(
+        ConfigManager::resolve_theme("Proper Dark"),
+        AppTheme::ProperDark
+    );
+    assert_eq!(
+        ConfigManager::resolve_theme("proper-dark"),
+        AppTheme::ProperDark
+    );
+    assert_eq!(
+        ConfigManager::resolve_theme("proper_dark"),
+        AppTheme::ProperDark
+    );
+    assert_eq!(ConfigManager::resolve_theme("proper"), AppTheme::ProperDark);
     assert_eq!(ConfigManager::resolve_theme("unknown"), AppTheme::Dark);
 }
 
