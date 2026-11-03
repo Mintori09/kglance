@@ -429,14 +429,12 @@ pub fn handle_search_query_changed(app: &mut KglanceApp, query: String) -> Task<
         app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous;
     for m in &matches {
         if is_continuous {
-            let start = app
-                .state
-                .epub
-                .chapter_block_offsets
-                .get(m.chapter_index)
-                .copied()
-                .unwrap_or(0);
-            match_blocks.push(start + m.block_index);
+            let (start, header_count) = continuous_chapter_start_and_header(
+                &app.state.epub.chapters,
+                m.chapter_index,
+                &app.state.epub.chapter_block_offsets,
+            );
+            match_blocks.push(start + header_count + m.block_index);
         } else if m.chapter_index == app.state.epub.active_chapter {
             match_blocks.push(m.block_index);
         }
@@ -504,14 +502,12 @@ fn jump_to_search_match(app: &mut KglanceApp, match_idx: usize) -> Task<Message>
     );
 
     if app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
-        let ch_start = app
-            .state
-            .epub
-            .chapter_block_offsets
-            .get(m.chapter_index)
-            .copied()
-            .unwrap_or(0);
-        let target_block = ch_start + m.block_index;
+        let (ch_start, header_count) = continuous_chapter_start_and_header(
+            &app.state.epub.chapters,
+            m.chapter_index,
+            &app.state.epub.chapter_block_offsets,
+        );
+        let target_block = ch_start + header_count + m.block_index;
         let raw_block_y = app
             .state
             .epub
