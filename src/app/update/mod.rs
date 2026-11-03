@@ -111,12 +111,6 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 }
                 iced::Task::none()
             }
-            crate::app::messages::SystemMsg::PrewarmWindowOpened(id) => {
-                crate::log_info!(
-                    "Daemon prewarm window created, closing immediately to preserve warm compositor."
-                );
-                iced::window::close(id)
-            }
             crate::app::messages::SystemMsg::FrameRendered(_at) => {
                 if let Some(start_time) = app.bench_start_time
                     && app.state.content_ready
