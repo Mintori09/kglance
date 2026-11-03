@@ -280,6 +280,8 @@ fn test_ruby_center_alignment() {
         base_weight: Some(iced::font::Weight::Bold),
         base_style: None,
         base_color: None,
+        base_underline: false,
+        base_strikethrough: false,
         font_size: 24.0,
         ruby_display_mode: crate::core::config::RubyDisplayMode::Stacked,
         footnotes: None,

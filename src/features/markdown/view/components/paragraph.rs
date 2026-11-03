@@ -14,14 +14,23 @@ pub(crate) fn render_paragraph<'a>(
     style: Option<&BlockStyle>,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
-    let (align_x, indent, is_bold, is_italic) = match style {
+    let (align_x, indent, is_bold, is_italic, is_underline, is_strikethrough) = match style {
         Some(s) => (
             s.align.to_horizontal_align(),
             s.text_indent,
             s.is_bold,
             s.is_italic,
+            s.is_underline,
+            s.is_strikethrough,
         ),
-        None => (iced::alignment::Horizontal::Left, 0.0, false, false),
+        None => (
+            iced::alignment::Horizontal::Left,
+            0.0,
+            false,
+            false,
+            false,
+            false,
+        ),
     };
 
     let weight = if is_bold {
@@ -67,6 +76,8 @@ pub(crate) fn render_paragraph<'a>(
         base_color: None,
         align_x,
         prefix_text,
+        base_underline: is_underline,
+        base_strikethrough: is_strikethrough,
     };
 
     let rich = render_inlines_with_options(content, ctx.font_size, opts, ctx);

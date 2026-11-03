@@ -18,6 +18,8 @@ fn test_inlines_to_spans_caching() {
         base_weight: None,
         base_style: None,
         base_color: None,
+        base_underline: false,
+        base_strikethrough: false,
         font_size: 14.0,
         ruby_display_mode: crate::core::config::RubyDisplayMode::Stacked,
         footnotes: None,
@@ -51,6 +53,8 @@ fn test_inlines_to_spans_search_query_bypasses_cache() {
         base_weight: None,
         base_style: None,
         base_color: None,
+        base_underline: false,
+        base_strikethrough: false,
         font_size: 14.0,
         ruby_display_mode: crate::core::config::RubyDisplayMode::Stacked,
         footnotes: None,
@@ -80,6 +84,8 @@ fn test_inlines_to_spans_ruby_display_modes() {
         base_weight: None,
         base_style: None,
         base_color: None,
+        base_underline: false,
+        base_strikethrough: false,
         font_size: 14.0,
         ruby_display_mode: crate::core::config::RubyDisplayMode::Parentheses,
         footnotes: None,
@@ -99,6 +105,8 @@ fn test_inlines_to_spans_ruby_display_modes() {
         base_weight: None,
         base_style: None,
         base_color: None,
+        base_underline: false,
+        base_strikethrough: false,
         font_size: 14.0,
         ruby_display_mode: crate::core::config::RubyDisplayMode::Hidden,
         footnotes: None,
@@ -119,6 +127,8 @@ fn stacked_ctx<'a>(counter: &'a Cell<usize>) -> SpanCtx<'a> {
         base_weight: None,
         base_style: None,
         base_color: None,
+        base_underline: false,
+        base_strikethrough: false,
         font_size: 14.0,
         ruby_display_mode: crate::core::config::RubyDisplayMode::Stacked,
         footnotes: None,
@@ -248,6 +258,8 @@ fn test_extract_tooltips_all_inline_types() {
         base_weight: None,
         base_style: None,
         base_color: None,
+        base_underline: false,
+        base_strikethrough: false,
         font_size: 14.0,
         ruby_display_mode: crate::core::config::RubyDisplayMode::Tooltip,
         footnotes: Some(&footnotes),
@@ -280,6 +292,8 @@ fn test_italic_cjk_preserves_normal_font_style() {
         base_weight: None,
         base_style: None,
         base_color: None,
+        base_underline: false,
+        base_strikethrough: false,
         font_size: 14.0,
         ruby_display_mode: crate::core::config::RubyDisplayMode::Stacked,
         footnotes: None,
@@ -315,4 +329,58 @@ fn test_italic_cjk_preserves_normal_font_style() {
     // Verify the concatenated text matches the original
     let full_text: String = spans.iter().map(|s| s.text.as_ref()).collect();
     assert_eq!(full_text, "(丰 + 刀 + 糸 = chữ 絜 - tay cầm dao)");
+}
+
+#[test]
+fn test_span_cache_key_includes_base_decorations() {
+    let inlines = vec![Inline::Text("Identical shared text".to_string())];
+    let counter = Cell::new(0);
+
+    let ctx_normal = SpanCtx {
+        font_family: None,
+        font_family_mono: None,
+        search_query: "",
+        active_match: 0,
+        counter: &counter,
+        theme: AppTheme::Dark,
+        base_weight: None,
+        base_style: None,
+        base_color: None,
+        base_underline: false,
+        base_strikethrough: false,
+        font_size: 14.0,
+        ruby_display_mode: crate::core::config::RubyDisplayMode::Stacked,
+        footnotes: None,
+    };
+
+    let ctx_underlined = SpanCtx {
+        font_family: None,
+        font_family_mono: None,
+        search_query: "",
+        active_match: 0,
+        counter: &counter,
+        theme: AppTheme::Dark,
+        base_weight: None,
+        base_style: None,
+        base_color: None,
+        base_underline: true,
+        base_strikethrough: false,
+        font_size: 14.0,
+        ruby_display_mode: crate::core::config::RubyDisplayMode::Stacked,
+        footnotes: None,
+    };
+
+    let spans_normal = inlines_to_spans(&inlines, &ctx_normal);
+    let spans_underlined = inlines_to_spans(&inlines, &ctx_underlined);
+
+    assert_eq!(spans_normal.len(), 1);
+    assert_eq!(spans_underlined.len(), 1);
+    assert!(
+        !spans_normal[0].underline,
+        "Normal span should not be underlined"
+    );
+    assert!(
+        spans_underlined[0].underline,
+        "Underlined span must be underlined despite cache"
+    );
 }
