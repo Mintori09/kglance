@@ -1574,3 +1574,27 @@ fn test_extract_selective_images_percent_encoded_path() {
         b"fake image data"
     );
 }
+
+#[test]
+fn test_convert_html_trailing_whitespace_inside_formatting_tags() {
+    let html = r#"<p><span class="text_">Điều bạn sẽ rút ra:&nbsp;</span>Hiểu rõ những lý do sâu xa để trở nên năng suất hơn.</p>"#;
+    let md = convert_html_to_markdown(html);
+    assert!(
+        md.starts_with("**Điều bạn sẽ rút ra:**"),
+        "Delimiter must close before trailing whitespace to adhere to CommonMark right-flanking rules. Got: {md}"
+    );
+
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            // First inline must be bold, not text with literal `**`
+            assert!(
+                matches!(inlines[0], Inline::Bold(_)),
+                "First inline should be parsed as Inline::Bold, got {:?}",
+                inlines[0]
+            );
+        }
+        other => panic!("Expected Paragraph block, got {other:?}"),
+    }
+}
