@@ -221,6 +221,7 @@ pub enum MarkdownMsg {
         payload: Option<crate::features::image::DecodedImagePayload>,
     },
     SidebarResized(f32),
+    OpenImageLightbox(String),
     SelectionChanged(Option<String>),
     SelectionDragStart {
         block: usize,
@@ -240,6 +241,17 @@ pub enum MarkdownMsg {
     },
     TouchpadGestureEnded(std::time::Instant),
     AnimationTick,
+}
+
+#[derive(Debug, Clone)]
+pub enum LightboxMsg {
+    Open {
+        items: Vec<crate::features::lightbox::types::LightboxItem>,
+        initial_index: usize,
+    },
+    Close,
+    Next,
+    Prev,
 }
 
 #[derive(Debug, Clone)]
@@ -494,6 +506,7 @@ pub enum Message {
     Grid(GridMsg),
     Markdown(MarkdownMsg),
     Epub(EpubMsg),
+    Lightbox(LightboxMsg),
     Json(JsonMsg),
     Model3d(Model3dMsg),
     Settings(SettingsMsg),
@@ -581,6 +594,11 @@ impl From<MarkdownMsg> for Message {
 impl From<EpubMsg> for Message {
     fn from(m: EpubMsg) -> Self {
         Message::Epub(m)
+    }
+}
+impl From<LightboxMsg> for Message {
+    fn from(m: LightboxMsg) -> Self {
+        Message::Lightbox(m)
     }
 }
 impl From<JsonMsg> for Message {
