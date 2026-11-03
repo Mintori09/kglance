@@ -1,7 +1,7 @@
 use crate::core::config::EpubReadingMode;
 use crate::core::types::{EpubChapterInfo, EpubState, KglanceState, MarkdownState};
 use crate::parsers::markdown::Block;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 fn collect_image_entries<'a>(block: &'a Block, out: &mut Vec<(&'a str, Option<u32>, Option<u32>)>) {
     match block {
@@ -252,18 +252,24 @@ pub fn populate_state(
 
     let chapter_target_offsets = if reading_mode == EpubReadingMode::Continuous {
         let mut prev_target = 0;
+        let mut seen_file_hrefs = HashSet::new();
         loaded_chapters
             .iter()
             .enumerate()
             .map(|(idx, ch)| {
                 let start_idx = chapter_block_offsets.get(idx).copied().unwrap_or(0);
-                let local_offset = crate::features::epub::parser::find_block_index(
-                    &ch.blocks,
-                    ch.anchor.as_deref(),
-                    Some(&ch.title),
-                )
-                .unwrap_or(0);
-                let target = (start_idx + local_offset).max(prev_target);
+                let target =
+                    if !ch.file_href.is_empty() && !seen_file_hrefs.insert(ch.file_href.as_str()) {
+                        start_idx.max(prev_target)
+                    } else {
+                        let local_offset = crate::features::epub::parser::find_block_index(
+                            &ch.blocks,
+                            ch.anchor.as_deref(),
+                            Some(&ch.title),
+                        )
+                        .unwrap_or(0);
+                        (start_idx + local_offset).max(prev_target)
+                    };
                 prev_target = target;
                 target
             })
@@ -292,7 +298,7 @@ pub fn populate_state(
         sidebar_drag_start_width: 240.0,
         scroll_y,
         collapsed_chapters: old_collapsed,
-        search: state.epub.search.clone(),
+        search: super::search::EpubSearchState::default(),
         markdown_state,
         sidebar_tab: state.epub.sidebar_tab,
         lightbox: None,
@@ -449,5 +455,83 @@ mod tests {
         // Only 3 blocks: ch1 para, then ch2's own HR and ch2 para (no synthetic double HR)
         assert_eq!(blocks_dedup.len(), 3);
         assert!(matches!(blocks_dedup[1], Block::HorizontalRule));
+    }
+
+    #[test]
+    fn test_populate_state_continuous_subchapters_no_double_offset() {
+        let mut state = KglanceState {
+            epub_reading_mode: EpubReadingMode::Continuous,
+            ..Default::default()
+        };
+
+        let sample_blocks = vec![
+            Block::Heading {
+                level: 1,
+                content: vec![crate::parsers::markdown::Inline::Text("Chapter 1".into())],
+            }, // block 0
+            Block::Paragraph(vec![crate::parsers::markdown::Inline::Text("Intro".into())]), // block 1
+            Block::Heading {
+                level: 2,
+                content: vec![crate::parsers::markdown::Inline::Text("Section 1".into())],
+            }, // block 2
+            Block::Paragraph(vec![crate::parsers::markdown::Inline::Text(
+                "Body 1".into(),
+            )]), // block 3
+            Block::Heading {
+                level: 2,
+                content: vec![crate::parsers::markdown::Inline::Text("Section 2".into())],
+            }, // block 4
+            Block::Paragraph(vec![crate::parsers::markdown::Inline::Text(
+                "Body 2".into(),
+            )]), // block 5
+        ];
+
+        let chapters = vec![
+            EpubChapterInfo {
+                title: "Chapter 1".to_string(),
+                level: 1,
+                anchor: None,
+                file_href: "ch1.xhtml".to_string(),
+                blocks: sample_blocks.clone(),
+            },
+            EpubChapterInfo {
+                title: "Section 1".to_string(),
+                level: 2,
+                anchor: Some("sec1".to_string()),
+                file_href: "ch1.xhtml".to_string(),
+                blocks: sample_blocks.clone(),
+            },
+            EpubChapterInfo {
+                title: "Section 2".to_string(),
+                level: 2,
+                anchor: Some("sec2".to_string()),
+                file_href: "ch1.xhtml".to_string(),
+                blocks: sample_blocks.clone(),
+            },
+            EpubChapterInfo {
+                title: "Chapter 2".to_string(),
+                level: 1,
+                anchor: None,
+                file_href: "ch2.xhtml".to_string(),
+                blocks: vec![Block::Heading {
+                    level: 1,
+                    content: vec![crate::parsers::markdown::Inline::Text("Chapter 2".into())],
+                }],
+            },
+        ];
+
+        populate_state(
+            &mut state,
+            "Test Book",
+            "Author",
+            &chapters,
+            0,
+            &HashMap::new(),
+        );
+
+        // Section 1 should match anchor block 2, not double-counted (4)
+        // Section 2 should match anchor block 4, not double-counted (8)
+        assert_eq!(state.epub.chapter_block_offsets, vec![0, 2, 4, 6]);
+        assert_eq!(state.epub.chapter_target_offsets, vec![0, 2, 4, 6]);
     }
 }
