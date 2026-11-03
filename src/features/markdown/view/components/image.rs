@@ -9,7 +9,7 @@ use iced::{Border, Color, Element, Length, Shadow, Task};
 
 pub(crate) fn render_inline_image<'a>(
     path: &'a str,
-    link_url: Option<&'a str>,
+    _link_url: Option<&'a str>,
     explicit_width: Option<u32>,
     explicit_height: Option<u32>,
     state: &'a crate::core::MarkdownState,
@@ -47,52 +47,35 @@ pub(crate) fn render_inline_image<'a>(
         ..Default::default()
     });
 
-    let content: Element<'a, Message> = if is_epub {
-        let path_clone = path.to_string();
-        button(image_card)
-            .on_press(crate::app::messages::EpubMsg::OpenImageLightbox(path_clone).into())
-            .style(|_theme: &iced::Theme, status: button::Status| {
-                let border_color = match status {
-                    button::Status::Hovered => Color::from_rgba(0.4, 0.7, 1.0, 0.4),
-                    button::Status::Pressed => Color::from_rgba(0.4, 0.7, 1.0, 0.7),
-                    _ => Color::TRANSPARENT,
-                };
-                button::Style {
-                    background: None,
-                    text_color: Color::TRANSPARENT,
-                    border: Border {
-                        width: 1.0,
-                        color: border_color,
-                        radius: STYLE.image.border_radius.into(),
-                    },
-                    shadow: Shadow::default(),
-                    snap: false,
-                }
-            })
-            .padding(0)
-            .into()
-    } else if let Some(url) = link_url {
-        let url_clone = url.to_string();
-        button(image_card)
-            .on_press(crate::app::messages::SystemMsg::OpenLink(url_clone).into())
-            .style(
-                |_theme: &iced::Theme, _status: button::Status| button::Style {
-                    background: None,
-                    text_color: Color::TRANSPARENT,
-                    border: Border {
-                        width: 0.0,
-                        color: Color::TRANSPARENT,
-                        radius: 0.0.into(),
-                    },
-                    shadow: Shadow::default(),
-                    snap: false,
-                },
-            )
-            .padding(0)
-            .into()
+    let path_clone = path.to_string();
+    let on_press_msg = if is_epub {
+        crate::app::messages::EpubMsg::OpenImageLightbox(path_clone).into()
     } else {
-        image_card.into()
+        crate::app::messages::MarkdownMsg::OpenImageLightbox(path_clone).into()
     };
+
+    let content: Element<'a, Message> = button(image_card)
+        .on_press(on_press_msg)
+        .style(|_theme: &iced::Theme, status: button::Status| {
+            let border_color = match status {
+                button::Status::Hovered => Color::from_rgba(0.4, 0.7, 1.0, 0.4),
+                button::Status::Pressed => Color::from_rgba(0.4, 0.7, 1.0, 0.7),
+                _ => Color::TRANSPARENT,
+            };
+            button::Style {
+                background: None,
+                text_color: Color::TRANSPARENT,
+                border: Border {
+                    width: 1.0,
+                    color: border_color,
+                    radius: STYLE.image.border_radius.into(),
+                },
+                shadow: Shadow::default(),
+                snap: false,
+            }
+        })
+        .padding(0)
+        .into();
 
     container(content)
         .center_x(Length::Fill)
