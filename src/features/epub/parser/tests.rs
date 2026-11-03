@@ -204,6 +204,7 @@ fn test_extract_blocks_styles_list_desync_prevention() {
             is_uppercase: false,
             is_underline: false,
             is_strikethrough: false,
+            font_scale: None,
         },
     );
     stylesheet.insert(
@@ -216,6 +217,7 @@ fn test_extract_blocks_styles_list_desync_prevention() {
             is_uppercase: false,
             is_underline: false,
             is_strikethrough: false,
+            font_scale: None,
         },
     );
 
@@ -1467,6 +1469,7 @@ fn test_extract_blocks_styles_with_hr_table_and_list() {
             is_uppercase: false,
             is_underline: false,
             is_strikethrough: false,
+            font_scale: None,
         },
     );
     stylesheet.insert(
@@ -1479,6 +1482,7 @@ fn test_extract_blocks_styles_with_hr_table_and_list() {
             is_uppercase: false,
             is_underline: false,
             is_strikethrough: false,
+            font_scale: None,
         },
     );
     stylesheet.insert(
@@ -1491,6 +1495,7 @@ fn test_extract_blocks_styles_with_hr_table_and_list() {
             is_uppercase: false,
             is_underline: false,
             is_strikethrough: false,
+            font_scale: None,
         },
     );
 
@@ -1805,4 +1810,68 @@ fn test_block_style_underline_resolution() {
     assert_eq!(styles.len(), 1);
     let p_style = styles.get(&0).expect("expected style at index 0");
     assert!(p_style.is_underline);
+}
+
+#[test]
+fn test_epub_why_nations_fail_notes_chapter15_style() {
+    let epub_path =
+        std::path::Path::new("/home/mintori/Downloads/Vì sao các quốc gia thất bại.epub");
+    if !epub_path.exists() {
+        return;
+    }
+    let (blocks, _, styles) =
+        load_chapter_content_and_images_from_epub(epub_path, "Text/028.html", None)
+            .expect("Must load 028.html");
+
+    let mut found = false;
+    for (i, b) in blocks.iter().enumerate() {
+        if let Block::Paragraph(inlines) = b {
+            let text = flatten_inlines(inlines);
+            if text.contains("15:") {
+                let style = styles.get(&i);
+                println!("FOUND CHUONG 15 AT BLOCK {i}: style = {style:?}, text = {text}");
+                let s = style.expect("Chương 15 block must have style");
+                assert_eq!(s.align, css::TextAlign::Center, "Must be centered");
+                assert!(s.is_bold, "Must be bold");
+                assert_eq!(s.font_scale, Some(1.2), "Must have 1.2x font scale");
+                found = true;
+                break;
+            }
+        }
+    }
+    assert!(found, "Must find Chương 15 block in 028.html");
+}
+
+#[test]
+fn test_block_style_inherits_from_child_spans() {
+    let html = r#"<p class="p26"><span class="t27">Chương 15: Hiểu sự Thịnh vượng</span></p>"#;
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+
+    let mut stylesheet = HashMap::new();
+    stylesheet.insert(
+        "p26".to_string(),
+        css::BlockStyle {
+            align: css::TextAlign::Center,
+            ..Default::default()
+        },
+    );
+    stylesheet.insert(
+        "t27".to_string(),
+        css::BlockStyle {
+            is_bold: true,
+            font_scale: Some(1.2),
+            ..Default::default()
+        },
+    );
+
+    let styles = extract_blocks_styles(html, &blocks, &stylesheet);
+    let s = styles.get(&0).expect("Block 0 must have styles");
+    assert_eq!(s.align, css::TextAlign::Center);
+    assert!(s.is_bold, "Block should inherit bold from child span");
+    assert_eq!(
+        s.font_scale,
+        Some(1.2),
+        "Block should inherit font_scale from child span"
+    );
 }

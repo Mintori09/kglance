@@ -30,6 +30,7 @@ pub struct BlockStyle {
     pub is_uppercase: bool,
     pub is_underline: bool,
     pub is_strikethrough: bool,
+    pub font_scale: Option<f32>,
 }
 
 /// Parses CSS text content and maps class selectors (`.class_name`) to `BlockStyle`.
@@ -54,6 +55,7 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
         let mut is_uppercase = false;
         let mut is_underline = false;
         let mut is_strikethrough = false;
+        let mut font_scale = None;
 
         for decl in body.split(';') {
             let decl = decl.trim();
@@ -90,6 +92,8 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
                     if val.contains("line-through") {
                         is_strikethrough = true;
                     }
+                } else if prop == "font-size" {
+                    font_scale = parse_font_size_scale(&val);
                 }
             }
         }
@@ -101,6 +105,7 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
             || is_uppercase
             || is_underline
             || is_strikethrough
+            || font_scale.is_some()
         {
             let style = BlockStyle {
                 align: align.unwrap_or_default(),
@@ -110,6 +115,7 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
                 is_uppercase,
                 is_underline,
                 is_strikethrough,
+                font_scale,
             };
 
             for sel in selectors.split(',') {
@@ -131,9 +137,10 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
     map
 }
 
-/// Resolves effective style for an HTML element given its classes and optional inline style attribute.
+/// Resolves effective style for an HTML element given its classes, child classes, and optional inline style attribute.
 pub fn resolve_block_style(
     classes: &[String],
+    child_classes: &[String],
     inline_style: Option<&str>,
     stylesheet_map: &HashMap<String, BlockStyle>,
 ) -> BlockStyle {
@@ -162,6 +169,32 @@ pub fn resolve_block_style(
             if cls_style.is_strikethrough {
                 style.is_strikethrough = true;
             }
+            if let Some(scale) = cls_style.font_scale {
+                style.font_scale = Some(scale);
+            }
+        }
+    }
+
+    for cls in child_classes {
+        if let Some(cls_style) = stylesheet_map.get(cls) {
+            if cls_style.is_bold {
+                style.is_bold = true;
+            }
+            if cls_style.is_italic {
+                style.is_italic = true;
+            }
+            if cls_style.is_uppercase {
+                style.is_uppercase = true;
+            }
+            if cls_style.is_underline {
+                style.is_underline = true;
+            }
+            if cls_style.is_strikethrough {
+                style.is_strikethrough = true;
+            }
+            if let Some(scale) = cls_style.font_scale {
+                style.font_scale = Some(scale);
+            }
         }
     }
 
@@ -188,9 +221,42 @@ pub fn resolve_block_style(
         if inline_s.is_strikethrough {
             style.is_strikethrough = true;
         }
+        if let Some(scale) = inline_s.font_scale {
+            style.font_scale = Some(scale);
+        }
     }
 
     style
+}
+
+/// Parses a CSS font-size declaration into a relative multiplier scale (clamped between 0.5 and 3.0).
+pub fn parse_font_size_scale(val: &str) -> Option<f32> {
+    let val = val.trim();
+    let scale = if let Some(s) = val.strip_suffix("em") {
+        s.trim().parse::<f32>().ok()?
+    } else if let Some(s) = val.strip_suffix("rem") {
+        s.trim().parse::<f32>().ok()?
+    } else if let Some(s) = val.strip_suffix('%') {
+        s.trim().parse::<f32>().ok()? / 100.0
+    } else if let Some(s) = val.strip_suffix("pt") {
+        let pt = s.trim().parse::<f32>().ok()?;
+        pt / 12.0
+    } else if let Some(s) = val.strip_suffix("px") {
+        let px = s.trim().parse::<f32>().ok()?;
+        px / 16.0
+    } else if val == "larger" || val == "large" {
+        1.2
+    } else if val == "x-large" {
+        1.4
+    } else if val == "xx-large" {
+        1.7
+    } else if val == "smaller" || val == "small" {
+        0.85
+    } else {
+        return None;
+    };
+
+    Some(scale.clamp(0.5, 3.0))
 }
 
 /// Parses a CSS length dimension into an approximate pixel/point value.
@@ -248,6 +314,10 @@ pub fn parse_inline_style(style_str: &str) -> BlockStyle {
                 if val.contains("line-through") {
                     style.is_strikethrough = true;
                 }
+            } else if prop == "font-size"
+                && let Some(scale) = parse_font_size_scale(&val)
+            {
+                style.font_scale = Some(scale);
             }
         }
     }
@@ -286,6 +356,7 @@ mod tests {
                 is_uppercase: false,
                 is_underline: false,
                 is_strikethrough: false,
+                font_scale: None,
             })
         );
         assert_eq!(
@@ -298,6 +369,7 @@ mod tests {
                 is_uppercase: false,
                 is_underline: false,
                 is_strikethrough: false,
+                font_scale: None,
             })
         );
         assert_eq!(
@@ -310,6 +382,7 @@ mod tests {
                 is_uppercase: false,
                 is_underline: false,
                 is_strikethrough: false,
+                font_scale: None,
             })
         );
     }
@@ -317,7 +390,7 @@ mod tests {
     #[test]
     fn test_parse_inline_style() {
         let style = parse_inline_style(
-            "text-align: center; text-indent: 1.5em; font-weight: bold; font-style: italic; text-transform: uppercase",
+            "text-align: center; text-indent: 1.5em; font-weight: bold; font-style: italic; text-transform: uppercase; font-size: 1.2em",
         );
         assert_eq!(style.align, TextAlign::Center);
         assert_eq!(style.text_indent, 24.0);
@@ -326,6 +399,7 @@ mod tests {
         assert!(style.is_uppercase);
         assert!(!style.is_underline);
         assert!(!style.is_strikethrough);
+        assert_eq!(style.font_scale, Some(1.2));
 
         let style_decor = parse_inline_style("text-decoration: underline line-through");
         assert!(style_decor.is_underline);
@@ -353,6 +427,7 @@ mod tests {
                 is_uppercase: false,
                 is_underline: true,
                 is_strikethrough: false,
+                font_scale: None,
             })
         );
         assert_eq!(
@@ -365,7 +440,18 @@ mod tests {
                 is_uppercase: false,
                 is_underline: false,
                 is_strikethrough: true,
+                font_scale: None,
             })
         );
+    }
+
+    #[test]
+    fn test_parse_font_size_scale() {
+        let s1 = parse_font_size_scale("1.5em");
+        assert_eq!(s1, Some(1.5));
+        let s2 = parse_font_size_scale("120%");
+        assert_eq!(s2, Some(1.2));
+        let s3 = parse_font_size_scale("larger");
+        assert_eq!(s3, Some(1.2));
     }
 }

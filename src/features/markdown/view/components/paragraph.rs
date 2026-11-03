@@ -14,24 +14,27 @@ pub(crate) fn render_paragraph<'a>(
     style: Option<&BlockStyle>,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
-    let (align_x, indent, is_bold, is_italic, is_underline, is_strikethrough) = match style {
-        Some(s) => (
-            s.align.to_horizontal_align(),
-            s.text_indent,
-            s.is_bold,
-            s.is_italic,
-            s.is_underline,
-            s.is_strikethrough,
-        ),
-        None => (
-            iced::alignment::Horizontal::Left,
-            0.0,
-            false,
-            false,
-            false,
-            false,
-        ),
-    };
+    let (align_x, indent, is_bold, is_italic, is_underline, is_strikethrough, font_scale) =
+        match style {
+            Some(s) => (
+                s.align.to_horizontal_align(),
+                s.text_indent,
+                s.is_bold,
+                s.is_italic,
+                s.is_underline,
+                s.is_strikethrough,
+                s.font_scale,
+            ),
+            None => (
+                iced::alignment::Horizontal::Left,
+                0.0,
+                false,
+                false,
+                false,
+                false,
+                None,
+            ),
+        };
 
     let weight = if is_bold {
         Some(iced::font::Weight::Bold)
@@ -43,6 +46,12 @@ pub(crate) fn render_paragraph<'a>(
         Some(iced::font::Style::Italic)
     } else {
         None
+    };
+
+    let font_size = if let Some(scale) = font_scale {
+        (ctx.font_size * scale).round()
+    } else {
+        ctx.font_size
     };
 
     let starts_with_bullet = content.first().is_some_and(|inline| match inline {
@@ -80,11 +89,14 @@ pub(crate) fn render_paragraph<'a>(
         base_strikethrough: is_strikethrough,
     };
 
-    let rich = render_inlines_with_options(content, ctx.font_size, opts, ctx);
+    let rich = render_inlines_with_options(content, font_size, opts, ctx);
 
     let [pad_v, pad_h] = STYLE.paragraph.padding;
-    let (top_padding, bottom_padding) = if is_bold {
-        (pad_v as f32 + 10.0, pad_v as f32 + 4.0)
+    let is_heading_like = is_bold
+        || align_x == iced::alignment::Horizontal::Center
+        || font_scale.is_some_and(|s| s > 1.05);
+    let (top_padding, bottom_padding) = if is_heading_like {
+        (pad_v as f32 + 10.0, pad_v as f32 + 6.0)
     } else {
         (pad_v as f32, pad_v as f32)
     };

@@ -374,6 +374,7 @@ pub struct RawHtmlBlockMeta {
     pub inline_style: Option<String>,
     pub id: Option<String>,
     pub is_empty: bool,
+    pub child_classes: Vec<String>,
 }
 
 /// Scans HTML to extract metadata for all block-level elements (`<p>`, `<h1>`..`<h6>`).
@@ -422,19 +423,30 @@ pub fn extract_html_blocks_meta(html: &str) -> Vec<RawHtmlBlockMeta> {
                         inline_style: extract_inline_style_attr(e),
                         id: extract_id_or_name(e),
                         is_empty,
+                        child_classes: Vec::new(),
                     });
                     text_count = 0;
-                } else if matches!(tag_str.as_str(), "img" | "image") && current_block.is_some() {
-                    text_count += 1;
+                } else if let Some(ref mut block) = current_block {
+                    if matches!(
+                        tag_str.as_str(),
+                        "span" | "em" | "strong" | "b" | "i" | "a" | "div"
+                    ) {
+                        for c in extract_classes(e) {
+                            if !block.child_classes.contains(&c) {
+                                block.child_classes.push(c);
+                            }
+                        }
+                    }
+                    if matches!(tag_str.as_str(), "img" | "image") {
+                        text_count += 1;
+                    }
                 }
             }
             Ok(Event::Empty(ref e)) => {
                 let name = e.name();
                 let tag_str = name.as_ref().to_ascii_lowercase();
 
-                if matches!(tag_str.as_str(), "img" | "image") && current_block.is_some() {
-                    text_count += 1;
-                } else if matches!(
+                if matches!(
                     tag_str.as_str(),
                     "p" | "h1"
                         | "h2"
@@ -459,8 +471,23 @@ pub fn extract_html_blocks_meta(html: &str) -> Vec<RawHtmlBlockMeta> {
                         inline_style: extract_inline_style_attr(e),
                         id: extract_id_or_name(e),
                         is_empty,
+                        child_classes: Vec::new(),
                     });
                     text_count = 0;
+                } else if let Some(ref mut block) = current_block {
+                    if matches!(
+                        tag_str.as_str(),
+                        "span" | "em" | "strong" | "b" | "i" | "a" | "div"
+                    ) {
+                        for c in extract_classes(e) {
+                            if !block.child_classes.contains(&c) {
+                                block.child_classes.push(c);
+                            }
+                        }
+                    }
+                    if matches!(tag_str.as_str(), "img" | "image") {
+                        text_count += 1;
+                    }
                 }
             }
             Ok(Event::End(ref e)) => {
