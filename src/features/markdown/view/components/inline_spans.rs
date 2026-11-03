@@ -25,6 +25,8 @@ pub struct SpanCtx<'a> {
     pub base_weight: Option<Weight>,
     pub base_style: Option<iced::font::Style>,
     pub base_color: Option<Color>,
+    pub base_underline: bool,
+    pub base_strikethrough: bool,
     pub font_size: f32,
     pub ruby_display_mode: crate::core::config::RubyDisplayMode,
     pub footnotes: Option<&'a std::collections::HashMap<String, String>>,
@@ -74,6 +76,7 @@ type SpanCacheKey = (
     Option<u16>,
     Option<u32>,
     u32,
+    u8,
     u8,
 );
 
@@ -188,8 +191,8 @@ fn highlight_search_in_text(
             color: normal_color,
             background: None,
             size: None,
-            strikethrough: false,
-            underline: false,
+            strikethrough: span_ctx.base_strikethrough,
+            underline: span_ctx.base_underline,
             link_url: None,
             ruby: None,
             tooltip: None,
@@ -230,8 +233,8 @@ fn highlight_search_in_text(
                     color: normal_color,
                     background: None,
                     size: None,
-                    strikethrough: false,
-                    underline: false,
+                    strikethrough: span_ctx.base_strikethrough,
+                    underline: span_ctx.base_underline,
                     link_url: None,
                     ruby: None,
                     tooltip: None,
@@ -248,8 +251,8 @@ fn highlight_search_in_text(
                 color: normal_color,
                 background: Some(bg),
                 size: None,
-                strikethrough: false,
-                underline: false,
+                strikethrough: span_ctx.base_strikethrough,
+                underline: span_ctx.base_underline,
                 link_url: None,
                 ruby: None,
                 tooltip: None,
@@ -270,8 +273,8 @@ fn highlight_search_in_text(
             color: normal_color,
             background: None,
             size: None,
-            strikethrough: false,
-            underline: false,
+            strikethrough: span_ctx.base_strikethrough,
+            underline: span_ctx.base_underline,
             link_url: None,
             ruby: None,
             tooltip: None,
@@ -310,8 +313,8 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                             color: span_ctx.base_color,
                             background: None,
                             size: None,
-                            strikethrough: false,
-                            underline: false,
+                            strikethrough: span_ctx.base_strikethrough,
+                            underline: span_ctx.base_underline,
                             link_url: None,
                             ruby: None,
                             tooltip: None,
@@ -397,8 +400,8 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                     color: None,
                     background: None,
                     size: None,
-                    strikethrough: false,
-                    underline: false,
+                    strikethrough: span_ctx.base_strikethrough,
+                    underline: span_ctx.base_underline,
                     link_url: None,
                     ruby: None,
                     tooltip: None,
@@ -719,6 +722,17 @@ pub fn inlines_to_spans_with_links(
         });
         let font_size_bits = span_ctx.font_size.to_bits();
 
+        let mut base_flags = 0u8;
+        if matches!(span_ctx.base_style, Some(iced::font::Style::Italic)) {
+            base_flags |= 1;
+        }
+        if span_ctx.base_underline {
+            base_flags |= 2;
+        }
+        if span_ctx.base_strikethrough {
+            base_flags |= 4;
+        }
+
         let key: SpanCacheKey = (
             inline_hash,
             span_ctx.theme,
@@ -728,6 +742,7 @@ pub fn inlines_to_spans_with_links(
             base_color_val,
             font_size_bits,
             span_ctx.ruby_display_mode as u8,
+            base_flags,
         );
 
         if let Ok(mut cache) = span_cache().lock()
