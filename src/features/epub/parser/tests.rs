@@ -1382,3 +1382,195 @@ fn test_ol_with_p_conversion() {
         other => panic!("Expected List block, got: {other:?}"),
     }
 }
+
+#[test]
+fn test_resolve_relative_path_leading_slash_preserves_parent() {
+    let base = "OEBPS/content.opf";
+    let relative = "/images/cover.jpg";
+    let resolved = opf::resolve_relative_path(base, relative);
+    assert_eq!(resolved, "OEBPS/images/cover.jpg");
+
+    let relative_no_slash = "images/cover.jpg";
+    let resolved_no_slash = opf::resolve_relative_path(base, relative_no_slash);
+    assert_eq!(resolved_no_slash, "OEBPS/images/cover.jpg");
+}
+
+#[test]
+fn test_extract_first_paragraph_snippet_skips_non_p_tags() {
+    use crate::features::common::parser::html::extract_first_paragraph_snippet;
+
+    let html = r#"
+        <picture>
+            <source srcset="image.webp" type="image/webp">
+            <img src="image.jpg" alt="test">
+        </picture>
+        <pre><code>some code block</code></pre>
+        <p>This is the actual first paragraph of the chapter.</p>
+    "#;
+    let snippet = extract_first_paragraph_snippet(html);
+    assert_eq!(
+        snippet,
+        Some("This is the actual first paragraph of th...".to_string())
+    );
+}
+
+#[test]
+fn test_epub3_navpoints_intra_document_anchor_inheritance() {
+    let nav_html = r##"
+        <nav epub:type="toc">
+            <ol>
+                <li><a href="text/part1.xhtml">Part 1</a></li>
+                <li><a href="#section1">Section 1 (intra-document)</a></li>
+                <li><a href="#section2">Section 2 (intra-document)</a></li>
+            </ol>
+        </nav>
+    "##;
+    let navpoints = crate::features::epub::parser::ncx::extract_epub3_navpoints(nav_html);
+    assert_eq!(navpoints.len(), 3);
+    assert_eq!(navpoints[0].2, "text/part1.xhtml");
+    assert_eq!(navpoints[0].3, None);
+
+    assert_eq!(navpoints[1].2, "text/part1.xhtml");
+    assert_eq!(navpoints[1].3.as_deref(), Some("section1"));
+
+    assert_eq!(navpoints[2].2, "text/part1.xhtml");
+    assert_eq!(navpoints[2].3.as_deref(), Some("section2"));
+}
+
+#[test]
+fn test_extract_blocks_styles_with_hr_table_and_list() {
+    let html = r#"
+        <h1 class="chapter_title">Chapter Title</h1>
+        <hr class="separator"/>
+        <p class="styled_para">Styled paragraph</p>
+        <ul class="styled_list">
+            <li>Item 1</li>
+            <li>Item 2</li>
+        </ul>
+        <p class="final_para">Final paragraph</p>
+    "#;
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+
+    let mut stylesheet = HashMap::new();
+    stylesheet.insert(
+        "chapter_title".to_string(),
+        css::BlockStyle {
+            align: css::TextAlign::Center,
+            text_indent: 0.0,
+            is_bold: true,
+            is_italic: false,
+            is_uppercase: false,
+        },
+    );
+    stylesheet.insert(
+        "styled_para".to_string(),
+        css::BlockStyle {
+            align: css::TextAlign::Justify,
+            text_indent: 20.0,
+            is_bold: false,
+            is_italic: false,
+            is_uppercase: false,
+        },
+    );
+    stylesheet.insert(
+        "final_para".to_string(),
+        css::BlockStyle {
+            align: css::TextAlign::Right,
+            text_indent: 0.0,
+            is_bold: false,
+            is_italic: true,
+            is_uppercase: false,
+        },
+    );
+
+    let styles = extract_blocks_styles(html, &blocks, &stylesheet);
+
+    // Find block indices for heading, styled paragraph, and final paragraph
+    let mut heading_idx = None;
+    let mut styled_p_idx = None;
+    let mut final_p_idx = None;
+
+    for (i, b) in blocks.iter().enumerate() {
+        match b {
+            Block::Heading { content, .. }
+                if flatten_inlines(content).contains("Chapter Title") =>
+            {
+                heading_idx = Some(i);
+            }
+            Block::Paragraph(content) if flatten_inlines(content).contains("Styled paragraph") => {
+                styled_p_idx = Some(i);
+            }
+            Block::Paragraph(content) if flatten_inlines(content).contains("Final paragraph") => {
+                final_p_idx = Some(i);
+            }
+            _ => {}
+        }
+    }
+
+    assert!(heading_idx.is_some());
+    assert!(styled_p_idx.is_some());
+    assert!(final_p_idx.is_some());
+
+    let h_style = styles
+        .get(&heading_idx.unwrap())
+        .expect("Heading style missing");
+    assert_eq!(h_style.align, css::TextAlign::Center);
+    assert!(h_style.is_bold);
+
+    let p_style = styles
+        .get(&styled_p_idx.unwrap())
+        .expect("Styled para style missing");
+    assert_eq!(p_style.align, css::TextAlign::Justify);
+    assert_eq!(p_style.text_indent, 20.0);
+
+    let final_style = styles
+        .get(&final_p_idx.unwrap())
+        .expect("Final para style missing");
+    assert_eq!(final_style.align, css::TextAlign::Right);
+    assert!(final_style.is_italic);
+}
+
+#[test]
+fn test_extract_selective_images_percent_encoded_path() {
+    use std::io::Cursor;
+    use zip::ZipWriter;
+    use zip::write::SimpleFileOptions;
+
+    let mut buf = Vec::new();
+    {
+        let mut zip = ZipWriter::new(Cursor::new(&mut buf));
+        let options = SimpleFileOptions::default();
+        zip.start_file("OEBPS/images/my image with space.png", options)
+            .unwrap();
+        zip.write_all(b"fake image data").unwrap();
+        zip.finish().unwrap();
+    }
+
+    let mut archive = zip::ZipArchive::new(Cursor::new(&buf)).unwrap();
+    let blocks = vec![Block::Image {
+        alt: "Image".to_string(),
+        path: "images/my%20image%20with%20space.png".to_string(),
+        link_url: None,
+        width: None,
+        height: None,
+    }];
+
+    let images = image::extract_selective_images(
+        &mut archive,
+        "OEBPS/content.opf",
+        None,
+        &blocks,
+        Some("text/ch1.xhtml"),
+    );
+
+    // Verify image was found under the original percent-encoded block path
+    assert!(
+        images.contains_key("images/my%20image%20with%20space.png"),
+        "Image mapping must contain original percent-encoded key"
+    );
+    assert_eq!(
+        images.get("images/my%20image%20with%20space.png").unwrap(),
+        b"fake image data"
+    );
+}

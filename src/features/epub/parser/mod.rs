@@ -136,7 +136,17 @@ pub fn extract_blocks_styles(
         }
 
         let consumed_count = match block {
-            Block::List { items, .. } => items.len().max(1),
+            Block::List { items, .. } => {
+                // If the next meta is an actual ul/ol tag, the whole list consumed only 1 tag.
+                // If it is 'p', this list was synthesized from multiple custom bullet paragraphs (O'Reilly).
+                if let Some(next_meta) = non_empty_metas.get(meta_idx)
+                    && (next_meta.tag == "ul" || next_meta.tag == "ol")
+                {
+                    1
+                } else {
+                    items.len().max(1)
+                }
+            }
             _ => 1,
         };
 
@@ -355,11 +365,16 @@ impl PreviewParser for EpubParser {
             .unwrap_or_default();
 
         if nav_entries.is_empty()
-            && let Some(href) = nav_href
+            && let Some(ref href) = nav_href
         {
-            let resolved = resolve_relative_path(&opf_path, &href);
+            let resolved = resolve_relative_path(&opf_path, href);
             if let Ok(xml) = read_archive_entry_string(&mut archive, &resolved) {
                 nav_entries = extract_epub3_navpoints(&xml);
+                for entry in &mut nav_entries {
+                    if entry.2.is_empty() {
+                        entry.2 = href.clone();
+                    }
+                }
             }
         }
 

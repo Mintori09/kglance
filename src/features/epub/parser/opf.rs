@@ -178,10 +178,11 @@ pub fn resolve_relative_path(base_file: &str, relative: &str) -> String {
     let parent = Path::new(base_file)
         .parent()
         .unwrap_or_else(|| Path::new(""));
+    let clean_relative = relative.trim_start_matches('/');
     let joined = if parent.as_os_str().is_empty() {
-        Path::new(relative).to_path_buf()
+        Path::new(clean_relative).to_path_buf()
     } else {
-        parent.join(relative)
+        parent.join(clean_relative)
     };
 
     let mut result = Vec::new();
