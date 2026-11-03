@@ -16,10 +16,10 @@ push: ci
 
 build:
     cargo build --all
-    -cargo sweep -m 12GB
+    -cargo sweep -m 25GB
     -notify-send "Build successfully!"
 
-sweep size="12GB":
+sweep size="25GB":
     cargo sweep -m {{size}}
 
 test *ARGS:
@@ -56,7 +56,7 @@ restart-daemon:
 
 release:
     cargo build --release
-    -cargo sweep -m 12GB
+    -cargo sweep -m 25GB
     -notify-send "Build successfully!"
 
 deploy:
