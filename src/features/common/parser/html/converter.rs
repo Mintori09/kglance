@@ -39,6 +39,7 @@ pub struct HtmlToMarkdownConverter {
     in_rp: bool,
     quote_stack: Vec<String>,
     span_format_stack: Vec<&'static str>,
+    pending_opening_delims: Vec<&'static str>,
     div_callout_stack: Vec<Option<&'static str>>,
     in_figure: bool,
     in_figure_caption: bool,
@@ -94,6 +95,7 @@ impl HtmlToMarkdownConverter {
             in_rp: false,
             quote_stack: Vec::new(),
             span_format_stack: Vec::new(),
+            pending_opening_delims: Vec::new(),
             div_callout_stack: Vec::new(),
             in_figure: false,
             in_figure_caption: false,
@@ -144,6 +146,7 @@ impl HtmlToMarkdownConverter {
                     }
                 }
                 Ok(Event::Eof) | Err(_) => {
+                    self.flush_pending_delims();
                     if self.in_ruby {
                         self.in_ruby = false;
                         self.flush_ruby_pair();
@@ -438,7 +441,7 @@ impl HtmlToMarkdownConverter {
                     };
 
                     if let Some(delim) = delimiter {
-                        self.append_str(delim);
+                        self.pending_opening_delims.push(delim);
                         self.span_format_stack.push(delim);
                     } else {
                         self.span_format_stack.push("");
@@ -481,16 +484,16 @@ impl HtmlToMarkdownConverter {
                 if let Some(id) = extract_id_or_name(e) {
                     self.append_str(&format!("<a id=\"{id}\"></a> "));
                 }
-                self.append_str("**");
+                self.pending_opening_delims.push("**");
             }
             "i" | "em" => {
                 if let Some(id) = extract_id_or_name(e) {
                     self.append_str(&format!("<a id=\"{id}\"></a> "));
                 }
-                self.append_str("*");
+                self.pending_opening_delims.push("*");
             }
             "del" | "s" | "strike" => {
-                self.append_str("~~");
+                self.pending_opening_delims.push("~~");
             }
             "sub" => {
                 self.sub_depth += 1;
@@ -793,6 +796,7 @@ impl HtmlToMarkdownConverter {
                 self.ensure_newline();
             }
             "p" | "section" | "article" => {
+                self.flush_pending_delims();
                 self.p_just_started = false;
                 if self.in_ruby {
                     self.in_ruby = false;
@@ -1033,12 +1037,12 @@ impl HtmlToMarkdownConverter {
             {
                 let leading_ws = &text_to_append[..text_to_append.len() - trimmed_start.len()];
                 let escaped = format!("{leading_ws}\\{trimmed_start}");
-                self.append_str(&escaped);
+                self.append_formatted_text(&escaped);
                 return;
             }
         }
 
-        self.append_str(text_to_append);
+        self.append_formatted_text(text_to_append);
     }
 
     fn flush_ruby_pair(&mut self) {
@@ -1068,6 +1072,15 @@ impl HtmlToMarkdownConverter {
     }
 
     fn append_closing_delimiter(&mut self, delim: &str) {
+        if let Some(pos) = self
+            .pending_opening_delims
+            .iter()
+            .rposition(|&d| d == delim)
+        {
+            self.pending_opening_delims.remove(pos);
+            return;
+        }
+
         let target = if self.in_cell {
             &mut self.current_cell
         } else if let Some(current_quote) = self.quote_stack.last_mut() {
@@ -1087,6 +1100,32 @@ impl HtmlToMarkdownConverter {
             target.push_str(&trailing);
         } else {
             target.push_str(delim);
+        }
+    }
+
+    fn flush_pending_delims(&mut self) {
+        for delim in std::mem::take(&mut self.pending_opening_delims) {
+            self.append_str(delim);
+        }
+    }
+
+    fn append_formatted_text(&mut self, text: &str) {
+        if self.pending_opening_delims.is_empty() {
+            self.append_str(text);
+            return;
+        }
+
+        let non_ws_idx = text
+            .find(|c: char| !c.is_whitespace() && c != '\u{a0}')
+            .unwrap_or(text.len());
+
+        if non_ws_idx > 0 {
+            self.append_str(&text[..non_ws_idx]);
+        }
+
+        if non_ws_idx < text.len() {
+            self.flush_pending_delims();
+            self.append_str(&text[non_ws_idx..]);
         }
     }
 

@@ -1598,3 +1598,34 @@ fn test_convert_html_trailing_whitespace_inside_formatting_tags() {
         other => panic!("Expected Paragraph block, got {other:?}"),
     }
 }
+
+#[test]
+fn test_convert_html_leading_whitespace_inside_formatting_tags() {
+    let html = r#"<p><span class="text_">Về bản chất, năng suất có nghĩa là bạn&nbsp;</span><span class="text_3">hoàn thành</span><span class="text_">&nbsp;được bao nhiêu.</span></p>"#;
+    let md = convert_html_to_markdown(html);
+
+    // Delimiter must not have leading whitespace inside it
+    assert!(
+        md.contains("**\u{a0}***hoàn thành***\u{a0}**được bao nhiêu.**")
+            || md.contains("** hoàn thành *** **được bao nhiêu.**")
+            || !md.contains("**\u{a0}được"),
+        "Opening bold delimiter must come AFTER the leading whitespace, got: {md}"
+    );
+
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            // There should be NO raw `**` text leaked in any inline
+            for inline in inlines {
+                if let Inline::Text(t) = inline {
+                    assert!(
+                        !t.contains("**"),
+                        "Markdown delimiter `**` leaked as literal text: {t}"
+                    );
+                }
+            }
+        }
+        other => panic!("Expected Paragraph block, got {other:?}"),
+    }
+}
