@@ -11,6 +11,7 @@ pub mod sheet;
 pub mod image;
 pub mod json;
 pub mod krita;
+pub mod lightbox;
 pub mod markdown;
 pub mod model3d;
 pub mod office;

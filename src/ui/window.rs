@@ -469,7 +469,9 @@ pub fn view_window<'a>(
 
     let mut stack = Stack::new().push(base);
 
-    if state.epub.lightbox.is_some() {
+    if let Some(lightbox) = &state.lightbox {
+        stack = stack.push(crate::features::lightbox::view::render_lightbox(lightbox));
+    } else if state.epub.lightbox.is_some() {
         stack = stack.push(crate::features::epub::view::lightbox::render_lightbox(
             &state.epub,
         ));

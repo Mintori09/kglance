@@ -138,7 +138,7 @@ fn collect_all_epub_image_paths(app: &KglanceApp) -> Vec<String> {
     paths
 }
 
-fn get_epub_image_bytes(app: &KglanceApp, path: &str) -> Option<Vec<u8>> {
+pub fn get_epub_image_bytes(app: &KglanceApp, path: &str) -> Option<Vec<u8>> {
     let filename = std::path::Path::new(path)
         .file_name()
         .and_then(|n| n.to_str())
