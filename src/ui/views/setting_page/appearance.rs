@@ -9,7 +9,7 @@ use crate::ui::theme::default_row_button;
 use crate::ui::theme::tokens::spacing;
 use crate::ui::theme::{default_card, default_pick_list, default_slider};
 
-pub const AVAILABLE_THEMES: [&str; 8] = [
+pub const AVAILABLE_THEMES: [&str; 9] = [
     "Dark",
     "Light",
     "Catppuccin Mocha",
@@ -18,6 +18,7 @@ pub const AVAILABLE_THEMES: [&str; 8] = [
     "Gruvbox Dark",
     "Nord",
     "Dracula",
+    "Proper Dark",
 ];
 
 const MIN_FONT_SIZE: f32 = 8.0;
