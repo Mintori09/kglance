@@ -210,71 +210,51 @@ pub fn load_all_chapters_and_images_from_epub(
     let mut loaded_chapters = Vec::with_capacity(chapters.len());
     let mut target_names: HashSet<String> = HashSet::new();
     let mut target_to_orig: HashMap<String, Vec<String>> = HashMap::new();
-    let mut continuous_styles: HashMap<usize, css::BlockStyle> = HashMap::new();
-    let mut continuous_block_offset = 0usize;
-    let mut seen_file_offsets: HashMap<String, usize> = HashMap::new();
+    let mut seen_image_files: HashSet<String> = HashSet::new();
 
-    for (ch_idx, ch) in chapters.iter().enumerate() {
-        let (blocks, chapter_styles) =
-            if let Some((parsed_b, parsed_s)) = parsed_files.get(&ch.file_href) {
-                (parsed_b.clone(), parsed_s.clone())
-            } else if !ch.blocks.is_empty() {
-                (ch.blocks.clone(), HashMap::new())
+    for ch in chapters {
+        let blocks = if let Some((parsed_b, _)) = parsed_files.get(&ch.file_href) {
+            parsed_b.clone()
+        } else if !ch.blocks.is_empty() {
+            ch.blocks.clone()
+        } else {
+            Vec::new()
+        };
+
+        if !blocks.is_empty() {
+            let should_extract = if !ch.file_href.is_empty() {
+                seen_image_files.insert(ch.file_href.clone())
             } else {
-                (Vec::new(), HashMap::new())
+                true
             };
 
-        let block_imgs = extract_images_from_blocks(&blocks);
-        for img in block_imgs {
-            if !ch.file_href.is_empty() {
-                let ch_resolved = resolve_relative_path(&ch.file_href, &img);
-                let full_resolved = resolve_relative_path(&opf_path, &ch_resolved);
-                target_to_orig
-                    .entry(full_resolved.clone())
-                    .or_default()
-                    .push(img.clone());
-                target_to_orig
-                    .entry(ch_resolved.clone())
-                    .or_default()
-                    .push(img.clone());
-                target_names.insert(full_resolved);
-                target_names.insert(ch_resolved);
-            }
-            let resolved = resolve_relative_path(&opf_path, &img);
-            target_to_orig
-                .entry(resolved.clone())
-                .or_default()
-                .push(img.clone());
-            target_names.insert(resolved);
-            let filename = extract_filename(&img);
-            target_names.insert(filename);
-            target_names.insert(img);
-        }
-
-        // Map styles into continuous block offset coordinates
-        if !ch.file_href.is_empty()
-            && let Some(&existing_offset) = seen_file_offsets.get(&ch.file_href)
-        {
-            // Already incorporated into continuous stream
-            let _ = existing_offset;
-        } else {
-            if !ch.file_href.is_empty() {
-                seen_file_offsets.insert(ch.file_href.clone(), continuous_block_offset);
-            }
-            if !blocks.is_empty() {
-                if ch_idx > 0
-                    && crate::features::epub::anchor::chapter_header_blocks_count(
-                        &loaded_chapters,
-                        loaded_chapters.len(),
-                    ) > 0
-                {
-                    // Block::HorizontalRule is inserted
-                    continuous_block_offset += 1;
+            if should_extract {
+                let block_imgs = extract_images_from_blocks(&blocks);
+                for img in block_imgs {
+                    if !ch.file_href.is_empty() {
+                        let ch_resolved = resolve_relative_path(&ch.file_href, &img);
+                        let full_resolved = resolve_relative_path(&opf_path, &ch_resolved);
+                        let origs = target_to_orig.entry(full_resolved.clone()).or_default();
+                        if !origs.contains(&img) {
+                            origs.push(img.clone());
+                        }
+                        let origs = target_to_orig.entry(ch_resolved.clone()).or_default();
+                        if !origs.contains(&img) {
+                            origs.push(img.clone());
+                        }
+                        target_names.insert(full_resolved);
+                        target_names.insert(ch_resolved);
+                    }
+                    let resolved = resolve_relative_path(&opf_path, &img);
+                    let origs = target_to_orig.entry(resolved.clone()).or_default();
+                    if !origs.contains(&img) {
+                        origs.push(img.clone());
+                    }
+                    target_names.insert(resolved);
+                    let filename = extract_filename(&img);
+                    target_names.insert(filename);
+                    target_names.insert(img);
                 }
-                for (local_idx, style) in chapter_styles {
-                    continuous_styles.insert(continuous_block_offset + local_idx, style);
-                }
-                continuous_block_offset += blocks.len();
             }
         }
 
@@ -285,6 +265,37 @@ pub fn load_all_chapters_and_images_from_epub(
             file_href: ch.file_href.clone(),
             blocks,
         });
+    }
+
+    // Map styles into continuous block offset coordinates matching build_continuous_blocks
+    let mut continuous_styles: HashMap<usize, css::BlockStyle> = HashMap::new();
+    let mut seen_file_offsets: HashSet<String> = HashSet::new();
+    let (_, chapter_offsets) =
+        crate::features::epub::state::build_continuous_blocks(&loaded_chapters);
+
+    for (ch_idx, ch) in loaded_chapters.iter().enumerate() {
+        if ch.blocks.is_empty() {
+            continue;
+        }
+        if !ch.file_href.is_empty() && !seen_file_offsets.insert(ch.file_href.clone()) {
+            continue;
+        }
+
+        let Some((_, chapter_styles)) = parsed_files.get(&ch.file_href) else {
+            continue;
+        };
+
+        let Some(&start_idx) = chapter_offsets.get(ch_idx) else {
+            continue;
+        };
+
+        let header_count =
+            crate::features::epub::anchor::chapter_header_blocks_count(&loaded_chapters, ch_idx);
+        let block_start = start_idx + header_count;
+
+        for (&local_idx, style) in chapter_styles {
+            continuous_styles.insert(block_start + local_idx, style.clone());
+        }
     }
 
     // 5. Extract all matching images in a single pass over archive.file_names()
@@ -307,16 +318,20 @@ pub fn load_all_chapters_and_images_from_epub(
             let mut buffer = Vec::new();
             if file.read_to_end(&mut buffer).is_ok() {
                 if filename != name {
-                    all_images.insert(filename.clone(), buffer.clone());
+                    all_images
+                        .entry(filename.clone())
+                        .or_insert_with(|| buffer.clone());
                 }
                 if let Some(origs) = target_to_orig.get(&name) {
                     for orig in origs {
                         if orig != &name && orig != &filename {
-                            all_images.insert(orig.clone(), buffer.clone());
+                            all_images
+                                .entry(orig.clone())
+                                .or_insert_with(|| buffer.clone());
                         }
                     }
                 }
-                all_images.insert(name, buffer);
+                all_images.entry(name).or_insert(buffer);
             }
         }
     }
