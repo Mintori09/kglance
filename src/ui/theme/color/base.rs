@@ -114,6 +114,18 @@ impl BaseColors {
         rule: primitive::DRACULA_BORDER,
     };
 
+    pub const PROPER_DARK: BaseColors = BaseColors {
+        bg: primitive::PROPER_DARK_BG,
+        surface: primitive::PROPER_DARK_SURFACE,
+        surface_raised: primitive::PROPER_DARK_SURFACE_RAISED,
+        border: primitive::PROPER_DARK_BORDER,
+        border_focus: primitive::PROPER_DARK_BORDER_FOCUS,
+        text: primitive::PROPER_DARK_TEXT,
+        text_dim: primitive::PROPER_DARK_TEXT_DIM,
+        shadow: primitive::PROPER_DARK_SHADOW,
+        rule: primitive::PROPER_DARK_RULE,
+    };
+
     pub fn palette(theme: &Theme) -> &'static BaseColors {
         let app_theme = crate::ui::theme::AppTheme::from(theme);
         &app_theme.palette().base

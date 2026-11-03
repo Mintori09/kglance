@@ -96,6 +96,16 @@ impl SidebarColors {
         arrow_text: primitive::DRACULA_TEXT_DIM,
     };
 
+    pub const PROPER_DARK: SidebarColors = SidebarColors {
+        hover_press: primitive::PROPER_DARK_SURFACE,
+        active_bg: primitive::PROPER_DARK_SURFACE_RAISED,
+        active_text: primitive::PROPER_DARK_LAVENDER,
+        inactive_text: primitive::PROPER_DARK_TEXT,
+        resizing: primitive::PROPER_DARK_LAVENDER,
+        normal_drag: primitive::PROPER_DARK_SURFACE,
+        arrow_text: primitive::PROPER_DARK_TEXT_DIM,
+    };
+
     pub fn palette(theme: &Theme) -> &'static SidebarColors {
         let app_theme = crate::ui::theme::AppTheme::from(theme);
         &app_theme.palette().sidebar

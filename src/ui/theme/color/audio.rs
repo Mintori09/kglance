@@ -59,4 +59,10 @@ impl AudioColors {
         vinyl_border: primitive::DRACULA_BORDER,
         vinyl_shadow: primitive::OVERLAY_SHADOW,
     };
+
+    pub const PROPER_DARK: AudioColors = AudioColors {
+        vinyl_bg: primitive::PROPER_DARK_BG,
+        vinyl_border: primitive::PROPER_DARK_BORDER,
+        vinyl_shadow: primitive::PROPER_DARK_SHADOW,
+    };
 }

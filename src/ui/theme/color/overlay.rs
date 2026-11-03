@@ -104,4 +104,15 @@ impl OverlayColors {
         selection_bg: primitive::SELECTION_DRACULA_BG,
         backdrop_modal: primitive::OVERLAY_BACKDROP,
     };
+
+    pub const PROPER_DARK: OverlayColors = OverlayColors {
+        floating_bg: primitive::PROPER_DARK_SURFACE_RAISED,
+        floating_border: primitive::PROPER_DARK_BORDER,
+        floating_fg: primitive::PROPER_DARK_TEXT,
+        floating_text_dim: primitive::PROPER_DARK_TEXT_DIM,
+        floating_text_muted: primitive::PROPER_DARK_BORDER,
+        floating_shadow: primitive::PROPER_DARK_SHADOW,
+        selection_bg: primitive::SELECTION_PROPER_DARK_BG,
+        backdrop_modal: primitive::OVERLAY_BACKDROP,
+    };
 }
