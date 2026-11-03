@@ -987,6 +987,106 @@ fn test_jump_to_search_match_positions_correctly() {
 }
 
 #[test]
+fn test_search_continuous_mode_accounts_for_chapter_header_blocks() {
+    let ch1_blocks = vec![
+        crate::parsers::markdown::Block::Paragraph(vec![crate::parsers::markdown::Inline::Text(
+            "Chapter 1 Paragraph 1 with search_target".to_string(),
+        )]),
+        crate::parsers::markdown::Block::Paragraph(vec![crate::parsers::markdown::Inline::Text(
+            "Chapter 1 Paragraph 2".to_string(),
+        )]),
+    ];
+    let ch2_blocks = vec![
+        crate::parsers::markdown::Block::Paragraph(vec![crate::parsers::markdown::Inline::Text(
+            "Chapter 2 Paragraph 1 with search_target".to_string(),
+        )]),
+        crate::parsers::markdown::Block::Paragraph(vec![crate::parsers::markdown::Inline::Text(
+            "Chapter 2 Paragraph 2".to_string(),
+        )]),
+    ];
+    let chapters = vec![
+        crate::core::types::EpubChapterInfo {
+            title: "Chapter 1".to_string(),
+            level: 1,
+            anchor: None,
+            file_href: "ch1.xhtml".to_string(),
+            blocks: ch1_blocks,
+        },
+        crate::core::types::EpubChapterInfo {
+            title: "Chapter 2".to_string(),
+            level: 1,
+            anchor: None,
+            file_href: "ch2.xhtml".to_string(),
+            blocks: ch2_blocks,
+        },
+    ];
+
+    let mut app = test_app(Some(crate::core::PreviewData::Epub {
+        title: "Test Book".to_string(),
+        author: "Author".to_string(),
+        chapters: chapters.clone(),
+        active_chapter: 0,
+        images: std::collections::HashMap::new(),
+    }));
+    app.state.epub_reading_mode = crate::core::config::EpubReadingMode::Continuous;
+    crate::features::epub::state::populate_state(
+        &mut app.state,
+        "Test Book",
+        "Author",
+        &chapters,
+        0,
+        &std::collections::HashMap::new(),
+    );
+
+    // Continuous layout:
+    // Block 0: Ch1 Para 1
+    // Block 1: Ch1 Para 2
+    // Block 2: HorizontalRule (divider before Chapter 2)
+    // Block 3: Ch2 Para 1
+    // Block 4: Ch2 Para 2
+    assert_eq!(app.state.epub.continuous_blocks.len(), 5);
+    assert!(matches!(
+        app.state.epub.continuous_blocks[2],
+        crate::parsers::markdown::Block::HorizontalRule
+    ));
+    assert_eq!(app.state.epub.chapter_block_offsets, vec![0, 2]);
+
+    let _ = handle_search_query_changed(&mut app, "search_target".to_string());
+    assert_eq!(app.state.epub.search.total_matches(), 2);
+
+    // Match 0 is in Ch1 Block 0 -> continuous block 0
+    // Match 1 is in Ch2 Block 0 -> continuous block 3 (ch2_start 2 + header 1 + block 0)
+    // Without the header_count compensation, match 1 would incorrectly map to block 2 (HorizontalRule).
+    assert_eq!(
+        app.state.epub.markdown_state.search_match_blocks,
+        vec![0, 3]
+    );
+
+    // Click on match 1 (Chapter 2, block 0)
+    let _ = handle_search_result_clicked(&mut app, 1);
+    assert_eq!(app.state.epub.search.active_match_index, 1);
+    assert_eq!(app.state.epub.markdown_state.search_match_index, 1);
+    assert_eq!(app.state.epub.active_chapter, 1);
+
+    let ch2_para1_y = app.state.epub.markdown_state.block_y_offsets[3];
+    let vh = app.state.epub.markdown_state.viewport_height;
+    let offset_padding = if vh > 0.0 {
+        (vh * 0.25).max(40.0)
+    } else {
+        40.0
+    };
+    let max_y =
+        crate::core::scroll::max_scroll_y(app.state.epub.markdown_state.total_content_height, vh);
+    let target_y = (ch2_para1_y - offset_padding).max(0.0);
+    let expected_target_y = if max_y > 0.0 {
+        target_y.clamp(0.0, max_y)
+    } else {
+        target_y
+    };
+    assert_eq!(app.state.epub.markdown_state.scroll_y, expected_target_y);
+}
+
+#[test]
 fn test_epub_image_lightbox_open_close_and_navigate() {
     use crate::core::types::EpubChapterInfo;
     use crate::features::markdown::Block;
