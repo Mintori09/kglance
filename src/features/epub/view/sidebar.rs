@@ -81,7 +81,9 @@ fn build_sidebar_search_bar<'a>(
 
     if is_searching {
         let total = state.search.total_matches();
-        let count_str = if total >= crate::features::epub::search::MAX_SEARCH_RESULTS {
+        let count_str = if total == 0 {
+            "0/0".to_string()
+        } else if total >= crate::features::epub::search::MAX_SEARCH_RESULTS {
             format!("{}/{}+", state.search.active_match_index + 1, total)
         } else {
             format!("{}/{}", state.search.active_match_index + 1, total)
@@ -94,23 +96,35 @@ fn build_sidebar_search_bar<'a>(
         let text_color = palette.text;
         let text_dim_color = palette.text_dim;
 
-        let prev_btn = button(text("▲").size(10).font(main_font))
-            .on_press(crate::app::messages::EpubMsg::SearchPrev.into())
+        let mut prev_btn = button(text("▲").size(10).font(main_font))
             .padding([2, 5])
             .style(move |_, _| button::Style {
                 background: None,
-                text_color,
+                text_color: if total > 0 {
+                    text_color
+                } else {
+                    text_dim_color
+                },
                 ..Default::default()
             });
+        if total > 0 {
+            prev_btn = prev_btn.on_press(crate::app::messages::EpubMsg::SearchPrev.into());
+        }
 
-        let next_btn = button(text("▼").size(10).font(main_font))
-            .on_press(crate::app::messages::EpubMsg::SearchNext.into())
+        let mut next_btn = button(text("▼").size(10).font(main_font))
             .padding([2, 5])
             .style(move |_, _| button::Style {
                 background: None,
-                text_color,
+                text_color: if total > 0 {
+                    text_color
+                } else {
+                    text_dim_color
+                },
                 ..Default::default()
             });
+        if total > 0 {
+            next_btn = next_btn.on_press(crate::app::messages::EpubMsg::SearchNext.into());
+        }
 
         let clear_btn = button(text("✕").size(11).font(main_font))
             .on_press(crate::app::messages::EpubMsg::SearchClear.into())
