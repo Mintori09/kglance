@@ -4,12 +4,30 @@ use quick_xml::reader::Reader;
 use super::entities::{decode_html_entities, decode_html_entities_only, normalize_nfc};
 use super::extract::extract_id_or_name;
 
+use std::collections::HashMap;
+
+use crate::features::epub::parser::css::BlockStyle;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InlineFormat {
+    Delim(&'static str),
+    Underline,
+}
+
 pub fn convert_html_to_markdown(html: &str) -> String {
     let mut converter = HtmlToMarkdownConverter::new();
     converter.convert(html)
 }
 
-pub struct HtmlToMarkdownConverter {
+pub fn convert_html_to_markdown_with_stylesheet(
+    html: &str,
+    stylesheet_map: &HashMap<String, BlockStyle>,
+) -> String {
+    let mut converter = HtmlToMarkdownConverter::with_stylesheet(stylesheet_map);
+    converter.convert(html)
+}
+
+pub struct HtmlToMarkdownConverter<'a> {
     output: String,
     skip_depth: usize,
     in_pre: bool,
@@ -38,7 +56,8 @@ pub struct HtmlToMarkdownConverter {
     in_rt: bool,
     in_rp: bool,
     quote_stack: Vec<String>,
-    span_format_stack: Vec<&'static str>,
+    span_format_stack: Vec<Vec<InlineFormat>>,
+    pending_opening_formats: Vec<InlineFormat>,
     div_callout_stack: Vec<Option<&'static str>>,
     in_figure: bool,
     in_figure_caption: bool,
@@ -48,6 +67,7 @@ pub struct HtmlToMarkdownConverter {
     in_dl: bool,
     in_dt: bool,
     in_dd: bool,
+    stylesheet_map: Option<&'a HashMap<String, BlockStyle>>,
 }
 
 #[derive(Clone, Copy)]
@@ -56,13 +76,13 @@ struct ListContext {
     index: usize,
 }
 
-impl Default for HtmlToMarkdownConverter {
+impl Default for HtmlToMarkdownConverter<'_> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl HtmlToMarkdownConverter {
+impl<'a> HtmlToMarkdownConverter<'a> {
     pub fn new() -> Self {
         Self {
             output: String::with_capacity(1024),
@@ -94,6 +114,7 @@ impl HtmlToMarkdownConverter {
             in_rp: false,
             quote_stack: Vec::new(),
             span_format_stack: Vec::new(),
+            pending_opening_formats: Vec::new(),
             div_callout_stack: Vec::new(),
             in_figure: false,
             in_figure_caption: false,
@@ -103,6 +124,14 @@ impl HtmlToMarkdownConverter {
             in_dl: false,
             in_dt: false,
             in_dd: false,
+            stylesheet_map: None,
+        }
+    }
+
+    pub fn with_stylesheet(stylesheet_map: &'a HashMap<String, BlockStyle>) -> Self {
+        Self {
+            stylesheet_map: Some(stylesheet_map),
+            ..Self::new()
         }
     }
 
@@ -144,6 +173,7 @@ impl HtmlToMarkdownConverter {
                     }
                 }
                 Ok(Event::Eof) | Err(_) => {
+                    self.flush_pending_formats();
                     if self.in_ruby {
                         self.in_ruby = false;
                         self.flush_ruby_pair();
@@ -403,6 +433,9 @@ impl HtmlToMarkdownConverter {
                 } else {
                     let mut is_bold = false;
                     let mut is_italic = false;
+                    let mut is_underline = false;
+                    let mut is_strikethrough = false;
+
                     for attr in e.attributes().flatten() {
                         let key = attr.key.as_ref();
                         let val = attr.value.to_ascii_lowercase();
@@ -416,16 +449,48 @@ impl HtmlToMarkdownConverter {
                                     is_bold = true;
                                     is_italic = true;
                                 }
+                                if let Some(map) = self.stylesheet_map
+                                    && let Some(style) = map.get(class_token)
+                                {
+                                    if style.is_bold {
+                                        is_bold = true;
+                                    }
+                                    if style.is_italic {
+                                        is_italic = true;
+                                    }
+                                    if style.is_underline {
+                                        is_underline = true;
+                                    }
+                                    if style.is_strikethrough {
+                                        is_strikethrough = true;
+                                    }
+                                }
                             }
                         } else if key.eq_ignore_ascii_case("style") {
-                            if val.contains("font-style: italic")
-                                || val.contains("font-style:italic")
-                            {
-                                is_italic = true;
-                            }
-                            if val.contains("font-weight: bold") || val.contains("font-weight:bold")
-                            {
-                                is_bold = true;
+                            for decl in val.split(';') {
+                                if let Some((k, v)) = decl.split_once(':') {
+                                    let k = k.trim();
+                                    let v = v.trim();
+                                    if k == "font-style" && (v == "italic" || v == "oblique") {
+                                        is_italic = true;
+                                    } else if k == "font-weight"
+                                        && (v == "bold"
+                                            || v == "bolder"
+                                            || v == "700"
+                                            || v == "800"
+                                            || v == "900")
+                                    {
+                                        is_bold = true;
+                                    } else if k == "text-decoration" || k == "text-decoration-line"
+                                    {
+                                        if v.contains("underline") {
+                                            is_underline = true;
+                                        }
+                                        if v.contains("line-through") {
+                                            is_strikethrough = true;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -437,12 +502,21 @@ impl HtmlToMarkdownConverter {
                         (false, false) => None,
                     };
 
-                    if let Some(delim) = delimiter {
-                        self.append_str(delim);
-                        self.span_format_stack.push(delim);
-                    } else {
-                        self.span_format_stack.push("");
+                    let mut formats = Vec::new();
+                    if is_strikethrough {
+                        formats.push(InlineFormat::Delim("~~"));
+                        self.pending_opening_formats.push(InlineFormat::Delim("~~"));
                     }
+                    if let Some(delim) = delimiter {
+                        formats.push(InlineFormat::Delim(delim));
+                        self.pending_opening_formats
+                            .push(InlineFormat::Delim(delim));
+                    }
+                    if is_underline {
+                        formats.push(InlineFormat::Underline);
+                        self.pending_opening_formats.push(InlineFormat::Underline);
+                    }
+                    self.span_format_stack.push(formats);
                 }
             }
             "ul" => {
@@ -481,16 +555,22 @@ impl HtmlToMarkdownConverter {
                 if let Some(id) = extract_id_or_name(e) {
                     self.append_str(&format!("<a id=\"{id}\"></a> "));
                 }
-                self.append_str("**");
+                self.pending_opening_formats.push(InlineFormat::Delim("**"));
             }
             "i" | "em" => {
                 if let Some(id) = extract_id_or_name(e) {
                     self.append_str(&format!("<a id=\"{id}\"></a> "));
                 }
-                self.append_str("*");
+                self.pending_opening_formats.push(InlineFormat::Delim("*"));
+            }
+            "u" | "ins" => {
+                if let Some(id) = extract_id_or_name(e) {
+                    self.append_str(&format!("<a id=\"{id}\"></a> "));
+                }
+                self.pending_opening_formats.push(InlineFormat::Underline);
             }
             "del" | "s" | "strike" => {
-                self.append_str("~~");
+                self.pending_opening_formats.push(InlineFormat::Delim("~~"));
             }
             "sub" => {
                 self.sub_depth += 1;
@@ -655,14 +735,15 @@ impl HtmlToMarkdownConverter {
                 self.list_stack.pop();
                 self.ensure_newline();
             }
-            "b" | "strong" => self.append_closing_delimiter("**"),
-            "i" | "em" => self.append_closing_delimiter("*"),
-            "del" | "s" | "strike" => self.append_closing_delimiter("~~"),
+            "b" | "strong" => self.append_closing_format(InlineFormat::Delim("**")),
+            "i" | "em" => self.append_closing_format(InlineFormat::Delim("*")),
+            "u" | "ins" => self.append_closing_format(InlineFormat::Underline),
+            "del" | "s" | "strike" => self.append_closing_format(InlineFormat::Delim("~~")),
             "span" => {
-                if let Some(delim) = self.span_format_stack.pop()
-                    && !delim.is_empty()
-                {
-                    self.append_closing_delimiter(delim);
+                if let Some(formats) = self.span_format_stack.pop() {
+                    for fmt in formats.into_iter().rev() {
+                        self.append_closing_format(fmt);
+                    }
                 }
             }
             "sub" => {
@@ -793,6 +874,7 @@ impl HtmlToMarkdownConverter {
                 self.ensure_newline();
             }
             "p" | "section" | "article" => {
+                self.flush_pending_formats();
                 self.p_just_started = false;
                 if self.in_ruby {
                     self.in_ruby = false;
@@ -1011,7 +1093,7 @@ impl HtmlToMarkdownConverter {
         }
 
         if self.in_cell {
-            self.current_cell.push_str(text_to_append);
+            self.append_formatted_text(text_to_append);
             return;
         }
 
@@ -1033,12 +1115,12 @@ impl HtmlToMarkdownConverter {
             {
                 let leading_ws = &text_to_append[..text_to_append.len() - trimmed_start.len()];
                 let escaped = format!("{leading_ws}\\{trimmed_start}");
-                self.append_str(&escaped);
+                self.append_formatted_text(&escaped);
                 return;
             }
         }
 
-        self.append_str(text_to_append);
+        self.append_formatted_text(text_to_append);
     }
 
     fn flush_ruby_pair(&mut self) {
@@ -1067,7 +1149,17 @@ impl HtmlToMarkdownConverter {
         }
     }
 
-    fn append_closing_delimiter(&mut self, delim: &str) {
+    fn append_closing_format(&mut self, fmt: InlineFormat) {
+        if let Some(pos) = self.pending_opening_formats.iter().rposition(|&f| f == fmt) {
+            self.pending_opening_formats.remove(pos);
+            return;
+        }
+
+        let closing_str = match fmt {
+            InlineFormat::Delim(d) => d,
+            InlineFormat::Underline => "</u>",
+        };
+
         let target = if self.in_cell {
             &mut self.current_cell
         } else if let Some(current_quote) = self.quote_stack.last_mut() {
@@ -1083,10 +1175,53 @@ impl HtmlToMarkdownConverter {
         if trimmed_len < target.len() {
             let trailing = target[trimmed_len..].to_string();
             target.truncate(trimmed_len);
-            target.push_str(delim);
+            target.push_str(closing_str);
             target.push_str(&trailing);
         } else {
-            target.push_str(delim);
+            target.push_str(closing_str);
+        }
+    }
+
+    fn flush_pending_formats(&mut self) {
+        for fmt in std::mem::take(&mut self.pending_opening_formats) {
+            match fmt {
+                InlineFormat::Delim(d) => self.append_str(d),
+                InlineFormat::Underline => self.append_str("<u>"),
+            }
+        }
+    }
+
+    fn append_formatted_text(&mut self, text: &str) {
+        if self.pending_opening_formats.is_empty() {
+            self.append_str(text);
+            return;
+        }
+
+        let mut non_ws_idx = 0;
+        let len = text.len();
+
+        while non_ws_idx < len {
+            let rem = &text[non_ws_idx..];
+            if rem.starts_with("&nbsp;") {
+                non_ws_idx += "&nbsp;".len();
+            } else if let Some(ch) = rem.chars().next() {
+                if ch.is_whitespace() || ch == '\u{a0}' {
+                    non_ws_idx += ch.len_utf8();
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+
+        if non_ws_idx > 0 {
+            self.append_str(&text[..non_ws_idx]);
+        }
+
+        if non_ws_idx < text.len() {
+            self.flush_pending_formats();
+            self.append_str(&text[non_ws_idx..]);
         }
     }
 

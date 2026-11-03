@@ -13,6 +13,8 @@ pub struct InlineStyleOptions<'a> {
     pub base_color: Option<iced::Color>,
     pub align_x: iced::alignment::Horizontal,
     pub prefix_text: Option<&'a str>,
+    pub base_underline: bool,
+    pub base_strikethrough: bool,
 }
 
 impl Default for InlineStyleOptions<'_> {
@@ -23,6 +25,8 @@ impl Default for InlineStyleOptions<'_> {
             base_color: None,
             align_x: iced::alignment::Horizontal::Left,
             prefix_text: None,
+            base_underline: false,
+            base_strikethrough: false,
         }
     }
 }
@@ -93,6 +97,8 @@ pub fn render_inlines_aligned_with_prefix<'a>(
         base_color,
         align_x,
         prefix_text,
+        base_underline: false,
+        base_strikethrough: false,
     };
     render_inlines_with_options(inlines, font_size, opts, ctx)
 }
@@ -113,6 +119,8 @@ pub fn render_inlines_with_options<'a>(
         base_weight: opts.base_weight,
         base_style: opts.base_style,
         base_color: opts.base_color,
+        base_underline: opts.base_underline,
+        base_strikethrough: opts.base_strikethrough,
         font_size,
         ruby_display_mode: ctx.ruby_display_mode,
         footnotes: ctx.footnotes,

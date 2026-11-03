@@ -119,13 +119,13 @@ pub fn build_continuous_blocks(chapters: &[EpubChapterInfo]) -> (Vec<Block>, Vec
         }
 
         let start_idx = all_blocks.len();
-        if !ch.file_href.is_empty() {
-            seen_file_offsets.insert(&ch.file_href, start_idx);
-        }
-
         if ch.blocks.is_empty() {
             chapter_block_offsets.push(start_idx);
             continue;
+        }
+
+        if !ch.file_href.is_empty() {
+            seen_file_offsets.insert(&ch.file_href, start_idx);
         }
 
         if ch_idx > 0
@@ -455,6 +455,31 @@ mod tests {
         // Only 3 blocks: ch1 para, then ch2's own HR and ch2 para (no synthetic double HR)
         assert_eq!(blocks_dedup.len(), 3);
         assert!(matches!(blocks_dedup[1], Block::HorizontalRule));
+
+        // Test empty first chapter pointing to same file does not poison seen_file_offsets
+        let chapters_empty_first = vec![
+            EpubChapterInfo {
+                title: "Cover / Empty Chapter".to_string(),
+                level: 1,
+                anchor: None,
+                file_href: "ch1.xhtml".to_string(),
+                blocks: Vec::new(),
+            },
+            EpubChapterInfo {
+                title: "Chapter 1 Real".to_string(),
+                level: 1,
+                anchor: None,
+                file_href: "ch1.xhtml".to_string(),
+                blocks: vec![Block::Paragraph(vec![
+                    crate::parsers::markdown::Inline::Text("Real Content".to_string()),
+                ])],
+            },
+        ];
+        let (blocks_empty, offsets_empty) = build_continuous_blocks(&chapters_empty_first);
+        assert_eq!(offsets_empty.len(), 2);
+        assert_eq!(offsets_empty[0], 0);
+        assert_eq!(offsets_empty[1], 0);
+        assert_eq!(blocks_empty.len(), 1);
     }
 
     #[test]
