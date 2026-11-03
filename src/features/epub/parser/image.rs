@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Seek};
 
+use super::ncx::decode_url_component;
 use super::opf::resolve_relative_path;
 use crate::features::markdown::parser::{Block, Inline};
 
@@ -82,38 +83,55 @@ pub fn extract_selective_images<R: Read + Seek>(
     let mut target_names: HashSet<String> = HashSet::new();
 
     if let Some(href) = cover_href {
-        let resolved = resolve_relative_path(opf_path, href);
-        target_names.insert(resolved.clone());
-        target_names.insert(href.to_string());
-        target_names.insert(extract_filename(href));
+        let decoded = decode_url_component(href);
+        let variations = if decoded != href {
+            vec![href.to_string(), decoded]
+        } else {
+            vec![href.to_string()]
+        };
+        for h in variations {
+            let resolved = resolve_relative_path(opf_path, &h);
+            target_names.insert(resolved);
+            target_names.insert(h.clone());
+            target_names.insert(extract_filename(&h));
+        }
     }
 
     let mut target_to_orig: HashMap<String, Vec<String>> = HashMap::new();
     let block_imgs = extract_images_from_blocks(blocks);
-    for img in block_imgs {
-        if let Some(ch_href) = chapter_file_href {
-            let ch_resolved = resolve_relative_path(ch_href, &img);
-            let full_resolved = resolve_relative_path(opf_path, &ch_resolved);
+    for raw_img in block_imgs {
+        let decoded_img = decode_url_component(&raw_img);
+        let variations = if decoded_img != raw_img {
+            vec![raw_img.clone(), decoded_img]
+        } else {
+            vec![raw_img.clone()]
+        };
+
+        for img in variations {
+            if let Some(ch_href) = chapter_file_href {
+                let ch_resolved = resolve_relative_path(ch_href, &img);
+                let full_resolved = resolve_relative_path(opf_path, &ch_resolved);
+                target_to_orig
+                    .entry(full_resolved.clone())
+                    .or_default()
+                    .push(raw_img.clone());
+                target_to_orig
+                    .entry(ch_resolved.clone())
+                    .or_default()
+                    .push(raw_img.clone());
+                target_names.insert(full_resolved);
+                target_names.insert(ch_resolved);
+            }
+            let resolved = resolve_relative_path(opf_path, &img);
             target_to_orig
-                .entry(full_resolved.clone())
+                .entry(resolved.clone())
                 .or_default()
-                .push(img.clone());
-            target_to_orig
-                .entry(ch_resolved.clone())
-                .or_default()
-                .push(img.clone());
-            target_names.insert(full_resolved);
-            target_names.insert(ch_resolved);
+                .push(raw_img.clone());
+            target_names.insert(resolved);
+            let filename = extract_filename(&img);
+            target_names.insert(filename);
+            target_names.insert(img);
         }
-        let resolved = resolve_relative_path(opf_path, &img);
-        target_to_orig
-            .entry(resolved.clone())
-            .or_default()
-            .push(img.clone());
-        target_names.insert(resolved);
-        let filename = extract_filename(&img);
-        target_names.insert(filename);
-        target_names.insert(img);
     }
 
     let mut found_cover = cover_href.is_some();

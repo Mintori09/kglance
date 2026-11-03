@@ -131,10 +131,15 @@ fn try_emit_navpoint(frame: &mut NavPointFrame, entries: &mut Vec<NcxNavPoint>) 
     {
         let mut parts = src.split('#');
         let raw_file = parts.next().unwrap_or(src);
-        let file_part = decode_url_component(raw_file);
+        let mut file_part = decode_url_component(raw_file);
         let anchor = parts
             .next()
             .map(|a| decode_url_component(a.trim_start_matches('#')));
+        if file_part.is_empty()
+            && let Some(prev) = entries.last()
+        {
+            file_part = prev.2.clone();
+        }
         entries.push((label.clone(), frame.level, file_part, anchor));
         frame.emitted = true;
     }
@@ -144,7 +149,7 @@ pub fn extract_epub3_navpoints(nav_html: &str) -> Vec<NcxNavPoint> {
     use quick_xml::events::Event;
     use quick_xml::reader::Reader;
 
-    let mut entries = Vec::new();
+    let mut entries: Vec<NcxNavPoint> = Vec::new();
     let mut reader = Reader::from_str(nav_html);
     reader.config_mut().check_end_names = false;
     reader.config_mut().trim_text(false);
@@ -199,10 +204,17 @@ pub fn extract_epub3_navpoints(nav_html: &str) -> Vec<NcxNavPoint> {
                             if !clean_label.is_empty() {
                                 let mut parts = href.split('#');
                                 let raw_file = parts.next().unwrap_or(&href);
-                                let file_part = decode_url_component(raw_file);
+                                let mut file_part = decode_url_component(raw_file);
                                 let anchor = parts
                                     .next()
                                     .map(|a| decode_url_component(a.trim_start_matches('#')));
+
+                                if file_part.is_empty()
+                                    && let Some(prev) = entries.last()
+                                {
+                                    file_part = prev.2.clone();
+                                }
+
                                 entries.push((clean_label, list_depth.max(1), file_part, anchor));
                             }
                         }
