@@ -96,6 +96,16 @@ impl RoleColors {
         danger: primitive::DRACULA_RED,
     };
 
+    pub const PROPER_DARK: RoleColors = RoleColors {
+        accent: primitive::PROPER_DARK_LAVENDER,
+        accent_hover: primitive::PROPER_DARK_LAVENDER_HOVER,
+        accent_pressed: primitive::PROPER_DARK_LAVENDER_PRESSED,
+        link: primitive::PROPER_DARK_LAVENDER,
+        success: primitive::PROPER_DARK_GREEN,
+        warning: primitive::PROPER_DARK_AMBER,
+        danger: primitive::PROPER_DARK_RED,
+    };
+
     pub fn palette(theme: &Theme) -> &'static RoleColors {
         let app_theme = crate::ui::theme::AppTheme::from(theme);
         &app_theme.palette().roles

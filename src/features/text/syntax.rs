@@ -111,7 +111,7 @@ fn create_custom_syntect_theme(def: &ThemePaletteDef) -> syntect::highlighting::
     }
 }
 
-const CUSTOM_THEME_DEFS: [ThemePaletteDef; 8] = [
+const CUSTOM_THEME_DEFS: [ThemePaletteDef; 9] = [
     // 1. Dark (Base16 Eighties tuned)
     ThemePaletteDef {
         name: "dark",
@@ -255,6 +255,24 @@ const CUSTOM_THEME_DEFS: [ThemePaletteDef; 8] = [
         operator: (255, 121, 198),
         property: (80, 250, 123),
         punctuation: (248, 248, 242),
+    },
+    // 9. Proper Dark
+    ThemePaletteDef {
+        name: "proper-dark",
+        bg: (28, 32, 35),
+        fg: (217, 217, 217),
+        comment: (99, 104, 109),
+        string: (152, 195, 121),
+        keyword: (184, 169, 201),
+        storage: (159, 152, 191),
+        modifier: (184, 169, 201),
+        function: (122, 162, 247),
+        type_name: (229, 192, 123),
+        number: (209, 154, 102),
+        tag: (184, 169, 201),
+        operator: (159, 152, 191),
+        property: (122, 162, 247),
+        punctuation: (150, 151, 152),
     },
 ];
 
@@ -411,6 +429,7 @@ mod tests {
             crate::ui::theme::AppTheme::GruvboxDark,
             crate::ui::theme::AppTheme::Nord,
             crate::ui::theme::AppTheme::Dracula,
+            crate::ui::theme::AppTheme::ProperDark,
         ];
 
         for theme in all_themes {

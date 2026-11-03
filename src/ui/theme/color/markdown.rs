@@ -141,6 +141,21 @@ impl MarkdownColors {
         math: primitive::DRACULA_TEXT,
     };
 
+    pub const PROPER_DARK: MarkdownColors = MarkdownColors {
+        search_active_bg: primitive::PROPER_DARK_AMBER,
+        search_inactive_bg: primitive::PROPER_DARK_SURFACE,
+        table_header_bg: primitive::PROPER_DARK_SURFACE,
+        table_header_text: primitive::PROPER_DARK_TEXT,
+        table_separator: primitive::PROPER_DARK_BORDER,
+        table_border: primitive::PROPER_DARK_BORDER,
+        quote_accent: primitive::PROPER_DARK_LAVENDER,
+        quote_bg: primitive::PROPER_DARK_SURFACE,
+        inline_code_fg: primitive::PROPER_DARK_LAVENDER,
+        inline_code_bg: primitive::PROPER_DARK_SURFACE,
+        html_fg: primitive::PROPER_DARK_TEXT_DIM,
+        math: primitive::PROPER_DARK_TEXT,
+    };
+
     pub fn palette(theme: &Theme) -> &'static MarkdownColors {
         let app_theme = crate::ui::theme::AppTheme::from(theme);
         &app_theme.palette().markdown

@@ -218,4 +218,32 @@ impl AlertColors {
             border: primitive::DRACULA_RED,
         },
     };
+
+    pub const PROPER_DARK: AlertColors = AlertColors {
+        note: AlertGroup {
+            fg: primitive::PROPER_DARK_BLUE,
+            bg: primitive::PROPER_DARK_SURFACE,
+            border: primitive::PROPER_DARK_BLUE,
+        },
+        tip: AlertGroup {
+            fg: primitive::PROPER_DARK_GREEN,
+            bg: primitive::PROPER_DARK_SURFACE,
+            border: primitive::PROPER_DARK_GREEN,
+        },
+        info: AlertGroup {
+            fg: primitive::PROPER_DARK_LAVENDER,
+            bg: primitive::PROPER_DARK_SURFACE,
+            border: primitive::PROPER_DARK_LAVENDER,
+        },
+        warning: AlertGroup {
+            fg: primitive::PROPER_DARK_AMBER,
+            bg: primitive::PROPER_DARK_SURFACE,
+            border: primitive::PROPER_DARK_AMBER,
+        },
+        caution: AlertGroup {
+            fg: primitive::PROPER_DARK_RED,
+            bg: primitive::PROPER_DARK_SURFACE,
+            border: primitive::PROPER_DARK_RED,
+        },
+    };
 }

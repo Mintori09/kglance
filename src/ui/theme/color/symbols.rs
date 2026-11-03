@@ -87,4 +87,14 @@ impl SymbolColors {
         module: primitive::DRACULA_ORANGE,
         r#type: primitive::DRACULA_YELLOW,
     };
+
+    pub const PROPER_DARK: SymbolColors = SymbolColors {
+        function: primitive::PROPER_DARK_BLUE,
+        r#struct: primitive::PROPER_DARK_AMBER,
+        class: primitive::PROPER_DARK_AMBER,
+        r#enum: primitive::PROPER_DARK_LAVENDER,
+        r#trait: primitive::PROPER_DARK_GREEN,
+        module: primitive::PROPER_DARK_LAVENDER,
+        r#type: primitive::PROPER_DARK_BLUE,
+    };
 }

@@ -123,6 +123,19 @@ impl JsonColors {
         selection: primitive::DRACULA_SURFACE,
     };
 
+    pub const PROPER_DARK: JsonColors = JsonColors {
+        string: primitive::PROPER_DARK_GREEN,
+        number: primitive::PROPER_DARK_AMBER,
+        boolean: primitive::PROPER_DARK_LAVENDER,
+        null: primitive::PROPER_DARK_RED,
+        object: primitive::PROPER_DARK_BLUE,
+        text: primitive::PROPER_DARK_TEXT,
+        dim: primitive::PROPER_DARK_TEXT_DIM,
+        link: primitive::PROPER_DARK_LAVENDER,
+        error: primitive::PROPER_DARK_RED,
+        selection: primitive::PROPER_DARK_SURFACE_RAISED,
+    };
+
     pub fn palette(theme: &Theme) -> &'static JsonColors {
         let app_theme = crate::ui::theme::AppTheme::from(theme);
         &app_theme.palette().json

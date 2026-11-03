@@ -40,10 +40,11 @@ pub enum AppTheme {
     GruvboxDark,
     Nord,
     Dracula,
+    ProperDark,
 }
 
 impl AppTheme {
-    pub const ALL: [AppTheme; 8] = [
+    pub const ALL: [AppTheme; 9] = [
         AppTheme::Dark,
         AppTheme::Light,
         AppTheme::CatppuccinMocha,
@@ -52,6 +53,7 @@ impl AppTheme {
         AppTheme::GruvboxDark,
         AppTheme::Nord,
         AppTheme::Dracula,
+        AppTheme::ProperDark,
     ];
 
     #[inline]
@@ -62,7 +64,8 @@ impl AppTheme {
             | AppTheme::TokyoNight
             | AppTheme::GruvboxDark
             | AppTheme::Nord
-            | AppTheme::Dracula => true,
+            | AppTheme::Dracula
+            | AppTheme::ProperDark => true,
             AppTheme::Light | AppTheme::CatppuccinLatte => false,
         }
     }
@@ -77,6 +80,7 @@ impl AppTheme {
             AppTheme::GruvboxDark => &GRUVBOX_DARK_PALETTE,
             AppTheme::Nord => &NORD_PALETTE,
             AppTheme::Dracula => &DRACULA_PALETTE,
+            AppTheme::ProperDark => &PROPER_DARK_PALETTE,
         }
     }
 
@@ -95,7 +99,7 @@ impl AppTheme {
             AppTheme::TokyoNight => iced::highlighter::Theme::SolarizedDark,
             AppTheme::GruvboxDark => iced::highlighter::Theme::Base16Eighties,
             AppTheme::Nord => iced::highlighter::Theme::Base16Ocean,
-            AppTheme::Dracula => iced::highlighter::Theme::Base16Eighties,
+            AppTheme::Dracula | AppTheme::ProperDark => iced::highlighter::Theme::Base16Eighties,
         }
     }
 
@@ -109,6 +113,7 @@ impl AppTheme {
             AppTheme::GruvboxDark => "gruvbox-dark",
             AppTheme::Nord => "nord",
             AppTheme::Dracula => "dracula",
+            AppTheme::ProperDark => "proper-dark",
         }
     }
 
@@ -122,6 +127,7 @@ impl AppTheme {
             AppTheme::GruvboxDark => "Gruvbox Dark",
             AppTheme::Nord => "Nord",
             AppTheme::Dracula => "Dracula",
+            AppTheme::ProperDark => "Proper Dark",
         }
     }
 
@@ -134,7 +140,8 @@ impl AppTheme {
             AppTheme::TokyoNight => AppTheme::GruvboxDark,
             AppTheme::GruvboxDark => AppTheme::Nord,
             AppTheme::Nord => AppTheme::Dracula,
-            AppTheme::Dracula => AppTheme::Dark,
+            AppTheme::Dracula => AppTheme::ProperDark,
+            AppTheme::ProperDark => AppTheme::Dark,
         }
     }
 
@@ -145,7 +152,8 @@ impl AppTheme {
             | AppTheme::TokyoNight
             | AppTheme::GruvboxDark
             | AppTheme::Nord
-            | AppTheme::Dracula => MD_DARK_CODE_FG,
+            | AppTheme::Dracula
+            | AppTheme::ProperDark => MD_DARK_CODE_FG,
             AppTheme::Light | AppTheme::CatppuccinLatte => MD_LIGHT_CODE_FG,
         }
     }
@@ -179,6 +187,7 @@ impl std::str::FromStr for AppTheme {
             "gruvbox" | "gruvbox-dark" => Ok(AppTheme::GruvboxDark),
             "nord" => Ok(AppTheme::Nord),
             "dracula" => Ok(AppTheme::Dracula),
+            "proper-dark" | "proper_dark" | "proper" => Ok(AppTheme::ProperDark),
             _ => Err(()),
         }
     }
@@ -187,7 +196,7 @@ impl std::str::FromStr for AppTheme {
 impl From<AppTheme> for iced::Theme {
     fn from(theme: AppTheme) -> Self {
         match theme {
-            AppTheme::Dark => iced::Theme::Dark,
+            AppTheme::Dark | AppTheme::ProperDark => iced::Theme::Dark,
             AppTheme::Light => iced::Theme::Light,
             AppTheme::CatppuccinMocha => iced::Theme::CatppuccinMocha,
             AppTheme::CatppuccinLatte => iced::Theme::CatppuccinLatte,
@@ -322,4 +331,16 @@ pub static DRACULA_PALETTE: ColorPalette = ColorPalette {
     symbols: SymbolColors::DRACULA,
     audio: AudioColors::DRACULA,
     overlay: OverlayColors::DRACULA,
+};
+
+pub static PROPER_DARK_PALETTE: ColorPalette = ColorPalette {
+    base: BaseColors::PROPER_DARK,
+    roles: RoleColors::PROPER_DARK,
+    sidebar: SidebarColors::PROPER_DARK,
+    json: JsonColors::PROPER_DARK,
+    markdown: MarkdownColors::PROPER_DARK,
+    alerts: AlertColors::PROPER_DARK,
+    symbols: SymbolColors::PROPER_DARK,
+    audio: AudioColors::PROPER_DARK,
+    overlay: OverlayColors::PROPER_DARK,
 };

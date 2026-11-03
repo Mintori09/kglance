@@ -328,6 +328,26 @@ pub(crate) const SELECTION_LATTE_BG: Color = Color::from_rgba(0.118, 0.400, 0.96
 pub(crate) const SELECTION_TOKYO_BG: Color = Color::from_rgba(0.478, 0.635, 0.969, 0.30);
 pub(crate) const SELECTION_GRUVBOX_BG: Color = Color::from_rgba(0.996, 0.502, 0.098, 0.30);
 pub(crate) const SELECTION_DRACULA_BG: Color = Color::from_rgba(0.741, 0.576, 0.976, 0.30);
+pub(crate) const SELECTION_PROPER_DARK_BG: Color = Color::from_rgba(0.624, 0.596, 0.749, 0.30);
+
+// ── Proper Dark Palette (Warm Charcoal & Lavender) ───────────────────────
+pub(crate) const PROPER_DARK_BG: Color = Color::from_rgb8(28, 32, 35); // #1C2023
+pub(crate) const PROPER_DARK_SURFACE: Color = Color::from_rgb8(35, 39, 43); // #23272B
+pub(crate) const PROPER_DARK_SURFACE_RAISED: Color = Color::from_rgb8(42, 47, 52); // #2A2F34
+pub(crate) const PROPER_DARK_BORDER: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.08);
+pub(crate) const PROPER_DARK_BORDER_FOCUS: Color = Color::from_rgba(0.624, 0.596, 0.749, 0.45); // #9F98BF
+pub(crate) const PROPER_DARK_RULE: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.08);
+pub(crate) const PROPER_DARK_TEXT: Color = Color::from_rgb8(217, 217, 217); // #D9D9D9
+pub(crate) const PROPER_DARK_TEXT_DIM: Color = Color::from_rgb8(150, 151, 152); // #969798
+pub(crate) const PROPER_DARK_SHADOW: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.50);
+
+pub(crate) const PROPER_DARK_LAVENDER: Color = Color::from_rgb8(159, 152, 191); // #9F98BF
+pub(crate) const PROPER_DARK_LAVENDER_HOVER: Color = Color::from_rgb8(179, 172, 209); // #B3ACD1
+pub(crate) const PROPER_DARK_LAVENDER_PRESSED: Color = Color::from_rgb8(139, 130, 173); // #8B82AD
+pub(crate) const PROPER_DARK_GREEN: Color = Color::from_rgb8(152, 195, 121); // #98C379
+pub(crate) const PROPER_DARK_AMBER: Color = Color::from_rgb8(229, 192, 123); // #E5C07B
+pub(crate) const PROPER_DARK_BLUE: Color = Color::from_rgb8(122, 162, 247); // #7AA2F7
+pub(crate) const PROPER_DARK_RED: Color = Color::from_rgb8(224, 108, 117); // #E06C75
 
 #[inline]
 pub const fn syntect_to_iced_color(c: syntect::highlighting::Color) -> Color {
