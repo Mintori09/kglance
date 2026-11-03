@@ -14,6 +14,18 @@ pub mod selection_menu;
 pub mod settings;
 pub mod trash;
 
+fn get_active_lightbox_image_state(
+    app: &mut KglanceApp,
+) -> Option<&mut crate::features::image::ImageState> {
+    if let Some(lb) = &mut app.state.lightbox {
+        Some(&mut lb.image_state)
+    } else if let Some(lb) = &mut app.state.epub.lightbox {
+        Some(&mut lb.image_state)
+    } else {
+        None
+    }
+}
+
 pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
     let task = update_message(app, message);
     sync_virtual_windows(app);
@@ -205,12 +217,12 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
         },
         Message::Image(msg) => match msg {
             crate::app::messages::ImageMsg::Zoom { factor, cursor } => {
-                if let Some(lightbox) = &mut app.state.epub.lightbox {
-                    let win = app.state.current_window_size;
+                let win = app.state.current_window_size;
+                if let Some(image_state) = get_active_lightbox_image_state(app) {
                     let canvas_height = (win.height - 40.0).max(1.0);
                     let viewport = iced::Size::new(win.width, canvas_height);
                     crate::features::image::ViewerController::zoom(
-                        &mut lightbox.image_state.camera,
+                        &mut image_state.camera,
                         factor,
                         cursor,
                         viewport,
@@ -221,37 +233,31 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 }
             }
             crate::app::messages::ImageMsg::PanDelta(dx, dy) => {
-                if let Some(lightbox) = &mut app.state.epub.lightbox {
-                    crate::features::image::ViewerController::pan(
-                        &mut lightbox.image_state.camera,
-                        dx,
-                        dy,
-                    );
+                if let Some(image_state) = get_active_lightbox_image_state(app) {
+                    crate::features::image::ViewerController::pan(&mut image_state.camera, dx, dy);
                     Task::none()
                 } else {
                     crate::features::image::update::handle_pan(app, dx, dy)
                 }
             }
             crate::app::messages::ImageMsg::FitToWindow => {
-                if let Some(lightbox) = &mut app.state.epub.lightbox {
-                    crate::features::image::ViewerController::reset(
-                        &mut lightbox.image_state.camera,
-                    );
+                if let Some(image_state) = get_active_lightbox_image_state(app) {
+                    crate::features::image::ViewerController::reset(&mut image_state.camera);
                     Task::none()
                 } else {
                     crate::features::image::update::handle_fit_to_window(app)
                 }
             }
             crate::app::messages::ImageMsg::DoubleClick => {
-                if let Some(lightbox) = &mut app.state.epub.lightbox {
-                    let win = app.state.current_window_size;
+                let win = app.state.current_window_size;
+                if let Some(image_state) = get_active_lightbox_image_state(app) {
                     let viewport = iced::Size::new(win.width, (win.height - 40.0).max(1.0));
                     let img_size = iced::Size::new(
-                        lightbox.image_state.display_width as f32,
-                        lightbox.image_state.display_height as f32,
+                        image_state.display_width as f32,
+                        image_state.display_height as f32,
                     );
                     crate::features::image::ViewerController::double_click_zoom(
-                        &mut lightbox.image_state.camera,
+                        &mut image_state.camera,
                         viewport,
                         img_size,
                     );
@@ -261,29 +267,25 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 }
             }
             crate::app::messages::ImageMsg::RotateRight => {
-                if let Some(lightbox) = &mut app.state.epub.lightbox {
-                    crate::features::image::ViewerController::rotate_right(
-                        &mut lightbox.image_state.camera,
-                    );
+                if let Some(image_state) = get_active_lightbox_image_state(app) {
+                    crate::features::image::ViewerController::rotate_right(&mut image_state.camera);
                     Task::none()
                 } else {
                     crate::features::image::update::handle_rotate_right(app)
                 }
             }
             crate::app::messages::ImageMsg::RotateLeft => {
-                if let Some(lightbox) = &mut app.state.epub.lightbox {
-                    crate::features::image::ViewerController::rotate_left(
-                        &mut lightbox.image_state.camera,
-                    );
+                if let Some(image_state) = get_active_lightbox_image_state(app) {
+                    crate::features::image::ViewerController::rotate_left(&mut image_state.camera);
                     Task::none()
                 } else {
                     crate::features::image::update::handle_rotate_left(app)
                 }
             }
             crate::app::messages::ImageMsg::FlipHorizontal => {
-                if let Some(lightbox) = &mut app.state.epub.lightbox {
+                if let Some(image_state) = get_active_lightbox_image_state(app) {
                     crate::features::image::ViewerController::flip_horizontal(
-                        &mut lightbox.image_state.camera,
+                        &mut image_state.camera,
                     );
                     Task::none()
                 } else {
@@ -291,9 +293,9 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 }
             }
             crate::app::messages::ImageMsg::FlipVertical => {
-                if let Some(lightbox) = &mut app.state.epub.lightbox {
+                if let Some(image_state) = get_active_lightbox_image_state(app) {
                     crate::features::image::ViewerController::flip_vertical(
-                        &mut lightbox.image_state.camera,
+                        &mut image_state.camera,
                     );
                     Task::none()
                 } else {
@@ -686,6 +688,9 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::MarkdownMsg::TouchpadGestureEnded(event_time) => {
                 crate::features::markdown::update::handle_touchpad_gesture_ended(app, event_time)
             }
+            crate::app::messages::MarkdownMsg::OpenImageLightbox(id) => {
+                crate::features::markdown::lightbox::handle_open_markdown_image_lightbox(app, &id)
+            }
             crate::app::messages::MarkdownMsg::AnimationTick => {
                 crate::features::markdown::view::components::image::handle_markdown_animation_tick(
                     app,
@@ -734,6 +739,21 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::EpubMsg::SidebarTabChanged(tab) => {
                 crate::features::epub::update::handle_sidebar_tab_changed(app, tab)
+            }
+        },
+        Message::Lightbox(msg) => match msg {
+            crate::app::messages::LightboxMsg::Open {
+                items,
+                initial_index,
+            } => crate::features::lightbox::ops::handle_open_lightbox(app, items, initial_index),
+            crate::app::messages::LightboxMsg::Close => {
+                crate::features::lightbox::ops::handle_close_lightbox(app)
+            }
+            crate::app::messages::LightboxMsg::Next => {
+                crate::features::lightbox::ops::handle_next_lightbox(app)
+            }
+            crate::app::messages::LightboxMsg::Prev => {
+                crate::features::lightbox::ops::handle_prev_lightbox(app)
             }
         },
         Message::Json(msg) => match msg {
