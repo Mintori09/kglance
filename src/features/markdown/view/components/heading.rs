@@ -1,7 +1,9 @@
 use super::style::{STYLE, divider_line_style, heading_layout};
 use crate::app::Message;
 use crate::features::epub::parser::css::BlockStyle;
-use crate::features::markdown::view::components::render_inlines_aligned;
+use crate::features::markdown::view::components::inline::{
+    InlineStyleOptions, render_inlines_with_options,
+};
 use crate::parsers::markdown::Inline;
 use crate::ui::types::RenderContext;
 use iced::font::Weight;
@@ -44,14 +46,28 @@ pub(crate) fn render_heading<'a>(
         content
     };
 
-    let heading_content = render_inlines_aligned(
-        effective_content,
-        layout.font_size,
-        weight,
-        color,
+    let (is_italic, is_underline, is_strikethrough) = style
+        .map(|s| (s.is_italic, s.is_underline, s.is_strikethrough))
+        .unwrap_or((false, false, false));
+
+    let base_style = if is_italic {
+        Some(iced::font::Style::Italic)
+    } else {
+        None
+    };
+
+    let opts = InlineStyleOptions {
+        base_weight: weight,
+        base_style,
+        base_color: color,
         align_x,
-        ctx,
-    );
+        prefix_text: None,
+        base_underline: is_underline,
+        base_strikethrough: is_strikethrough,
+    };
+
+    let heading_content =
+        render_inlines_with_options(effective_content, layout.font_size, opts, ctx);
     let heading = container(heading_content)
         .padding(Padding {
             top: layout.padding_top,
