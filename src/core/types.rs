@@ -117,6 +117,7 @@ pub struct KglanceState {
     pub json: JsonState,
     pub model3d: crate::features::model3d::types::Model3dState,
     pub file_tree: crate::features::file_tree::FileTreeState,
+    pub lightbox: Option<crate::features::lightbox::LightboxState>,
 
     pub grid_cols: usize,
     pub window_width: f32,
@@ -206,6 +207,7 @@ impl Default for KglanceState {
             json: JsonState::default(),
             model3d: crate::features::model3d::types::Model3dState::default(),
             file_tree: crate::features::file_tree::FileTreeState::default(),
+            lightbox: None,
             grid_cols: 5,
             window_width: 0.0,
             window_height: 0.0,
