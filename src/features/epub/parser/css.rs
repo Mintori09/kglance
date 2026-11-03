@@ -28,6 +28,8 @@ pub struct BlockStyle {
     pub is_bold: bool,
     pub is_italic: bool,
     pub is_uppercase: bool,
+    pub is_underline: bool,
+    pub is_strikethrough: bool,
 }
 
 /// Parses CSS text content and maps class selectors (`.class_name`) to `BlockStyle`.
@@ -50,6 +52,8 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
         let mut is_bold = false;
         let mut is_italic = false;
         let mut is_uppercase = false;
+        let mut is_underline = false;
+        let mut is_strikethrough = false;
 
         for decl in body.split(';') {
             let decl = decl.trim();
@@ -79,17 +83,33 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
                     is_italic = true;
                 } else if prop == "text-transform" && val == "uppercase" {
                     is_uppercase = true;
+                } else if prop == "text-decoration" || prop == "text-decoration-line" {
+                    if val.contains("underline") {
+                        is_underline = true;
+                    }
+                    if val.contains("line-through") {
+                        is_strikethrough = true;
+                    }
                 }
             }
         }
 
-        if align.is_some() || indent.is_some() || is_bold || is_italic || is_uppercase {
+        if align.is_some()
+            || indent.is_some()
+            || is_bold
+            || is_italic
+            || is_uppercase
+            || is_underline
+            || is_strikethrough
+        {
             let style = BlockStyle {
                 align: align.unwrap_or_default(),
                 text_indent: indent.unwrap_or(0.0),
                 is_bold,
                 is_italic,
                 is_uppercase,
+                is_underline,
+                is_strikethrough,
             };
 
             for sel in selectors.split(',') {
@@ -136,6 +156,12 @@ pub fn resolve_block_style(
             if cls_style.is_uppercase {
                 style.is_uppercase = true;
             }
+            if cls_style.is_underline {
+                style.is_underline = true;
+            }
+            if cls_style.is_strikethrough {
+                style.is_strikethrough = true;
+            }
         }
     }
 
@@ -155,6 +181,12 @@ pub fn resolve_block_style(
         }
         if inline_s.is_uppercase {
             style.is_uppercase = true;
+        }
+        if inline_s.is_underline {
+            style.is_underline = true;
+        }
+        if inline_s.is_strikethrough {
+            style.is_strikethrough = true;
         }
     }
 
@@ -209,6 +241,13 @@ pub fn parse_inline_style(style_str: &str) -> BlockStyle {
                 style.is_italic = true;
             } else if prop == "text-transform" && val == "uppercase" {
                 style.is_uppercase = true;
+            } else if prop == "text-decoration" || prop == "text-decoration-line" {
+                if val.contains("underline") {
+                    style.is_underline = true;
+                }
+                if val.contains("line-through") {
+                    style.is_strikethrough = true;
+                }
             }
         }
     }
@@ -245,6 +284,8 @@ mod tests {
                 is_bold: true,
                 is_italic: false,
                 is_uppercase: false,
+                is_underline: false,
+                is_strikethrough: false,
             })
         );
         assert_eq!(
@@ -255,6 +296,8 @@ mod tests {
                 is_bold: false,
                 is_italic: false,
                 is_uppercase: false,
+                is_underline: false,
+                is_strikethrough: false,
             })
         );
         assert_eq!(
@@ -265,6 +308,8 @@ mod tests {
                 is_bold: false,
                 is_italic: false,
                 is_uppercase: false,
+                is_underline: false,
+                is_strikethrough: false,
             })
         );
     }
@@ -279,5 +324,48 @@ mod tests {
         assert!(style.is_bold);
         assert!(style.is_italic);
         assert!(style.is_uppercase);
+        assert!(!style.is_underline);
+        assert!(!style.is_strikethrough);
+
+        let style_decor = parse_inline_style("text-decoration: underline line-through");
+        assert!(style_decor.is_underline);
+        assert!(style_decor.is_strikethrough);
+    }
+
+    #[test]
+    fn test_parse_stylesheet_text_decoration() {
+        let css = r#"
+            .underlined {
+                text-decoration: underline;
+            }
+            .struck {
+                text-decoration-line: line-through;
+            }
+        "#;
+        let map = parse_stylesheet(css);
+        assert_eq!(
+            map.get("underlined"),
+            Some(&BlockStyle {
+                align: TextAlign::Left,
+                text_indent: 0.0,
+                is_bold: false,
+                is_italic: false,
+                is_uppercase: false,
+                is_underline: true,
+                is_strikethrough: false,
+            })
+        );
+        assert_eq!(
+            map.get("struck"),
+            Some(&BlockStyle {
+                align: TextAlign::Left,
+                text_indent: 0.0,
+                is_bold: false,
+                is_italic: false,
+                is_uppercase: false,
+                is_underline: false,
+                is_strikethrough: true,
+            })
+        );
     }
 }
