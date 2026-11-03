@@ -253,17 +253,6 @@ impl KglanceApp {
             crate::app::update::navigation::load_file_task(&app, path_str, |_| {
                 crate::app::messages::ActionMsg::CloseRequested.into()
             })
-        } else if is_daemon {
-            // Pre-warm Compositor & WGPU device by opening a hidden 1x1 window
-            // and immediately closing it upon creation.
-            let (_, open_task) = iced::window::open(iced::window::Settings {
-                size: iced::Size::new(1.0, 1.0),
-                visible: false,
-                exit_on_close_request: false,
-                decorations: false,
-                ..Default::default()
-            });
-            open_task.map(|id| crate::app::messages::SystemMsg::PrewarmWindowOpened(id).into())
         } else {
             Task::none()
         };
