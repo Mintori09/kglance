@@ -655,14 +655,14 @@ impl HtmlToMarkdownConverter {
                 self.list_stack.pop();
                 self.ensure_newline();
             }
-            "b" | "strong" => self.append_str("**"),
-            "i" | "em" => self.append_str("*"),
-            "del" | "s" | "strike" => self.append_str("~~"),
+            "b" | "strong" => self.append_closing_delimiter("**"),
+            "i" | "em" => self.append_closing_delimiter("*"),
+            "del" | "s" | "strike" => self.append_closing_delimiter("~~"),
             "span" => {
                 if let Some(delim) = self.span_format_stack.pop()
                     && !delim.is_empty()
                 {
-                    self.append_str(delim);
+                    self.append_closing_delimiter(delim);
                 }
             }
             "sub" => {
@@ -1064,6 +1064,29 @@ impl HtmlToMarkdownConverter {
             current_quote.push_str(s);
         } else {
             self.output.push_str(s);
+        }
+    }
+
+    fn append_closing_delimiter(&mut self, delim: &str) {
+        let target = if self.in_cell {
+            &mut self.current_cell
+        } else if let Some(current_quote) = self.quote_stack.last_mut() {
+            current_quote
+        } else {
+            &mut self.output
+        };
+
+        let trimmed_len = target
+            .trim_end_matches(|c: char| c.is_whitespace() || c == '\u{a0}')
+            .trim_end_matches("&nbsp;")
+            .len();
+        if trimmed_len < target.len() {
+            let trailing = target[trimmed_len..].to_string();
+            target.truncate(trimmed_len);
+            target.push_str(delim);
+            target.push_str(&trailing);
+        } else {
+            target.push_str(delim);
         }
     }
 
