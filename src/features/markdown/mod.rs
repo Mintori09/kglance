@@ -1,3 +1,4 @@
+pub mod lightbox;
 pub mod measure;
 pub mod parser;
 pub mod state;
@@ -6,6 +7,7 @@ pub mod types;
 pub mod update;
 pub mod view;
 
+pub use lightbox::*;
 pub use parser::*;
 pub use state::*;
 pub use tasks::*;

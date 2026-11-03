@@ -4,8 +4,8 @@ use crate::log_debug;
 use crate::ui::theme::font::get_code_font;
 use crate::ui::theme::scale_size;
 use crate::ui::types::RenderContext;
-use iced::widget::{column, container, image, text};
-use iced::{Element, Length};
+use iced::widget::{button, column, container, image, text};
+use iced::{Border, Color, Element, Length, Shadow};
 
 pub(crate) fn render_mermaid<'a>(
     index: usize,
@@ -38,7 +38,30 @@ pub(crate) fn render_mermaid<'a>(
         .padding(STYLE.mermaid.image_padding)
         .style(move |_: &iced::Theme| code_block_style(theme));
 
-        column![badge, image_container]
+        let mermaid_id = format!("mermaid:{index}");
+        let image_btn = button(image_container)
+            .on_press(crate::app::messages::MarkdownMsg::OpenImageLightbox(mermaid_id).into())
+            .style(|_theme: &iced::Theme, status: button::Status| {
+                let border_color = match status {
+                    button::Status::Hovered => Color::from_rgba(0.4, 0.7, 1.0, 0.4),
+                    button::Status::Pressed => Color::from_rgba(0.4, 0.7, 1.0, 0.7),
+                    _ => Color::TRANSPARENT,
+                };
+                button::Style {
+                    background: None,
+                    text_color: Color::TRANSPARENT,
+                    border: Border {
+                        width: 1.0,
+                        color: border_color,
+                        radius: STYLE.image.border_radius.into(),
+                    },
+                    shadow: Shadow::default(),
+                    snap: false,
+                }
+            })
+            .padding(0);
+
+        column![badge, image_btn]
             .spacing(STYLE.general.section_spacing)
             .into()
     } else {
