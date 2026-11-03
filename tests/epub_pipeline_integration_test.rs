@@ -202,3 +202,84 @@ fn test_html_converter_svg_image() {
         other => panic!("Expected Block::Image, got {:?}", other),
     }
 }
+
+#[test]
+fn test_epub_unicode_byte_offset_metadata_and_headings() {
+    let temp_dir = tempdir().expect("Failed to create temp dir");
+    let epub_path = temp_dir.path().join("unicode_test.epub");
+    let file = File::create(&epub_path).expect("Failed to create mock epub file");
+    let mut zip = ZipWriter::new(file);
+    let options = SimpleFileOptions::default();
+
+    zip.start_file("mimetype", options).unwrap();
+    zip.write_all(b"application/epub+zip").unwrap();
+
+    zip.start_file("META-INF/container.xml", options).unwrap();
+    zip.write_all(
+        br#"<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>"#,
+    )
+    .unwrap();
+
+    // OPF containing Kelvin sign 'K' (U+212A, 3 bytes -> 1 byte), German 'ẞ' (U+1E9E, 3 bytes -> 2 bytes),
+    // Turkish 'İ' (U+0130, 2 bytes -> 3 bytes), Cherokee (U+13A0, 3 bytes -> 4 bytes)
+    zip.start_file("OEBPS/content.opf", options).unwrap();
+    zip.write_all(
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>
+<package version=\"2.0\" unique-identifier=\"BookId\" xmlns=\"http://www.idpf.org/2007/opf\">
+  <metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\">
+    <dc:title>KKelvin and ẞGroße Title</dc:title>
+    <dc:creator>İCherokee ᎠAuthor</dc:creator>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id=\"ch1\" href=\"chapter1.xhtml\" media-type=\"application/xhtml+xml\"/>
+  </manifest>
+  <spine>
+    <itemref idref=\"ch1\"/>
+  </spine>
+</package>"
+            .as_bytes(),
+    )
+    .unwrap();
+
+    zip.start_file("OEBPS/chapter1.xhtml", options).unwrap();
+    zip.write_all(
+        "<!DOCTYPE html>
+<html xmlns=\"http://www.w3.org/1999/xhtml\">
+<head><title>Chapter 1</title></head>
+<body>
+  <h1>KSpecial Heading</h1>
+  <p>Content text</p>
+</body>
+</html>"
+            .as_bytes(),
+    )
+    .unwrap();
+
+    zip.finish().expect("Failed to write zip content");
+
+    let registry = build_registry();
+    let preview_data = FilePreviewer::parse(&registry, &epub_path);
+    assert!(
+        preview_data.is_ok(),
+        "Expected successful parsing of EPUB with multi-byte Unicode metadata, got: {:?}",
+        preview_data.err()
+    );
+
+    let parsed_data = preview_data.unwrap();
+    if let PreviewData::Epub {
+        title, chapters, ..
+    } = &parsed_data
+    {
+        assert_eq!(title, "KKelvin and ẞGroße Title");
+        assert_eq!(chapters.len(), 1);
+        assert_eq!(chapters[0].title, "KSpecial Heading");
+    } else {
+        panic!("Expected PreviewData::Epub");
+    }
+}
