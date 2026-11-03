@@ -26,8 +26,8 @@ use crate::features::markdown::parser::{
 };
 
 use html::{
-    convert_html_to_markdown, decode_html_entities, extract_chapter_title_from_html,
-    extract_headings_from_html, extract_tag_content,
+    convert_html_to_markdown, convert_html_to_markdown_with_stylesheet, decode_html_entities,
+    extract_chapter_title_from_html, extract_headings_from_html, extract_tag_content,
 };
 use ncx::{NcxNavPoint, decode_url_component, extract_epub3_navpoints, extract_ncx_navpoints};
 use opf::{
@@ -74,7 +74,7 @@ pub fn load_chapter_content_and_images_from_epub(
 
     let resolved_path = resolve_relative_path(&opf_path, file_href);
     let html = read_archive_entry_string(&mut archive, &resolved_path)?;
-    let md = convert_html_to_markdown(&html);
+    let md = convert_html_to_markdown_with_stylesheet(&html, &stylesheet_map);
     let blocks = parse_to_blocks(&md);
     let styles = extract_blocks_styles(&html, &blocks, &stylesheet_map);
 
@@ -199,7 +199,7 @@ pub fn load_all_chapters_and_images_from_epub(
     let parsed_files: HashMap<String, (Vec<Block>, HashMap<usize, css::BlockStyle>)> = raw_files
         .into_par_iter()
         .map(|(href, html)| {
-            let md = convert_html_to_markdown(&html);
+            let md = convert_html_to_markdown_with_stylesheet(&html, &stylesheet_map);
             let blocks = parse_to_blocks(&md);
             let styles = extract_blocks_styles(&html, &blocks, &stylesheet_map);
             (href, (blocks, styles))

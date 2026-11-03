@@ -202,6 +202,8 @@ fn test_extract_blocks_styles_list_desync_prevention() {
             is_bold: false,
             is_italic: false,
             is_uppercase: false,
+            is_underline: false,
+            is_strikethrough: false,
         },
     );
     stylesheet.insert(
@@ -212,6 +214,8 @@ fn test_extract_blocks_styles_list_desync_prevention() {
             is_bold: false,
             is_italic: false,
             is_uppercase: false,
+            is_underline: false,
+            is_strikethrough: false,
         },
     );
 
@@ -1461,6 +1465,8 @@ fn test_extract_blocks_styles_with_hr_table_and_list() {
             is_bold: true,
             is_italic: false,
             is_uppercase: false,
+            is_underline: false,
+            is_strikethrough: false,
         },
     );
     stylesheet.insert(
@@ -1471,6 +1477,8 @@ fn test_extract_blocks_styles_with_hr_table_and_list() {
             is_bold: false,
             is_italic: false,
             is_uppercase: false,
+            is_underline: false,
+            is_strikethrough: false,
         },
     );
     stylesheet.insert(
@@ -1481,6 +1489,8 @@ fn test_extract_blocks_styles_with_hr_table_and_list() {
             is_bold: false,
             is_italic: true,
             is_uppercase: false,
+            is_underline: false,
+            is_strikethrough: false,
         },
     );
 
@@ -1604,12 +1614,14 @@ fn test_convert_html_leading_whitespace_inside_formatting_tags() {
     let html = r#"<p><span class="text_">Về bản chất, năng suất có nghĩa là bạn&nbsp;</span><span class="text_3">hoàn thành</span><span class="text_">&nbsp;được bao nhiêu.</span></p>"#;
     let md = convert_html_to_markdown(html);
 
-    // Delimiter must not have leading whitespace inside it
+    // Opening delimiter must come AFTER the leading non-breaking space (never `**\u{a0}được` or `** được`)
     assert!(
-        md.contains("**\u{a0}***hoàn thành***\u{a0}**được bao nhiêu.**")
-            || md.contains("** hoàn thành *** **được bao nhiêu.**")
-            || !md.contains("**\u{a0}được"),
+        !md.contains("**\u{a0}") && !md.contains("** được"),
         "Opening bold delimiter must come AFTER the leading whitespace, got: {md}"
+    );
+    assert!(
+        md.contains("**được bao nhiêu.**"),
+        "Delimiter should enclose 'được bao nhiêu.', got: {md}"
     );
 
     let blocks = parse_to_blocks(&md);
@@ -1628,4 +1640,169 @@ fn test_convert_html_leading_whitespace_inside_formatting_tags() {
         }
         other => panic!("Expected Paragraph block, got {other:?}"),
     }
+}
+
+#[test]
+fn test_convert_html_table_cell_formatting() {
+    let html = r#"<table>
+        <tr>
+            <th><b>Header 1</b></th>
+            <th><i>Header 2</i></th>
+        </tr>
+        <tr>
+            <td><u>Underlined</u> cell</td>
+            <td><s>Strikethrough</s> &amp; <b>bold</b></td>
+        </tr>
+    </table>"#;
+
+    let md = convert_html_to_markdown(html);
+    assert!(
+        md.contains("**Header 1**"),
+        "Table header bold missing: {md}"
+    );
+    assert!(
+        md.contains("*Header 2*"),
+        "Table header italic missing: {md}"
+    );
+    assert!(
+        md.contains("<u>Underlined</u>"),
+        "Table cell underline missing: {md}"
+    );
+    assert!(
+        md.contains("~~Strikethrough~~"),
+        "Table cell strikethrough missing: {md}"
+    );
+    assert!(md.contains("**bold**"), "Table cell bold missing: {md}");
+}
+
+#[test]
+fn test_convert_html_u_and_ins_tags() {
+    let html = "<p>This is <u>underlined</u> and <ins>inserted</ins> text.</p>";
+    let md = convert_html_to_markdown(html);
+    assert_eq!(md, "This is <u>underlined</u> and <u>inserted</u> text.");
+
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            let underline_count = inlines
+                .iter()
+                .filter(|i| matches!(i, Inline::Underline(_)))
+                .count();
+            assert_eq!(underline_count, 2);
+        }
+        other => panic!("Expected Paragraph block, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_convert_html_span_style_text_decoration() {
+    let html = r#"<p>Normal <span style="text-decoration: underline">underlined</span> and <span style="text-decoration: line-through">struck</span></p>"#;
+    let md = convert_html_to_markdown(html);
+    assert!(md.contains("<u>underlined</u>"));
+    assert!(md.contains("~~struck~~"));
+
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            assert!(inlines.iter().any(|i| matches!(i, Inline::Underline(_))));
+            assert!(
+                inlines
+                    .iter()
+                    .any(|i| matches!(i, Inline::Strikethrough(_)))
+            );
+        }
+        other => panic!("Expected Paragraph block, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_convert_html_with_stylesheet_classes() {
+    use super::html::convert_html_to_markdown_with_stylesheet;
+
+    let css = r#"
+        .u-class {
+            text-decoration: underline;
+        }
+        .strike-class {
+            text-decoration-line: line-through;
+        }
+    "#;
+    let stylesheet = css::parse_stylesheet(css);
+    let html = r#"<p><span class="u-class">underlined via class</span> and <span class="strike-class">struck via class</span></p>"#;
+
+    let md = convert_html_to_markdown_with_stylesheet(html, &stylesheet);
+    assert!(md.contains("<u>underlined via class</u>"));
+    assert!(md.contains("~~struck via class~~"));
+
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            assert!(inlines.iter().any(|i| matches!(i, Inline::Underline(_))));
+            assert!(
+                inlines
+                    .iter()
+                    .any(|i| matches!(i, Inline::Strikethrough(_)))
+            );
+        }
+        other => panic!("Expected Paragraph block, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_convert_html_nested_formatting() {
+    let html = "<p><b><u>bold underline</u></b> and <u><i>italic underline</i></u></p>";
+    let md = convert_html_to_markdown(html);
+
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            let has_bold_underline = inlines.iter().any(|i| match i {
+                Inline::Bold(subs) => subs.iter().any(|s| matches!(s, Inline::Underline(_))),
+                Inline::Underline(subs) => subs.iter().any(|s| matches!(s, Inline::Bold(_))),
+                _ => false,
+            });
+            assert!(
+                has_bold_underline,
+                "Expected nested Bold and Underline inlines"
+            );
+
+            let has_italic_underline = inlines.iter().any(|i| match i {
+                Inline::Italic(subs) => subs.iter().any(|s| matches!(s, Inline::Underline(_))),
+                Inline::Underline(subs) => subs.iter().any(|s| matches!(s, Inline::Italic(_))),
+                _ => false,
+            });
+            assert!(
+                has_italic_underline,
+                "Expected nested Italic and Underline inlines"
+            );
+        }
+        other => panic!("Expected Paragraph block, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_convert_html_empty_tags_no_leak() {
+    let html = "<p><u></u><b></b><i></i>normal text</p>";
+    let md = convert_html_to_markdown(html);
+    assert_eq!(md, "normal text");
+}
+
+#[test]
+fn test_block_style_underline_resolution() {
+    let css = r#"
+        p.underlined_para {
+            text-decoration: underline;
+        }
+    "#;
+    let stylesheet = css::parse_stylesheet(css);
+    let html = r#"<p class="underlined_para">This is an entire underlined paragraph.</p>"#;
+    let blocks = parse_to_blocks("This is an entire underlined paragraph.");
+    let styles = extract_blocks_styles(html, &blocks, &stylesheet);
+    assert_eq!(styles.len(), 1);
+    let p_style = styles.get(&0).expect("expected style at index 0");
+    assert!(p_style.is_underline);
 }
