@@ -15,6 +15,7 @@ use iced::{Element, Length, Padding};
 
 #[allow(clippy::too_many_arguments)]
 pub fn render_cell<'a>(
+    cell_index: usize,
     cell: &'a NotebookCell,
     md_state: &'a crate::core::MarkdownState,
     font_size: f32,
@@ -78,7 +79,8 @@ pub fn render_cell<'a>(
                 .size((font_size * 0.85).max(11.0))
                 .color(roles.link);
 
-            let lang_label = text(language.as_str())
+            let lang_str = language.as_deref().unwrap_or("code");
+            let lang_label = text(lang_str)
                 .font(main_font)
                 .size((font_size * 0.8).max(11.0))
                 .color(base.text_dim);
@@ -122,7 +124,7 @@ pub fn render_cell<'a>(
             .padding(Padding::from([2, 4]));
 
             // Code highlight body
-            let highlighted = highlight_code(&Some(language.clone()), source, theme);
+            let highlighted = highlight_code(language, source, theme);
 
             let code_content: Element<'a, Message> = if highlighted.is_empty() {
                 text(source.as_str())
@@ -172,13 +174,15 @@ pub fn render_cell<'a>(
             // Outputs
             if !outputs.is_empty() {
                 let mut out_col = column![].spacing(8);
-                for out in outputs {
+                for (out_idx, out) in outputs.iter().enumerate() {
                     out_col = out_col.push(render_cell_output(
                         out,
                         *execution_count,
                         font_size,
                         theme,
                         font_family_mono,
+                        cell_index,
+                        out_idx,
                     ));
                 }
                 let out_container = container(out_col)

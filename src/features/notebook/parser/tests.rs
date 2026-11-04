@@ -75,7 +75,7 @@ fn test_parse_markdown_and_code_cells() {
         } => {
             assert_eq!(source, "x = 42\nprint(x)");
             assert_eq!(*execution_count, Some(1));
-            assert_eq!(language, "python");
+            assert_eq!(language.as_deref(), Some("python"));
             assert_eq!(outputs.len(), 1);
             match &outputs[0] {
                 CellOutput::Text {
@@ -167,7 +167,9 @@ fn test_parse_image_output_base64() {
         NotebookCell::Code { outputs, .. } => {
             assert_eq!(outputs.len(), 1);
             match &outputs[0] {
-                CellOutput::Image { data, format_hint } => {
+                CellOutput::Image {
+                    data, format_hint, ..
+                } => {
                     assert_eq!(format_hint, "png");
                     assert!(!data.is_empty());
                 }

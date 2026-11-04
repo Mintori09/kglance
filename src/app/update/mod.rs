@@ -689,7 +689,18 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 crate::features::markdown::update::handle_touchpad_gesture_ended(app, event_time)
             }
             crate::app::messages::MarkdownMsg::OpenImageLightbox(id) => {
-                crate::features::markdown::lightbox::handle_open_markdown_image_lightbox(app, &id)
+                if matches!(
+                    app.current_content,
+                    Some(crate::core::PreviewData::Notebook { .. })
+                ) {
+                    crate::features::notebook::lightbox::handle_open_notebook_image_lightbox(
+                        app, &id,
+                    )
+                } else {
+                    crate::features::markdown::lightbox::handle_open_markdown_image_lightbox(
+                        app, &id,
+                    )
+                }
             }
             crate::app::messages::MarkdownMsg::AnimationTick => {
                 crate::features::markdown::view::components::image::handle_markdown_animation_tick(
@@ -819,6 +830,11 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::JsonMsg::ToggleFormat => {
                 crate::features::json::update::handle_toggle_format(app)
+            }
+        },
+        Message::Notebook(msg) => match msg {
+            crate::app::messages::NotebookMsg::OpenImageLightbox(id) => {
+                crate::features::notebook::lightbox::handle_open_notebook_image_lightbox(app, &id)
             }
         },
         Message::Model3d(msg) => crate::features::model3d::update::handle_model3d_message(app, msg),

@@ -62,7 +62,7 @@ pub fn parse_notebook(content: &str) -> Result<NotebookData, ParseError> {
                     source,
                     execution_count,
                     outputs,
-                    language: kernel_language.clone(),
+                    language: Some(kernel_language.clone()),
                 });
             }
             _ => {
@@ -165,45 +165,55 @@ fn parse_cell_outputs(outputs_arr: &[Value]) -> Vec<CellOutput> {
 }
 
 fn decode_base64_image(val: &Value, format_hint: &str) -> Option<CellOutput> {
-    let b64_str = match val {
-        Value::String(s) => s.clone(),
+    let data = match val {
+        Value::String(s) => {
+            if !s.chars().any(char::is_whitespace) {
+                BASE64_STANDARD.decode(s.as_bytes()).ok()?
+            } else {
+                let cleaned: String = s.chars().filter(|c| !c.is_whitespace()).collect();
+                BASE64_STANDARD.decode(cleaned.as_bytes()).ok()?
+            }
+        }
         Value::Array(arr) => {
-            let mut s = String::new();
+            let mut cleaned = String::new();
             for item in arr {
                 if let Some(sub) = item.as_str() {
-                    s.push_str(sub);
+                    for c in sub.chars() {
+                        if !c.is_whitespace() {
+                            cleaned.push(c);
+                        }
+                    }
                 }
             }
-            s
+            BASE64_STANDARD.decode(cleaned.as_bytes()).ok()?
         }
         _ => return None,
     };
 
-    let cleaned: String = b64_str.chars().filter(|c| !c.is_whitespace()).collect();
-    let data = BASE64_STANDARD.decode(cleaned).ok()?;
+    let handle = iced::widget::image::Handle::from_bytes(data.clone());
 
     Some(CellOutput::Image {
+        handle,
         data,
         format_hint: format_hint.to_string(),
     })
 }
 
 fn truncate_lines(text: &str, max_lines: usize) -> (String, bool) {
-    let mut lines = text.lines();
-    let mut out = String::new();
-    let mut truncated = false;
-
-    for (count, line) in lines.by_ref().enumerate() {
-        if count >= max_lines {
-            truncated = true;
-            break;
+    let mut line_count = 0;
+    let mut cutoff_idx = None;
+    for (idx, ch) in text.char_indices() {
+        if ch == '\n' {
+            line_count += 1;
+            if line_count == max_lines {
+                cutoff_idx = Some(idx);
+                break;
+            }
         }
-        out.push_str(line);
-        out.push('\n');
     }
 
-    if truncated {
-        (out, true)
+    if let Some(idx) = cutoff_idx {
+        (text[..=idx].to_string(), true)
     } else {
         (text.to_string(), false)
     }
