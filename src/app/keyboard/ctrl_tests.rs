@@ -792,3 +792,86 @@ fn subscription_ignores_captured_keyboard_and_mouse_events() {
     assert!(filter(mouse_event.clone(), iced::event::Status::Captured).is_none());
     assert!(filter(mouse_event, iced::event::Status::Ignored).is_some());
 }
+
+#[test]
+fn ctrl_plus_minus_resizes_notebook_font_and_page_width() {
+    let notebook_data = crate::features::notebook::types::NotebookData {
+        cells: vec![],
+        kernel_language: "python".to_string(),
+        total_cells: 0,
+        fallback_notice: None,
+    };
+    let mut app = test_app(Some(crate::core::PreviewData::Notebook(notebook_data)));
+    let initial_font_size = app.state.font_size;
+    let initial_width = app.state.max_text_width.unwrap_or(820.0);
+
+    let plus_key = iced::keyboard::Key::Character("+".into());
+    let minus_key = iced::keyboard::Key::Character("-".into());
+    let zero_key = iced::keyboard::Key::Character("0".into());
+
+    // 1. Font zoom: Ctrl + Plus
+    let task = app.handle_ctrl_shortcuts(&plus_key, iced::keyboard::Modifiers::CTRL);
+    assert!(task.is_some());
+    assert_eq!(app.state.font_size, initial_font_size + 1.0);
+
+    // 2. Font zoom: Ctrl + Minus
+    let task = app.handle_ctrl_shortcuts(&minus_key, iced::keyboard::Modifiers::CTRL);
+    assert!(task.is_some());
+    assert_eq!(app.state.font_size, initial_font_size);
+
+    // 3. Font reset: Ctrl + 0
+    app.state.font_size = initial_font_size + 5.0;
+    let task = app.handle_ctrl_shortcuts(&zero_key, iced::keyboard::Modifiers::CTRL);
+    assert!(task.is_some());
+    assert_eq!(app.state.font_size, app.state.default_font_size);
+
+    // 4. Page width zoom: Ctrl + Shift + Plus
+    let shift_ctrl = iced::keyboard::Modifiers::CTRL | iced::keyboard::Modifiers::SHIFT;
+    let task = app.handle_ctrl_shortcuts(&plus_key, shift_ctrl);
+    assert!(task.is_some());
+    assert_eq!(app.state.max_text_width, Some(initial_width + 40.0));
+
+    // 5. Page width zoom: Ctrl + Shift + Minus
+    let task = app.handle_ctrl_shortcuts(&minus_key, shift_ctrl);
+    assert!(task.is_some());
+    assert_eq!(app.state.max_text_width, Some(initial_width));
+
+    // 6. Page width reset: Ctrl + Shift + 0
+    app.state.max_text_width = Some(initial_width + 200.0);
+    let task = app.handle_ctrl_shortcuts(&zero_key, shift_ctrl);
+    assert!(task.is_some());
+    assert_eq!(app.state.max_text_width, Some(820.0));
+}
+
+#[test]
+fn ctrl_and_shift_scroll_resizes_notebook_font_and_page_width() {
+    let notebook_data = crate::features::notebook::types::NotebookData {
+        cells: vec![],
+        kernel_language: "python".to_string(),
+        total_cells: 0,
+        fallback_notice: None,
+    };
+    let mut app = test_app(Some(crate::core::PreviewData::Notebook(notebook_data)));
+    let initial_font_size = app.state.font_size;
+    let initial_width = app.state.max_text_width.unwrap_or(820.0);
+
+    // 1. Ctrl + Scroll down (scroll_val > 0) -> font_size increases
+    app.ctrl_held = true;
+    app.shift_held = false;
+    let _ = app.handle_scroll_delta(0.0, 1.0);
+    assert_eq!(app.state.font_size, initial_font_size + 1.0);
+
+    // 2. Ctrl + Scroll up (scroll_val < 0) -> font_size decreases
+    let _ = app.handle_scroll_delta(0.0, -1.0);
+    assert_eq!(app.state.font_size, initial_font_size);
+
+    // 3. Shift + Scroll down (scroll_val > 0) -> page width increases
+    app.ctrl_held = false;
+    app.shift_held = true;
+    let _ = app.handle_scroll_delta(0.0, 1.0);
+    assert_eq!(app.state.max_text_width, Some(initial_width + 40.0));
+
+    // 4. Shift + Scroll up (scroll_val < 0) -> page width decreases
+    let _ = app.handle_scroll_delta(0.0, -1.0);
+    assert_eq!(app.state.max_text_width, Some(initial_width));
+}

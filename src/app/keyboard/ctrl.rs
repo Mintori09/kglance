@@ -26,7 +26,7 @@ impl KglanceApp {
             "a" | "A" | "\u{1}" => self.handle_ctrl_a(),
             "t" | "T" | "\u{14}" => self.handle_toggle_theme(),
             "+" | "=" => {
-                if shift_active && self.is_markdown_or_epub() {
+                if shift_active && self.has_resizable_page_width() {
                     crate::features::markdown::update::zoom_markdown_page_width(
                         self,
                         crate::features::markdown::update::PAGE_WIDTH_STEP,
@@ -36,7 +36,7 @@ impl KglanceApp {
                 }
             }
             "-" | "_" => {
-                if shift_active && self.is_markdown_or_epub() {
+                if shift_active && self.has_resizable_page_width() {
                     crate::features::markdown::update::zoom_markdown_page_width(
                         self,
                         -crate::features::markdown::update::PAGE_WIDTH_STEP,
@@ -46,7 +46,7 @@ impl KglanceApp {
                 }
             }
             "0" | ")" => {
-                if shift_active && self.is_markdown_or_epub() {
+                if shift_active && self.has_resizable_page_width() {
                     crate::features::markdown::update::rescale_markdown_page_width(
                         self,
                         crate::features::markdown::update::DEFAULT_PAGE_WIDTH,
@@ -297,9 +297,11 @@ impl KglanceApp {
                 crate::features::text::update::zoom_text_font(self, direction)
             }
 
-            Some(PreviewData::Markdown { .. } | PreviewData::Epub { .. }) => {
-                crate::features::markdown::update::zoom_markdown_font(self, direction)
-            }
+            Some(
+                PreviewData::Markdown { .. }
+                | PreviewData::Epub { .. }
+                | PreviewData::Notebook { .. },
+            ) => crate::features::markdown::update::zoom_markdown_font(self, direction),
 
             Some(PreviewData::Spreadsheet { .. }) => {
                 crate::features::sheet::update::zoom_spreadsheet_font(self, direction)
@@ -460,7 +462,11 @@ impl KglanceApp {
                         crate::features::json::update::rescale_json_font(self, default_size)
                     }
 
-                    Some(PreviewData::Markdown { .. } | PreviewData::Epub { .. }) => {
+                    Some(
+                        PreviewData::Markdown { .. }
+                        | PreviewData::Epub { .. }
+                        | PreviewData::Notebook { .. },
+                    ) => {
                         crate::features::markdown::update::rescale_markdown_font(self, default_size)
                     }
 
@@ -485,12 +491,14 @@ impl KglanceApp {
 
             iced::keyboard::Key::Character(c) if (c == "0" || c == ")") && modifiers.shift() => {
                 match self.current_content {
-                    Some(PreviewData::Markdown { .. } | PreviewData::Epub { .. }) => {
-                        crate::features::markdown::update::rescale_markdown_page_width(
-                            self,
-                            crate::features::markdown::update::DEFAULT_PAGE_WIDTH,
-                        )
-                    }
+                    Some(
+                        PreviewData::Markdown { .. }
+                        | PreviewData::Epub { .. }
+                        | PreviewData::Notebook { .. },
+                    ) => crate::features::markdown::update::rescale_markdown_page_width(
+                        self,
+                        crate::features::markdown::update::DEFAULT_PAGE_WIDTH,
+                    ),
                     _ => None,
                 }
             }
