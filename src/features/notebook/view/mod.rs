@@ -4,12 +4,14 @@ pub mod output;
 use crate::app::Message;
 use crate::features::notebook::types::NotebookData;
 use crate::features::notebook::view::cell::render_cell;
-use crate::ui::components::scroll_pane::scroll_pane;
+use crate::ui::components::content_layout::scrollable_content;
 use crate::ui::theme::AppTheme;
-use iced::widget::{column, container, text};
+use iced::widget::{container, text};
 use iced::{Element, Length, Padding};
 
 pub const NOTEBOOK_SCROLL_ID: &str = "content_scroll";
+const CONTENT_PADDING: f32 = 24.0;
+const CELL_SPACING: f32 = 16.0;
 
 pub fn view_notebook<'a>(
     data: &'a NotebookData,
@@ -34,31 +36,45 @@ pub fn view_notebook<'a>(
         .into();
     }
 
-    let mut cells_col = column![].spacing(16);
+    let elements: Vec<Element<'a, Message>> = data
+        .cells
+        .iter()
+        .enumerate()
+        .map(|(cell_index, cell)| {
+            let el = render_cell(
+                cell_index,
+                cell,
+                md_state,
+                font_size,
+                theme,
+                font_family,
+                font_family_mono,
+            );
+            container(el)
+                .padding(Padding {
+                    top: 0.0,
+                    right: 0.0,
+                    bottom: CELL_SPACING,
+                    left: 0.0,
+                })
+                .width(Length::Fill)
+                .into()
+        })
+        .collect();
 
-    for cell in &data.cells {
-        cells_col = cells_col.push(render_cell(
-            cell,
-            md_state,
-            font_size,
-            theme,
-            font_family,
-            font_family_mono,
-        ));
-    }
-
-    let content_container = if let Some(max_w) = max_text_width {
-        container(cells_col)
-            .max_width(max_w)
-            .width(Length::Fill)
-            .align_x(iced::alignment::Horizontal::Center)
-    } else {
-        container(cells_col).width(Length::Fill)
-    };
-
-    let padded = container(content_container)
-        .padding(Padding::from([16, 24]))
-        .width(Length::Fill);
-
-    scroll_pane(NOTEBOOK_SCROLL_ID, padded).build()
+    scrollable_content(
+        elements,
+        max_text_width,
+        CONTENT_PADDING,
+        NOTEBOOK_SCROLL_ID,
+    )
+    .on_scroll(|v| {
+        crate::app::messages::MarkdownMsg::Scrolled {
+            y: v.absolute_offset().y,
+            viewport_height: v.bounds().height,
+            content_height: v.content_bounds().height,
+        }
+        .into()
+    })
+    .build()
 }

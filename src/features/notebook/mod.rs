@@ -1,3 +1,4 @@
+pub mod lightbox;
 pub mod parser;
 pub mod types;
 pub mod view;
@@ -34,19 +35,19 @@ impl PreviewParser for NotebookParser {
 
         let content = mmap
             .as_str()
-            .map_err(|e| ParseError::ParseFailed(format!("Invalid UTF-8: {e}")))?
-            .to_string();
+            .map_err(|e| ParseError::ParseFailed(format!("Invalid UTF-8: {e}")))?;
 
-        match parser::parse_notebook(&content) {
+        match parser::parse_notebook(content) {
             Ok(data) => Ok(ParsedContent::Notebook(data)),
             Err(_) => {
                 // Fallback to JSON parser if notebook parsing fails
+                let content_str = content.to_string();
                 let (mut nodes, pretty, has_parse_error) =
-                    crate::features::json::JsonParser::parse_content(&content, "json");
+                    crate::features::json::JsonParser::parse_content(&content_str, "json");
                 crate::features::json::JsonParser::assign_parent_indices(&mut nodes);
 
                 Ok(ParsedContent::Json {
-                    content,
+                    content: content_str,
                     pretty,
                     nodes,
                     has_parse_error,

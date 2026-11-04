@@ -297,6 +297,11 @@ pub enum JsonMsg {
     ToggleFormat,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NotebookMsg {
+    OpenImageLightbox(String),
+}
+
 #[derive(Debug, Clone)]
 pub enum ActionMsg {
     OpenClicked,
@@ -508,6 +513,7 @@ pub enum Message {
     Epub(EpubMsg),
     Lightbox(LightboxMsg),
     Json(JsonMsg),
+    Notebook(NotebookMsg),
     Model3d(Model3dMsg),
     Settings(SettingsMsg),
     FileTree(FileTreeMsg),
@@ -604,6 +610,11 @@ impl From<LightboxMsg> for Message {
 impl From<JsonMsg> for Message {
     fn from(m: JsonMsg) -> Self {
         Message::Json(m)
+    }
+}
+impl From<NotebookMsg> for Message {
+    fn from(m: NotebookMsg) -> Self {
+        Message::Notebook(m)
     }
 }
 impl From<Model3dMsg> for Message {

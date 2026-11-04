@@ -10,14 +10,14 @@ pub enum NotebookCell {
         source: String,
         execution_count: Option<i64>,
         outputs: Vec<CellOutput>,
-        language: String,
+        language: Option<String>,
     },
     Raw {
         source: String,
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CellOutput {
     Text {
         text: String,
@@ -25,6 +25,7 @@ pub enum CellOutput {
         truncated: bool,
     },
     Image {
+        handle: iced::widget::image::Handle,
         data: Vec<u8>,
         format_hint: String,
     },
