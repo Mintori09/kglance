@@ -115,7 +115,11 @@ pub fn render_inlines_with_options<'a>(
     opts: InlineStyleOptions<'_>,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
-    let effective_font_family = opts.font_family.or(ctx.font_family);
+    let effective_font_family = if ctx.is_epub && ctx.epub_override_book_font {
+        ctx.font_family
+    } else {
+        opts.font_family.or(ctx.font_family)
+    };
     let span_ctx = SpanCtx {
         font_family: effective_font_family,
         font_family_mono: ctx.font_family_mono,

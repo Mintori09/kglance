@@ -366,6 +366,7 @@ pub enum SettingsMsg {
     FontFamilySelected(String),
     FontFamilyMonoSelected(String),
     EpubFontFamilySelected(String),
+    EpubOverrideBookFontToggled(bool),
     MaxTextWidthChanged(Option<f32>),
     DefaultWidthChanged(u32),
     DefaultHeightChanged(u32),

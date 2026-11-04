@@ -87,6 +87,7 @@ impl KglanceApp {
                 font_family: self.state.font_family.clone(),
                 font_family_mono: self.state.font_family_mono.clone(),
                 epub_font_family: self.state.epub_font_family.clone(),
+                epub_override_book_font: self.state.epub_override_book_font,
                 epub_reading_mode: self.state.epub_reading_mode,
                 ruby_display_mode: self.state.ruby_display_mode,
                 max_text_width: self.state.max_text_width,
@@ -183,6 +184,7 @@ impl KglanceApp {
             font_family: config.ui.font_family,
             font_family_mono: config.ui.font_family_mono,
             epub_font_family: config.ui.epub_font_family,
+            epub_override_book_font: config.ui.epub_override_book_font,
             epub_reading_mode: config.ui.epub_reading_mode,
             ruby_display_mode: config.ui.ruby_display_mode,
             max_text_width: config.ui.max_text_width,
@@ -1180,6 +1182,7 @@ impl KglanceApp {
                     self.state.font_family_mono.as_deref(),
                     self.state.max_text_width,
                     self.state.ruby_display_mode,
+                    self.state.epub_override_book_font,
                 ),
                 PreviewData::Audio { .. } => crate::ui::views::view_audio(&self.state.audio),
                 PreviewData::Media {
