@@ -79,10 +79,14 @@ pub(crate) fn render_paragraph<'a>(
         None
     };
 
+    let base_color = style
+        .and_then(|s| s.color)
+        .map(|[r, g, b, a]| iced::Color::from_rgba8(r, g, b, a as f32 / 255.0));
+
     let opts = InlineStyleOptions {
         base_weight: weight,
         base_style: font_style,
-        base_color: None,
+        base_color,
         align_x,
         prefix_text,
         base_underline: is_underline,

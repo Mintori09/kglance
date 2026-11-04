@@ -244,7 +244,10 @@ fn inline_has_ruby(inline: &Inline) -> bool {
         | Inline::Italic(children)
         | Inline::Strikethrough(children)
         | Inline::Underline(children)
-        | Inline::Link { text: children, .. } => children.iter().any(inline_has_ruby),
+        | Inline::Link { text: children, .. }
+        | Inline::Styled {
+            content: children, ..
+        } => children.iter().any(inline_has_ruby),
         Inline::Text(_)
         | Inline::Code(_)
         | Inline::Image { .. }

@@ -224,6 +224,8 @@ pub(super) fn handle_inline_html<F>(
         || lower == "</strike>"
         || lower == "</u>"
         || lower == "</span>"
+        || lower == "</mark>"
+        || lower == "</font>"
         || lower == "</div>"
         || lower == "</p>"
         || lower.starts_with("</ruby")
@@ -234,13 +236,63 @@ pub(super) fn handle_inline_html<F>(
         return;
     }
 
-    if lower.starts_with("<span")
-        || lower.starts_with("<div")
-        || lower.starts_with("<p")
-        || lower.starts_with("<font")
-        || lower.starts_with("<mark")
-        || lower.starts_with("<small")
+    if lower.starts_with("<span") && (lower == "<span>" || lower.starts_with("<span "))
+        || lower.starts_with("<mark") && (lower == "<mark>" || lower.starts_with("<mark "))
+        || lower.starts_with("<font") && (lower == "<font>" || lower.starts_with("<font "))
     {
+        let mut color = None;
+        let mut background = None;
+
+        if lower.starts_with("<mark") {
+            background = Some([255, 255, 0, 255]);
+        }
+
+        if let Some(style_attr) = extract_html_attribute(trimmed, "style") {
+            for decl in style_attr.split(';') {
+                if let Some((k, v)) = decl.split_once(':') {
+                    let k = k.trim().to_ascii_lowercase();
+                    let v = v.trim();
+                    if k == "color"
+                        && let Some(c) = crate::features::epub::parser::css::parse_css_color(v)
+                    {
+                        color = Some(c);
+                    } else if (k == "background-color" || k == "background")
+                        && let Some(c) = crate::features::epub::parser::css::parse_css_color(v)
+                    {
+                        background = Some(c);
+                    }
+                }
+            }
+        }
+
+        if let Some(c_attr) = extract_html_attribute(trimmed, "color")
+            && let Some(c) = crate::features::epub::parser::css::parse_css_color(&c_attr)
+        {
+            color = Some(c);
+        }
+
+        let stop_tags = if lower.starts_with("<mark") {
+            &["</mark>"][..]
+        } else if lower.starts_with("<font") {
+            &["</font>"][..]
+        } else {
+            &["</span>"][..]
+        };
+
+        let content = parse_until(stop_tags);
+        if color.is_some() || background.is_some() {
+            result.push(Inline::Styled {
+                color,
+                background,
+                content,
+            });
+        } else {
+            result.extend(content);
+        }
+        return;
+    }
+
+    if lower.starts_with("<div") || lower.starts_with("<p") || lower.starts_with("<small") {
         return;
     }
 

@@ -26,7 +26,8 @@ fn count_inlines_metrics(
             Inline::Bold(c)
             | Inline::Italic(c)
             | Inline::Strikethrough(c)
-            | Inline::Underline(c) => {
+            | Inline::Underline(c)
+            | Inline::Styled { content: c, .. } => {
                 count_inlines_metrics(c, visual_units, explicit_newlines);
             }
             Inline::Code(t) => {

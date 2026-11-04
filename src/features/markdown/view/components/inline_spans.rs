@@ -163,6 +163,24 @@ fn hash_inlines_recursive(inlines: &[Inline], hasher: &mut FxHasher) {
                 hasher.write(text.as_bytes());
                 hasher.write(ruby.as_bytes());
             }
+            Inline::Styled {
+                color,
+                background,
+                content,
+            } => {
+                hasher.write_u8(14);
+                if let Some(c) = color {
+                    hasher.write(c);
+                } else {
+                    hasher.write_u8(0);
+                }
+                if let Some(bg) = background {
+                    hasher.write(bg);
+                } else {
+                    hasher.write_u8(0);
+                }
+                hash_inlines_recursive(content, hasher);
+            }
         }
     }
 }
@@ -479,6 +497,31 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
                     tooltip: ruby_tooltip,
                 });
             }
+            Inline::Styled {
+                color,
+                background,
+                content,
+            } => {
+                let bg_color =
+                    background.map(|[r, g, b, a]| Color::from_rgba8(r, g, b, a as f32 / 255.0));
+                let fg_color = color
+                    .map(|[r, g, b, a]| {
+                        let text_color = Color::from_rgba8(r, g, b, a as f32 / 255.0);
+                        ensure_readable_contrast(text_color, span_ctx.theme.palette().base.bg)
+                    })
+                    .or(span_ctx.base_color);
+
+                let child_ctx = SpanCtx {
+                    base_color: fg_color,
+                    ..*span_ctx
+                };
+                for mut s in inlines_to_spans_core(content, &child_ctx) {
+                    if let Some(bg) = bg_color {
+                        s.background = Some(bg);
+                    }
+                    spans.push(s);
+                }
+            }
         }
     }
 
@@ -732,6 +775,33 @@ pub fn inlines_to_spans_with_links(
 
 pub fn inlines_to_spans(children: &[Inline], span_ctx: &SpanCtx) -> Vec<Span<'static, (), Font>> {
     inlines_to_spans_with_links(children, span_ctx).0
+}
+
+fn ensure_readable_contrast(fg: Color, bg: Color) -> Color {
+    let fg_lum = 0.2126 * fg.r + 0.7152 * fg.g + 0.0722 * fg.b;
+    let bg_lum = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b;
+    let diff = (fg_lum - bg_lum).abs();
+    if diff < 0.20 {
+        if bg_lum < 0.5 {
+            // Dark theme background: make dark text brighter
+            Color {
+                r: (fg.r + 0.45).min(1.0),
+                g: (fg.g + 0.45).min(1.0),
+                b: (fg.b + 0.45).min(1.0),
+                a: fg.a,
+            }
+        } else {
+            // Light theme background: make light text darker
+            Color {
+                r: (fg.r * 0.45).max(0.0),
+                g: (fg.g * 0.45).max(0.0),
+                b: (fg.b * 0.45).max(0.0),
+                a: fg.a,
+            }
+        }
+    } else {
+        fg
+    }
 }
 
 #[cfg(test)]

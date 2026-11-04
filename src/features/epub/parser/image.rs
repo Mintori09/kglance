@@ -64,7 +64,9 @@ fn collect_images_from_inlines(inlines: &[Inline], paths: &mut Vec<String>) {
             Inline::Bold(subs)
             | Inline::Italic(subs)
             | Inline::Strikethrough(subs)
-            | Inline::Link { text: subs, .. } => {
+            | Inline::Underline(subs)
+            | Inline::Link { text: subs, .. }
+            | Inline::Styled { content: subs, .. } => {
                 collect_images_from_inlines(subs, paths);
             }
             _ => {}

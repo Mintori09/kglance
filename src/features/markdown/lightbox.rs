@@ -69,7 +69,8 @@ fn collect_inline_images(
             Inline::Bold(subs)
             | Inline::Italic(subs)
             | Inline::Strikethrough(subs)
-            | Inline::Underline(subs) => {
+            | Inline::Underline(subs)
+            | Inline::Styled { content: subs, .. } => {
                 collect_inline_images(subs, cached_handles, items);
             }
             _ => {}

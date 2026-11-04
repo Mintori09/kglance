@@ -2661,3 +2661,47 @@ fn test_nested_spans_vertical_align() {
     assert!(md.contains("Outer"));
     assert!(md.contains("done."));
 }
+
+#[test]
+fn test_epub_css_colors_and_highlights() {
+    let css = r#"
+        .colored {
+            color: #0070c0;
+        }
+        .highlighted {
+            background-color: yellow;
+        }
+    "#;
+    let stylesheet_map = css::parse_stylesheet(css);
+    assert_eq!(
+        stylesheet_map.get("colored").and_then(|s| s.color),
+        Some([0, 112, 192, 255])
+    );
+    assert_eq!(
+        stylesheet_map
+            .get("highlighted")
+            .and_then(|s| s.background_color),
+        Some([255, 255, 0, 255])
+    );
+
+    let html =
+        r#"<p>Text with <span class="colored">blue color</span> and <mark>highlight</mark>.</p>"#;
+    let md = convert_html_to_markdown_with_stylesheet(html, &stylesheet_map);
+    assert!(md.contains("color:#0070c0"));
+    assert!(md.contains("background-color:#ffff00"));
+
+    let blocks = parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        Block::Paragraph(inlines) => {
+            let has_styled = inlines.iter().any(|i| match i {
+                Inline::Styled {
+                    color, background, ..
+                } => *color == Some([0, 112, 192, 255]) || *background == Some([255, 255, 0, 255]),
+                _ => false,
+            });
+            assert!(has_styled, "Should contain Inline::Styled variants");
+        }
+        _ => panic!("Expected paragraph block"),
+    }
+}
