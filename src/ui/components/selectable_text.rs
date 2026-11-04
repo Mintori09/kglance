@@ -45,6 +45,7 @@ where
     rubies: Vec<TextRuby>,
     tooltips: Vec<TextTooltip>,
     font_size: f32,
+    line_height: Option<f32>,
     default_text_color: Color,
     selection_color: Color,
     app_theme: Option<AppTheme>,
@@ -74,6 +75,7 @@ where
             rubies: Vec::new(),
             tooltips: Vec::new(),
             font_size,
+            line_height: None,
             default_text_color: Color::BLACK,
             selection_color: Color::from_rgba(0.2, 0.4, 0.8, 0.3),
             app_theme: None,
@@ -123,6 +125,11 @@ where
         } else {
             ruby_top_padding(self.font_size)
         }
+    }
+
+    pub fn line_height(mut self, lh: Option<f32>) -> Self {
+        self.line_height = lh;
+        self
     }
 
     pub fn on_link_click<F>(mut self, f: F) -> Self
@@ -213,6 +220,7 @@ struct State {
     paragraph: Option<iced::advanced::graphics::text::Paragraph>,
     last_bounds_width: f32,
     last_font_size: f32,
+    last_line_height_bits: u32,
     last_spans_hash: u64,
     last_size: Size,
     selection: Option<(usize, usize)>,
@@ -454,6 +462,10 @@ where
         let state = tree.state.downcast_mut::<State>();
         let max_width = limits.max().width;
         let top_pad = self.top_padding();
+        let line_height_val =
+            self.line_height
+                .unwrap_or(if self.rubies.is_empty() { 1.55 } else { 1.90 });
+        let line_height_bits = line_height_val.to_bits();
 
         let spans_hash = {
             let mut hasher = rustc_hash::FxHasher::default();
@@ -469,7 +481,8 @@ where
         let is_cached = state.paragraph.is_some()
             && state.last_spans_hash == spans_hash
             && (state.last_bounds_width - max_width).abs() < 0.1
-            && (state.last_font_size - self.font_size).abs() < 0.1;
+            && (state.last_font_size - self.font_size).abs() < 0.1
+            && state.last_line_height_bits == line_height_bits;
 
         let size = if is_cached {
             #[cfg(feature = "profile-telemetry")]
@@ -492,6 +505,7 @@ where
                 font_size_bits: self.font_size.to_bits(),
                 max_width_bits: (max_width * 2.0).round() as u32,
                 align_bits,
+                line_height_bits,
             };
 
             if let Some(cached) = super::paragraph_cache::get_cached_paragraph(&key) {
@@ -507,6 +521,7 @@ where
                 state.line_offsets = cached.line_offsets;
                 state.last_bounds_width = max_width;
                 state.last_font_size = self.font_size;
+                state.last_line_height_bits = line_height_bits;
                 state.last_spans_hash = spans_hash;
                 state.last_size = cached.size;
                 cached.size
@@ -516,7 +531,6 @@ where
                     state.plain_text.push_str(&span.text);
                 }
 
-                let line_height_val = if self.rubies.is_empty() { 1.55 } else { 1.90 };
                 let text_input = Text {
                     content: &self.spans[..],
                     bounds: Size::new(max_width, f32::INFINITY),
@@ -550,6 +564,7 @@ where
                 state.line_offsets = line_offsets;
                 state.last_bounds_width = max_width;
                 state.last_font_size = self.font_size;
+                state.last_line_height_bits = line_height_bits;
                 state.last_spans_hash = spans_hash;
                 state.last_size = p_size;
 

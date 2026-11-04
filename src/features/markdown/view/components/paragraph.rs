@@ -87,6 +87,8 @@ pub(crate) fn render_paragraph<'a>(
         prefix_text,
         base_underline: is_underline,
         base_strikethrough: is_strikethrough,
+        line_height: style.and_then(|s| s.line_height),
+        font_family: style.and_then(|s| s.font_family.as_deref()),
     };
 
     let rich = render_inlines_with_options(content, font_size, opts, ctx);

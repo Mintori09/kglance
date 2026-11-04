@@ -64,6 +64,8 @@ pub(crate) fn render_heading<'a>(
         prefix_text: None,
         base_underline: is_underline,
         base_strikethrough: is_strikethrough,
+        line_height: style.and_then(|s| s.line_height),
+        font_family: style.and_then(|s| s.font_family.as_deref()),
     };
 
     let heading_content =

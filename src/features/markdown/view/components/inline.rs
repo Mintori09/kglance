@@ -15,6 +15,8 @@ pub struct InlineStyleOptions<'a> {
     pub prefix_text: Option<&'a str>,
     pub base_underline: bool,
     pub base_strikethrough: bool,
+    pub line_height: Option<f32>,
+    pub font_family: Option<&'a str>,
 }
 
 impl Default for InlineStyleOptions<'_> {
@@ -27,6 +29,8 @@ impl Default for InlineStyleOptions<'_> {
             prefix_text: None,
             base_underline: false,
             base_strikethrough: false,
+            line_height: None,
+            font_family: None,
         }
     }
 }
@@ -99,6 +103,8 @@ pub fn render_inlines_aligned_with_prefix<'a>(
         prefix_text,
         base_underline: false,
         base_strikethrough: false,
+        line_height: None,
+        font_family: None,
     };
     render_inlines_with_options(inlines, font_size, opts, ctx)
 }
@@ -109,8 +115,9 @@ pub fn render_inlines_with_options<'a>(
     opts: InlineStyleOptions<'_>,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
+    let effective_font_family = opts.font_family.or(ctx.font_family);
     let span_ctx = SpanCtx {
-        font_family: ctx.font_family,
+        font_family: effective_font_family,
         font_family_mono: ctx.font_family_mono,
         search_query: ctx.search_query,
         active_match: ctx.active_match,
@@ -158,6 +165,7 @@ pub fn render_inlines_with_options<'a>(
         ctx.theme,
         ctx.result_popup,
         opts.align_x,
+        opts.line_height,
     )
     .into()
 }

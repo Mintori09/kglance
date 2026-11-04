@@ -6,7 +6,7 @@ use super::extract::{HTML_VOID_TAGS, extract_id_or_name, is_element_hidden};
 
 use std::collections::HashMap;
 
-use crate::features::epub::parser::css::BlockStyle;
+use crate::features::epub::parser::css::{BlockStyle, VerticalAlign, parse_inline_style};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InlineFormat {
@@ -69,6 +69,7 @@ pub struct HtmlToMarkdownConverter<'a> {
     in_rp: bool,
     quote_stack: Vec<String>,
     span_format_stack: Vec<Vec<InlineFormat>>,
+    span_va_stack: Vec<Option<VerticalAlign>>,
     pending_opening_formats: Vec<InlineFormat>,
     div_callout_stack: Vec<Option<&'static str>>,
     in_figure: bool,
@@ -128,6 +129,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             in_rp: false,
             quote_stack: Vec::new(),
             span_format_stack: Vec::new(),
+            span_va_stack: Vec::new(),
             pending_opening_formats: Vec::new(),
             div_callout_stack: Vec::new(),
             in_figure: false,
@@ -467,6 +469,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                     let mut is_italic = false;
                     let mut is_underline = false;
                     let mut is_strikethrough = false;
+                    let mut vertical_align = None;
 
                     if let Some(id) = extract_id_or_name(e)
                         && let Some(map) = self.stylesheet_map
@@ -485,6 +488,9 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                             }
                             if style.is_strikethrough {
                                 is_strikethrough = true;
+                            }
+                            if style.vertical_align.is_some() {
+                                vertical_align = style.vertical_align;
                             }
                         }
                     }
@@ -517,9 +523,16 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                                     if style.is_strikethrough {
                                         is_strikethrough = true;
                                     }
+                                    if style.vertical_align.is_some() {
+                                        vertical_align = style.vertical_align;
+                                    }
                                 }
                             }
                         } else if key.eq_ignore_ascii_case("style") {
+                            let inline_style = parse_inline_style(&attr.value);
+                            if inline_style.vertical_align.is_some() {
+                                vertical_align = inline_style.vertical_align;
+                            }
                             for decl in val.split(';') {
                                 if let Some((k, v)) = decl.split_once(':') {
                                     let k = k.trim();
@@ -547,6 +560,20 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                             }
                         }
                     }
+
+                    match vertical_align {
+                        Some(VerticalAlign::Super) => {
+                            self.sup_depth += 1;
+                            if self.sup_depth == 1 {
+                                self.sup_buffer.clear();
+                            }
+                        }
+                        Some(VerticalAlign::Sub) => {
+                            self.sub_depth += 1;
+                        }
+                        None => {}
+                    }
+                    self.span_va_stack.push(vertical_align);
 
                     let delimiter = match (is_bold, is_italic) {
                         (true, true) => Some("***"),
@@ -627,7 +654,6 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             }
             "sub" => {
                 self.sub_depth += 1;
-                self.append_str("~");
             }
             "sup" => {
                 self.sup_depth += 1;
@@ -807,11 +833,32 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                         self.append_closing_format(fmt);
                     }
                 }
+                if let Some(va) = self.span_va_stack.pop() {
+                    match va {
+                        Some(VerticalAlign::Super) => {
+                            if self.sup_depth > 0 {
+                                self.sup_depth -= 1;
+                                if self.sup_depth == 0 {
+                                    let content = self.sup_buffer.trim();
+                                    if is_footnote_label(content) {
+                                        self.append_str(&format!("[^{content}]"));
+                                    } else if !content.is_empty() {
+                                        self.append_str(&to_superscript_unicode(content));
+                                    }
+                                    self.sup_buffer.clear();
+                                }
+                            }
+                        }
+                        Some(VerticalAlign::Sub) if self.sub_depth > 0 => {
+                            self.sub_depth -= 1;
+                        }
+                        _ => {}
+                    }
+                }
             }
             "sub" => {
                 if self.sub_depth > 0 {
                     self.sub_depth -= 1;
-                    self.append_str("~");
                 }
             }
             "sup" => {
@@ -1143,6 +1190,14 @@ impl<'a> HtmlToMarkdownConverter<'a> {
         {
             normalized_text_storage = normalize_nfc(text_to_append);
             normalized_text_storage.as_str()
+        } else {
+            text_to_append
+        };
+
+        let subscript_storage: String;
+        let text_to_append = if self.sub_depth > 0 {
+            subscript_storage = to_subscript_unicode(text_to_append);
+            subscript_storage.as_str()
         } else {
             text_to_append
         };
@@ -1733,6 +1788,46 @@ fn format_circled_number(n: u32) -> String {
         }
         _ => format!("({n})"),
     }
+}
+
+pub fn to_subscript_unicode(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            '0' => '₀',
+            '1' => '₁',
+            '2' => '₂',
+            '3' => '₃',
+            '4' => '₄',
+            '5' => '₅',
+            '6' => '₆',
+            '7' => '₇',
+            '8' => '₈',
+            '9' => '₉',
+            '+' => '₊',
+            '-' => '₋',
+            '=' => '₌',
+            '(' => '₍',
+            ')' => '₎',
+            'a' => 'ₐ',
+            'e' => 'ₑ',
+            'h' => 'ₕ',
+            'i' => 'ᵢ',
+            'j' => 'ⱼ',
+            'k' => 'ₖ',
+            'l' => 'ₗ',
+            'm' => 'ₘ',
+            'n' => 'ₙ',
+            'o' => 'ₒ',
+            'p' => 'ₚ',
+            'r' => 'ᵣ',
+            's' => 'ₛ',
+            't' => 'ₜ',
+            'u' => 'ᵤ',
+            'v' => 'ᵥ',
+            'x' => 'ₓ',
+            other => other,
+        })
+        .collect()
 }
 
 fn to_superscript_unicode(s: &str) -> String {

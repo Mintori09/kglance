@@ -4,7 +4,7 @@ pub mod extract;
 
 pub use converter::{
     CUSTOM_BULLET_CHARS, HtmlToMarkdownConverter, InlineFormat, convert_html_to_markdown,
-    convert_html_to_markdown_with_stylesheet, strip_html_tags,
+    convert_html_to_markdown_with_stylesheet, strip_html_tags, to_subscript_unicode,
 };
 pub use entities::{decode_html_entities, normalize_nfc};
 pub use extract::{

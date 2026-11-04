@@ -96,6 +96,7 @@ pub(crate) fn build_selectable_with_links<'a>(
     theme: crate::ui::theme::AppTheme,
     result_popup: bool,
     align_x: iced::alignment::Horizontal,
+    line_height: Option<f32>,
 ) -> SelectableText<'a, Message> {
     let widget = SelectableText::new(spans, font_size)
         .links(links)
@@ -105,6 +106,7 @@ pub(crate) fn build_selectable_with_links<'a>(
         .default_text_color(default_text_color)
         .width(width)
         .align_x(align_x)
+        .line_height(line_height)
         .selection_range(selection_range)
         .drag_active(drag_active)
         .on_link_click(|url| crate::app::messages::SystemMsg::OpenLink(url).into());
