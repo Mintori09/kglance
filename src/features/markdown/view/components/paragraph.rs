@@ -101,11 +101,21 @@ pub(crate) fn render_paragraph<'a>(
         (pad_v as f32, pad_v as f32)
     };
 
+    let (extra_ml, extra_mr, extra_mt, extra_mb) = match style {
+        Some(s) => (
+            s.effective_margin_left(),
+            s.effective_margin_right(),
+            s.effective_margin_top(),
+            s.effective_margin_bottom(),
+        ),
+        None => (0.0, 0.0, 0.0, 0.0),
+    };
+
     let padding = Padding {
-        top: top_padding,
-        right: pad_h as f32,
-        bottom: bottom_padding,
-        left: pad_h as f32,
+        top: top_padding + extra_mt,
+        right: pad_h as f32 + extra_mr,
+        bottom: bottom_padding + extra_mb,
+        left: pad_h as f32 + extra_ml,
     };
 
     container(rich).padding(padding).width(Length::Fill).into()

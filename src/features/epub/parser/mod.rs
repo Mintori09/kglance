@@ -146,6 +146,7 @@ pub fn extract_blocks_styles(
                     items.len().max(1)
                 }
             }
+            Block::Quote(items) => items.len().max(1),
             _ => 1,
         };
 
