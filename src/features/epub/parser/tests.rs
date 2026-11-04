@@ -205,6 +205,7 @@ fn test_extract_blocks_styles_list_desync_prevention() {
             is_underline: false,
             is_strikethrough: false,
             font_scale: None,
+            ..Default::default()
         },
     );
     stylesheet.insert(
@@ -218,6 +219,7 @@ fn test_extract_blocks_styles_list_desync_prevention() {
             is_underline: false,
             is_strikethrough: false,
             font_scale: None,
+            ..Default::default()
         },
     );
 
@@ -1470,6 +1472,7 @@ fn test_extract_blocks_styles_with_hr_table_and_list() {
             is_underline: false,
             is_strikethrough: false,
             font_scale: None,
+            ..Default::default()
         },
     );
     stylesheet.insert(
@@ -1483,6 +1486,7 @@ fn test_extract_blocks_styles_with_hr_table_and_list() {
             is_underline: false,
             is_strikethrough: false,
             font_scale: None,
+            ..Default::default()
         },
     );
     stylesheet.insert(
@@ -1496,6 +1500,7 @@ fn test_extract_blocks_styles_with_hr_table_and_list() {
             is_underline: false,
             is_strikethrough: false,
             font_scale: None,
+            ..Default::default()
         },
     );
 

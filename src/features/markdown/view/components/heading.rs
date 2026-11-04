@@ -68,12 +68,22 @@ pub(crate) fn render_heading<'a>(
 
     let heading_content =
         render_inlines_with_options(effective_content, layout.font_size, opts, ctx);
+    let (extra_ml, extra_mr, extra_mt, extra_mb) = match style {
+        Some(s) => (
+            s.effective_margin_left(),
+            s.effective_margin_right(),
+            s.effective_margin_top(),
+            s.effective_margin_bottom(),
+        ),
+        None => (0.0, 0.0, 0.0, 0.0),
+    };
+
     let heading = container(heading_content)
         .padding(Padding {
-            top: layout.padding_top,
-            right: 0.0,
-            bottom: layout.padding_bottom,
-            left: 0.0,
+            top: layout.padding_top + extra_mt,
+            right: extra_mr,
+            bottom: layout.padding_bottom + extra_mb,
+            left: extra_ml,
         })
         .width(Length::Fill);
 
