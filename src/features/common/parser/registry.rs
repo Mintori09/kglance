@@ -444,6 +444,7 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 cover_art,
             },
             ParsedContent::Model3d(mesh) => crate::core::preview::PreviewData::Model3d(mesh),
+            ParsedContent::Notebook(data) => crate::core::preview::PreviewData::Notebook(data),
         };
         Ok(preview)
     }

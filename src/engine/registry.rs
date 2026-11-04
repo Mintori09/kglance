@@ -2,6 +2,7 @@ use crate::features::{self, common::parser::traits::ParserRegistry};
 
 pub fn build_registry() -> ParserRegistry {
     let mut r = ParserRegistry::new();
+    r.register(Box::new(features::notebook::NotebookParser));
     r.register(Box::new(features::markdown::parser::MarkdownParser::new()));
     r.register(Box::new(features::json::parser::JsonParser));
     r.register(Box::new(features::font::parser::FontParser));

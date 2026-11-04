@@ -14,6 +14,7 @@ pub mod krita;
 pub mod lightbox;
 pub mod markdown;
 pub mod model3d;
+pub mod notebook;
 pub mod office;
 
 pub mod pdf;
