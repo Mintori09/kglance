@@ -2,7 +2,7 @@ use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 
 use super::entities::{decode_html_entities, decode_html_entities_only, normalize_nfc};
-use super::extract::extract_id_or_name;
+use super::extract::{HTML_VOID_TAGS, extract_id_or_name, is_element_hidden};
 
 use std::collections::HashMap;
 
@@ -41,6 +41,7 @@ pub fn convert_html_to_markdown_with_stylesheet(
 pub struct HtmlToMarkdownConverter<'a> {
     output: String,
     skip_depth: usize,
+    hidden_tag_stack: Vec<String>,
     in_pre: bool,
     pre_lang: Option<String>,
     pre_buffer: String,
@@ -99,6 +100,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
         Self {
             output: String::with_capacity(1024),
             skip_depth: 0,
+            hidden_tag_stack: Vec::new(),
             in_pre: false,
             pre_lang: None,
             pre_buffer: String::new(),
@@ -216,6 +218,22 @@ impl<'a> HtmlToMarkdownConverter<'a> {
         }
 
         if self.skip_depth > 0 {
+            return;
+        }
+
+        let is_void = HTML_VOID_TAGS.contains(&name);
+
+        if !self.hidden_tag_stack.is_empty() {
+            if !is_void {
+                self.hidden_tag_stack.push(name.to_string());
+            }
+            return;
+        }
+
+        if is_element_hidden(e, self.stylesheet_map) {
+            if !is_void {
+                self.hidden_tag_stack.push(name.to_string());
+            }
             return;
         }
 
@@ -450,6 +468,27 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                     let mut is_underline = false;
                     let mut is_strikethrough = false;
 
+                    if let Some(id) = extract_id_or_name(e)
+                        && let Some(map) = self.stylesheet_map
+                    {
+                        let id_key = format!("#{id}");
+                        let style_opt = map.get(&id_key).or_else(|| map.get(&id));
+                        if let Some(style) = style_opt {
+                            if style.is_bold {
+                                is_bold = true;
+                            }
+                            if style.is_italic {
+                                is_italic = true;
+                            }
+                            if style.is_underline {
+                                is_underline = true;
+                            }
+                            if style.is_strikethrough {
+                                is_strikethrough = true;
+                            }
+                        }
+                    }
+
                     for attr in e.attributes().flatten() {
                         let key = attr.key.as_ref();
                         let val = attr.value.to_ascii_lowercase();
@@ -653,6 +692,15 @@ impl<'a> HtmlToMarkdownConverter<'a> {
         }
 
         if self.skip_depth > 0 {
+            return;
+        }
+
+        if !self.hidden_tag_stack.is_empty() {
+            if let Some(pos) = self.hidden_tag_stack.iter().rposition(|t| t == name) {
+                self.hidden_tag_stack.truncate(pos);
+            } else {
+                self.hidden_tag_stack.pop();
+            }
             return;
         }
 
@@ -919,7 +967,10 @@ impl<'a> HtmlToMarkdownConverter<'a> {
         };
         let name = name_lower.as_ref();
 
-        if self.skip_depth > 0 {
+        if self.skip_depth > 0
+            || !self.hidden_tag_stack.is_empty()
+            || is_element_hidden(e, self.stylesheet_map)
+        {
             return;
         }
 
@@ -948,6 +999,10 @@ impl<'a> HtmlToMarkdownConverter<'a> {
     }
 
     fn handle_img_tag(&mut self, e: &quick_xml::events::BytesStart) {
+        if !self.hidden_tag_stack.is_empty() || is_element_hidden(e, self.stylesheet_map) {
+            return;
+        }
+
         let mut src = String::new();
         let mut alt = String::new();
         let mut width: Option<u32> = None;
@@ -1020,7 +1075,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
     }
 
     fn handle_text(&mut self, text: &str) {
-        if self.skip_depth > 0 || self.in_callout_heading {
+        if self.skip_depth > 0 || !self.hidden_tag_stack.is_empty() || self.in_callout_heading {
             return;
         }
 

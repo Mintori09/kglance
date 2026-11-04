@@ -124,7 +124,7 @@ pub fn extract_blocks_styles(
     blocks: &[Block],
     stylesheet_map: &HashMap<String, css::BlockStyle>,
 ) -> HashMap<usize, css::BlockStyle> {
-    let metas = extract_html_blocks_meta(html);
+    let metas = extract_html_blocks_meta(html, Some(stylesheet_map));
     let non_empty_metas: Vec<_> = metas.into_iter().filter(|m| !m.is_empty).collect();
     let mut styles = HashMap::new();
     let mut meta_idx = 0usize;
@@ -156,6 +156,7 @@ pub fn extract_blocks_styles(
                 Some(meta.tag.as_str()),
                 &meta.classes,
                 &meta.child_classes,
+                meta.id.as_deref(),
                 meta.inline_style.as_deref(),
                 stylesheet_map,
                 is_heading,

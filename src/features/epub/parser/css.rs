@@ -30,6 +30,8 @@ pub struct BlockStyle {
     pub is_uppercase: bool,
     pub is_underline: bool,
     pub is_strikethrough: bool,
+    pub is_hidden: bool,
+    pub list_style_type_none: bool,
     pub font_scale: Option<f32>,
     pub margin_top: Option<f32>,
     pub margin_bottom: Option<f32>,
@@ -153,6 +155,22 @@ fn apply_declaration(prop: &str, val: &str, style: &mut BlockStyle) -> bool {
         "text-transform" if val.eq_ignore_ascii_case("uppercase") => {
             style.is_uppercase = true;
             true
+        }
+        "display" => {
+            if val.eq_ignore_ascii_case("none") {
+                style.is_hidden = true;
+                true
+            } else {
+                false
+            }
+        }
+        "list-style" | "list-style-type" => {
+            if val.to_ascii_lowercase().contains("none") {
+                style.list_style_type_none = true;
+                true
+            } else {
+                false
+            }
         }
         "text-decoration" | "text-decoration-line" => {
             let val_lower = val.to_ascii_lowercase();
@@ -290,6 +308,12 @@ fn merge_block_style(target: &mut BlockStyle, source: &BlockStyle) {
     if source.is_strikethrough {
         target.is_strikethrough = true;
     }
+    if source.is_hidden {
+        target.is_hidden = true;
+    }
+    if source.list_style_type_none {
+        target.list_style_type_none = true;
+    }
     if let Some(scale) = source.font_scale {
         target.font_scale = Some(scale);
     }
@@ -349,9 +373,20 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
         if has_properties {
             for sel in selectors.split(',') {
                 let sel = sel.trim();
-                // Match class selectors, e.g. `.block_3` or `h1.block_3` or `p.block_4`, and tag selectors `h1`, `h2`...
+                // Match ID selectors (#id), class selectors (.class), and tag selectors (h1, ul, ol...)
                 for part in sel.split_whitespace() {
-                    if let Some(idx) = part.find('.') {
+                    if let Some(idx) = part.find('#') {
+                        let id_name = part[idx + 1..]
+                            .trim_matches(|c: char| !c.is_alphanumeric() && c != '_' && c != '-');
+                        if !id_name.is_empty() {
+                            let key = format!("#{id_name}");
+                            if let Some(existing) = map.get_mut(&key) {
+                                merge_block_style(existing, &style);
+                            } else {
+                                map.insert(key, style.clone());
+                            }
+                        }
+                    } else if let Some(idx) = part.find('.') {
                         let class_name = part[idx + 1..]
                             .trim_matches(|c: char| !c.is_alphanumeric() && c != '_' && c != '-');
                         if !class_name.is_empty() {
@@ -365,7 +400,16 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
                         let tag_name = part.trim_matches(|c: char| !c.is_alphanumeric());
                         if matches!(
                             tag_name.to_ascii_lowercase().as_str(),
-                            "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p" | "blockquote" | "pre"
+                            "h1" | "h2"
+                                | "h3"
+                                | "h4"
+                                | "h5"
+                                | "h6"
+                                | "p"
+                                | "blockquote"
+                                | "pre"
+                                | "ul"
+                                | "ol"
                         ) {
                             if let Some(existing) = map.get_mut(tag_name) {
                                 merge_block_style(existing, &style);
@@ -382,11 +426,12 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
     map
 }
 
-/// Resolves effective style for an HTML element given its tag, classes, child classes, and optional inline style attribute.
+/// Resolves effective style for an HTML element given its tag, classes, child classes, optional id, and optional inline style attribute.
 pub fn resolve_block_style(
     tag: Option<&str>,
     classes: &[String],
     child_classes: &[String],
+    id: Option<&str>,
     inline_style: Option<&str>,
     stylesheet_map: &HashMap<String, BlockStyle>,
     is_heading_candidate: bool,
@@ -402,6 +447,14 @@ pub fn resolve_block_style(
     for cls in classes {
         if let Some(cls_style) = stylesheet_map.get(cls) {
             merge_block_style(&mut style, cls_style);
+        }
+    }
+
+    if let Some(id_name) = id {
+        if let Some(id_style) = stylesheet_map.get(&format!("#{id_name}")) {
+            merge_block_style(&mut style, id_style);
+        } else if let Some(id_style) = stylesheet_map.get(id_name) {
+            merge_block_style(&mut style, id_style);
         }
     }
 
@@ -732,6 +785,7 @@ mod tests {
             Some("p"),
             &["content".to_string()],
             &[],
+            None,
             Some("margin-right: 30px; padding-bottom: 15px;"),
             &map,
             false,
@@ -756,5 +810,86 @@ mod tests {
         assert_eq!(resolved.effective_margin_top(), 30.0); // 20 margin + 10 padding
         assert_eq!(resolved.effective_margin_right(), 40.0); // 30 margin + 10 padding
         assert_eq!(resolved.effective_margin_bottom(), 25.0); // 10 margin + 15 padding
+    }
+
+    #[test]
+    fn test_id_selector_and_cascade() {
+        let css = r#"
+            p {
+                font-weight: normal;
+                text-align: left;
+            }
+            .note {
+                font-style: italic;
+                text-align: center;
+            }
+            #special {
+                font-weight: bold;
+                text-align: right;
+            }
+        "#;
+        let map = parse_stylesheet(css);
+        assert!(map.contains_key("#special"));
+
+        // tag < class < id < inline
+        let res = resolve_block_style(
+            Some("p"),
+            &["note".to_string()],
+            &[],
+            Some("special"),
+            None,
+            &map,
+            false,
+        );
+        // id overrides class for align (right vs center)
+        assert_eq!(res.align, TextAlign::Right);
+        // inherited from class
+        assert!(res.is_italic);
+        // inherited from id
+        assert!(res.is_bold);
+
+        // inline overrides id
+        let res_inline = resolve_block_style(
+            Some("p"),
+            &["note".to_string()],
+            &[],
+            Some("special"),
+            Some("text-align: justify;"),
+            &map,
+            false,
+        );
+        assert_eq!(res_inline.align, TextAlign::Justify);
+    }
+
+    #[test]
+    fn test_display_none_and_list_style_type_none_parsing() {
+        let css = r#"
+            .hidden-box {
+                display: none;
+            }
+            ul.plain {
+                list-style-type: none;
+            }
+            ol.no-bullet {
+                list-style: none;
+            }
+        "#;
+        let map = parse_stylesheet(css);
+
+        let hidden_style = map.get("hidden-box").expect("hidden-box should exist");
+        assert!(hidden_style.is_hidden);
+
+        let plain_ul = map.get("plain").expect("plain should exist");
+        assert!(plain_ul.list_style_type_none);
+
+        let no_bullet_ol = map.get("no-bullet").expect("no-bullet should exist");
+        assert!(no_bullet_ol.list_style_type_none);
+
+        // Test inline parsing
+        let inline_hidden = parse_inline_style("display: none; color: red;");
+        assert!(inline_hidden.is_hidden);
+
+        let inline_list = parse_inline_style("list-style: none;");
+        assert!(inline_list.list_style_type_none);
     }
 }

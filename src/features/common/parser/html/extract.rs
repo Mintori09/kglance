@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 
 use memchr::{memchr, memmem};
@@ -6,6 +7,7 @@ use quick_xml::reader::Reader;
 
 use super::converter::strip_html_tags;
 use super::entities::{decode_html_entities, normalize_nfc};
+use crate::features::epub::parser::css::BlockStyle;
 
 pub fn extract_tag_content(xml: &str, tag_name: &str) -> Option<String> {
     let clean_tag = tag_name
@@ -377,8 +379,65 @@ pub struct RawHtmlBlockMeta {
     pub child_classes: Vec<String>,
 }
 
+pub const HTML_VOID_TAGS: &[&str] = &[
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
+    "track", "wbr",
+];
+
+pub fn is_element_hidden(
+    e: &quick_xml::events::BytesStart,
+    stylesheet_map: Option<&HashMap<String, BlockStyle>>,
+) -> bool {
+    let mut has_hidden_attr = false;
+
+    for attr in e.html_attributes().flatten() {
+        let key = attr.key.as_ref();
+        if key.eq_ignore_ascii_case("hidden") {
+            has_hidden_attr = true;
+            break;
+        }
+
+        if key.eq_ignore_ascii_case("style") {
+            for decl in attr.value.split(';') {
+                if let Some((k, v)) = decl.split_once(':')
+                    && k.trim().eq_ignore_ascii_case("display")
+                    && v.trim().eq_ignore_ascii_case("none")
+                {
+                    return true;
+                }
+            }
+        } else if let Some(map) = stylesheet_map {
+            if key.eq_ignore_ascii_case("class") {
+                for token in attr.value.split_whitespace() {
+                    if map.get(token).is_some_and(|s| s.is_hidden) {
+                        return true;
+                    }
+                }
+            } else if key.eq_ignore_ascii_case("id")
+                || key.eq_ignore_ascii_case("name")
+                || key.eq_ignore_ascii_case("xml:id")
+            {
+                let id = attr.value.trim();
+                if !id.is_empty() {
+                    let id_key = format!("#{id}");
+                    if map.get(&id_key).is_some_and(|s| s.is_hidden)
+                        || map.get(id).is_some_and(|s| s.is_hidden)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    has_hidden_attr
+}
+
 /// Scans HTML to extract metadata for all block-level elements (`<p>`, `<h1>`..`<h6>`).
-pub fn extract_html_blocks_meta(html: &str) -> Vec<RawHtmlBlockMeta> {
+pub fn extract_html_blocks_meta(
+    html: &str,
+    stylesheet_map: Option<&HashMap<String, BlockStyle>>,
+) -> Vec<RawHtmlBlockMeta> {
     use quick_xml::events::Event;
     use quick_xml::reader::Reader;
 
@@ -391,12 +450,30 @@ pub fn extract_html_blocks_meta(html: &str) -> Vec<RawHtmlBlockMeta> {
 
     let mut current_block: Option<RawHtmlBlockMeta> = None;
     let mut text_count = 0usize;
+    let mut hidden_tag_stack: Vec<String> = Vec::new();
 
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(ref e)) => {
                 let name = e.name();
                 let tag_str = name.as_ref().to_ascii_lowercase();
+                let is_void = HTML_VOID_TAGS.contains(&tag_str.as_str());
+
+                if !hidden_tag_stack.is_empty() {
+                    if !is_void {
+                        hidden_tag_stack.push(tag_str);
+                    }
+                    buf.clear();
+                    continue;
+                }
+
+                if is_element_hidden(e, stylesheet_map) {
+                    if !is_void {
+                        hidden_tag_stack.push(tag_str);
+                    }
+                    buf.clear();
+                    continue;
+                }
 
                 if matches!(
                     tag_str.as_str(),
@@ -446,6 +523,11 @@ pub fn extract_html_blocks_meta(html: &str) -> Vec<RawHtmlBlockMeta> {
                 let name = e.name();
                 let tag_str = name.as_ref().to_ascii_lowercase();
 
+                if !hidden_tag_stack.is_empty() || is_element_hidden(e, stylesheet_map) {
+                    buf.clear();
+                    continue;
+                }
+
                 if matches!(
                     tag_str.as_str(),
                     "p" | "h1"
@@ -494,6 +576,16 @@ pub fn extract_html_blocks_meta(html: &str) -> Vec<RawHtmlBlockMeta> {
                 let name = e.name();
                 let tag_str = name.as_ref().to_ascii_lowercase();
 
+                if !hidden_tag_stack.is_empty() {
+                    if let Some(pos) = hidden_tag_stack.iter().rposition(|t| t == &tag_str) {
+                        hidden_tag_stack.truncate(pos);
+                    } else {
+                        hidden_tag_stack.pop();
+                    }
+                    buf.clear();
+                    continue;
+                }
+
                 if let Some(ref cur) = current_block
                     && cur.tag == tag_str
                 {
@@ -504,10 +596,12 @@ pub fn extract_html_blocks_meta(html: &str) -> Vec<RawHtmlBlockMeta> {
                 }
             }
             Ok(Event::Text(ref e)) => {
-                let s = e.as_ref();
-                let clean = s.replace('\u{a0}', " ");
-                if !clean.trim().is_empty() {
-                    text_count += clean.trim().len();
+                if hidden_tag_stack.is_empty() {
+                    let s = e.as_ref();
+                    let clean = s.replace('\u{a0}', " ");
+                    if !clean.trim().is_empty() {
+                        text_count += clean.trim().len();
+                    }
                 }
             }
             Ok(Event::Eof) | Err(_) => {

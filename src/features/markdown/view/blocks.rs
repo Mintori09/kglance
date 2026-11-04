@@ -47,7 +47,7 @@ pub(crate) fn render_block<'a>(
             ordered,
             start_number,
             items,
-        } => render_list(*ordered, *start_number, items, state, ctx),
+        } => render_list(*ordered, *start_number, items, block_style, state, ctx),
         Block::Quote(blocks) => render_quote(blocks, state, ctx),
         Block::Alert { kind, content } => render_alert(*kind, content, state, ctx),
         Block::FootnoteDefinition { label, content } => {
