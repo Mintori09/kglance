@@ -10,6 +10,7 @@ fn test_ui_config_default() {
     assert_eq!(config.font_family, None);
     assert_eq!(config.font_family_mono, None);
     assert_eq!(config.epub_font_family, None);
+    assert!(!config.epub_override_book_font);
     assert!(config.max_text_width.is_some());
     assert!((config.max_text_width.unwrap() - 820.0).abs() < f32::EPSILON);
     assert_eq!(config.default_width, 1024);
@@ -38,6 +39,7 @@ fn test_config_serialization_round_trip() {
             font_family: Some("Noto Sans".into()),
             font_family_mono: Some("JetBrains Mono".into()),
             epub_font_family: Some("Noto Serif".into()),
+            epub_override_book_font: true,
             epub_reading_mode: kglance::core::config::EpubReadingMode::Continuous,
             ruby_display_mode: kglance::core::config::RubyDisplayMode::Tooltip,
             max_text_width: Some(720.0),

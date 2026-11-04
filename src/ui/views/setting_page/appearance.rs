@@ -1,4 +1,4 @@
-use iced::widget::{button, column, container, pick_list, row, slider, text};
+use iced::widget::{button, column, container, pick_list, row, slider, text, toggler};
 use iced::{Alignment, Element, Font, Theme};
 
 use super::build_setting_row;
@@ -7,7 +7,7 @@ use crate::core::config::{ConfigManager, UiConfig};
 use crate::ui::theme::color::{AppTheme, BaseColors};
 use crate::ui::theme::default_row_button;
 use crate::ui::theme::tokens::spacing;
-use crate::ui::theme::{default_card, default_pick_list, default_slider};
+use crate::ui::theme::{default_card, default_pick_list, default_slider, default_toggler};
 
 pub const AVAILABLE_THEMES: [&str; 9] = [
     "Dark",
@@ -149,6 +149,22 @@ pub fn appearance_tab<'a>(
         base_colors.text_dim,
     );
 
+    let override_book_font_cb = toggler(config.epub_override_book_font)
+        .on_toggle(|val| Message::Settings(SettingsMsg::EpubOverrideBookFontToggled(val)))
+        .style({
+            let theme = theme.clone();
+            move |_, status| default_toggler(&theme, status)
+        });
+
+    let override_book_font_row = build_setting_row(
+        "Override Book Fonts",
+        "Always apply your configured reader font instead of fonts specified in EPUB files",
+        override_book_font_cb,
+        main_font,
+        base_colors.text,
+        base_colors.text_dim,
+    );
+
     let reader_width = config.max_text_width.unwrap_or(DEFAULT_MAX_READER_WIDTH);
     let width_control = row![
         slider(MIN_READER_WIDTH..=MAX_READER_WIDTH, reader_width, |val| {
@@ -194,6 +210,7 @@ pub fn appearance_tab<'a>(
             main_font_row,
             mono_row,
             epub_font_row,
+            override_book_font_row,
             width_row,
         ]
         .spacing(spacing::M),

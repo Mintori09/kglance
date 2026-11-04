@@ -490,6 +490,7 @@ pub fn view_window<'a>(
             font_family: state.font_family.clone(),
             font_family_mono: state.font_family_mono.clone(),
             epub_font_family: state.epub_font_family.clone(),
+            epub_override_book_font: state.epub_override_book_font,
             epub_reading_mode: state.epub_reading_mode,
             ruby_display_mode: state.ruby_display_mode,
             max_text_width: state.max_text_width,

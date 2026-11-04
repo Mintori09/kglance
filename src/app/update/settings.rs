@@ -178,6 +178,39 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             let _ = app.save_current_config();
             Task::none()
         }
+        SettingsMsg::EpubOverrideBookFontToggled(enabled) => {
+            app.state.epub_override_book_font = enabled;
+            if matches!(
+                app.current_content,
+                Some(crate::core::PreviewData::Epub { .. })
+            ) {
+                let content_width = app.state.epub_content_width();
+                let blocks = if app.state.epub.reading_mode
+                    == crate::core::config::EpubReadingMode::Continuous
+                {
+                    app.state.epub.continuous_blocks.as_slice()
+                } else {
+                    let active_chapter = app.state.epub.active_chapter;
+                    app.state
+                        .epub
+                        .chapters
+                        .get(active_chapter)
+                        .map_or([].as_slice(), |c| c.blocks.as_slice())
+                };
+                if !blocks.is_empty() {
+                    let s = app.state.font_size;
+                    crate::features::markdown::rescale_and_update_markdown_layout(
+                        &mut app.state.epub.markdown_state,
+                        blocks,
+                        s,
+                        s,
+                        content_width,
+                    );
+                }
+            }
+            let _ = app.save_current_config();
+            Task::none()
+        }
         SettingsMsg::MaxTextWidthChanged(w) => {
             if let Some(val) = w {
                 if let Some(task) =
@@ -548,6 +581,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             app.state.font_family = default_config.ui.font_family.clone();
             app.state.font_family_mono = default_config.ui.font_family_mono.clone();
             app.state.epub_font_family = default_config.ui.epub_font_family.clone();
+            app.state.epub_override_book_font = default_config.ui.epub_override_book_font;
             let epub_task = if matches!(
                 app.current_content,
                 Some(crate::core::PreviewData::Epub { .. })

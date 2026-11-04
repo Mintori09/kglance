@@ -18,6 +18,7 @@ use crate::features::markdown::Block;
 use crate::ui::components::sidebar::with_sidebar_layout;
 use crate::ui::types::RenderContext;
 
+#[allow(clippy::too_many_arguments)]
 pub fn view_epub<'a>(
     state: &'a EpubState,
     font_size: f32,
@@ -26,6 +27,7 @@ pub fn view_epub<'a>(
     font_family_mono: Option<&str>,
     max_text_width: Option<f32>,
     ruby_display_mode: crate::core::config::RubyDisplayMode,
+    epub_override_book_font: bool,
 ) -> Element<'a, Message> {
     let active_chapter = clamp_active_chapter(state);
     let search_counter = Cell::new(0);
@@ -66,6 +68,7 @@ pub fn view_epub<'a>(
         result_popup: false,
         show_heading_divider: false,
         is_epub: true,
+        epub_override_book_font,
     };
 
     let main_content = build_epub_content(state, active_chapter, &ctx, max_text_width);

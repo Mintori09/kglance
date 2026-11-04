@@ -285,6 +285,40 @@ fn test_font_family_selected_updates_epub_layout_when_no_custom_epub_font() {
 }
 
 #[test]
+fn test_epub_override_book_font_toggled_updates_state_and_layout() {
+    let mut app = test_app(None);
+    let chapters = vec![crate::core::types::EpubChapterInfo {
+        title: "Chapter 1".to_string(),
+        level: 1,
+        anchor: None,
+        file_href: "ch1.xhtml".to_string(),
+        blocks: vec![crate::parsers::markdown::Block::Paragraph(vec![
+            crate::parsers::markdown::Inline::Text("Sample text".to_string()),
+        ])],
+    }];
+    app.current_content = Some(crate::core::PreviewData::Epub {
+        title: "Test Book".to_string(),
+        author: "Author".to_string(),
+        chapters: chapters.clone(),
+        active_chapter: 0,
+        images: std::collections::HashMap::new(),
+    });
+    crate::features::epub::state::populate_state(
+        &mut app.state,
+        "Test Book",
+        "Author",
+        &chapters,
+        0,
+        &std::collections::HashMap::new(),
+    );
+
+    assert!(!app.state.epub_override_book_font);
+    let _ = handle_settings_message(&mut app, SettingsMsg::EpubOverrideBookFontToggled(true));
+    assert!(app.state.epub_override_book_font);
+    assert!(!app.state.epub.markdown_state.block_y_offsets.is_empty());
+}
+
+#[test]
 fn test_reset_to_defaults_updates_existing_read_positions() {
     let mut app = test_app(None);
     let path_str = "/fake/book.epub";

@@ -33,6 +33,8 @@ pub struct UiConfig {
     pub font_family_mono: Option<String>,
     pub epub_font_family: Option<String>,
     #[serde(default)]
+    pub epub_override_book_font: bool,
+    #[serde(default)]
     pub epub_reading_mode: EpubReadingMode,
     #[serde(default)]
     pub ruby_display_mode: RubyDisplayMode,
@@ -75,6 +77,7 @@ impl Default for UiConfig {
             font_family: None,
             font_family_mono: None,
             epub_font_family: None,
+            epub_override_book_font: false,
             epub_reading_mode: EpubReadingMode::default(),
             ruby_display_mode: RubyDisplayMode::default(),
             max_text_width: Some(820.0),

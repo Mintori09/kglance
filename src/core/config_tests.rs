@@ -12,6 +12,7 @@ fn test_default_config_values() {
     assert_eq!(cfg.ui.font_family, None);
     assert_eq!(cfg.ui.font_family_mono, None);
     assert_eq!(cfg.ui.epub_font_family, None);
+    assert!(!cfg.ui.epub_override_book_font);
     assert_eq!(cfg.ui.max_text_width, Some(820.0));
     assert_eq!(cfg.ui.default_width, 1024);
     assert_eq!(cfg.ui.default_height, 768);
@@ -108,6 +109,7 @@ fn test_load_existing_custom_config() {
             font_family: Some("Fira Code".into()),
             font_family_mono: Some("JetBrains Mono".into()),
             epub_font_family: Some("Serif".into()),
+            epub_override_book_font: false,
             epub_reading_mode: EpubReadingMode::SingleChapter,
             max_text_width: Some(900.0),
             default_width: 1280,
