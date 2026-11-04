@@ -26,8 +26,9 @@ use crate::features::markdown::parser::{
 };
 
 use html::{
-    convert_html_to_markdown, convert_html_to_markdown_with_stylesheet, decode_html_entities,
-    extract_chapter_title_from_html, extract_headings_from_html, extract_tag_content,
+    RawHtmlBlockMeta, convert_html_to_markdown, convert_html_to_markdown_with_stylesheet,
+    decode_html_entities, extract_chapter_title_from_html, extract_headings_from_html,
+    extract_html_blocks_meta, extract_tag_content,
 };
 use ncx::{NcxNavPoint, decode_url_component, extract_epub3_navpoints, extract_ncx_navpoints};
 use opf::{
@@ -123,8 +124,6 @@ pub fn extract_blocks_styles(
     blocks: &[Block],
     stylesheet_map: &HashMap<String, css::BlockStyle>,
 ) -> HashMap<usize, css::BlockStyle> {
-    use crate::features::common::parser::html::extract_html_blocks_meta;
-
     let metas = extract_html_blocks_meta(html);
     let non_empty_metas: Vec<_> = metas.into_iter().filter(|m| !m.is_empty).collect();
     let mut styles = HashMap::new();
@@ -151,12 +150,14 @@ pub fn extract_blocks_styles(
         };
 
         if let Some(meta) = non_empty_metas.get(meta_idx) {
+            let is_heading = is_heading_candidate(meta, block, stylesheet_map);
             let style = css::resolve_block_style(
                 Some(meta.tag.as_str()),
                 &meta.classes,
                 &meta.child_classes,
                 meta.inline_style.as_deref(),
                 stylesheet_map,
+                is_heading,
             );
             if style != css::BlockStyle::default() {
                 styles.insert(b_idx, style);
@@ -166,6 +167,69 @@ pub fn extract_blocks_styles(
     }
 
     styles
+}
+
+fn is_heading_candidate(
+    meta: &RawHtmlBlockMeta,
+    block: &Block,
+    stylesheet_map: &HashMap<String, css::BlockStyle>,
+) -> bool {
+    if matches!(meta.tag.as_str(), "h1" | "h2" | "h3" | "h4" | "h5" | "h6")
+        || matches!(block, Block::Heading { .. })
+    {
+        return true;
+    }
+
+    if let Block::Paragraph(inlines) = block {
+        let text = flatten_inlines(inlines);
+        let text_trimmed = text.trim();
+        let text_len = text_trimmed.chars().count();
+        if text_len == 0 || text_len > 120 {
+            return false;
+        }
+
+        let is_centered = meta.classes.iter().any(|c| {
+            stylesheet_map
+                .get(c)
+                .is_some_and(|s| s.align == css::TextAlign::Center)
+        }) || meta
+            .inline_style
+            .as_deref()
+            .is_some_and(|s| s.to_ascii_lowercase().contains("center"));
+
+        if is_centered {
+            return true;
+        }
+
+        let has_heading_class = meta.classes.iter().any(|c| {
+            let lower = c.to_ascii_lowercase();
+            lower.contains("title")
+                || lower.contains("chapter")
+                || lower.contains("heading")
+                || lower.contains("header")
+                || (lower.starts_with('h')
+                    && !lower[1..].is_empty()
+                    && lower[1..].chars().all(|ch| ch.is_ascii_digit()))
+        });
+
+        if has_heading_class {
+            return true;
+        }
+
+        let has_child_heading_class = meta.child_classes.iter().any(|c| {
+            let lower = c.to_ascii_lowercase();
+            lower.contains("title")
+                || lower.contains("chapter")
+                || lower.contains("heading")
+                || lower.contains("header")
+        });
+
+        if has_child_heading_class {
+            return true;
+        }
+    }
+
+    false
 }
 
 pub fn load_all_chapters_and_images_from_epub(

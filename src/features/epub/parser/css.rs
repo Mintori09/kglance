@@ -152,6 +152,7 @@ pub fn resolve_block_style(
     child_classes: &[String],
     inline_style: Option<&str>,
     stylesheet_map: &HashMap<String, BlockStyle>,
+    is_heading_candidate: bool,
 ) -> BlockStyle {
     let mut style = BlockStyle::default();
 
@@ -213,25 +214,27 @@ pub fn resolve_block_style(
         }
     }
 
-    for cls in child_classes {
-        if let Some(cls_style) = stylesheet_map.get(cls) {
-            if cls_style.is_bold {
-                style.is_bold = true;
-            }
-            if cls_style.is_italic {
-                style.is_italic = true;
-            }
-            if cls_style.is_uppercase {
-                style.is_uppercase = true;
-            }
-            if cls_style.is_underline {
-                style.is_underline = true;
-            }
-            if cls_style.is_strikethrough {
-                style.is_strikethrough = true;
-            }
-            if let Some(scale) = cls_style.font_scale {
-                style.font_scale = Some(scale);
+    if is_heading_candidate {
+        for cls in child_classes {
+            if let Some(cls_style) = stylesheet_map.get(cls) {
+                if cls_style.is_bold {
+                    style.is_bold = true;
+                }
+                if cls_style.is_italic {
+                    style.is_italic = true;
+                }
+                if cls_style.is_uppercase {
+                    style.is_uppercase = true;
+                }
+                if cls_style.is_underline {
+                    style.is_underline = true;
+                }
+                if cls_style.is_strikethrough {
+                    style.is_strikethrough = true;
+                }
+                if let Some(scale) = cls_style.font_scale {
+                    style.font_scale = Some(scale);
+                }
             }
         }
     }
