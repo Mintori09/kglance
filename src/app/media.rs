@@ -28,6 +28,18 @@ impl super::KglanceApp {
             return Task::none();
         };
 
+        if self.shift_held
+            && let Some(PreviewData::Notebook { .. }) = self.current_content
+        {
+            let step = if scroll_val > 0.0 {
+                crate::features::markdown::update::PAGE_WIDTH_STEP
+            } else {
+                -crate::features::markdown::update::PAGE_WIDTH_STEP
+            };
+            return crate::features::markdown::update::zoom_markdown_page_width(self, step)
+                .unwrap_or_else(Task::none);
+        }
+
         if is_mod && matches!(self.state.view_mode, ViewMode::Grid(_)) {
             let factor = if scroll_val > 0.0 { 0.1 } else { -0.1 };
             self.state.grid_scale = (self.state.grid_scale + factor).clamp(0.3, 3.0);
@@ -73,7 +85,11 @@ impl super::KglanceApp {
             let delta = if scroll_val > 0.0 { 1.0 } else { -1.0 };
             let target_font_size = self.state.font_size + delta;
             match self.current_content {
-                Some(PreviewData::Markdown { .. } | PreviewData::Epub { .. }) => {
+                Some(
+                    PreviewData::Markdown { .. }
+                    | PreviewData::Epub { .. }
+                    | PreviewData::Notebook { .. },
+                ) => {
                     crate::features::markdown::update::rescale_markdown_font(self, target_font_size)
                         .unwrap_or_else(Task::none)
                 }

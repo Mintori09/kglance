@@ -17,10 +17,14 @@ impl super::KglanceApp {
             || self.state.file_type_text.contains("EPUB")
     }
 
-    pub(super) fn is_markdown_or_epub(&self) -> bool {
+    pub(super) fn has_resizable_page_width(&self) -> bool {
         matches!(
             self.current_content,
-            Some(PreviewData::Markdown { .. } | PreviewData::Epub { .. })
+            Some(
+                PreviewData::Markdown { .. }
+                    | PreviewData::Epub { .. }
+                    | PreviewData::Notebook { .. }
+            )
         ) || self.is_epub_content()
     }
 
