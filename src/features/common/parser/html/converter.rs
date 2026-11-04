@@ -12,6 +12,10 @@ use crate::features::epub::parser::css::{BlockStyle, VerticalAlign, parse_inline
 pub enum InlineFormat {
     Delim(&'static str),
     Underline,
+    Styled {
+        color: Option<[u8; 4]>,
+        background: Option<[u8; 4]>,
+    },
 }
 
 fn target_ends_with_exact_closing(target: &str, fmt: InlineFormat) -> bool {
@@ -21,6 +25,7 @@ fn target_ends_with_exact_closing(target: &str, fmt: InlineFormat) -> bool {
         InlineFormat::Delim("***") => target.ends_with("***") && !target.ends_with("****"),
         InlineFormat::Delim("~~") => target.ends_with("~~"),
         InlineFormat::Underline => target.ends_with("</u>"),
+        InlineFormat::Styled { .. } => target.ends_with("</span>"),
         InlineFormat::Delim(d) => target.ends_with(d),
     }
 }
@@ -470,6 +475,8 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                     let mut is_underline = false;
                     let mut is_strikethrough = false;
                     let mut vertical_align = None;
+                    let mut color = None;
+                    let mut background_color = None;
 
                     if let Some(id) = extract_id_or_name(e)
                         && let Some(map) = self.stylesheet_map
@@ -491,6 +498,12 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                             }
                             if style.vertical_align.is_some() {
                                 vertical_align = style.vertical_align;
+                            }
+                            if style.color.is_some() {
+                                color = style.color;
+                            }
+                            if style.background_color.is_some() {
+                                background_color = style.background_color;
                             }
                         }
                     }
@@ -526,12 +539,24 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                                     if style.vertical_align.is_some() {
                                         vertical_align = style.vertical_align;
                                     }
+                                    if style.color.is_some() {
+                                        color = style.color;
+                                    }
+                                    if style.background_color.is_some() {
+                                        background_color = style.background_color;
+                                    }
                                 }
                             }
                         } else if key.eq_ignore_ascii_case("style") {
                             let inline_style = parse_inline_style(&attr.value);
                             if inline_style.vertical_align.is_some() {
                                 vertical_align = inline_style.vertical_align;
+                            }
+                            if inline_style.color.is_some() {
+                                color = inline_style.color;
+                            }
+                            if inline_style.background_color.is_some() {
+                                background_color = inline_style.background_color;
                             }
                             for decl in val.split(';') {
                                 if let Some((k, v)) = decl.split_once(':') {
@@ -596,8 +621,24 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                         formats.push(InlineFormat::Underline);
                         self.pending_opening_formats.push(InlineFormat::Underline);
                     }
+                    if color.is_some() || background_color.is_some() {
+                        let fmt = InlineFormat::Styled {
+                            color,
+                            background: background_color,
+                        };
+                        formats.push(fmt);
+                        self.pending_opening_formats.push(fmt);
+                    }
                     self.span_format_stack.push(formats);
                 }
+            }
+            "mark" => {
+                let fmt = InlineFormat::Styled {
+                    color: None,
+                    background: Some([255, 255, 0, 255]),
+                };
+                self.pending_opening_formats.push(fmt);
+                self.span_format_stack.push(vec![fmt]);
             }
             "ul" => {
                 self.list_stack.push(ListContext {
@@ -827,7 +868,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             "i" | "em" => self.append_closing_format(InlineFormat::Delim("*")),
             "u" | "ins" => self.append_closing_format(InlineFormat::Underline),
             "del" | "s" | "strike" => self.append_closing_format(InlineFormat::Delim("~~")),
-            "span" => {
+            "span" | "mark" => {
                 if let Some(formats) = self.span_format_stack.pop() {
                     for fmt in formats.into_iter().rev() {
                         self.append_closing_format(fmt);
@@ -1298,6 +1339,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
         let closing_str = match fmt {
             InlineFormat::Delim(d) => d,
             InlineFormat::Underline => "</u>",
+            InlineFormat::Styled { .. } => "</span>",
         };
 
         let target = self.current_target_mut();
@@ -1324,12 +1366,38 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                 let closing_len = match fmt {
                     InlineFormat::Delim(d) => d.len(),
                     InlineFormat::Underline => "</u>".len(),
+                    InlineFormat::Styled { .. } => "</span>".len(),
                 };
                 target.truncate(target.len() - closing_len);
             } else {
                 match fmt {
                     InlineFormat::Delim(d) => target.push_str(d),
                     InlineFormat::Underline => target.push_str("<u>"),
+                    InlineFormat::Styled { color, background } => {
+                        let mut style = String::new();
+                        if let Some([r, g, b, a]) = color {
+                            if a == 255 {
+                                style.push_str(&format!("color:#{r:02x}{g:02x}{b:02x};"));
+                            } else {
+                                style.push_str(&format!(
+                                    "color:rgba({r},{g},{b},{:.2});",
+                                    a as f32 / 255.0
+                                ));
+                            }
+                        }
+                        if let Some([r, g, b, a]) = background {
+                            if a == 255 {
+                                style
+                                    .push_str(&format!("background-color:#{r:02x}{g:02x}{b:02x};"));
+                            } else {
+                                style.push_str(&format!(
+                                    "background-color:rgba({r},{g},{b},{:.2});",
+                                    a as f32 / 255.0
+                                ));
+                            }
+                        }
+                        target.push_str(&format!("<span style=\"{style}\">"));
+                    }
                 }
             }
         }

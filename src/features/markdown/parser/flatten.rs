@@ -98,6 +98,44 @@ fn flatten_inlines_with(inlines: &[Inline], mode: FlattenMode) -> String {
                 FlattenMode::Markdown => s.push_str(&format!("<ruby>{text}<rt>{ruby}</rt></ruby>")),
                 FlattenMode::Visual | FlattenMode::Plain | FlattenMode::Toc => s.push_str(text),
             },
+            Inline::Styled {
+                color,
+                background,
+                content,
+            } => match mode {
+                FlattenMode::Markdown => {
+                    let mut style_parts = Vec::new();
+                    if let Some([r, g, b, a]) = color {
+                        if *a == 255 {
+                            style_parts.push(format!("color:#{r:02x}{g:02x}{b:02x}"));
+                        } else {
+                            style_parts
+                                .push(format!("color:rgba({r},{g},{b},{:.2})", *a as f32 / 255.0));
+                        }
+                    }
+                    if let Some([r, g, b, a]) = background {
+                        if *a == 255 {
+                            style_parts.push(format!("background-color:#{r:02x}{g:02x}{b:02x}"));
+                        } else {
+                            style_parts.push(format!(
+                                "background-color:rgba({r},{g},{b},{:.2})",
+                                *a as f32 / 255.0
+                            ));
+                        }
+                    }
+                    if style_parts.is_empty() {
+                        s.push_str(&flatten_inlines_with(content, mode));
+                    } else {
+                        let style_attr = style_parts.join(";");
+                        s.push_str(&format!("<span style=\"{style_attr}\">"));
+                        s.push_str(&flatten_inlines_with(content, mode));
+                        s.push_str("</span>");
+                    }
+                }
+                FlattenMode::Plain | FlattenMode::Visual | FlattenMode::Toc => {
+                    s.push_str(&flatten_inlines_with(content, mode));
+                }
+            },
         }
     }
     s

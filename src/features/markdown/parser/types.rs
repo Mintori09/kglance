@@ -45,6 +45,11 @@ pub enum Inline {
         text: String,
         ruby: String,
     },
+    Styled {
+        color: Option<[u8; 4]>,
+        background: Option<[u8; 4]>,
+        content: Vec<Inline>,
+    },
 }
 
 #[derive(Debug, Clone)]

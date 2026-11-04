@@ -50,6 +50,8 @@ pub struct BlockStyle {
     pub padding_bottom: Option<f32>,
     pub padding_left: Option<f32>,
     pub padding_right: Option<f32>,
+    pub color: Option<[u8; 4]>,
+    pub background_color: Option<[u8; 4]>,
 }
 
 impl BlockStyle {
@@ -317,6 +319,22 @@ fn apply_declaration(prop: &str, val: &str, style: &mut BlockStyle) -> bool {
                 false
             }
         }
+        "color" => {
+            if let Some(c) = parse_css_color(val) {
+                style.color = Some(c);
+                true
+            } else {
+                false
+            }
+        }
+        "background-color" | "background" => {
+            if let Some(c) = parse_css_color(val) {
+                style.background_color = Some(c);
+                true
+            } else {
+                false
+            }
+        }
         _ => false,
     }
 }
@@ -385,6 +403,12 @@ pub fn merge_block_style(target: &mut BlockStyle, source: &BlockStyle) {
     }
     if let Some(p) = source.padding_right {
         target.padding_right = Some(p);
+    }
+    if let Some(c) = source.color {
+        target.color = Some(c);
+    }
+    if let Some(bg) = source.background_color {
+        target.background_color = Some(bg);
     }
 }
 
@@ -535,6 +559,12 @@ pub fn resolve_block_style(
                 if let Some(va) = cls_style.vertical_align {
                     style.vertical_align = Some(va);
                 }
+                if let Some(c) = cls_style.color {
+                    style.color = Some(c);
+                }
+                if let Some(bg) = cls_style.background_color {
+                    style.background_color = Some(bg);
+                }
             }
         }
     }
@@ -661,6 +691,132 @@ pub fn parse_css_length(val: &str) -> Option<f32> {
             .map(|pct| (pct * 6.5).max(0.0))
     } else {
         val.parse::<f32>().ok()
+    }
+}
+
+/// Parses CSS color strings (#rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba(), named colors).
+/// Returns [r, g, b, a].
+pub fn parse_css_color(val: &str) -> Option<[u8; 4]> {
+    let mut val = val.trim();
+    if val.is_empty() {
+        return None;
+    }
+
+    // Strip !important modifier if present
+    if let Some(stripped) = val.strip_suffix("!important") {
+        val = stripped.trim();
+    } else if let Some((before, _)) = val.split_once("!important") {
+        val = before.trim();
+    }
+    if val.is_empty() {
+        return None;
+    }
+
+    let lower = val.to_ascii_lowercase();
+
+    // 1. Hex format (#rgb, #rgba, #rrggbb, #rrggbbaa)
+    if let Some(hex) = lower.strip_prefix('#') {
+        let hex = hex.trim();
+        return match hex.len() {
+            3 => {
+                let r = u8::from_str_radix(&hex[0..1], 16).ok()?;
+                let g = u8::from_str_radix(&hex[1..2], 16).ok()?;
+                let b = u8::from_str_radix(&hex[2..3], 16).ok()?;
+                Some([r * 17, g * 17, b * 17, 255])
+            }
+            4 => {
+                let r = u8::from_str_radix(&hex[0..1], 16).ok()?;
+                let g = u8::from_str_radix(&hex[1..2], 16).ok()?;
+                let b = u8::from_str_radix(&hex[2..3], 16).ok()?;
+                let a = u8::from_str_radix(&hex[3..4], 16).ok()?;
+                Some([r * 17, g * 17, b * 17, a * 17])
+            }
+            6 => {
+                let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+                let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+                let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+                Some([r, g, b, 255])
+            }
+            8 => {
+                let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+                let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+                let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+                let a = u8::from_str_radix(&hex[6..8], 16).ok()?;
+                Some([r, g, b, a])
+            }
+            _ => None,
+        };
+    }
+
+    // 2. rgb(...) and rgba(...)
+    if lower.starts_with("rgb(") && lower.ends_with(')') {
+        let inner = &lower[4..lower.len() - 1];
+        let parts: Vec<&str> = inner.split(',').map(str::trim).collect();
+        if parts.len() == 3 {
+            let r = parse_color_component(parts[0])?;
+            let g = parse_color_component(parts[1])?;
+            let b = parse_color_component(parts[2])?;
+            return Some([r, g, b, 255]);
+        }
+    } else if lower.starts_with("rgba(") && lower.ends_with(')') {
+        let inner = &lower[5..lower.len() - 1];
+        let parts: Vec<&str> = inner.split(',').map(str::trim).collect();
+        if parts.len() == 4 {
+            let r = parse_color_component(parts[0])?;
+            let g = parse_color_component(parts[1])?;
+            let b = parse_color_component(parts[2])?;
+            let a = parse_alpha_component(parts[3])?;
+            return Some([r, g, b, a]);
+        }
+    }
+
+    // 3. Named colors
+    match lower.as_str() {
+        "black" => Some([0, 0, 0, 255]),
+        "white" => Some([255, 255, 255, 255]),
+        "red" => Some([255, 0, 0, 255]),
+        "green" => Some([0, 128, 0, 255]),
+        "blue" => Some([0, 0, 255, 255]),
+        "yellow" => Some([255, 255, 0, 255]),
+        "gray" | "grey" => Some([128, 128, 128, 255]),
+        "orange" => Some([255, 165, 0, 255]),
+        "purple" => Some([128, 0, 128, 255]),
+        "brown" => Some([165, 42, 42, 255]),
+        "gold" => Some([255, 215, 0, 255]),
+        "navy" => Some([0, 0, 128, 255]),
+        "teal" => Some([0, 128, 128, 255]),
+        "cyan" => Some([0, 255, 255, 255]),
+        "magenta" => Some([255, 0, 255, 255]),
+        "maroon" => Some([128, 0, 0, 255]),
+        "silver" => Some([192, 192, 192, 255]),
+        "olive" => Some([128, 128, 0, 255]),
+        _ => None,
+    }
+}
+
+fn parse_color_component(s: &str) -> Option<u8> {
+    let s = s.trim();
+    if let Some(pct) = s.strip_suffix('%') {
+        let val = pct.trim().parse::<f32>().ok()?;
+        Some(((val / 100.0) * 255.0).round().clamp(0.0, 255.0) as u8)
+    } else {
+        let val = s.parse::<f32>().ok()?;
+        Some(val.round().clamp(0.0, 255.0) as u8)
+    }
+}
+
+fn parse_alpha_component(s: &str) -> Option<u8> {
+    let s = s.trim();
+    if let Some(pct) = s.strip_suffix('%') {
+        let val = pct.trim().parse::<f32>().ok()?;
+        Some(((val / 100.0) * 255.0).round().clamp(0.0, 255.0) as u8)
+    } else {
+        let val = s.parse::<f32>().ok()?;
+        if val <= 1.0 {
+            Some((val * 255.0).round().clamp(0.0, 255.0) as u8)
+        } else {
+            Some(val.round().clamp(0.0, 255.0) as u8)
+        }
     }
 }
 
@@ -1078,5 +1234,21 @@ mod tests {
 
         let sub_style = map.get("sub-text").unwrap();
         assert_eq!(sub_style.vertical_align, Some(VerticalAlign::Sub));
+    }
+
+    #[test]
+    fn test_parse_css_color() {
+        assert_eq!(parse_css_color("#fff"), Some([255, 255, 255, 255]));
+        assert_eq!(parse_css_color("#0000"), Some([0, 0, 0, 0]));
+        assert_eq!(parse_css_color("#0070c0"), Some([0, 112, 192, 255]));
+        assert_eq!(parse_css_color("#4f81bd80"), Some([0x4f, 0x81, 0xbd, 0x80]));
+        assert_eq!(parse_css_color("rgb(10, 20, 30)"), Some([10, 20, 30, 255]));
+        assert_eq!(
+            parse_css_color("rgba(10, 20, 30, 0.5)"),
+            Some([10, 20, 30, 128])
+        );
+        assert_eq!(parse_css_color("blue"), Some([0, 0, 255, 255]));
+        assert_eq!(parse_css_color("red !important"), Some([255, 0, 0, 255]));
+        assert_eq!(parse_css_color("invalid"), None);
     }
 }
