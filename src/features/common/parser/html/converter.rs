@@ -56,6 +56,11 @@ pub struct HtmlToMarkdownConverter<'a> {
     table_rows: Vec<Vec<String>>,
     current_row: Vec<String>,
     current_cell: String,
+    current_cell_colspan: usize,
+    table_column_alignments: Vec<Option<String>>,
+    in_caption: bool,
+    caption_buffer: String,
+    table_caption: Option<String>,
     in_cell: bool,
     in_math: bool,
     math_buffer: String,
@@ -116,6 +121,11 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             table_rows: Vec::new(),
             current_row: Vec::new(),
             current_cell: String::new(),
+            current_cell_colspan: 1,
+            table_column_alignments: Vec::new(),
+            in_caption: false,
+            caption_buffer: String::new(),
+            table_caption: None,
             in_cell: false,
             in_math: false,
             math_buffer: String::new(),
@@ -168,7 +178,11 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(ref e)) => {
                     let name = e.name();
-                    self.handle_start_tag(name.as_ref(), e);
+                    if name.as_ref().eq_ignore_ascii_case("br") {
+                        self.handle_empty_tag(name.as_ref(), e);
+                    } else {
+                        self.handle_start_tag(name.as_ref(), e);
+                    }
                 }
                 Ok(Event::End(ref e)) => {
                     let name = e.name();
@@ -262,6 +276,12 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                 self.in_table = true;
                 self.table_headers.clear();
                 self.table_rows.clear();
+                self.table_column_alignments.clear();
+                self.table_caption = None;
+            }
+            "caption" if self.in_table => {
+                self.in_caption = true;
+                self.caption_buffer.clear();
             }
             "tr" if self.in_table => {
                 self.current_row.clear();
@@ -269,10 +289,30 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             "th" if self.in_table => {
                 self.in_cell = true;
                 self.current_cell.clear();
+                self.current_cell_colspan = extract_colspan(e);
+                let col_idx = self.table_headers.len();
+                if let Some(align) = extract_cell_alignment(e) {
+                    if col_idx >= self.table_column_alignments.len() {
+                        self.table_column_alignments.resize(col_idx + 1, None);
+                    }
+                    if self.table_column_alignments[col_idx].is_none() {
+                        self.table_column_alignments[col_idx] = Some(align);
+                    }
+                }
             }
             "td" if self.in_table => {
                 self.in_cell = true;
                 self.current_cell.clear();
+                self.current_cell_colspan = extract_colspan(e);
+                let col_idx = self.current_row.len();
+                if let Some(align) = extract_cell_alignment(e) {
+                    if col_idx >= self.table_column_alignments.len() {
+                        self.table_column_alignments.resize(col_idx + 1, None);
+                    }
+                    if self.table_column_alignments[col_idx].is_none() {
+                        self.table_column_alignments[col_idx] = Some(align);
+                    }
+                }
             }
             "pre" => {
                 self.in_pre = true;
@@ -831,6 +871,14 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                     self.append_str(&format!("]({href})"));
                 }
             }
+            "caption" if self.in_table => {
+                self.in_caption = false;
+                let cap = clean_table_cell(&self.caption_buffer);
+                if !cap.is_empty() {
+                    self.table_caption = Some(cap);
+                }
+                self.caption_buffer.clear();
+            }
             "th" if self.in_table => {
                 if self.in_ruby {
                     self.in_ruby = false;
@@ -838,7 +886,11 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                 }
                 self.in_cell = false;
                 let cell_txt = clean_table_cell(&self.current_cell);
+                let span = self.current_cell_colspan.max(1);
                 self.table_headers.push(cell_txt);
+                for _ in 1..span {
+                    self.table_headers.push(String::new());
+                }
                 self.current_cell.clear();
             }
             "td" if self.in_table => {
@@ -848,7 +900,11 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                 }
                 self.in_cell = false;
                 let cell_txt = clean_table_cell(&self.current_cell);
+                let span = self.current_cell_colspan.max(1);
                 self.current_row.push(cell_txt);
+                for _ in 1..span {
+                    self.current_row.push(String::new());
+                }
                 self.current_cell.clear();
             }
             "tr" if self.in_table => {
@@ -1074,7 +1130,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
 
         match name {
             "br" => {
-                if self.in_heading {
+                if self.in_heading || self.in_cell {
                     self.append_str("<br>");
                 } else {
                     self.append_str("\n");
@@ -1319,6 +1375,8 @@ impl<'a> HtmlToMarkdownConverter<'a> {
     fn current_target_mut(&mut self) -> &mut String {
         if self.in_cell {
             &mut self.current_cell
+        } else if self.in_caption {
+            &mut self.caption_buffer
         } else if let Some(current_quote) = self.quote_stack.last_mut() {
             current_quote
         } else {
@@ -1453,7 +1511,11 @@ impl<'a> HtmlToMarkdownConverter<'a> {
         }
 
         self.ensure_newline();
-        self.output.push('\n');
+        if let Some(cap) = self.table_caption.take() {
+            self.output.push_str(&format!("*{cap}*\n\n"));
+        } else {
+            self.output.push('\n');
+        }
 
         let col_count = if !self.table_headers.is_empty() {
             self.table_headers.len()
@@ -1483,8 +1545,16 @@ impl<'a> HtmlToMarkdownConverter<'a> {
 
         // Print separator
         self.output.push('|');
-        for _ in 0..col_count {
-            self.output.push_str(" --- |");
+        for i in 0..col_count {
+            let align = self
+                .table_column_alignments
+                .get(i)
+                .and_then(|a| a.as_deref());
+            match align {
+                Some("center") => self.output.push_str(" :---: |"),
+                Some("right") => self.output.push_str(" ---: |"),
+                _ => self.output.push_str(" --- |"),
+            }
         }
         self.output.push('\n');
 
@@ -1503,7 +1573,41 @@ impl<'a> HtmlToMarkdownConverter<'a> {
         self.output.push('\n');
         self.table_headers.clear();
         self.table_rows.clear();
+        self.table_column_alignments.clear();
     }
+}
+
+fn extract_colspan(e: &quick_xml::events::BytesStart) -> usize {
+    for attr in e.attributes().flatten() {
+        if attr.key.as_ref().eq_ignore_ascii_case("colspan")
+            && let Ok(n) = attr.value.trim().parse::<usize>()
+        {
+            return n.max(1);
+        }
+    }
+    1
+}
+
+fn extract_cell_alignment(e: &quick_xml::events::BytesStart) -> Option<String> {
+    for attr in e.attributes().flatten() {
+        let key = attr.key.as_ref();
+        if key.eq_ignore_ascii_case("align") {
+            let v = attr.value.trim().to_ascii_lowercase();
+            if v == "center" || v == "right" || v == "left" {
+                return Some(v);
+            }
+        } else if key.eq_ignore_ascii_case("style") {
+            let lower = attr.value.to_ascii_lowercase();
+            if lower.contains("text-align: center") || lower.contains("text-align:center") {
+                return Some("center".to_string());
+            } else if lower.contains("text-align: right") || lower.contains("text-align:right") {
+                return Some("right".to_string());
+            } else if lower.contains("text-align: left") || lower.contains("text-align:left") {
+                return Some("left".to_string());
+            }
+        }
+    }
+    None
 }
 
 fn clean_table_cell(raw: &str) -> String {
