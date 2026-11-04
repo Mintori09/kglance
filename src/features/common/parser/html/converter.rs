@@ -14,6 +14,17 @@ pub enum InlineFormat {
     Underline,
 }
 
+fn target_ends_with_exact_closing(target: &str, fmt: InlineFormat) -> bool {
+    match fmt {
+        InlineFormat::Delim("*") => target.ends_with('*') && !target.ends_with("**"),
+        InlineFormat::Delim("**") => target.ends_with("**") && !target.ends_with("***"),
+        InlineFormat::Delim("***") => target.ends_with("***") && !target.ends_with("****"),
+        InlineFormat::Delim("~~") => target.ends_with("~~"),
+        InlineFormat::Underline => target.ends_with("</u>"),
+        InlineFormat::Delim(d) => target.ends_with(d),
+    }
+}
+
 pub fn convert_html_to_markdown(html: &str) -> String {
     let mut converter = HtmlToMarkdownConverter::new();
     converter.convert(html)
@@ -62,6 +73,7 @@ pub struct HtmlToMarkdownConverter<'a> {
     in_figure: bool,
     in_figure_caption: bool,
     in_callout_heading: bool,
+    in_heading: bool,
     li_just_started: bool,
     p_just_started: bool,
     in_dl: bool,
@@ -119,6 +131,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             in_figure: false,
             in_figure_caption: false,
             in_callout_heading: false,
+            in_heading: false,
             li_just_started: false,
             p_just_started: false,
             in_dl: false,
@@ -263,6 +276,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                     self.append_str("\n\n*");
                     return;
                 }
+                self.in_heading = true;
                 let hashes = match name {
                     "h1" => "#",
                     "h2" => "##",
@@ -780,6 +794,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                 }
             }
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
+                self.in_heading = false;
                 if self.in_callout_heading {
                     self.in_callout_heading = false;
                     return;
@@ -919,7 +934,13 @@ impl<'a> HtmlToMarkdownConverter<'a> {
         }
 
         match name {
-            "br" => self.append_str("\n"),
+            "br" => {
+                if self.in_heading {
+                    self.append_str(" ");
+                } else {
+                    self.append_str("\n");
+                }
+            }
             "hr" => self.append_str("\n\n---\n\n"),
             "img" | "image" => self.handle_img_tag(e),
             _ => {}
@@ -1139,14 +1160,18 @@ impl<'a> HtmlToMarkdownConverter<'a> {
         self.ruby_text.clear();
     }
 
-    fn append_str(&mut self, s: &str) {
+    fn current_target_mut(&mut self) -> &mut String {
         if self.in_cell {
-            self.current_cell.push_str(s);
+            &mut self.current_cell
         } else if let Some(current_quote) = self.quote_stack.last_mut() {
-            current_quote.push_str(s);
+            current_quote
         } else {
-            self.output.push_str(s);
+            &mut self.output
         }
+    }
+
+    fn append_str(&mut self, s: &str) {
+        self.current_target_mut().push_str(s);
     }
 
     fn append_closing_format(&mut self, fmt: InlineFormat) {
@@ -1160,13 +1185,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             InlineFormat::Underline => "</u>",
         };
 
-        let target = if self.in_cell {
-            &mut self.current_cell
-        } else if let Some(current_quote) = self.quote_stack.last_mut() {
-            current_quote
-        } else {
-            &mut self.output
-        };
+        let target = self.current_target_mut();
 
         let trimmed_len = target
             .trim_end_matches(|c: char| c.is_whitespace() || c == '\u{a0}')
@@ -1183,10 +1202,20 @@ impl<'a> HtmlToMarkdownConverter<'a> {
     }
 
     fn flush_pending_formats(&mut self) {
-        for fmt in std::mem::take(&mut self.pending_opening_formats) {
-            match fmt {
-                InlineFormat::Delim(d) => self.append_str(d),
-                InlineFormat::Underline => self.append_str("<u>"),
+        let pending = std::mem::take(&mut self.pending_opening_formats);
+        let target = self.current_target_mut();
+        for fmt in pending {
+            if target_ends_with_exact_closing(target, fmt) {
+                let closing_len = match fmt {
+                    InlineFormat::Delim(d) => d.len(),
+                    InlineFormat::Underline => "</u>".len(),
+                };
+                target.truncate(target.len() - closing_len);
+            } else {
+                match fmt {
+                    InlineFormat::Delim(d) => target.push_str(d),
+                    InlineFormat::Underline => target.push_str("<u>"),
+                }
             }
         }
     }
@@ -1454,6 +1483,13 @@ fn clean_markdown_output(text: &str) -> String {
             result.push('\n');
             continue;
         }
+
+        let cleaned_line = if line.contains("****") {
+            std::borrow::Cow::Owned(line.replace("****", ""))
+        } else {
+            std::borrow::Cow::Borrowed(line)
+        };
+        let line = cleaned_line.as_ref();
 
         let trimmed = line.trim();
         if trimmed.is_empty() {
