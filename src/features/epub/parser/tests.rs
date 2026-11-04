@@ -2390,3 +2390,145 @@ fn test_comprehensive_scan_why_nations_fail_epub() {
     );
     println!("=== SCAN PASSED PERFECTLY ===");
 }
+
+#[test]
+fn test_display_none_html_and_meta_filtering() {
+    let css = r#"
+        .invisible {
+            display: none;
+        }
+        #hidden-banner {
+            display: none;
+        }
+    "#;
+    let stylesheet_map = css::parse_stylesheet(css);
+
+    let html = r#"
+        <div class="container">
+            <h1>Visible Title</h1>
+            <p class="invisible">This paragraph is hidden via class</p>
+            <div id="hidden-banner">
+                <p>Hidden inside div#hidden-banner</p>
+            </div>
+            <p style="display: none">Inline hidden paragraph</p>
+            <p hidden>HTML5 hidden attribute</p>
+            <p>Visible content <span>Visible inline</span> <span style="display:none">Hidden span</span></p>
+        </div>
+    "#;
+
+    let md = convert_html_to_markdown_with_stylesheet(html, &stylesheet_map);
+    assert!(md.contains("Visible Title"));
+    assert!(md.contains("Visible content"));
+    assert!(md.contains("Visible inline"));
+    assert!(!md.contains("This paragraph is hidden via class"));
+    assert!(!md.contains("Hidden inside div#hidden-banner"));
+    assert!(!md.contains("Inline hidden paragraph"));
+    assert!(!md.contains("HTML5 hidden attribute"));
+    assert!(!md.contains("Hidden span"));
+
+    // Verify extract_html_blocks_meta correctly filters out hidden blocks
+    let metas = extract_html_blocks_meta(html, Some(&stylesheet_map));
+    let non_empty_metas: Vec<_> = metas.into_iter().filter(|m| !m.is_empty).collect();
+    // Only <h1>Visible Title</h1> and <p>Visible content...</p>
+    assert_eq!(non_empty_metas.len(), 2);
+    assert_eq!(non_empty_metas[0].tag, "h1");
+    assert_eq!(non_empty_metas[1].tag, "p");
+}
+
+#[test]
+fn test_list_style_type_none_rendering_flag() {
+    let css = r#"
+        ul.no-bullet {
+            list-style-type: none;
+        }
+        #nav-list {
+            list-style: none;
+        }
+    "#;
+    let stylesheet_map = css::parse_stylesheet(css);
+
+    let html = r#"
+        <ul class="no-bullet">
+            <li>First item</li>
+            <li>Second item</li>
+        </ul>
+        <ol id="nav-list">
+            <li>Numbered one</li>
+        </ol>
+    "#;
+
+    let md = convert_html_to_markdown_with_stylesheet(html, &stylesheet_map);
+    let blocks = parse_to_blocks(&md);
+    let styles = extract_blocks_styles(html, &blocks, &stylesheet_map);
+
+    // Style for first list (ul)
+    let ul_style = styles.get(&0).expect("ul style should exist");
+    assert!(ul_style.list_style_type_none);
+
+    // Style for second list (ol)
+    let ol_style = styles.get(&1).expect("ol style should exist");
+    assert!(ol_style.list_style_type_none);
+}
+
+#[test]
+fn test_void_tags_and_unclosed_tags_hidden_handling() {
+    let css = r#"
+        .invisible {
+            display: none;
+        }
+    "#;
+    let stylesheet_map = css::parse_stylesheet(css);
+
+    // 1. Void tag <img class="invisible"> followed by regular paragraph
+    let html_img = r#"
+        <div>
+            <img class="invisible" src="test.png">
+            <p>Paragraph after hidden void img must remain visible</p>
+        </div>
+    "#;
+    let md_img = convert_html_to_markdown_with_stylesheet(html_img, &stylesheet_map);
+    assert!(!md_img.contains("test.png"));
+    assert!(md_img.contains("Paragraph after hidden void img must remain visible"));
+
+    let metas_img = extract_html_blocks_meta(html_img, Some(&stylesheet_map));
+    let non_empty_img: Vec<_> = metas_img.into_iter().filter(|m| !m.is_empty).collect();
+    assert_eq!(non_empty_img.len(), 1);
+    assert_eq!(non_empty_img[0].tag, "p");
+
+    // 2. Hidden container containing void tags <img src="x"><br> followed by visible p
+    let html_container = r#"
+        <div style="display:none">
+            <img src="x">
+            <br>
+        </div>
+        <p>Visible</p>
+    "#;
+    let md_container = convert_html_to_markdown_with_stylesheet(html_container, &stylesheet_map);
+    assert!(!md_container.contains("![image](x)"));
+    assert!(md_container.contains("Visible"));
+
+    let metas_container = extract_html_blocks_meta(html_container, Some(&stylesheet_map));
+    let non_empty_container: Vec<_> = metas_container
+        .into_iter()
+        .filter(|m| !m.is_empty)
+        .collect();
+    assert_eq!(non_empty_container.len(), 1);
+    assert_eq!(non_empty_container[0].tag, "p");
+}
+
+#[test]
+fn test_id_selector_camel_case_preservation() {
+    let css = r#"
+        #HeaderTitle {
+            font-weight: bold;
+            text-align: center;
+        }
+    "#;
+    let map = css::parse_stylesheet(css);
+    assert!(map.contains_key("#HeaderTitle"));
+
+    let res =
+        css::resolve_block_style(Some("h1"), &[], &[], Some("HeaderTitle"), None, &map, false);
+    assert_eq!(res.align, css::TextAlign::Center);
+    assert!(res.is_bold);
+}

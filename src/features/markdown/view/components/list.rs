@@ -13,21 +13,24 @@ pub(crate) fn render_list<'a>(
     ordered: bool,
     start_number: u64,
     items: &'a [ListItem],
+    block_style: Option<&crate::features::epub::parser::css::BlockStyle>,
     state: &'a crate::core::MarkdownState,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
-    render_list_level(ordered, start_number, items, state, ctx, 0)
+    render_list_level(ordered, start_number, items, block_style, state, ctx, 0)
 }
 
 fn render_list_level<'a>(
     ordered: bool,
     start_number: u64,
     items: &'a [ListItem],
+    block_style: Option<&crate::features::epub::parser::css::BlockStyle>,
     state: &'a crate::core::MarkdownState,
     ctx: &RenderContext<'_>,
     level: usize,
 ) -> Element<'a, Message> {
     let mut item_elements = Vec::with_capacity(items.len());
+    let list_style_type_none = block_style.is_some_and(|s| s.list_style_type_none);
 
     for (index, item) in items.iter().enumerate() {
         let has_direct_content =
@@ -37,8 +40,6 @@ fn render_list_level<'a>(
 
         if has_direct_content {
             let has_ruby = has_stacked_ruby(&item.content, ctx.ruby_display_mode);
-            let prefix =
-                create_list_prefix(ordered, start_number, index, item, ctx, level, has_ruby);
             let content = if item.is_task == Some(true) {
                 render_inlines_styled(
                     &item.content,
@@ -50,11 +51,18 @@ fn render_list_level<'a>(
             } else {
                 render_inlines(&item.content, ctx.font_size, ctx)
             };
-            children.push(
-                row![prefix, content]
-                    .spacing(STYLE.list.item_spacing)
-                    .into(),
-            );
+
+            if list_style_type_none {
+                children.push(content);
+            } else {
+                let prefix =
+                    create_list_prefix(ordered, start_number, index, item, ctx, level, has_ruby);
+                children.push(
+                    row![prefix, content]
+                        .spacing(STYLE.list.item_spacing)
+                        .into(),
+                );
+            }
         }
 
         for (sb_idx, sub_block) in item.sub_blocks.iter().enumerate() {
@@ -64,19 +72,38 @@ fn render_list_level<'a>(
                 items: sub_items,
             } = sub_block
             {
-                render_list_level(*sub_ord, *sub_start, sub_items, state, ctx, level + 1)
+                render_list_level(
+                    *sub_ord,
+                    *sub_start,
+                    sub_items,
+                    block_style,
+                    state,
+                    ctx,
+                    level + 1,
+                )
             } else {
                 render_block(sb_idx, sub_block, state, ctx)
             };
             if !has_direct_content && sb_idx == 0 {
-                let has_ruby = block_starts_with_stacked_ruby(sub_block, ctx.ruby_display_mode);
-                let prefix =
-                    create_list_prefix(ordered, start_number, index, item, ctx, level, has_ruby);
-                children.push(
-                    row![prefix, sub_element]
-                        .spacing(STYLE.list.item_spacing)
-                        .into(),
-                );
+                if list_style_type_none {
+                    children.push(sub_element);
+                } else {
+                    let has_ruby = block_starts_with_stacked_ruby(sub_block, ctx.ruby_display_mode);
+                    let prefix = create_list_prefix(
+                        ordered,
+                        start_number,
+                        index,
+                        item,
+                        ctx,
+                        level,
+                        has_ruby,
+                    );
+                    children.push(
+                        row![prefix, sub_element]
+                            .spacing(STYLE.list.item_spacing)
+                            .into(),
+                    );
+                }
             } else {
                 let left_padding = if has_direct_content {
                     STYLE.list.sub_block_left_padding
