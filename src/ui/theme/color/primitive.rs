@@ -98,12 +98,12 @@ pub(crate) const MD_LIGHT_SEARCH_INACTIVE: Color = Color::from_rgba8(250, 204, 2
 
 pub(crate) const MD_DARK_TABLE_HEADER_BG: Color = Color::from_rgb8(38, 38, 38);
 pub(crate) const MD_DARK_TABLE_HEADER_TEXT: Color = Color::from_rgb8(255, 255, 255);
-pub(crate) const MD_DARK_TABLE_SEPARATOR: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.08);
-pub(crate) const MD_DARK_TABLE_BORDER: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.12);
+pub(crate) const MD_DARK_TABLE_SEPARATOR: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.12);
+pub(crate) const MD_DARK_TABLE_BORDER: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.18);
 pub(crate) const MD_LIGHT_TABLE_HEADER_BG: Color = Color::from_rgb8(241, 243, 245);
 pub(crate) const MD_LIGHT_TABLE_HEADER_TEXT: Color = Color::from_rgb8(17, 24, 39);
-pub(crate) const MD_LIGHT_TABLE_SEPARATOR: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.08);
-pub(crate) const MD_LIGHT_TABLE_BORDER: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.10);
+pub(crate) const MD_LIGHT_TABLE_SEPARATOR: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.12);
+pub(crate) const MD_LIGHT_TABLE_BORDER: Color = Color::from_rgba(0.0, 0.0, 0.0, 0.16);
 
 // ── Markdown: quotes & html ────────────────────────────────────────────────
 
