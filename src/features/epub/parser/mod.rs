@@ -128,6 +128,7 @@ pub fn extract_blocks_styles(
     let non_empty_metas: Vec<_> = metas.into_iter().filter(|m| !m.is_empty).collect();
     let mut styles = HashMap::new();
     let mut meta_idx = 0usize;
+    let body_style = stylesheet_map.get("body");
 
     for (b_idx, block) in blocks.iter().enumerate() {
         if is_standalone_anchor_block(block) {
@@ -152,7 +153,15 @@ pub fn extract_blocks_styles(
 
         if let Some(meta) = non_empty_metas.get(meta_idx) {
             let is_heading = is_heading_candidate(meta, block, stylesheet_map);
-            let style = css::resolve_block_style(
+            let mut style = css::BlockStyle::default();
+            if let Some(body) = body_style {
+                style.line_height = body.line_height;
+                style.font_family = body.font_family.clone();
+                if body.align != css::TextAlign::Left {
+                    style.align = body.align;
+                }
+            }
+            let block_style = css::resolve_block_style(
                 Some(meta.tag.as_str()),
                 &meta.classes,
                 &meta.child_classes,
@@ -161,6 +170,7 @@ pub fn extract_blocks_styles(
                 stylesheet_map,
                 is_heading,
             );
+            css::merge_block_style(&mut style, &block_style);
             if style != css::BlockStyle::default() {
                 styles.insert(b_idx, style);
             }

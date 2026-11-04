@@ -10,6 +10,12 @@ pub enum TextAlign {
     Justify,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerticalAlign {
+    Super,
+    Sub,
+}
+
 impl TextAlign {
     pub fn to_horizontal_align(self) -> iced::alignment::Horizontal {
         match self {
@@ -33,6 +39,9 @@ pub struct BlockStyle {
     pub is_hidden: bool,
     pub list_style_type_none: bool,
     pub font_scale: Option<f32>,
+    pub line_height: Option<f32>,
+    pub font_family: Option<String>,
+    pub vertical_align: Option<VerticalAlign>,
     pub margin_top: Option<f32>,
     pub margin_bottom: Option<f32>,
     pub margin_left: Option<f32>,
@@ -193,6 +202,33 @@ fn apply_declaration(prop: &str, val: &str, style: &mut BlockStyle) -> bool {
                 false
             }
         }
+        "line-height" => {
+            if let Some(lh) = parse_line_height(val) {
+                style.line_height = Some(lh);
+                true
+            } else {
+                false
+            }
+        }
+        "font-family" => {
+            if let Some(ff) = parse_font_family(val) {
+                style.font_family = Some(ff);
+                true
+            } else {
+                false
+            }
+        }
+        "vertical-align" => match val.trim().to_ascii_lowercase().as_str() {
+            "super" => {
+                style.vertical_align = Some(VerticalAlign::Super);
+                true
+            }
+            "sub" => {
+                style.vertical_align = Some(VerticalAlign::Sub);
+                true
+            }
+            _ => false,
+        },
         "margin" => {
             let (t, r, b, l) = parse_box_sides(val);
             if t.is_some() || r.is_some() || b.is_some() || l.is_some() || val.contains("auto") {
@@ -286,7 +322,7 @@ fn apply_declaration(prop: &str, val: &str, style: &mut BlockStyle) -> bool {
 }
 
 /// Copies specified properties from `source` onto `target`, obeying CSS cascade.
-fn merge_block_style(target: &mut BlockStyle, source: &BlockStyle) {
+pub fn merge_block_style(target: &mut BlockStyle, source: &BlockStyle) {
     if source.align != TextAlign::Left {
         target.align = source.align;
     }
@@ -316,6 +352,15 @@ fn merge_block_style(target: &mut BlockStyle, source: &BlockStyle) {
     }
     if let Some(scale) = source.font_scale {
         target.font_scale = Some(scale);
+    }
+    if let Some(lh) = source.line_height {
+        target.line_height = Some(lh);
+    }
+    if let Some(ref ff) = source.font_family {
+        target.font_family = Some(ff.clone());
+    }
+    if let Some(va) = source.vertical_align {
+        target.vertical_align = Some(va);
     }
     if let Some(m) = source.margin_top {
         target.margin_top = Some(m);
@@ -400,7 +445,9 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
                         let tag_name = part.trim_matches(|c: char| !c.is_alphanumeric());
                         if matches!(
                             tag_name.to_ascii_lowercase().as_str(),
-                            "h1" | "h2"
+                            "body"
+                                | "h1"
+                                | "h2"
                                 | "h3"
                                 | "h4"
                                 | "h5"
@@ -479,6 +526,15 @@ pub fn resolve_block_style(
                 if let Some(scale) = cls_style.font_scale {
                     style.font_scale = Some(scale);
                 }
+                if let Some(lh) = cls_style.line_height {
+                    style.line_height = Some(lh);
+                }
+                if let Some(ref ff) = cls_style.font_family {
+                    style.font_family = Some(ff.clone());
+                }
+                if let Some(va) = cls_style.vertical_align {
+                    style.vertical_align = Some(va);
+                }
             }
         }
     }
@@ -524,6 +580,66 @@ pub fn parse_font_size_scale(val: &str) -> Option<f32> {
     };
 
     Some(scale.clamp(0.5, 3.0))
+}
+
+/// Parses a CSS line-height declaration into a relative multiplier scale (clamped between 0.8 and 3.0).
+pub fn parse_line_height(val: &str) -> Option<f32> {
+    let mut val = val.trim();
+    if val.is_empty() {
+        return None;
+    }
+    if let Some(stripped) = val.strip_suffix("!important") {
+        val = stripped.trim();
+    } else if let Some((before, _)) = val.split_once("!important") {
+        val = before.trim();
+    }
+    if val.is_empty() {
+        return None;
+    }
+
+    let lh = if let Some(s) = val.strip_suffix('%') {
+        s.trim().parse::<f32>().ok()? / 100.0
+    } else if let Some(s) = val.strip_suffix("rem") {
+        s.trim().parse::<f32>().ok()?
+    } else if let Some(s) = val.strip_suffix("em") {
+        s.trim().parse::<f32>().ok()?
+    } else if let Some(s) = val.strip_suffix("px") {
+        let px = s.trim().parse::<f32>().ok()?;
+        px / 16.0
+    } else if let Some(s) = val.strip_suffix("pt") {
+        let pt = s.trim().parse::<f32>().ok()?;
+        pt / 12.0
+    } else if val.eq_ignore_ascii_case("normal") {
+        1.55
+    } else {
+        val.parse::<f32>().ok()?
+    };
+
+    if !lh.is_finite() || lh <= 0.0 {
+        return None;
+    }
+
+    Some(lh.clamp(0.8, 3.0))
+}
+
+/// Parses a CSS font-family declaration into a clean family name.
+pub fn parse_font_family(val: &str) -> Option<String> {
+    let val = val.trim();
+    if val.is_empty() {
+        return None;
+    }
+    // Take the first family if multiple are comma-separated
+    let first = val.split(',').next().unwrap_or(val).trim();
+    let cleaned = first.trim_matches(|c: char| c == '"' || c == '\'' || c.is_whitespace());
+    if cleaned.is_empty()
+        || cleaned.eq_ignore_ascii_case("inherit")
+        || cleaned.eq_ignore_ascii_case("initial")
+        || cleaned.eq_ignore_ascii_case("unset")
+    {
+        None
+    } else {
+        Some(cleaned.to_string())
+    }
 }
 
 /// Parses a CSS length dimension into an approximate pixel/point value.
@@ -891,5 +1007,76 @@ mod tests {
 
         let inline_list = parse_inline_style("list-style: none;");
         assert!(inline_list.list_style_type_none);
+    }
+
+    #[test]
+    fn test_parse_line_height() {
+        assert_eq!(parse_line_height("normal"), Some(1.55));
+        assert_eq!(parse_line_height("invalid"), None);
+        assert_eq!(parse_line_height("1.5"), Some(1.5));
+        assert_eq!(parse_line_height("150%"), Some(1.5));
+        assert_eq!(parse_line_height("1.2em"), Some(1.2));
+        assert_eq!(parse_line_height("1.25rem"), Some(1.25));
+        assert_eq!(parse_line_height("24px"), Some(1.5)); // 24 / 16 = 1.5
+        assert_eq!(parse_line_height("18pt"), Some(1.5)); // 18 / 12 = 1.5
+
+        // Clamping between 0.8 and 3.0
+        assert_eq!(parse_line_height("0.2"), Some(0.8));
+        assert_eq!(parse_line_height("5.0"), Some(3.0));
+        assert_eq!(parse_line_height("10%"), Some(0.8));
+        assert_eq!(parse_line_height("500%"), Some(3.0));
+
+        // !important and boundary / invalid values
+        assert_eq!(parse_line_height("1.6 !important"), Some(1.6));
+        assert_eq!(parse_line_height("120%!important"), Some(1.2));
+        assert_eq!(parse_line_height("0"), None);
+        assert_eq!(parse_line_height("-1.5"), None);
+        assert_eq!(parse_line_height("NaN"), None);
+        assert_eq!(parse_line_height("!important"), None);
+    }
+
+    #[test]
+    fn test_parse_font_family() {
+        assert_eq!(parse_font_family(""), None);
+        assert_eq!(parse_font_family("inherit"), None);
+        assert_eq!(
+            parse_font_family("\"Times New Roman\", serif"),
+            Some("Times New Roman".to_string())
+        );
+        assert_eq!(
+            parse_font_family("'Helvetica Neue', Arial, sans-serif"),
+            Some("Helvetica Neue".to_string())
+        );
+        assert_eq!(
+            parse_font_family("Georgia, serif"),
+            Some("Georgia".to_string())
+        );
+    }
+
+    #[test]
+    fn test_body_selector_and_typography_cascade() {
+        let css = r#"
+            body {
+                line-height: 1.6;
+                font-family: "Noto Serif", serif;
+            }
+            .sup-text {
+                vertical-align: super;
+            }
+            .sub-text {
+                vertical-align: sub;
+            }
+        "#;
+        let map = parse_stylesheet(css);
+        assert!(map.contains_key("body"));
+        let body = map.get("body").unwrap();
+        assert_eq!(body.line_height, Some(1.6));
+        assert_eq!(body.font_family, Some("Noto Serif".to_string()));
+
+        let sup_style = map.get("sup-text").unwrap();
+        assert_eq!(sup_style.vertical_align, Some(VerticalAlign::Super));
+
+        let sub_style = map.get("sub-text").unwrap();
+        assert_eq!(sub_style.vertical_align, Some(VerticalAlign::Sub));
     }
 }

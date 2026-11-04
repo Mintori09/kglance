@@ -2532,3 +2532,132 @@ fn test_id_selector_camel_case_preservation() {
     assert_eq!(res.align, css::TextAlign::Center);
     assert!(res.is_bold);
 }
+
+#[test]
+fn test_vertical_align_super_sub_and_sub_tag() {
+    use crate::features::common::parser::html::to_subscript_unicode;
+
+    // 1. Unicode subscript helper test
+    assert_eq!(to_subscript_unicode("0123456789+-=()"), "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎");
+    assert_eq!(to_subscript_unicode("h2o"), "ₕ₂ₒ");
+
+    // 2. <sub> tag output
+    let html_sub = "<p>Formula: H<sub>2</sub>O and x<sub>i+1</sub></p>";
+    let md_sub = convert_html_to_markdown(html_sub);
+    assert!(md_sub.contains("H₂O"));
+    assert!(md_sub.contains("xᵢ₊₁"));
+    assert!(!md_sub.contains('~'));
+
+    // 3. <span> with inline style vertical-align: sub
+    let html_span_sub = r#"<p>Formula: H<span style="vertical-align: sub;">2</span>O</p>"#;
+    let md_span_sub = convert_html_to_markdown(html_span_sub);
+    assert!(md_span_sub.contains("H₂O"));
+
+    // 4. <span> with inline style vertical-align: super footnote
+    let html_span_sup_fn =
+        r#"<p>Some claim<span style="vertical-align: super;">1</span> explained.</p>"#;
+    let md_span_sup_fn = convert_html_to_markdown(html_span_sup_fn);
+    assert!(md_span_sup_fn.contains("[^1]"));
+
+    // 5. <span> with stylesheet vertical-align: super / sub
+    let css = r#"
+        .footnote-ref {
+            vertical-align: super;
+        }
+        .chem-sub {
+            vertical-align: sub;
+        }
+    "#;
+    let map = css::parse_stylesheet(css);
+    let html_css = r#"<p>Water H<span class="chem-sub">2</span>O is vital<span class="footnote-ref">2</span>.</p>"#;
+    let md_css = convert_html_to_markdown_with_stylesheet(html_css, &map);
+    assert!(md_css.contains("H₂O"));
+    assert!(md_css.contains("[^2]"));
+}
+
+#[test]
+fn test_body_style_inheritance_in_extract_blocks_styles() {
+    let css = r#"
+        body {
+            line-height: 1.7;
+            font-family: "Georgia", serif;
+        }
+        .special {
+            text-align: center;
+        }
+    "#;
+    let stylesheet_map = css::parse_stylesheet(css);
+    let html = r#"
+        <body>
+            <p>Normal paragraph inheriting body style</p>
+            <p class="special">Special centered paragraph</p>
+        </body>
+    "#;
+    let blocks = parse_to_blocks(&convert_html_to_markdown_with_stylesheet(
+        html,
+        &stylesheet_map,
+    ));
+    let styles = extract_blocks_styles(html, &blocks, &stylesheet_map);
+
+    // Both paragraphs should inherit body line_height and font_family
+    let p0_style = styles.get(&0).expect("block 0 should have style");
+    assert_eq!(p0_style.line_height, Some(1.7));
+    assert_eq!(p0_style.font_family.as_deref(), Some("Georgia"));
+
+    let p1_style = styles.get(&1).expect("block 1 should have style");
+    assert_eq!(p1_style.line_height, Some(1.7));
+    assert_eq!(p1_style.font_family.as_deref(), Some("Georgia"));
+    assert_eq!(p1_style.align, css::TextAlign::Center);
+}
+
+#[test]
+fn test_body_style_no_box_model_leakage() {
+    let css = r#"
+        body {
+            line-height: 1.6;
+            margin: 20px;
+            padding: 15px;
+            text-indent: 2em;
+        }
+        .custom {
+            text-align: right;
+        }
+    "#;
+    let stylesheet_map = css::parse_stylesheet(css);
+    let html = r#"
+        <body>
+            <p>Normal paragraph inheriting typography only</p>
+            <p class="custom">Custom aligned</p>
+        </body>
+    "#;
+    let blocks = parse_to_blocks(&convert_html_to_markdown_with_stylesheet(
+        html,
+        &stylesheet_map,
+    ));
+    let styles = extract_blocks_styles(html, &blocks, &stylesheet_map);
+
+    let p0_style = styles.get(&0).expect("block 0 should have style");
+    assert_eq!(p0_style.line_height, Some(1.6));
+    // Box model properties MUST NOT leak from body
+    assert_eq!(p0_style.margin_top, None);
+    assert_eq!(p0_style.margin_bottom, None);
+    assert_eq!(p0_style.margin_left, None);
+    assert_eq!(p0_style.margin_right, None);
+    assert_eq!(p0_style.padding_top, None);
+    assert_eq!(p0_style.text_indent, 0.0);
+
+    let p1_style = styles.get(&1).expect("block 1 should have style");
+    assert_eq!(p1_style.line_height, Some(1.6));
+    assert_eq!(p1_style.align, css::TextAlign::Right);
+    assert_eq!(p1_style.margin_top, None);
+    assert_eq!(p1_style.padding_top, None);
+}
+
+#[test]
+fn test_nested_spans_vertical_align() {
+    let html = r#"<p>Outer <span style="vertical-align: super;">A<span style="font-style: italic;">B</span>C</span> done.</p>"#;
+    let md = convert_html_to_markdown(html);
+    // Outer super contains A, *B*, and C, which formats to superscript
+    assert!(md.contains("Outer"));
+    assert!(md.contains("done."));
+}
