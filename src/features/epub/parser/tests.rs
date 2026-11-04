@@ -1968,6 +1968,129 @@ fn test_block_style_inherits_from_child_spans() {
 }
 
 #[test]
+fn test_block_style_does_not_inherit_drop_cap_from_child_spans_on_body_paragraph() {
+    let html = r#"<p class="p2"><span class="t1">T</span>HÀNH PHỐ NOGALES bị cắt đôi bởi một hàng rào. Nếu bạn đứng cạnh nó và nhìn theo hướng bắc, bạn sẽ thấy Nogales, Arizona, nằm ở Quận Santa Cruz. Thu nhập của hộ gia đình trung bình ở đó là khoảng 30.000 USD một năm. Hầu hết trẻ vị thành niên ở trường học, và đa số những người lớn là những người đã tốt nghiệp trung học.</p>"#;
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+
+    let mut stylesheet = HashMap::new();
+    stylesheet.insert(
+        "p2".to_string(),
+        css::BlockStyle {
+            text_indent: 0.0,
+            ..Default::default()
+        },
+    );
+    stylesheet.insert(
+        "t1".to_string(),
+        css::BlockStyle {
+            is_bold: true,
+            font_scale: Some(1.3),
+            ..Default::default()
+        },
+    );
+
+    let styles = extract_blocks_styles(html, &blocks, &stylesheet);
+    if let Some(s) = styles.get(&0) {
+        assert!(
+            !s.is_bold,
+            "Body paragraph should NOT inherit bold from drop-cap span"
+        );
+        assert_eq!(
+            s.font_scale, None,
+            "Body paragraph should NOT inherit font_scale from drop-cap span"
+        );
+    }
+
+    // Paragraph with class="h" should NOT be falsely recognized as a heading candidate
+    let html_h = r#"<p class="h"><span class="t1">A</span> short text.</p>"#;
+    let md_h = convert_html_to_markdown(html_h);
+    let blocks_h = parse_to_blocks(&md_h);
+    let styles_h = extract_blocks_styles(html_h, &blocks_h, &stylesheet);
+    if let Some(s) = styles_h.get(&0) {
+        assert!(
+            !s.is_bold,
+            "Paragraph with class='h' must NOT inherit drop-cap bold"
+        );
+    }
+}
+
+#[test]
+fn test_heading_with_br_keeps_multiline_softbreak() {
+    let html = r#"<h1 class="h11">1.<br />GẦN THẾ VÀ VẪN RẤT KHÁC NHAU</h1>"#;
+    let md = convert_html_to_markdown(html);
+    let blocks = parse_to_blocks(&md);
+
+    assert_eq!(blocks.len(), 1, "Must produce exactly one block");
+    if let Block::Heading { level, content } = &blocks[0] {
+        assert_eq!(*level, 1);
+        assert!(
+            content.iter().any(|i| matches!(i, Inline::SoftBreak)),
+            "Heading must contain Inline::SoftBreak for <br>"
+        );
+    } else {
+        panic!("Block must be a Heading");
+    }
+}
+
+#[test]
+fn test_epub_chapter_1_opening_paragraph_not_polluted_by_drop_cap() {
+    let epub_path =
+        std::path::Path::new("/home/mintori/Downloads/Vì sao các quốc gia thất bại.epub");
+    if !epub_path.exists() {
+        return;
+    }
+    let (blocks, _, styles) =
+        load_chapter_content_and_images_from_epub(epub_path, "Text/011.html", None)
+            .expect("Must load 011.html");
+
+    // Check heading has softbreak
+    let mut found_h1 = false;
+    for b in &blocks {
+        if let Block::Heading { level, content } = b
+            && *level == 1
+        {
+            assert!(
+                content.iter().any(|i| matches!(i, Inline::SoftBreak)),
+                "Chapter 1 heading should contain SoftBreak for <br>"
+            );
+            found_h1 = true;
+            break;
+        }
+    }
+    assert!(found_h1, "Must find H1 in 011.html");
+
+    // Check opening paragraph: NOGALES
+    let mut found_para = false;
+    for (i, b) in blocks.iter().enumerate() {
+        if let Block::Paragraph(inlines) = b {
+            let text = flatten_inlines(inlines);
+            if text.contains("NOGALES") {
+                if let Some(s) = styles.get(&i) {
+                    assert!(
+                        !s.is_bold,
+                        "Opening paragraph must NOT be bold (no drop cap pollution)"
+                    );
+                    assert_ne!(
+                        s.font_scale,
+                        Some(1.3),
+                        "Opening paragraph must NOT inherit drop-cap 1.3x scale"
+                    );
+                    assert_eq!(
+                        s.font_scale,
+                        Some(1.09),
+                        "Opening paragraph must keep standard p tag 1.09x scale"
+                    );
+                }
+                found_para = true;
+                break;
+            }
+        }
+    }
+    assert!(found_para, "Must find NOGALES paragraph in 011.html");
+}
+
+#[test]
 fn test_epub_chapter1_heading_center_and_tag_selector() {
     let css = r#"
         h1 {

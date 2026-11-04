@@ -384,9 +384,9 @@ fn inlines_to_spans_core(children: &[Inline], span_ctx: &SpanCtx) -> Vec<CachedS
             }
             Inline::SoftBreak => {
                 spans.push(CachedSpan {
-                    text: " ".to_string(),
+                    text: "\n".to_string(),
                     font: main_font,
-                    color: None,
+                    color: span_ctx.base_color,
                     background: None,
                     size: None,
                     strikethrough: span_ctx.base_strikethrough,

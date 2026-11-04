@@ -47,6 +47,7 @@ fn count_inlines_metrics(
             }
             Inline::SoftBreak => {
                 *visual_units += 1;
+                *explicit_newlines += 1;
             }
             Inline::Ruby { text, .. } => {
                 count_str_metrics(text, visual_units, explicit_newlines, false);

@@ -936,7 +936,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
         match name {
             "br" => {
                 if self.in_heading {
-                    self.append_str(" ");
+                    self.append_str("<br>");
                 } else {
                     self.append_str("\n");
                 }
@@ -1030,6 +1030,11 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             }
             self.li_just_started = false;
             text.trim_start()
+        } else if self.output.ends_with("<br>")
+            || self.output.ends_with("<br/>")
+            || self.output.ends_with("<br />")
+        {
+            text.trim_start_matches(|c: char| c.is_whitespace() || c == '\u{a0}')
         } else {
             text
         };
