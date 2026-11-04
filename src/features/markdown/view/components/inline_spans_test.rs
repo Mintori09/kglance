@@ -384,3 +384,76 @@ fn test_span_cache_key_includes_base_decorations() {
         "Underlined span must be underlined despite cache"
     );
 }
+
+#[test]
+fn test_cross_inline_search_highlight_drop_cap() {
+    let inlines = vec![
+        Inline::Bold(vec![Inline::Text("T".to_string())]),
+        Inline::Text("HÀNH PHỐ NOGALES bị cắt đôi... kết nối với các thành phố khác.".to_string()),
+    ];
+    let counter = Cell::new(0);
+    let theme = AppTheme::Dark;
+    let active_bg = theme.palette().markdown.search_active_bg;
+    let inactive_bg = theme.palette().markdown.search_inactive_bg;
+
+    // Test active match #0 (first match: "THÀNH PHỐ" at the beginning spanning across Bold and Text)
+    let ctx = SpanCtx {
+        font_family: None,
+        font_family_mono: None,
+        search_query: "Thành phố",
+        active_match: 0,
+        counter: &counter,
+        theme,
+        base_weight: None,
+        base_style: None,
+        base_color: None,
+        base_underline: false,
+        base_strikethrough: false,
+        font_size: 14.0,
+        ruby_display_mode: crate::core::config::RubyDisplayMode::Stacked,
+        footnotes: None,
+    };
+
+    let raw_spans = inlines_to_spans_core(&inlines, &ctx);
+    let highlighted_cached = apply_search_highlights_to_spans(raw_spans, &ctx);
+
+    // There are 2 matches: "THÀNH PHỐ" (cross-inline) and "thành phố" (inside second inline)
+    assert_eq!(counter.get(), 2, "Must find both matches in paragraph");
+    assert_eq!(highlighted_cached.len(), 5);
+
+    // Span 0: Bold "T" highlighted with active background
+    assert_eq!(highlighted_cached[0].text, "T");
+    assert_eq!(highlighted_cached[0].font.weight, Weight::Bold);
+    assert_eq!(highlighted_cached[0].background, Some(active_bg));
+
+    // Span 1: Normal "HÀNH PHỐ" highlighted with active background
+    assert_eq!(highlighted_cached[1].text, "HÀNH PHỐ");
+    assert_eq!(highlighted_cached[1].font.weight, Weight::Normal);
+    assert_eq!(highlighted_cached[1].background, Some(active_bg));
+
+    // Span 2: Non-highlighted intermediate text
+    assert!(
+        highlighted_cached[2]
+            .text
+            .starts_with(" NOGALES bị cắt đôi...")
+    );
+    assert_eq!(highlighted_cached[2].background, None);
+
+    // Span 3: Second match "thành phố" highlighted with inactive background
+    assert_eq!(highlighted_cached[3].text, "thành phố");
+    assert_eq!(highlighted_cached[3].background, Some(inactive_bg));
+
+    // Span 4: Trailing non-highlighted text
+    assert_eq!(highlighted_cached[4].text, " khác.");
+    assert_eq!(highlighted_cached[4].background, None);
+
+    // Test converting to Iced spans
+    counter.set(0);
+    let iced_spans = inlines_to_spans(&inlines, &ctx);
+    assert_eq!(iced_spans.len(), 5);
+    assert_eq!(iced_spans[0].text, "T");
+    assert_eq!(iced_spans[0].font.unwrap().weight, Weight::Bold);
+    assert_eq!(iced_spans[1].text, "HÀNH PHỐ");
+    assert_eq!(iced_spans[3].text, "thành phố");
+    assert_eq!(iced_spans[4].text, " khác.");
+}
