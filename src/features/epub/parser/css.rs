@@ -120,13 +120,21 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
 
             for sel in selectors.split(',') {
                 let sel = sel.trim();
-                // Match class selectors, e.g. `.block_3` or `h1.block_3` or `p.block_4`
+                // Match class selectors, e.g. `.block_3` or `h1.block_3` or `p.block_4`, and tag selectors `h1`, `h2`...
                 for part in sel.split_whitespace() {
                     if let Some(idx) = part.find('.') {
                         let class_name = part[idx + 1..]
                             .trim_matches(|c: char| !c.is_alphanumeric() && c != '_' && c != '-');
                         if !class_name.is_empty() {
                             map.insert(class_name.to_string(), style.clone());
+                        }
+                    } else {
+                        let tag_name = part.trim_matches(|c: char| !c.is_alphanumeric());
+                        if matches!(
+                            tag_name.to_ascii_lowercase().as_str(),
+                            "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p" | "blockquote" | "pre"
+                        ) {
+                            map.insert(tag_name.to_ascii_lowercase(), style.clone());
                         }
                     }
                 }
@@ -137,14 +145,44 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
     map
 }
 
-/// Resolves effective style for an HTML element given its classes, child classes, and optional inline style attribute.
+/// Resolves effective style for an HTML element given its tag, classes, child classes, and optional inline style attribute.
 pub fn resolve_block_style(
+    tag: Option<&str>,
     classes: &[String],
     child_classes: &[String],
     inline_style: Option<&str>,
     stylesheet_map: &HashMap<String, BlockStyle>,
 ) -> BlockStyle {
     let mut style = BlockStyle::default();
+
+    if let Some(t) = tag
+        && let Some(tag_style) = stylesheet_map.get(t)
+    {
+        if tag_style.align != TextAlign::Left {
+            style.align = tag_style.align;
+        }
+        if tag_style.text_indent > 0.0 {
+            style.text_indent = tag_style.text_indent;
+        }
+        if tag_style.is_bold {
+            style.is_bold = true;
+        }
+        if tag_style.is_italic {
+            style.is_italic = true;
+        }
+        if tag_style.is_uppercase {
+            style.is_uppercase = true;
+        }
+        if tag_style.is_underline {
+            style.is_underline = true;
+        }
+        if tag_style.is_strikethrough {
+            style.is_strikethrough = true;
+        }
+        if let Some(scale) = tag_style.font_scale {
+            style.font_scale = Some(scale);
+        }
+    }
 
     for cls in classes {
         if let Some(cls_style) = stylesheet_map.get(cls) {
@@ -224,6 +262,11 @@ pub fn resolve_block_style(
         if let Some(scale) = inline_s.font_scale {
             style.font_scale = Some(scale);
         }
+    }
+
+    // Centered or right-aligned blocks should not have paragraph text-indent
+    if style.align == TextAlign::Center || style.align == TextAlign::Right {
+        style.text_indent = 0.0;
     }
 
     style

@@ -1827,7 +1827,11 @@ fn test_epub_why_nations_fail_notes_chapter15_style() {
     for (i, b) in blocks.iter().enumerate() {
         if let Block::Paragraph(inlines) = b {
             let text = flatten_inlines(inlines);
-            if text.contains("15:") {
+            if text.contains("Chương 15:") {
+                assert!(
+                    !text.contains("****"),
+                    "Text must not leak spurious asterisks: {text}"
+                );
                 let style = styles.get(&i);
                 println!("FOUND CHUONG 15 AT BLOCK {i}: style = {style:?}, text = {text}");
                 let s = style.expect("Chương 15 block must have style");
@@ -1840,6 +1844,93 @@ fn test_epub_why_nations_fail_notes_chapter15_style() {
         }
     }
     assert!(found, "Must find Chương 15 block in 028.html");
+}
+
+#[test]
+fn test_coalesce_adjacent_formatting_spans_vietnamese() {
+    let mut stylesheet = HashMap::new();
+    stylesheet.insert(
+        "t15".to_string(),
+        css::BlockStyle {
+            is_bold: true,
+            ..Default::default()
+        },
+    );
+    stylesheet.insert(
+        "t5".to_string(),
+        css::BlockStyle {
+            is_bold: true,
+            ..Default::default()
+        },
+    );
+    stylesheet.insert(
+        "t3".to_string(),
+        css::BlockStyle {
+            is_bold: true,
+            ..Default::default()
+        },
+    );
+
+    // 1. Nguyễn Quang A
+    let html1 = r#"<p><span class="t15">Nguy</span><span class="t15">ễn Quang A</span></p>"#;
+    let md1 = super::html::convert_html_to_markdown_with_stylesheet(html1, &stylesheet);
+    assert_eq!(md1, "**Nguyễn Quang A**");
+
+    // 2. Kenneth J. Arrow, giải Nobel
+    let html2 = r#"<p>- <span class="t5">Kenneth J. Arrow, gi</span><span class="t5">ải Nobel Kinh tế, 1972</span>.</p>"#;
+    let md2 = super::html::convert_html_to_markdown_with_stylesheet(html2, &stylesheet);
+    assert_eq!(md2, "\\- **Kenneth J. Arrow, giải Nobel Kinh tế, 1972**.");
+
+    // 3. Vì sao các Quốc gia Thất bại
+    let html3 =
+        r#"<p><span class="t3">Vì sao các Qu</span><span class="t3">ốc gia Thất bại</span></p>"#;
+    let md3 = super::html::convert_html_to_markdown_with_stylesheet(html3, &stylesheet);
+    assert_eq!(md3, "**Vì sao các Quốc gia Thất bại**");
+
+    // 4. Verify in real EPUB chapters 009.html and 003.html
+    let epub_path =
+        std::path::Path::new("/home/mintori/Downloads/Vì sao các quốc gia thất bại.epub");
+    if epub_path.exists() {
+        let (blocks_009, _, _) =
+            load_chapter_content_and_images_from_epub(epub_path, "Text/009.html", None)
+                .expect("Must load 009.html");
+        let all_text_009: Vec<_> = blocks_009
+            .iter()
+            .filter_map(|b| match b {
+                Block::Paragraph(inlines) => Some(flatten_inlines(inlines)),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            all_text_009
+                .iter()
+                .any(|t| t.contains("Nguyễn Quang A") && !t.contains("****")),
+            "009.html must contain clean 'Nguyễn Quang A' without spurious ****: {all_text_009:?}"
+        );
+
+        let (blocks_003, _, _) =
+            load_chapter_content_and_images_from_epub(epub_path, "Text/003.html", None)
+                .expect("Must load 003.html");
+        let all_text_003: Vec<_> = blocks_003
+            .iter()
+            .filter_map(|b| match b {
+                Block::Paragraph(inlines) => Some(flatten_inlines(inlines)),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            all_text_003
+                .iter()
+                .any(|t| t.contains("Quốc gia Thất bại") && !t.contains("****")),
+            "003.html must contain clean 'Quốc gia Thất bại' without spurious ****: {all_text_003:?}"
+        );
+        assert!(
+            all_text_003
+                .iter()
+                .any(|t| t.contains("giải Nobel Kinh tế") && !t.contains("****")),
+            "003.html must contain clean 'giải Nobel Kinh tế' without spurious ****: {all_text_003:?}"
+        );
+    }
 }
 
 #[test]
@@ -1874,4 +1965,300 @@ fn test_block_style_inherits_from_child_spans() {
         Some(1.2),
         "Block should inherit font_scale from child span"
     );
+}
+
+#[test]
+fn test_epub_chapter1_heading_center_and_tag_selector() {
+    let css = r#"
+        h1 {
+            text-align: center;
+            font-weight: bold;
+            font-size: 145%;
+        }
+        .p9 {
+            text-indent: 1.2em;
+            text-align: center;
+        }
+    "#;
+    let stylesheet = css::parse_stylesheet(css);
+    assert!(
+        stylesheet.contains_key("h1"),
+        "Must parse tag selector 'h1'"
+    );
+    assert!(
+        stylesheet.contains_key("p9"),
+        "Must parse class selector 'p9'"
+    );
+
+    let h1_style = stylesheet.get("h1").unwrap();
+    assert_eq!(h1_style.align, css::TextAlign::Center);
+    assert!(h1_style.is_bold);
+    assert_eq!(h1_style.font_scale, Some(1.45));
+
+    let epub_path =
+        std::path::Path::new("/home/mintori/Downloads/Vì sao các quốc gia thất bại.epub");
+    if epub_path.exists() {
+        let (blocks, _, styles) =
+            load_chapter_content_and_images_from_epub(epub_path, "Text/011.html", None)
+                .expect("Must load 011.html");
+
+        let mut found_h1 = false;
+        let mut found_subheading = false;
+
+        for (i, b) in blocks.iter().enumerate().take(10) {
+            match b {
+                Block::Heading { level: 1, content } => {
+                    let text = flatten_inlines(content);
+                    if text.contains("1. GẦN THẾ VÀ VẪN RẤT KHÁC NHAU") {
+                        let s = styles.get(&i).expect("H1 block must have style");
+                        assert_eq!(s.align, css::TextAlign::Center, "H1 must be centered");
+                        assert!(s.is_bold, "H1 must be bold");
+                        assert_eq!(s.text_indent, 0.0, "Centered H1 must have text_indent = 0");
+                        found_h1 = true;
+                    }
+                }
+                Block::Paragraph(inlines) => {
+                    let text = flatten_inlines(inlines);
+                    if text.contains("NỀN KINH TẾ CỦA RIO GRANDE") {
+                        let s = styles.get(&i).expect("Subheading must have style");
+                        assert_eq!(
+                            s.align,
+                            css::TextAlign::Center,
+                            "Subheading must be centered"
+                        );
+                        assert_eq!(
+                            s.text_indent, 0.0,
+                            "Centered subheading must have text_indent normalized to 0"
+                        );
+                        found_subheading = true;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        assert!(found_h1, "Must find centered H1 in 011.html");
+        assert!(
+            found_subheading,
+            "Must find centered subheading in 011.html"
+        );
+    }
+}
+
+#[test]
+fn test_comprehensive_scan_why_nations_fail_epub() {
+    let epub_path =
+        std::path::Path::new("/home/mintori/Downloads/Vì sao các quốc gia thất bại.epub");
+    if !epub_path.exists() {
+        eprintln!("EPUB file not found, skipping comprehensive scan.");
+        return;
+    }
+
+    println!("\n=== STARTING COMPREHENSIVE SCAN OF WHY NATIONS FAIL EPUB ===");
+
+    // 1. Check TOC / Chapters metadata via EpubParser
+    let parser = EpubParser;
+    let res = parser.parse(epub_path).expect("EpubParser must parse EPUB");
+    let mut violations = Vec::new();
+
+    if let ParsedContent::Epub {
+        chapters, title, ..
+    } = res
+    {
+        println!("Book Title: {title}");
+        println!("Total TOC chapters extracted: {}", chapters.len());
+
+        for (idx, (ch_title, level, anchor, href, _)) in chapters.iter().enumerate() {
+            println!("  [TOC #{idx:02}] (L{level}) href='{href}' anchor={anchor:?}: '{ch_title}'");
+
+            if ch_title.contains("****") {
+                violations.push(format!("TOC #{idx} title contains '****': '{ch_title}'"));
+            }
+            if ch_title.contains("~~~~") {
+                violations.push(format!("TOC #{idx} title contains '~~~~': '{ch_title}'"));
+            }
+            if ch_title.contains("</u>") || ch_title.contains("<u>") {
+                violations.push(format!(
+                    "TOC #{idx} title contains unhandled u tag: '{ch_title}'"
+                ));
+            }
+        }
+    } else {
+        panic!("ParsedContent is not Epub!");
+    }
+
+    // 2. Open EPUB archive directly and list all HTML/XHTML entries
+    let file = File::open(epub_path).expect("Failed to open EPUB file");
+    let mut archive = zip::ZipArchive::new(BufReader::new(file)).expect("Failed to open zip");
+    let opf_path = read_container_opf_path(&mut archive).expect("OPF path missing");
+    let opf_xml = read_archive_entry_string(&mut archive, &opf_path).unwrap_or_default();
+    let stylesheet_map = load_all_stylesheets(&mut archive, &opf_path, &opf_xml);
+
+    let html_entries: Vec<String> = (0..archive.len())
+        .filter_map(|i| {
+            let entry = archive.by_index(i).ok()?;
+            let name = entry.name().ok()?.to_string();
+            if name.ends_with(".html") || name.ends_with(".xhtml") {
+                Some(name)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    println!("\nFound {} HTML/XHTML files in EPUB.", html_entries.len());
+
+    fn check_markdown_leaks(md: &str, loc: &str, violations: &mut Vec<String>) {
+        if md.contains("****") {
+            violations.push(format!(
+                "{loc}: contains '****' -> snippet: {}",
+                md.chars().take(120).collect::<String>()
+            ));
+        }
+        if md.contains("******") {
+            violations.push(format!(
+                "{loc}: contains '******' -> snippet: {}",
+                md.chars().take(120).collect::<String>()
+            ));
+        }
+        if md.contains("~~~~") {
+            violations.push(format!(
+                "{loc}: contains '~~~~' -> snippet: {}",
+                md.chars().take(120).collect::<String>()
+            ));
+        }
+        // Check for orphaned </u> or mismatched underline tags
+        let open_u_count = md.matches("<u>").count();
+        let close_u_count = md.matches("</u>").count();
+        if open_u_count != close_u_count {
+            violations.push(format!(
+                "{loc}: mismatched underline tags (<u>: {open_u_count}, </u>: {close_u_count})"
+            ));
+        }
+    }
+
+    use crate::parsers::markdown::flatten_inlines_visual;
+
+    fn check_visual_text(visual: &str, loc: &str, violations: &mut Vec<String>) {
+        if visual.contains("****") {
+            violations.push(format!(
+                "{loc} [Visual]: contains '****' -> snippet: {}",
+                visual.chars().take(120).collect::<String>()
+            ));
+        }
+        if visual.contains("~~~~") {
+            violations.push(format!(
+                "{loc} [Visual]: contains '~~~~' -> snippet: {}",
+                visual.chars().take(120).collect::<String>()
+            ));
+        }
+        if visual.contains("</u>") || visual.contains("<u>") {
+            violations.push(format!(
+                "{loc} [Visual]: leaked raw u tag in visual text -> snippet: {}",
+                visual.chars().take(120).collect::<String>()
+            ));
+        }
+    }
+
+    fn check_block(b: &Block, loc: &str, violations: &mut Vec<String>) {
+        match b {
+            Block::Heading { content, .. } => {
+                let md = flatten_inlines(content);
+                check_markdown_leaks(&md, &format!("{loc} [Heading MD]"), violations);
+                let visual = flatten_inlines_visual(content);
+                check_visual_text(&visual, loc, violations);
+            }
+            Block::Paragraph(content) => {
+                let md = flatten_inlines(content);
+                check_markdown_leaks(&md, &format!("{loc} [Paragraph MD]"), violations);
+                let visual = flatten_inlines_visual(content);
+                check_visual_text(&visual, loc, violations);
+            }
+            Block::List { items, .. } => {
+                for (item_i, item) in items.iter().enumerate() {
+                    let md = flatten_inlines(&item.content);
+                    check_markdown_leaks(
+                        &md,
+                        &format!("{loc} [List item {item_i} MD]"),
+                        violations,
+                    );
+                    let visual = flatten_inlines_visual(&item.content);
+                    check_visual_text(&visual, &format!("{loc} [List item {item_i}]"), violations);
+                }
+            }
+            Block::Table(tbl) => {
+                for h in &tbl.headers {
+                    let md = flatten_inlines(&h.content);
+                    check_markdown_leaks(&md, &format!("{loc} [Table Header MD]"), violations);
+                    let visual = flatten_inlines_visual(&h.content);
+                    check_visual_text(&visual, &format!("{loc} [Table Header]"), violations);
+                }
+                for row in &tbl.rows {
+                    for cell in row {
+                        let md = flatten_inlines(&cell.content);
+                        check_markdown_leaks(&md, &format!("{loc} [Table Cell MD]"), violations);
+                        let visual = flatten_inlines_visual(&cell.content);
+                        check_visual_text(&visual, &format!("{loc} [Table Cell]"), violations);
+                    }
+                }
+            }
+            Block::Quote(blocks) => {
+                for (q_i, q_b) in blocks.iter().enumerate() {
+                    check_block(q_b, &format!("{loc} [Quote block {q_i}]"), violations);
+                }
+            }
+            Block::FootnoteDefinition { content, .. } => {
+                for (f_i, f_b) in content.iter().enumerate() {
+                    check_block(f_b, &format!("{loc} [Footnote block {f_i}]"), violations);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for entry_name in &html_entries {
+        let html = read_archive_entry_string(&mut archive, entry_name)
+            .unwrap_or_else(|_| panic!("Failed to read {entry_name}"));
+
+        // 1. Raw markdown conversion check
+        let md = super::html::convert_html_to_markdown_with_stylesheet(&html, &stylesheet_map);
+        check_markdown_leaks(&md, &format!("{entry_name} (raw md)"), &mut violations);
+
+        // 2. High-level load_chapter_content_and_images_from_epub check
+        let file_href = if let Some(stripped) = entry_name.strip_prefix("OEBPS/") {
+            stripped
+        } else {
+            entry_name.as_str()
+        };
+
+        if let Ok((blocks, _, _)) =
+            load_chapter_content_and_images_from_epub(epub_path, file_href, None)
+        {
+            for (b_idx, b) in blocks.iter().enumerate() {
+                check_block(
+                    b,
+                    &format!("{entry_name} (Block #{b_idx})"),
+                    &mut violations,
+                );
+            }
+        } else {
+            violations.push(format!(
+                "load_chapter_content_and_images_from_epub failed for {file_href}"
+            ));
+        }
+    }
+
+    println!("\n=== SCAN RESULTS ===");
+    println!("Total violations detected: {}", violations.len());
+    for v in &violations {
+        println!("  - {v}");
+    }
+
+    assert!(
+        violations.is_empty(),
+        "Detected {} typography/markdown leak violations:\n{:#?}",
+        violations.len(),
+        violations
+    );
+    println!("=== SCAN PASSED PERFECTLY ===");
 }

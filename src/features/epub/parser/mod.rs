@@ -152,6 +152,7 @@ pub fn extract_blocks_styles(
 
         if let Some(meta) = non_empty_metas.get(meta_idx) {
             let style = css::resolve_block_style(
+                Some(meta.tag.as_str()),
                 &meta.classes,
                 &meta.child_classes,
                 meta.inline_style.as_deref(),
