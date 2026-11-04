@@ -119,7 +119,9 @@ impl KglanceApp {
 
     fn active_scroll_target_mut(&mut self) -> Option<ActiveScrollTarget<'_>> {
         match self.current_content {
-            Some(PreviewData::Markdown { .. }) | Some(PreviewData::Epub { .. }) => {
+            Some(PreviewData::Markdown { .. })
+            | Some(PreviewData::Epub { .. })
+            | Some(PreviewData::Notebook { .. }) => {
                 let state = crate::features::markdown::update::active_markdown_state_mut(self);
                 Some(ActiveScrollTarget {
                     smooth_scroll: &mut state.smooth_scroll,
@@ -207,7 +209,9 @@ impl KglanceApp {
 
     pub(crate) fn active_scroll_y(&self) -> Option<f32> {
         match self.current_content {
-            Some(PreviewData::Markdown { .. }) | Some(PreviewData::Epub { .. }) => {
+            Some(PreviewData::Markdown { .. })
+            | Some(PreviewData::Epub { .. })
+            | Some(PreviewData::Notebook { .. }) => {
                 Some(crate::features::markdown::update::active_markdown_state(self).scroll_y)
             }
             Some(PreviewData::Text { .. }) => Some(self.state.text.scroll_y),
