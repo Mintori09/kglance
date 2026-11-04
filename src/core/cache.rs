@@ -177,6 +177,45 @@ impl PreviewData {
                         .saturating_mul(std::mem::size_of::<u32>()),
                 )
                 .saturating_add(256),
+            PreviewData::Notebook(data) => {
+                let mut bytes = data.cells.len().saturating_mul(128);
+                for cell in &data.cells {
+                    match cell {
+                        crate::features::notebook::types::NotebookCell::Markdown {
+                            source, ..
+                        } => {
+                            bytes = bytes.saturating_add(source.len());
+                        }
+                        crate::features::notebook::types::NotebookCell::Code {
+                            source,
+                            outputs,
+                            ..
+                        } => {
+                            bytes = bytes.saturating_add(source.len());
+                            for out in outputs {
+                                match out {
+                                    crate::features::notebook::types::CellOutput::Text {
+                                        text,
+                                        ..
+                                    } => {
+                                        bytes = bytes.saturating_add(text.len());
+                                    }
+                                    crate::features::notebook::types::CellOutput::Image {
+                                        data,
+                                        ..
+                                    } => {
+                                        bytes = bytes.saturating_add(data.len());
+                                    }
+                                }
+                            }
+                        }
+                        crate::features::notebook::types::NotebookCell::Raw { source } => {
+                            bytes = bytes.saturating_add(source.len());
+                        }
+                    }
+                }
+                bytes.max(512)
+            }
             PreviewData::Error(msg) => msg.len().saturating_add(64),
         }
     }

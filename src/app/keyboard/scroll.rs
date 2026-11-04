@@ -504,6 +504,7 @@ impl KglanceApp {
             | PreviewData::Json { .. }
             | PreviewData::Font { .. }
             | PreviewData::Model3d(_)
+            | PreviewData::Notebook(_)
             | PreviewData::Error(_) => None,
         }
     }

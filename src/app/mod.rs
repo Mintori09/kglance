@@ -1195,6 +1195,15 @@ impl KglanceApp {
                     *height,
                 ),
                 PreviewData::Model3d(mesh) => crate::ui::views::view_model3d(&self.state, mesh),
+                PreviewData::Notebook(data) => crate::ui::views::view_notebook(
+                    data,
+                    &self.state.markdown,
+                    self.state.font_size,
+                    self.state.app_theme,
+                    self.state.font_family.as_deref(),
+                    self.state.font_family_mono.as_deref(),
+                    self.state.max_text_width,
+                ),
                 PreviewData::Error(err) => iced::widget::text(err)
                     .size(crate::ui::theme::tokens::typography::DISPLAY)
                     .into(),

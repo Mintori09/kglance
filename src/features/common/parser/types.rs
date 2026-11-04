@@ -100,4 +100,5 @@ pub enum ParsedContent {
         data: Vec<u8>,
     },
     Model3d(crate::features::model3d::types::Model3dMesh),
+    Notebook(crate::features::notebook::types::NotebookData),
 }

@@ -110,6 +110,7 @@ pub enum PreviewData {
         data: Vec<u8>,
     },
     Model3d(crate::features::model3d::types::Model3dMesh),
+    Notebook(crate::features::notebook::types::NotebookData),
     Error(String),
 }
 
@@ -368,6 +369,9 @@ impl PreviewData {
                     "3D Model ({} tris, {} verts)",
                     mesh.triangle_count, mesh.vertex_count
                 );
+            }
+            PreviewData::Notebook(data) => {
+                state.file_type_text = format!("Jupyter Notebook ({} cells)", data.total_cells);
             }
             PreviewData::Error(err) => {
                 state.file_type_text = format!("Error: {err}");
