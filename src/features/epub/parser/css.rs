@@ -495,8 +495,9 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
                     }
                 } else {
                     let tag_name = target_part.trim_matches(|c: char| !c.is_alphanumeric());
+                    let tag_lower = tag_name.to_ascii_lowercase();
                     if matches!(
-                        tag_name.to_ascii_lowercase().as_str(),
+                        tag_lower.as_str(),
                         "body"
                             | "h1"
                             | "h2"
@@ -510,17 +511,34 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
                             | "ul"
                             | "ol"
                     ) {
-                        let tag_lower = tag_name.to_ascii_lowercase();
-                        let tag_key = format!("tag:{tag_lower}");
-                        if let Some(existing) = map.get_mut(&tag_key) {
-                            merge_block_style(existing, &style);
-                        } else {
-                            map.insert(tag_key, style.clone());
-                        }
-                        if let Some(existing) = map.get_mut(tag_name) {
-                            merge_block_style(existing, &style);
-                        } else {
-                            map.insert(tag_lower, style.clone());
+                        // Crucial: Only map to the global tag style (tag:<name> and <name>) if this
+                        // selector is a general tag selector (e.g. "p", "h1", or scoped only by
+                        // root container IDs like "#sbo-rt-content p" or "#book-content #sbo-rt-content p").
+                        // Specific/descendant selectors (e.g. "blockquote p", "div.epigraph p",
+                        // "section.preface[title=...] p", "p[data-type=attribution]") must NOT pollute
+                        // the base tag style.
+                        let parts: Vec<&str> = sel.split_whitespace().collect();
+                        let is_base_tag_rule = !parts.is_empty()
+                            && parts.last().is_some_and(|last| {
+                                last.trim_matches(|c: char| !c.is_alphanumeric())
+                                    .eq_ignore_ascii_case(&tag_lower)
+                            })
+                            && parts[..parts.len() - 1].iter().all(|ancestor| {
+                                matches!(*ancestor, "#sbo-rt-content" | "#book-content")
+                            });
+
+                        if is_base_tag_rule {
+                            let tag_key = format!("tag:{tag_lower}");
+                            if let Some(existing) = map.get_mut(&tag_key) {
+                                merge_block_style(existing, &style);
+                            } else {
+                                map.insert(tag_key, style.clone());
+                            }
+                            if let Some(existing) = map.get_mut(&tag_lower) {
+                                merge_block_style(existing, &style);
+                            } else {
+                                map.insert(tag_lower, style.clone());
+                            }
                         }
                     }
                 }
