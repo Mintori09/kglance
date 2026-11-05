@@ -136,6 +136,8 @@ pub fn extract_blocks_styles(
         }
 
         let consumed_count = match block {
+            Block::Image { .. } => 0,
+            Block::Alert { .. } => 0,
             Block::List { items, .. } => {
                 // If the next meta is an actual ul/ol tag, the whole list consumed only 1 tag.
                 // If it is 'p', this list was synthesized from multiple custom bullet paragraphs (O'Reilly).
@@ -148,7 +150,6 @@ pub fn extract_blocks_styles(
                 }
             }
             Block::Quote(items) => items.len().max(1),
-            Block::Alert { content, .. } => content.len().max(1),
             _ => 1,
         };
 
@@ -162,15 +163,31 @@ pub fn extract_blocks_styles(
                     style.align = body.align;
                 }
             }
-            let block_style = css::resolve_block_style(
-                Some(meta.tag.as_str()),
-                &meta.classes,
-                &meta.child_classes,
-                meta.id.as_deref(),
-                meta.inline_style.as_deref(),
-                stylesheet_map,
-                is_heading,
-            );
+            let is_compatible_tag = match block {
+                Block::Paragraph(..) => matches!(meta.tag.as_str(), "p" | "blockquote"),
+                Block::Heading { .. } => matches!(
+                    meta.tag.as_str(),
+                    "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p"
+                ),
+                Block::CodeBlock { .. } => matches!(meta.tag.as_str(), "pre"),
+                Block::List { .. } => matches!(meta.tag.as_str(), "ul" | "ol" | "p"),
+                Block::Table(..) => matches!(meta.tag.as_str(), "table"),
+                _ => true,
+            };
+
+            let block_style = if is_compatible_tag {
+                css::resolve_block_style(
+                    Some(meta.tag.as_str()),
+                    &meta.classes,
+                    &meta.child_classes,
+                    meta.id.as_deref(),
+                    meta.inline_style.as_deref(),
+                    stylesheet_map,
+                    is_heading,
+                )
+            } else {
+                css::BlockStyle::default()
+            };
             css::merge_block_style(&mut style, &block_style);
             if style != css::BlockStyle::default() {
                 styles.insert(b_idx, style);
