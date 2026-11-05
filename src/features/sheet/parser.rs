@@ -63,8 +63,7 @@ impl PreviewParser for CsvParser {
             }
         }
 
-        let max_cols = rows.iter().map(|r| r.len()).max().unwrap_or(0);
-        let headers: Vec<String> = (0..max_cols).map(column_index_to_letter).collect();
+        let (headers, rows) = extract_headers_and_data(rows);
 
         let sheet_name = path
             .file_stem()
@@ -79,6 +78,103 @@ impl PreviewParser for CsvParser {
                 rows,
             }],
         })
+    }
+}
+
+/// Sniffs whether the first row of a dataset is likely a header row.
+pub fn sniff_has_headers(rows: &[Vec<String>]) -> bool {
+    if rows.len() < 2 {
+        return false;
+    }
+
+    let header_candidate = &rows[0];
+    if header_candidate.is_empty() {
+        return false;
+    }
+
+    let has_non_empty = header_candidate.iter().any(|c| !c.trim().is_empty());
+    if !has_non_empty {
+        return false;
+    }
+
+    // If any cell in row 0 is pure number, it's very unlikely to be a header
+    let has_number_in_candidate = header_candidate
+        .iter()
+        .any(|c| !c.trim().is_empty() && c.trim().parse::<f64>().is_ok());
+
+    if has_number_in_candidate {
+        return false;
+    }
+
+    // Check if subsequent sample rows have numbers or dates where the candidate had text
+    let sample = &rows[1..rows.len().min(10)];
+    let mut data_has_numbers = false;
+
+    for row in sample {
+        for (col_idx, cell) in row.iter().enumerate() {
+            let trimmed = cell.trim();
+            if !trimmed.is_empty()
+                && trimmed.parse::<f64>().is_ok()
+                && header_candidate
+                    .get(col_idx)
+                    .is_some_and(|candidate| !candidate.trim().is_empty())
+            {
+                data_has_numbers = true;
+                break;
+            }
+        }
+        if data_has_numbers {
+            break;
+        }
+    }
+
+    if data_has_numbers {
+        return true;
+    }
+
+    // Check if row 0 has unique non-empty string labels with reasonable length
+    let unique_labels: std::collections::HashSet<&str> = header_candidate
+        .iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let non_empty_count = header_candidate
+        .iter()
+        .filter(|s| !s.trim().is_empty())
+        .count();
+    let all_short = header_candidate.iter().all(|s| s.chars().count() <= 60);
+
+    non_empty_count >= 1 && unique_labels.len() == non_empty_count && all_short
+}
+
+/// Extracts header row and data rows from raw parsed records if a header row is present.
+pub fn extract_headers_and_data(mut rows: Vec<Vec<String>>) -> (Vec<String>, Vec<Vec<String>>) {
+    if rows.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+
+    if sniff_has_headers(&rows) {
+        let first_row = rows.remove(0);
+        let max_cols = rows
+            .iter()
+            .map(|r| r.len())
+            .max()
+            .unwrap_or(first_row.len())
+            .max(first_row.len());
+        let mut headers = Vec::with_capacity(max_cols);
+        for c in 0..max_cols {
+            if let Some(h) = first_row.get(c).filter(|s| !s.trim().is_empty()) {
+                headers.push(h.trim().to_string());
+            } else {
+                headers.push(column_index_to_letter(c));
+            }
+        }
+        (headers, rows)
+    } else {
+        let max_cols = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+        let headers: Vec<String> = (0..max_cols).map(column_index_to_letter).collect();
+        (headers, rows)
     }
 }
 

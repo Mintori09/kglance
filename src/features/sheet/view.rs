@@ -33,7 +33,7 @@ pub const ROW_NUMBER_COL_WIDTH: f32 = 48.0;
 pub const MIN_ROW_HEIGHT: f32 = 26.0;
 pub const ROW_HEIGHT: f32 = MIN_ROW_HEIGHT;
 pub const HEADER_HEIGHT: f32 = 26.0;
-pub const BOTTOM_BAR_HEIGHT: f32 = 32.0;
+pub const BOTTOM_BAR_HEIGHT: f32 = 26.0;
 pub const ROW_STEP: f32 = MIN_ROW_HEIGHT + ROWS_LIST_SPACING;
 pub const LINE_HEIGHT: f32 = 17.5;
 pub const CELL_PADDING_Y: f32 = 6.0;
@@ -123,20 +123,25 @@ fn render_bottom_sheet_bar<'a>(
     }
 
     let mut tabs_row = row![]
-        .spacing(spacing::XS)
-        .align_y(alignment::Vertical::Center);
+        .spacing(spacing::XXS)
+        .align_y(alignment::Vertical::Bottom);
 
     for (index, sheet) in sheets.iter().enumerate() {
         let is_active = index == active_sheet_index;
         let tab_button = button(
-            text(&sheet.name)
-                .size(tab_text_size(font_size))
-                .font(main_font)
-                .align_x(alignment::Horizontal::Center),
+            container(
+                text(&sheet.name)
+                    .size(tab_text_size(font_size))
+                    .font(main_font)
+                    .align_x(alignment::Horizontal::Center),
+            )
+            .align_y(alignment::Vertical::Center)
+            .height(Length::Fill),
         )
         .on_press(crate::app::messages::SpreadsheetMsg::SheetTabClicked(index).into())
         .style(sheet_tab_button_style(theme, is_active))
-        .padding([2, 10]);
+        .padding([0, 12])
+        .height(Length::Fill);
 
         tabs_row = tabs_row.push(tab_button);
     }
@@ -153,8 +158,13 @@ fn render_bottom_sheet_bar<'a>(
     )
     .width(Length::Fill)
     .height(Length::Fixed(bottom_bar_height(font_size)))
-    .padding([2, 6])
-    .align_y(alignment::Vertical::Center)
+    .padding(iced::Padding {
+        top: 2.0,
+        right: 4.0,
+        bottom: 0.0,
+        left: 4.0,
+    })
+    .align_y(alignment::Vertical::Bottom)
     .style(move |_: &Theme| bottom_bar_style(theme))
     .into()
 }
@@ -290,18 +300,24 @@ fn render_table_header<'a>(
         let is_sorted = sort_column == Some(column_index);
         let col_w = scale_col_width(col_meta.width, font_size);
 
+        let text_align = match col_meta.col_type {
+            ColumnType::Integer | ColumnType::Float => alignment::Horizontal::Right,
+            ColumnType::Date => alignment::Horizontal::Center,
+            ColumnType::Text | ColumnType::Empty => alignment::Horizontal::Left,
+        };
+
         let header_button = button(
             text(button_label)
                 .size(header_text_sz)
                 .font(main_font)
-                .align_x(alignment::Horizontal::Center)
+                .align_x(text_align)
                 .wrapping(text::Wrapping::None)
                 .width(Length::Fill),
         )
         .on_press(crate::app::messages::SpreadsheetMsg::ColumnClicked(column_index).into())
         .style(grid_header_button_style(theme, is_sorted))
         .clip(true)
-        .padding([0, 4])
+        .padding([0, cell_padding_x(font_size) as u16])
         .width(Length::Fixed(col_w))
         .height(Length::Fixed(header_h));
 
@@ -760,10 +776,10 @@ fn grid_data_cell_style(theme: AppTheme, selection_state: CellSelectionState) ->
 
 fn bottom_bar_style(theme: AppTheme) -> container::Style {
     container::Style {
-        background: Some(theme.palette().base.surface.into()),
+        background: Some(theme.palette().base.surface_raised.into()),
         border: Border {
-            color: theme.palette().base.border,
-            width: 1.0,
+            color: Color::TRANSPARENT,
+            width: 0.0,
             radius: radius::NONE.into(),
         },
         ..container::Style::default()
@@ -776,14 +792,22 @@ fn sheet_tab_button_style(
 ) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |_: &Theme, status: button::Status| {
         let p = theme.palette().base;
+        let role = theme.palette().roles;
+        let tab_radius = iced::border::Radius {
+            top_left: radius::SM,
+            top_right: radius::SM,
+            bottom_right: 0.0,
+            bottom_left: 0.0,
+        };
+
         if is_active {
             button::Style {
-                background: Some(p.surface_raised.into()),
+                background: Some(p.bg.into()),
                 text_color: p.text,
                 border: Border {
-                    color: p.border_focus,
+                    color: role.accent,
                     width: 1.0,
-                    radius: radius::MD.into(),
+                    radius: tab_radius,
                 },
                 shadow: Shadow::default(),
                 snap: false,
@@ -800,8 +824,8 @@ fn sheet_tab_button_style(
                 text_color,
                 border: Border {
                     color: Color::TRANSPARENT,
-                    width: 1.0,
-                    radius: radius::MD.into(),
+                    width: 0.0,
+                    radius: tab_radius,
                 },
                 shadow: Shadow::default(),
                 snap: false,

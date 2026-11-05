@@ -33,12 +33,13 @@ pub fn row_num_text_size(font_size: f32) -> f32 {
 
 #[inline]
 pub fn header_text_size(font_size: f32) -> f32 {
-    scale_size(HEADER_TEXT_SIZE, font_size)
+    scale_size(HEADER_TEXT_SIZE, font_size).clamp(11.0, 24.0)
 }
 
 #[inline]
 pub fn tab_text_size(font_size: f32) -> f32 {
-    scale_size(TAB_TEXT_SIZE, font_size)
+    // Keep tab navigation font readable and proportional, capped between 11.0 and 16.0
+    scale_size(TAB_TEXT_SIZE, font_size).clamp(11.0, 16.0)
 }
 
 #[inline]
@@ -48,7 +49,10 @@ pub fn empty_state_text_size(font_size: f32) -> f32 {
 
 #[inline]
 pub fn header_height(font_size: f32) -> f32 {
-    (HEADER_HEIGHT * scale_ratio(font_size)).round()
+    // Keep header proportional but avoid ballooning over 48px
+    (HEADER_HEIGHT * scale_ratio(font_size))
+        .round()
+        .clamp(26.0, 48.0)
 }
 
 #[inline]
@@ -63,7 +67,10 @@ pub fn row_number_col_width(font_size: f32) -> f32 {
 
 #[inline]
 pub fn bottom_bar_height(font_size: f32) -> f32 {
-    (BOTTOM_BAR_HEIGHT * scale_ratio(font_size)).round()
+    // Keep bottom sheet tab bar compact and docked near footer (max 30.0)
+    (BOTTOM_BAR_HEIGHT * scale_ratio(font_size))
+        .round()
+        .clamp(24.0, 30.0)
 }
 
 #[inline]
@@ -139,12 +146,9 @@ pub fn rescale_spreadsheet_font(app: &mut KglanceApp, new_size: f32) -> Option<T
 
     rescale_spreadsheet_geometry(&mut app.state.spreadsheet, old_size, new_size);
 
-    let scroll_task = iced::widget::operation::scroll_to(
-        "content_scroll",
-        iced::widget::operation::AbsoluteOffset {
-            x: app.state.spreadsheet.scroll_x,
-            y: app.state.spreadsheet.scroll_y,
-        },
+    let scroll_task = crate::features::sheet::update::sync_scroll_all(
+        app.state.spreadsheet.scroll_x,
+        app.state.spreadsheet.scroll_y,
     );
     Some(Task::batch([scroll_task, toast]))
 }
