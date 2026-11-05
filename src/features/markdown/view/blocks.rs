@@ -27,7 +27,7 @@ pub(crate) fn render_block<'a>(
             }
         }
         Block::CodeBlock { lang, code, .. } => render_code_block(lang, code, ctx),
-        Block::Table(table) => render_table(table, ctx),
+        Block::Table(table) => render_table(index, table, ctx),
         Block::Mermaid { lines, rendered: _ } => render_mermaid(index, lines, state, ctx),
         Block::Image {
             path,

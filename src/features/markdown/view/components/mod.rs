@@ -33,4 +33,4 @@ pub(crate) use mermaid::render_mermaid;
 pub(crate) use paragraph::render_paragraph;
 pub(crate) use quote::render_quote;
 pub(crate) use style::STYLE;
-pub(crate) use table::render_table;
+pub(crate) use table::{estimate_table_total_width, render_table, table_scroll_id};

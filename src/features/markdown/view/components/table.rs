@@ -54,7 +54,44 @@ fn format_table_as_markdown(table: &TableBlock) -> String {
     out
 }
 
+pub(crate) fn table_scroll_id(block_index: usize) -> iced::widget::Id {
+    iced::widget::Id::from(format!("table_scroll_{block_index}"))
+}
+
+pub fn estimate_table_total_width(table: &TableBlock, font_size: f32) -> f32 {
+    let col_count = if table.headers.is_empty() {
+        table.rows.first().map_or(1, |r| r.len())
+    } else {
+        table.headers.len()
+    };
+    let num_cols = if col_count == 0 { 1 } else { col_count };
+
+    let char_w = font_size * 0.55;
+    let pad_h = (STYLE.table.cell_padding[1] * 2) as f32; // 24px padding per cell
+    let min_col_w =
+        (scale_size(crate::ui::theme::tokens::tables::ROW_HEIGHT, font_size) * 2.2).max(85.0);
+
+    let mut col_max_chars = vec![0usize; num_cols];
+    for (i, h) in table.headers.iter().enumerate().take(num_cols) {
+        col_max_chars[i] = col_max_chars[i].max(inlines_metrics(&h.content).0);
+    }
+    for row in &table.rows {
+        for (i, cell) in row.iter().enumerate().take(num_cols) {
+            col_max_chars[i] = col_max_chars[i].max(inlines_metrics(&cell.content).0);
+        }
+    }
+
+    col_max_chars
+        .iter()
+        .map(|&units| {
+            let estimated = units as f32 * char_w + pad_h + 16.0;
+            estimated.max(min_col_w)
+        })
+        .sum()
+}
+
 pub(crate) fn render_table<'a>(
+    block_index: usize,
     table: &'a TableBlock,
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
@@ -215,12 +252,20 @@ pub(crate) fn render_table<'a>(
 
     // Scrollable horizontal container
     let table_view: Element<'a, Message> = scrollable(table_border_box)
+        .id(table_scroll_id(block_index))
         .direction(iced::widget::scrollable::Direction::Horizontal(
             iced::widget::scrollable::Scrollbar::new()
                 .width(6)
                 .scroller_width(6)
                 .margin(2),
         ))
+        .on_scroll(move |vp| {
+            crate::app::messages::MarkdownMsg::TableScrolled {
+                block_index,
+                x: vp.absolute_offset().x,
+            }
+            .into()
+        })
         .width(Length::Shrink)
         .into();
 

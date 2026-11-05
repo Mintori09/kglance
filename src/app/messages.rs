@@ -239,6 +239,10 @@ pub enum MarkdownMsg {
         block_index: usize,
         height: f32,
     },
+    TableScrolled {
+        block_index: usize,
+        x: f32,
+    },
     TouchpadGestureEnded(std::time::Instant),
     AnimationTick,
 }
