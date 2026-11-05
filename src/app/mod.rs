@@ -1117,6 +1117,7 @@ impl KglanceApp {
                     self.state.font_family_mono.as_deref(),
                     self.state.max_text_width,
                     self.state.ruby_display_mode,
+                    self.state.window_width,
                 ),
                 PreviewData::Image { .. } => crate::ui::views::view_image(
                     &self.state.image,
@@ -1183,6 +1184,7 @@ impl KglanceApp {
                     self.state.max_text_width,
                     self.state.ruby_display_mode,
                     self.state.epub_override_book_font,
+                    self.state.window_width,
                 ),
                 PreviewData::Audio { .. } => crate::ui::views::view_audio(&self.state.audio),
                 PreviewData::Media {

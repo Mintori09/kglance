@@ -1,9 +1,10 @@
+mod column_sizing;
+
 use super::style::{
     STYLE, copy_button_style, table_border_style, table_header_style, table_row_background_style,
     table_separator_style, table_toolbar_badge_style,
 };
 use crate::app::Message;
-use crate::features::markdown::inlines_metrics;
 use crate::features::markdown::view::components::render_inlines_aligned;
 use crate::parsers::markdown::TableBlock;
 use crate::ui::theme::font::get_code_font;
@@ -58,36 +59,9 @@ pub(crate) fn table_scroll_id(block_index: usize) -> iced::widget::Id {
     iced::widget::Id::from(format!("table_scroll_{block_index}"))
 }
 
-pub fn estimate_table_total_width(table: &TableBlock, font_size: f32) -> f32 {
-    let col_count = if table.headers.is_empty() {
-        table.rows.first().map_or(1, |r| r.len())
-    } else {
-        table.headers.len()
-    };
-    let num_cols = if col_count == 0 { 1 } else { col_count };
-
-    let char_w = font_size * 0.55;
-    let pad_h = (STYLE.table.cell_padding[1] * 2) as f32; // 24px padding per cell
-    let min_col_w =
-        (scale_size(crate::ui::theme::tokens::tables::ROW_HEIGHT, font_size) * 2.2).max(85.0);
-
-    let mut col_max_chars = vec![0usize; num_cols];
-    for (i, h) in table.headers.iter().enumerate().take(num_cols) {
-        col_max_chars[i] = col_max_chars[i].max(inlines_metrics(&h.content).0);
-    }
-    for row in &table.rows {
-        for (i, cell) in row.iter().enumerate().take(num_cols) {
-            col_max_chars[i] = col_max_chars[i].max(inlines_metrics(&cell.content).0);
-        }
-    }
-
-    col_max_chars
-        .iter()
-        .map(|&units| {
-            let estimated = units as f32 * char_w + pad_h + 16.0;
-            estimated.max(min_col_w)
-        })
-        .sum()
+pub fn estimate_table_total_width(table: &TableBlock, font_size: f32, content_width: f32) -> f32 {
+    let plan = column_sizing::resolve_column_plan(table, font_size, content_width);
+    plan.total_width
 }
 
 pub(crate) fn render_table<'a>(
@@ -105,37 +79,14 @@ pub(crate) fn render_table<'a>(
     };
     let num_cols = if col_count == 0 { 1 } else { col_count };
 
-    // Calculate maximum visual units per column across header and rows
-    let char_w = ctx.font_size * 0.55;
-    let pad_h = (STYLE.table.cell_padding[1] * 2) as f32; // 24px padding per cell
-    let min_col_w =
-        (scale_size(crate::ui::theme::tokens::tables::ROW_HEIGHT, ctx.font_size) * 2.2).max(85.0);
-
-    let mut col_max_chars = vec![0usize; num_cols];
-    for (i, h) in table.headers.iter().enumerate().take(num_cols) {
-        col_max_chars[i] = col_max_chars[i].max(inlines_metrics(&h.content).0);
-    }
-    for row in &table.rows {
-        for (i, cell) in row.iter().enumerate().take(num_cols) {
-            col_max_chars[i] = col_max_chars[i].max(inlines_metrics(&cell.content).0);
-        }
-    }
-
-    let col_fixed_widths: Vec<f32> = col_max_chars
-        .iter()
-        .map(|&units| {
-            let estimated = units as f32 * char_w + pad_h + 16.0;
-            estimated.max(min_col_w)
-        })
-        .collect();
-
-    let total_table_w: f32 = col_fixed_widths.iter().sum::<f32>();
+    let plan = column_sizing::resolve_column_plan(table, ctx.font_size, ctx.content_width);
+    let total_table_w = plan.total_width;
+    let overflows = plan.overflows;
 
     let theme = ctx.theme;
     let header_text_color = theme.palette().markdown.table_header_text;
 
     // Header cells
-    let header_count = table.headers.len();
     let header_cells: Vec<Element<'a, Message>> = table
         .headers
         .iter()
@@ -150,36 +101,31 @@ pub(crate) fn render_table<'a>(
                 align_x,
                 ctx,
             );
-            let width = Length::Fixed(col_fixed_widths.get(i).copied().unwrap_or(min_col_w));
+            let width = Length::Fixed(plan.col_widths.get(i).copied().unwrap_or(80.0));
 
-            let is_not_last = i < header_count - 1;
-            let sep_color = theme.palette().markdown.table_separator;
             container(cell)
                 .padding(STYLE.table.header_padding)
                 .width(width)
                 .align_x(align_x)
-                .style(move |_: &iced::Theme| {
-                    if is_not_last {
-                        container::Style {
-                            border: iced::Border {
-                                color: sep_color,
-                                width: STYLE.general.divider_height,
-                                radius: 0.0.into(),
-                            },
-                            ..Default::default()
-                        }
-                    } else {
-                        container::Style::default()
-                    }
-                })
+                .clip(true)
                 .into()
         })
         .collect();
 
     let has_rows = !table.rows.is_empty();
-    let header_row_container = container(row(header_cells).spacing(0))
+    let header_row_container = if overflows {
+        container(row(header_cells).spacing(0))
+            .width(Length::Fixed(total_table_w))
+            .style(move |_: &iced::Theme| table_header_style(theme, has_rows))
+    } else {
+        container(
+            row(header_cells)
+                .spacing(0)
+                .width(Length::Fixed(total_table_w)),
+        )
         .width(Length::Fixed(total_table_w))
-        .style(move |_: &iced::Theme| table_header_style(theme, has_rows));
+        .style(move |_: &iced::Theme| table_header_style(theme, has_rows))
+    };
 
     let mut children: Vec<Element<'a, Message>> = vec![header_row_container.into()];
 
@@ -201,7 +147,6 @@ pub(crate) fn render_table<'a>(
             children.push(separator.into());
         }
 
-        let row_cell_count = row_data.len();
         let row_cells: Vec<Element<'a, Message>> = row_data
             .iter()
             .enumerate()
@@ -209,65 +154,64 @@ pub(crate) fn render_table<'a>(
                 let align_x = map_alignment(table.alignments.get(j));
                 let cell_content =
                     render_inlines_aligned(&cell.content, cell_size, None, None, align_x, ctx);
-                let width = Length::Fixed(col_fixed_widths.get(j).copied().unwrap_or(min_col_w));
+                let width = Length::Fixed(plan.col_widths.get(j).copied().unwrap_or(80.0));
 
-                let is_not_last = j < row_cell_count - 1;
-                let sep_color = theme.palette().markdown.table_separator;
                 container(cell_content)
                     .padding(STYLE.table.cell_padding)
                     .width(width)
                     .align_x(align_x)
-                    .style(move |_: &iced::Theme| {
-                        if is_not_last {
-                            container::Style {
-                                border: iced::Border {
-                                    color: sep_color,
-                                    width: STYLE.general.divider_height,
-                                    radius: 0.0.into(),
-                                },
-                                ..Default::default()
-                            }
-                        } else {
-                            container::Style::default()
-                        }
-                    })
+                    .clip(true)
                     .into()
             })
             .collect();
 
         let is_alternate = row_index % 2 == 1;
         let is_last = row_index == total_rows - 1;
-        let row_container = container(row(row_cells).spacing(0))
-            .width(Length::Fixed(total_table_w))
-            .style(move |_: &iced::Theme| table_row_background_style(theme, is_alternate, is_last));
+        let row_container = container(
+            row(row_cells)
+                .spacing(0)
+                .width(Length::Fixed(total_table_w)),
+        )
+        .width(Length::Fixed(total_table_w))
+        .style(move |_: &iced::Theme| table_row_background_style(theme, is_alternate, is_last));
 
         children.push(row_container.into());
     }
 
     let table_content = column(children).spacing(0);
 
-    let table_border_box = container(table_content)
-        .width(Length::Fixed(total_table_w))
-        .style(move |_: &iced::Theme| table_border_style(theme));
+    let table_border_box = if overflows {
+        container(table_content)
+            .width(Length::Fixed(total_table_w))
+            .style(move |_: &iced::Theme| table_border_style(theme))
+    } else {
+        container(table_content)
+            .width(Length::Fill)
+            .style(move |_: &iced::Theme| table_border_style(theme))
+    };
 
-    // Scrollable horizontal container
-    let table_view: Element<'a, Message> = scrollable(table_border_box)
-        .id(table_scroll_id(block_index))
-        .direction(iced::widget::scrollable::Direction::Horizontal(
-            iced::widget::scrollable::Scrollbar::new()
-                .width(6)
-                .scroller_width(6)
-                .margin(2),
-        ))
-        .on_scroll(move |vp| {
-            crate::app::messages::MarkdownMsg::TableScrolled {
-                block_index,
-                x: vp.absolute_offset().x,
-            }
+    // Table view: scrollable if overflowing, or plain container if fit
+    let table_view: Element<'a, Message> = if overflows {
+        scrollable(table_border_box)
+            .id(table_scroll_id(block_index))
+            .direction(iced::widget::scrollable::Direction::Horizontal(
+                iced::widget::scrollable::Scrollbar::new()
+                    .width(6)
+                    .scroller_width(6)
+                    .margin(2),
+            ))
+            .on_scroll(move |vp| {
+                crate::app::messages::MarkdownMsg::TableScrolled {
+                    block_index,
+                    x: vp.absolute_offset().x,
+                }
+                .into()
+            })
+            .width(Length::Shrink)
             .into()
-        })
-        .width(Length::Shrink)
-        .into();
+    } else {
+        container(table_border_box).width(Length::Fill).into()
+    };
 
     // Table Toolbar
     let code_font = get_code_font(ctx.font_family_mono);

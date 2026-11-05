@@ -19,6 +19,7 @@ pub(crate) struct RenderContext<'a> {
     pub(crate) show_heading_divider: bool,
     pub(crate) is_epub: bool,
     pub(crate) epub_override_book_font: bool,
+    pub(crate) content_width: f32,
 }
 
 impl<'a> RenderContext<'a> {

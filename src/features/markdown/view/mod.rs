@@ -130,6 +130,7 @@ pub fn view_markdown<'a>(
     font_family_mono: Option<&'a str>,
     max_text_width: Option<f32>,
     ruby_display_mode: crate::core::config::RubyDisplayMode,
+    window_width: f32,
 ) -> Element<'a, Message> {
     let search_counter = Cell::new(0);
     let block_counter = Cell::new(0);
@@ -150,6 +151,13 @@ pub fn view_markdown<'a>(
         })
         .collect();
 
+    let content_width = crate::features::markdown::effective_content_width(
+        max_text_width,
+        window_width,
+        state.toc_visible,
+        state.sidebar_width,
+    );
+
     let ctx = RenderContext {
         next_block_index: &block_counter,
         selection_range: state.selection_range,
@@ -167,6 +175,7 @@ pub fn view_markdown<'a>(
         show_heading_divider: true,
         is_epub: false,
         epub_override_book_font: false,
+        content_width,
     };
     let scroll = build_scrollable_content(blocks, state, &ctx, max_text_width);
     let content_area = build_content_area(state, scroll, &ctx);

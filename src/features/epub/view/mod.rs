@@ -28,6 +28,7 @@ pub fn view_epub<'a>(
     max_text_width: Option<f32>,
     ruby_display_mode: crate::core::config::RubyDisplayMode,
     epub_override_book_font: bool,
+    window_width: f32,
 ) -> Element<'a, Message> {
     let active_chapter = clamp_active_chapter(state);
     let search_counter = Cell::new(0);
@@ -51,6 +52,13 @@ pub fn view_epub<'a>(
         })
         .collect();
 
+    let content_width = crate::features::markdown::effective_content_width(
+        max_text_width,
+        window_width,
+        state.sidebar_visible,
+        state.sidebar_width,
+    );
+
     let ctx = RenderContext {
         next_block_index: &block_counter,
         selection_range: state.markdown_state.selection_range,
@@ -69,6 +77,7 @@ pub fn view_epub<'a>(
         show_heading_divider: false,
         is_epub: true,
         epub_override_book_font,
+        content_width,
     };
 
     let main_content = build_epub_content(state, active_chapter, &ctx, max_text_width);
