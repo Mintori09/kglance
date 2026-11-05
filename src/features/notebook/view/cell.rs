@@ -50,6 +50,7 @@ pub fn render_cell<'a>(
                 show_heading_divider: false,
                 is_epub: false,
                 epub_override_book_font: false,
+                content_width: 800.0,
             };
 
             let mut col = column![].spacing(8);

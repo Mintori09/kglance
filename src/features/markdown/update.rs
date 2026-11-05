@@ -826,11 +826,12 @@ pub fn handle_smooth_wheel_scrolled(
                 };
 
                 if let Some((table_idx, table)) = maybe_table_info {
+                    let content_w = (win_w - 60.0).max(100.0);
                     let total_table_w =
                         crate::features::markdown::view::components::estimate_table_total_width(
-                            &table, font_size,
+                            &table, font_size, content_w,
                         );
-                    let max_scroll_x = (total_table_w - (win_w - 60.0).max(100.0)).max(0.0);
+                    let max_scroll_x = (total_table_w - content_w).max(0.0);
                     let state = active_markdown_state_mut(app);
                     let curr_x = state
                         .table_scroll_offsets
@@ -884,27 +885,37 @@ pub fn handle_smooth_wheel_scrolled(
             if scaled_delta_x.abs() > f32::EPSILON
                 && let Some(cursor) = app.state.last_cursor_position
             {
+                let content_w = (win_w - 60.0).max(100.0);
                 let maybe_table_info = match &app.current_content {
                     Some(PreviewData::Markdown { blocks, .. }) => {
                         let state = &app.state.markdown;
-                        find_table_under_cursor(blocks, state, cursor)
-                            .map(|(idx, tbl)| (idx, tbl.clone()))
+                        find_table_under_cursor(blocks, state, cursor).map(|(idx, tbl)| {
+                            let w = crate::features::markdown::view::components::estimate_table_total_width(
+                                tbl, font_size, content_w,
+                            );
+                            (idx, w)
+                        })
                     }
                     Some(PreviewData::Epub { .. }) => {
                         let blocks = app.state.epub.active_blocks();
                         let state = &app.state.epub.markdown_state;
-                        find_table_under_cursor(blocks, state, cursor)
-                            .map(|(idx, tbl)| (idx, tbl.clone()))
+                        find_table_under_cursor(blocks, state, cursor).map(|(idx, tbl)| {
+                            let w = crate::features::markdown::view::components::estimate_table_total_width(
+                                tbl, font_size, content_w,
+                            );
+                            (idx, w)
+                        })
                     }
                     _ => None,
                 };
 
-                if let Some((table_idx, table)) = maybe_table_info {
-                    let total_table_w =
-                        crate::features::markdown::view::components::estimate_table_total_width(
-                            &table, font_size,
-                        );
-                    let max_scroll_x = (total_table_w - (win_w - 60.0).max(100.0)).max(0.0);
+                if let Some((table_idx, total_table_w)) = maybe_table_info {
+                    let content_w = match &app.current_content {
+                        Some(PreviewData::Markdown { .. }) => app.state.markdown_content_width(),
+                        Some(PreviewData::Epub { .. }) => app.state.epub_content_width(),
+                        _ => win_w - 60.0,
+                    };
+                    let max_scroll_x = (total_table_w - content_w).max(0.0);
                     let state = active_markdown_state_mut(app);
                     let curr_x = state
                         .table_scroll_offsets
