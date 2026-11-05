@@ -148,6 +148,7 @@ pub fn extract_blocks_styles(
                 }
             }
             Block::Quote(items) => items.len().max(1),
+            Block::Alert { content, .. } => content.len().max(1),
             _ => 1,
         };
 
@@ -491,13 +492,27 @@ impl PreviewParser for EpubParser {
         let first_chapter = chapters.first();
         let initial_blocks = first_chapter.map(|ch| ch.4.as_slice()).unwrap_or(&[]);
         let first_chapter_href = first_chapter.map(|ch| ch.3.as_str());
-        let images = extract_selective_images(
+        let mut images = extract_selective_images(
             &mut archive,
             &opf_path,
             cover_href.as_deref(),
             initial_blocks,
             first_chapter_href,
         );
+
+        // Also extract images for any other chapters that have preloaded blocks
+        for ch in chapters.iter().skip(1) {
+            if !ch.4.is_empty() {
+                let ch_images = extract_selective_images(
+                    &mut archive,
+                    &opf_path,
+                    None,
+                    &ch.4,
+                    Some(ch.3.as_str()),
+                );
+                images.extend(ch_images);
+            }
+        }
 
         Ok(ParsedContent::Epub {
             title,
@@ -574,20 +589,28 @@ fn build_lazy_chapters_from_ncx<R: Read + Seek>(
 
         let title = if let Ok(html) = read_archive_entry_string(archive, &resolved_path) {
             extract_chapter_title_from_html(&html, book_title)
+                .filter(|t| {
+                    let lower = t.to_ascii_lowercase();
+                    !item_path.to_ascii_lowercase().contains("cover")
+                        || (!lower.contains("untitled")
+                            && !lower.contains("unknown")
+                            && lower != "cover"
+                            && !book_title.to_ascii_lowercase().contains(&lower))
+                })
                 .map(|t| decode_html_entities(&t))
                 .unwrap_or_else(|| {
-                    if item_path.to_ascii_lowercase().contains("cover")
-                        || item_path.to_ascii_lowercase().contains("titlepage")
-                    {
+                    if item_path.to_ascii_lowercase().contains("cover") {
                         "Cover".to_string()
+                    } else if item_path.to_ascii_lowercase().contains("titlepage") {
+                        "Title Page".to_string()
                     } else {
                         format!("Section {}", idx + 1)
                     }
                 })
-        } else if item_path.to_ascii_lowercase().contains("cover")
-            || item_path.to_ascii_lowercase().contains("titlepage")
-        {
+        } else if item_path.to_ascii_lowercase().contains("cover") {
             "Cover".to_string()
+        } else if item_path.to_ascii_lowercase().contains("titlepage") {
+            "Title Page".to_string()
         } else {
             format!("Section {}", idx + 1)
         };
@@ -615,6 +638,42 @@ fn build_lazy_chapters_from_ncx<R: Read + Seek>(
             file_part.clone(),
             blocks,
         ));
+    }
+
+    // If initial chapter (Chapter 0) lacks meaningful text (e.g. only cover image or empty anchors),
+    // proactively load blocks for the first chapter with actual readable content
+    // and share blocks across all chapters sharing the same HTML file.
+    let needs_content = chapters
+        .first()
+        .map(|ch| !blocks_contain_meaningful_text(&ch.4))
+        .unwrap_or(false);
+
+    if needs_content {
+        for ch in chapters.iter_mut() {
+            let file_href = ch.3.clone();
+            if !file_href.is_empty() {
+                let resolved = resolve_relative_path(opf_path, &file_href);
+                if let Ok(html) = read_archive_entry_string(archive, &resolved) {
+                    let md = convert_html_to_markdown(&html);
+                    let blocks = parse_to_blocks(&md);
+                    if blocks_contain_meaningful_text(&blocks) {
+                        ch.4 = blocks;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Propagate the loaded blocks to all chapters sharing the same file_href
+        if let Some((_, _, _, found_href, blocks)) =
+            chapters.iter().find(|ch| !ch.4.is_empty()).cloned()
+        {
+            for target in chapters.iter_mut() {
+                if target.3 == found_href {
+                    target.4 = blocks.clone();
+                }
+            }
+        }
     }
 
     chapters
@@ -867,6 +926,64 @@ fn block_contains_anchor(block: &Block, anchor: &str) -> bool {
         }
         _ => false,
     }
+}
+
+fn block_contains_meaningful_text(block: &Block) -> bool {
+    if is_standalone_anchor_block(block) {
+        return false;
+    }
+    match block {
+        Block::Heading { content, .. } | Block::Paragraph(content) => {
+            let text = flatten_inlines(content);
+            let trimmed = text.trim();
+            !trimmed.is_empty() && !trimmed.starts_with("<a id=")
+        }
+        Block::List { items, .. } => items.iter().any(|item| {
+            let text = flatten_inlines(&item.content);
+            !text.trim().is_empty()
+        }),
+        Block::Quote(sub) | Block::Alert { content: sub, .. } => {
+            sub.iter().any(block_contains_meaningful_text)
+        }
+        Block::Table(table) => table.rows.iter().any(|row| {
+            row.iter().any(|cell| {
+                let text = flatten_inlines(&cell.content);
+                !text.trim().is_empty()
+            })
+        }),
+        Block::CodeBlock { code, .. } => !code.trim().is_empty(),
+        _ => false,
+    }
+}
+
+pub fn blocks_contain_meaningful_text(blocks: &[Block]) -> bool {
+    let mut total_chars = 0;
+    for block in blocks {
+        if block_contains_meaningful_text(block) {
+            match block {
+                Block::Heading { content, .. } | Block::Paragraph(content) => {
+                    let text = flatten_inlines(content);
+                    total_chars += text.trim().chars().count();
+                }
+                Block::List { items, .. } => {
+                    for item in items {
+                        let text = flatten_inlines(&item.content);
+                        total_chars += text.trim().chars().count();
+                    }
+                }
+                Block::CodeBlock { code, .. } => {
+                    total_chars += code.trim().chars().count();
+                }
+                _ => {
+                    total_chars += 20;
+                }
+            }
+            if total_chars >= 20 {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn create_fallback_chapter() -> ParsedEpubChapter {

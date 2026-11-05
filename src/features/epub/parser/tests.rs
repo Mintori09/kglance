@@ -2742,3 +2742,180 @@ fn test_epub_css_colors_and_highlights() {
         _ => panic!("Expected paragraph block"),
     }
 }
+
+#[test]
+fn test_epub_meaningful_text_detection() {
+    let empty_blocks = vec![
+        Block::Paragraph(vec![Inline::Text(
+            "<a id=\"book-content\"></a>".to_string(),
+        )]),
+        Block::Paragraph(vec![Inline::Text(
+            "<a id=\"sbo-rt-content\"></a>".to_string(),
+        )]),
+        Block::Image {
+            alt: String::new(),
+            path: "assets/cover.png".to_string(),
+            link_url: None,
+            width: Some(1200),
+            height: Some(1574),
+        },
+    ];
+    assert!(!super::blocks_contain_meaningful_text(&empty_blocks));
+
+    let readable_blocks = vec![
+        Block::Heading {
+            level: 1,
+            content: vec![Inline::Text("Efficient Node.js".to_string())],
+        },
+        Block::Paragraph(vec![Inline::Text(
+            "A Beyond-the-Basics Guide to Node programming".to_string(),
+        )]),
+    ];
+    assert!(super::blocks_contain_meaningful_text(&readable_blocks));
+}
+
+#[test]
+fn test_epub_parse_efficient_nodejs_file_if_present() {
+    let path = std::path::Path::new(
+        "/home/mintori/Documents/Efficient Node_ js_ A Beyond-The-Basics Guide -- Samer Buna -- 2025 -- O'Reilly Media, Incorporated -- isbn13 9781098145194 -- 65b5aab642b8157b28fa78792d9db892 -- Anna’s Archive.epub",
+    );
+    if !path.exists() {
+        return;
+    }
+
+    let parser = super::EpubParser;
+    let res = parser.parse(path).expect("Failed to parse EPUB");
+    let crate::features::common::parser::types::ParsedContent::Epub {
+        chapters, images, ..
+    } = res
+    else {
+        panic!("Expected ParsedContent::Epub variant");
+    };
+
+    assert!(!chapters.is_empty());
+    // Chapter 0 is cover
+    assert_eq!(chapters[0].0, "Cover");
+    // At least one subsequent chapter has loaded blocks
+    let has_loaded_readable = chapters.iter().skip(1).any(|ch| !ch.4.is_empty());
+    assert!(
+        has_loaded_readable,
+        "Should have loaded blocks for first readable chapter"
+    );
+    // Images must contain cover image
+    assert!(!images.is_empty());
+
+    let (ch01_blocks, _ch01_images, ch01_styles) =
+        super::load_chapter_content_and_images_from_epub(path, "ch01.html", None)
+            .expect("Failed to load ch01");
+    // Verify that the body paragraph following Figure 1-1 (Block 45: "Node will read the line...")
+    // is NOT polluted with italic or center alignment
+    if let Some(p_block) = ch01_blocks.get(45) {
+        let text = super::flatten_inlines(match p_block {
+            Block::Paragraph(inlines) => inlines,
+            _ => panic!("Expected Block::Paragraph at index 45"),
+        });
+        assert!(text.starts_with("Node will read the line"));
+        if let Some(style) = ch01_styles.get(&45) {
+            assert_ne!(
+                style.align,
+                css::TextAlign::Center,
+                "Body paragraph following figure must not be centered"
+            );
+            assert!(
+                !style.is_italic,
+                "Body paragraph following figure must not be italicized"
+            );
+        }
+    }
+
+    // Verify paragraphs in ch01 do not have black color from `.p` class selector collision
+    for (idx, block) in ch01_blocks.iter().enumerate() {
+        if let Block::Paragraph(inlines) = block {
+            let text = super::flatten_inlines(inlines);
+            if (text.starts_with("In its core") || text.starts_with("However, this definition"))
+                && let Some(style) = ch01_styles.get(&idx)
+            {
+                assert_ne!(
+                    style.color,
+                    Some([0, 0, 0, 255]),
+                    "Paragraph at index {idx} must not have black color from .p collision"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_css_class_tag_collision_no_black_color() {
+    let css = r#"
+        #sbo-rt-content pre code.p {
+            color: #000000;
+        }
+    "#;
+    let stylesheet_map = css::parse_stylesheet(css);
+    let html = r#"
+        <div id="sbo-rt-content">
+            <p>Normal paragraph text</p>
+        </div>
+    "#;
+    let blocks = parse_to_blocks(&convert_html_to_markdown_with_stylesheet(
+        html,
+        &stylesheet_map,
+    ));
+    let styles = extract_blocks_styles(html, &blocks, &stylesheet_map);
+    if let Some(p_style) = styles.get(&0) {
+        assert_ne!(
+            p_style.color,
+            Some([0, 0, 0, 255]),
+            "Tag <p> must not inherit color: #000 from class .p"
+        );
+    }
+}
+
+#[test]
+fn test_callout_internal_heading_does_not_desync_blocks() {
+    let css = r#"
+        h1.main {
+            font-size: 2em;
+            text-align: center;
+        }
+    "#;
+    let stylesheet_map = css::parse_stylesheet(css);
+    let html = r#"
+        <body>
+            <h1 class="main">Main Title</h1>
+            <p>First paragraph</p>
+            <div data-type="tip">
+                <h6>Tip</h6>
+                <p>Tip inner content</p>
+            </div>
+            <p>Second paragraph</p>
+        </body>
+    "#;
+    let blocks = parse_to_blocks(&convert_html_to_markdown_with_stylesheet(
+        html,
+        &stylesheet_map,
+    ));
+    let styles = extract_blocks_styles(html, &blocks, &stylesheet_map);
+
+    // Block 0: Heading Main Title (centered)
+    assert!(matches!(&blocks[0], Block::Heading { .. }));
+    let h_style = styles.get(&0).expect("heading style");
+    assert_eq!(h_style.align, css::TextAlign::Center);
+
+    // Block 1: First paragraph
+    assert!(matches!(&blocks[1], Block::Paragraph(..)));
+
+    // Block 2: Alert (Tip)
+    assert!(matches!(&blocks[2], Block::Alert { .. }));
+
+    // Block 3: Second paragraph MUST NOT inherit any heading or callout styles!
+    assert!(matches!(&blocks[3], Block::Paragraph(..)));
+    if let Some(p2_style) = styles.get(&3) {
+        assert_ne!(
+            p2_style.align,
+            css::TextAlign::Center,
+            "Second paragraph must not receive heading styles due to desync"
+        );
+    }
+}
