@@ -249,3 +249,7 @@ strip = true
 codegen-units = 1
 panic = "abort"
 incremental = false
+
+[patch.crates-io]
+iced_winit = { path = "vendor/iced_winit" }
+
