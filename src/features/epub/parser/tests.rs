@@ -462,6 +462,43 @@ fn test_convert_html_table_with_caption_and_p_tags() {
 }
 
 #[test]
+fn test_convert_html_table_with_colspan_and_align() {
+    let html = r#"
+        <table>
+            <thead>
+                <tr>
+                    <th align="left">Col 1</th>
+                    <th align="center">Col 2</th>
+                    <th align="right">Col 3</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="2">Span two</td>
+                    <td>Col 3 Val</td>
+                </tr>
+            </tbody>
+        </table>
+    "#;
+    let md = convert_html_to_markdown(html);
+    assert!(md.contains("| Col 1 | Col 2 | Col 3 |"));
+    assert!(md.contains("| --- | :---: | ---: |"));
+    assert!(md.contains("| Span two |  | Col 3 Val |"));
+}
+
+#[test]
+fn test_convert_html_table_with_br_newlines() {
+    let html = r#"
+        <table>
+            <tr><th>Header</th></tr>
+            <tr><td>Line 1<br>Line 2</td></tr>
+        </table>
+    "#;
+    let md = convert_html_to_markdown(html);
+    assert!(md.contains("Line 1<br>Line 2") || md.contains("Line 1<br />Line 2"));
+}
+
+#[test]
 fn test_convert_html_codeblock_to_markdown() {
     let html = r#"
         <pre><code class="language-rust">fn main() {

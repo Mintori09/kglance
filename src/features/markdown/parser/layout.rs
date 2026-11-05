@@ -147,9 +147,23 @@ pub fn intrinsic_block_height(
             }
             .max(1);
             let available_w = effective_width.max(100.0);
-            let col_width = (available_w / num_cols as f32).max(50.0);
             let char_width = font_size * 0.50;
-            let approx_col_chars = (col_width / char_width).max(8.0) as usize;
+
+            let total_weight: u16 = if t.column_weights.is_empty() {
+                num_cols as u16
+            } else {
+                t.column_weights.iter().sum()
+            };
+
+            let get_col_width = |col_idx: usize| -> f32 {
+                let weight = t.column_weights.get(col_idx).copied().unwrap_or(1);
+                let w = if total_weight > 0 {
+                    (weight as f32 / total_weight as f32) * available_w
+                } else {
+                    available_w / num_cols as f32
+                };
+                w.max(50.0)
+            };
 
             let row_height = scale(36.0);
             let mut total_lines = 0.0;
@@ -158,7 +172,10 @@ pub fn intrinsic_block_height(
                 let header_lines = t
                     .headers
                     .iter()
-                    .map(|cell| {
+                    .enumerate()
+                    .map(|(i, cell)| {
+                        let col_w = get_col_width(i);
+                        let approx_col_chars = (col_w / char_width).max(8.0) as usize;
                         let len = inlines_metrics(&cell.content).0;
                         (len / approx_col_chars + 1) as f32
                     })
@@ -169,7 +186,10 @@ pub fn intrinsic_block_height(
             for row in &t.rows {
                 let row_lines = row
                     .iter()
-                    .map(|cell| {
+                    .enumerate()
+                    .map(|(i, cell)| {
+                        let col_w = get_col_width(i);
+                        let approx_col_chars = (col_w / char_width).max(8.0) as usize;
                         let len = inlines_metrics(&cell.content).0;
                         (len / approx_col_chars + 1) as f32
                     })
@@ -181,12 +201,16 @@ pub fn intrinsic_block_height(
                 total_lines = 1.0;
             }
 
-            let separator_h = if !t.rows.is_empty() {
-                lc::DIVIDER_HEIGHT
+            let toolbar_h = scale(28.0);
+            let separator_count = if !t.headers.is_empty() && !t.rows.is_empty() {
+                t.rows.len()
+            } else if t.rows.len() > 1 {
+                t.rows.len() - 1
             } else {
-                0.0
+                0
             };
-            total_lines * row_height + separator_h
+            let separator_h = separator_count as f32 * lc::DIVIDER_HEIGHT;
+            toolbar_h + total_lines * row_height + separator_h
         }
         Block::List { items, .. } => {
             let mut total_h = 0.0;
@@ -540,11 +564,11 @@ pub fn calculate_column_weights(
 
     let mut max_lens = vec![0usize; n];
     for (i, header) in headers.iter().enumerate() {
-        max_lens[i] = super::flatten::flatten_inlines(&header.content).len();
+        max_lens[i] = inlines_metrics(&header.content).0;
     }
     for row in rows {
         for (i, cell) in row.iter().enumerate().take(n) {
-            max_lens[i] = max_lens[i].max(super::flatten::flatten_inlines(&cell.content).len());
+            max_lens[i] = max_lens[i].max(inlines_metrics(&cell.content).0);
         }
     }
 
@@ -555,7 +579,10 @@ pub fn calculate_column_weights(
 
     max_lens
         .iter()
-        .map(|&length| ((length as f32 / total as f32) * 100.0).max(10.0) as u16)
+        .map(|&length| {
+            let weight = ((length as f32 / total as f32) * 100.0).round() as u16;
+            weight.max(1)
+        })
         .collect()
 }
 

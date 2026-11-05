@@ -599,6 +599,19 @@ fn test_parse_table_headers_only() {
 }
 
 #[test]
+fn test_table_column_weights_proportional_and_visual() {
+    let md = "| Short | Bảng dữ liệu tiếng Việt rất dài có nhiều nội dung |\n|---|---|\n| 1 | 2 |";
+    let blocks = parse_to_blocks(md);
+    assert_eq!(blocks.len(), 1);
+    if let Block::Table(tbl) = &blocks[0] {
+        assert_eq!(tbl.column_weights.len(), 2);
+        assert!(tbl.column_weights[1] > tbl.column_weights[0]);
+    } else {
+        panic!("expected table block");
+    }
+}
+
+#[test]
 fn test_parse_unordered_list() {
     let md = "- Item A\n- Item B\n    - Nested";
     let blocks = parse_to_blocks(md);
