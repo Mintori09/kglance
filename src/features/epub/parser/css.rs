@@ -442,64 +442,85 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
         if has_properties {
             for sel in selectors.split(',') {
                 let sel = sel.trim();
-                // Match ID selectors (#id), class selectors (.class), and tag selectors (h1, ul, ol...)
-                for part in sel.split_whitespace() {
-                    if let Some(idx) = part.find('#') {
-                        let id_name = part[idx + 1..]
-                            .trim_matches(|c: char| !c.is_alphanumeric() && c != '_' && c != '-');
-                        if !id_name.is_empty() {
-                            let key = format!("#{id_name}");
-                            if let Some(existing) = map.get_mut(&key) {
-                                merge_block_style(existing, &style);
-                            } else {
-                                map.insert(key, style.clone());
-                            }
+                if sel.is_empty() {
+                    continue;
+                }
+
+                // In CSS, declarations apply to the subject (the rightmost compound selector).
+                // Do not apply child or descendant styles to ancestor containers (e.g. #sbo-rt-content or #book-content).
+                // Strip attribute selectors like [title="..."] to safely split on combinators and whitespace.
+                let mut stripped = String::with_capacity(sel.len());
+                let mut in_bracket = false;
+                for c in sel.chars() {
+                    if c == '[' {
+                        in_bracket = true;
+                    } else if c == ']' {
+                        in_bracket = false;
+                    } else if !in_bracket {
+                        stripped.push(c);
+                    }
+                }
+
+                let target_part = stripped
+                    .split(|c: char| c.is_whitespace() || c == '>' || c == '+' || c == '~')
+                    .rfind(|s| !s.is_empty())
+                    .unwrap_or(sel);
+
+                if let Some(idx) = target_part.rfind('#') {
+                    let id_name = target_part[idx + 1..]
+                        .trim_matches(|c: char| !c.is_alphanumeric() && c != '_' && c != '-');
+                    if !id_name.is_empty() {
+                        let key = format!("#{id_name}");
+                        if let Some(existing) = map.get_mut(&key) {
+                            merge_block_style(existing, &style);
+                        } else {
+                            map.insert(key, style.clone());
                         }
-                    } else if let Some(idx) = part.find('.') {
-                        let class_name = part[idx + 1..]
-                            .trim_matches(|c: char| !c.is_alphanumeric() && c != '_' && c != '-');
-                        if !class_name.is_empty() {
-                            let key = format!(".{class_name}");
-                            if let Some(existing) = map.get_mut(&key) {
-                                merge_block_style(existing, &style);
-                            } else {
-                                map.insert(key, style.clone());
-                            }
-                            if let Some(existing) = map.get_mut(class_name) {
-                                merge_block_style(existing, &style);
-                            } else {
-                                map.insert(class_name.to_string(), style.clone());
-                            }
+                    }
+                } else if let Some(idx) = target_part.rfind('.') {
+                    let class_name = target_part[idx + 1..]
+                        .trim_matches(|c: char| !c.is_alphanumeric() && c != '_' && c != '-');
+                    if !class_name.is_empty() {
+                        let key = format!(".{class_name}");
+                        if let Some(existing) = map.get_mut(&key) {
+                            merge_block_style(existing, &style);
+                        } else {
+                            map.insert(key, style.clone());
                         }
-                    } else {
-                        let tag_name = part.trim_matches(|c: char| !c.is_alphanumeric());
-                        if matches!(
-                            tag_name.to_ascii_lowercase().as_str(),
-                            "body"
-                                | "h1"
-                                | "h2"
-                                | "h3"
-                                | "h4"
-                                | "h5"
-                                | "h6"
-                                | "p"
-                                | "blockquote"
-                                | "pre"
-                                | "ul"
-                                | "ol"
-                        ) {
-                            let tag_lower = tag_name.to_ascii_lowercase();
-                            let tag_key = format!("tag:{tag_lower}");
-                            if let Some(existing) = map.get_mut(&tag_key) {
-                                merge_block_style(existing, &style);
-                            } else {
-                                map.insert(tag_key, style.clone());
-                            }
-                            if let Some(existing) = map.get_mut(tag_name) {
-                                merge_block_style(existing, &style);
-                            } else {
-                                map.insert(tag_lower, style.clone());
-                            }
+                        if let Some(existing) = map.get_mut(class_name) {
+                            merge_block_style(existing, &style);
+                        } else {
+                            map.insert(class_name.to_string(), style.clone());
+                        }
+                    }
+                } else {
+                    let tag_name = target_part.trim_matches(|c: char| !c.is_alphanumeric());
+                    if matches!(
+                        tag_name.to_ascii_lowercase().as_str(),
+                        "body"
+                            | "h1"
+                            | "h2"
+                            | "h3"
+                            | "h4"
+                            | "h5"
+                            | "h6"
+                            | "p"
+                            | "blockquote"
+                            | "pre"
+                            | "ul"
+                            | "ol"
+                    ) {
+                        let tag_lower = tag_name.to_ascii_lowercase();
+                        let tag_key = format!("tag:{tag_lower}");
+                        if let Some(existing) = map.get_mut(&tag_key) {
+                            merge_block_style(existing, &style);
+                        } else {
+                            map.insert(tag_key, style.clone());
+                        }
+                        if let Some(existing) = map.get_mut(tag_name) {
+                            merge_block_style(existing, &style);
+                        } else {
+                            map.insert(tag_lower, style.clone());
                         }
                     }
                 }
@@ -522,18 +543,18 @@ pub fn resolve_block_style(
 ) -> BlockStyle {
     let mut style = BlockStyle::default();
 
-    if let Some(t) = tag
-        && let Some(tag_style) = stylesheet_map.get(t)
-    {
-        let mut clean_tag_style = tag_style.clone();
-        // If this tag style has color, ensure it came from a tag rule rather than a colliding class rule
-        if clean_tag_style.color.is_some()
-            && stylesheet_map.contains_key(&format!(".{t}"))
-            && !stylesheet_map.contains_key(&format!("tag:{t}"))
-        {
-            clean_tag_style.color = None;
+    if let Some(t) = tag {
+        let tag_key = format!("tag:{t}");
+        if let Some(tag_style) = stylesheet_map.get(&tag_key) {
+            merge_block_style(&mut style, tag_style);
+        } else if let Some(tag_style) = stylesheet_map.get(t) {
+            let mut clean_tag_style = tag_style.clone();
+            // If this tag style has color, ensure it came from a tag rule rather than a colliding class rule
+            if clean_tag_style.color.is_some() && stylesheet_map.contains_key(&format!(".{t}")) {
+                clean_tag_style.color = None;
+            }
+            merge_block_style(&mut style, &clean_tag_style);
         }
-        merge_block_style(&mut style, &clean_tag_style);
     }
 
     for cls in classes {
