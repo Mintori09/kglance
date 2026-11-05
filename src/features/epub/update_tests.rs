@@ -1200,3 +1200,47 @@ fn test_epub_sidebar_tab_changed() {
         crate::features::epub::types::EpubSidebarTab::Toc
     );
 }
+
+#[test]
+fn test_ensure_chapter_loaded_propagates_shared_file_href() {
+    use crate::core::types::EpubChapterInfo;
+    use crate::features::markdown::Block;
+
+    let mut app = test_app(None);
+    app.state.file_name = "test.epub".to_string();
+    app.state.epub.chapters = vec![
+        EpubChapterInfo {
+            title: "Sec 1".to_string(),
+            level: 1,
+            anchor: Some("sec1".to_string()),
+            file_href: "common.xhtml".to_string(),
+            blocks: vec![Block::HorizontalRule],
+        },
+        EpubChapterInfo {
+            title: "Sec 2".to_string(),
+            level: 2,
+            anchor: Some("sec2".to_string()),
+            file_href: "common.xhtml".to_string(),
+            blocks: Vec::new(),
+        },
+    ];
+
+    app.current_content = Some(crate::core::PreviewData::Epub {
+        title: "Test".to_string(),
+        author: "Author".to_string(),
+        chapters: app.state.epub.chapters.clone(),
+        active_chapter: 0,
+        images: std::collections::HashMap::new(),
+    });
+
+    // When loading chapter 1 (which initially has empty blocks),
+    // it should find existing blocks for "common.xhtml" and propagate them
+    ensure_chapter_loaded(&mut app, 1);
+
+    assert_eq!(app.state.epub.active_chapter, 1);
+    assert_eq!(app.state.epub.chapters[1].blocks.len(), 1);
+
+    if let Some(crate::core::PreviewData::Epub { chapters, .. }) = &app.current_content {
+        assert_eq!(chapters[1].blocks.len(), 1);
+    }
+}

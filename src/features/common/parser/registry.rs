@@ -175,7 +175,7 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 chapters,
                 images,
             } => {
-                let epub_chapters = chapters
+                let epub_chapters: Vec<crate::core::types::EpubChapterInfo> = chapters
                     .into_iter()
                     .map(
                         |(t, lvl, anc, href, b)| crate::core::types::EpubChapterInfo {
@@ -187,11 +187,31 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                         },
                     )
                     .collect();
+
+                let active_chapter = if epub_chapters
+                    .first()
+                    .map(|ch| {
+                        !crate::features::epub::parser::blocks_contain_meaningful_text(&ch.blocks)
+                    })
+                    .unwrap_or(false)
+                {
+                    epub_chapters
+                        .iter()
+                        .position(|ch| {
+                            crate::features::epub::parser::blocks_contain_meaningful_text(
+                                &ch.blocks,
+                            )
+                        })
+                        .unwrap_or(0)
+                } else {
+                    0
+                };
+
                 crate::core::preview::PreviewData::Epub {
                     title,
                     author,
                     chapters: epub_chapters,
-                    active_chapter: 0,
+                    active_chapter,
                     images,
                 }
             }

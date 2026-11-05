@@ -459,6 +459,12 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
                         let class_name = part[idx + 1..]
                             .trim_matches(|c: char| !c.is_alphanumeric() && c != '_' && c != '-');
                         if !class_name.is_empty() {
+                            let key = format!(".{class_name}");
+                            if let Some(existing) = map.get_mut(&key) {
+                                merge_block_style(existing, &style);
+                            } else {
+                                map.insert(key, style.clone());
+                            }
                             if let Some(existing) = map.get_mut(class_name) {
                                 merge_block_style(existing, &style);
                             } else {
@@ -482,10 +488,17 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
                                 | "ul"
                                 | "ol"
                         ) {
+                            let tag_lower = tag_name.to_ascii_lowercase();
+                            let tag_key = format!("tag:{tag_lower}");
+                            if let Some(existing) = map.get_mut(&tag_key) {
+                                merge_block_style(existing, &style);
+                            } else {
+                                map.insert(tag_key, style.clone());
+                            }
                             if let Some(existing) = map.get_mut(tag_name) {
                                 merge_block_style(existing, &style);
                             } else {
-                                map.insert(tag_name.to_ascii_lowercase(), style.clone());
+                                map.insert(tag_lower, style.clone());
                             }
                         }
                     }
@@ -512,7 +525,15 @@ pub fn resolve_block_style(
     if let Some(t) = tag
         && let Some(tag_style) = stylesheet_map.get(t)
     {
-        merge_block_style(&mut style, tag_style);
+        let mut clean_tag_style = tag_style.clone();
+        // If this tag style has color, ensure it came from a tag rule rather than a colliding class rule
+        if clean_tag_style.color.is_some()
+            && stylesheet_map.contains_key(&format!(".{t}"))
+            && !stylesheet_map.contains_key(&format!("tag:{t}"))
+        {
+            clean_tag_style.color = None;
+        }
+        merge_block_style(&mut style, &clean_tag_style);
     }
 
     for cls in classes {

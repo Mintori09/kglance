@@ -451,6 +451,8 @@ pub fn extract_html_blocks_meta(
     let mut current_block: Option<RawHtmlBlockMeta> = None;
     let mut text_count = 0usize;
     let mut hidden_tag_stack: Vec<String> = Vec::new();
+    let mut div_callout_stack: Vec<bool> = Vec::new();
+    let mut in_callout_heading = false;
 
     loop {
         match reader.read_event_into(&mut buf) {
@@ -471,6 +473,34 @@ pub fn extract_html_blocks_meta(
                     if !is_void {
                         hidden_tag_stack.push(tag_str);
                     }
+                    buf.clear();
+                    continue;
+                }
+
+                if tag_str == "div" {
+                    let mut is_callout = false;
+                    for attr in e.attributes().flatten() {
+                        let key = attr.key.as_ref();
+                        if key.eq_ignore_ascii_case("data-type")
+                            || key.eq_ignore_ascii_case("epub:type")
+                        {
+                            let val = attr.value.to_ascii_lowercase();
+                            if matches!(
+                                val.as_str(),
+                                "note" | "tip" | "warning" | "caution" | "important"
+                            ) {
+                                is_callout = true;
+                                break;
+                            }
+                        }
+                    }
+                    div_callout_stack.push(is_callout);
+                }
+
+                if matches!(tag_str.as_str(), "h1" | "h2" | "h3" | "h4" | "h5" | "h6")
+                    && div_callout_stack.last().copied().unwrap_or(false)
+                {
+                    in_callout_heading = true;
                     buf.clear();
                     continue;
                 }
@@ -576,6 +606,18 @@ pub fn extract_html_blocks_meta(
                 let name = e.name();
                 let tag_str = name.as_ref().to_ascii_lowercase();
 
+                if tag_str == "div" {
+                    div_callout_stack.pop();
+                }
+
+                if matches!(tag_str.as_str(), "h1" | "h2" | "h3" | "h4" | "h5" | "h6")
+                    && in_callout_heading
+                {
+                    in_callout_heading = false;
+                    buf.clear();
+                    continue;
+                }
+
                 if !hidden_tag_stack.is_empty() {
                     if let Some(pos) = hidden_tag_stack.iter().rposition(|t| t == &tag_str) {
                         hidden_tag_stack.truncate(pos);
@@ -596,7 +638,7 @@ pub fn extract_html_blocks_meta(
                 }
             }
             Ok(Event::Text(ref e)) => {
-                if hidden_tag_stack.is_empty() {
+                if hidden_tag_stack.is_empty() && !in_callout_heading {
                     let s = e.as_ref();
                     let clean = s.replace('\u{a0}', " ");
                     if !clean.trim().is_empty() {
