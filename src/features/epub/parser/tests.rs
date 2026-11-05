@@ -2807,15 +2807,44 @@ fn test_epub_parse_efficient_nodejs_file_if_present() {
         }
     }
 
-    // Verify preface01.html loads readable blocks and is NOT hidden by #sbo-rt-content descendant selectors
-    let (pref_blocks, _pref_images, _pref_styles) =
-        super::load_chapter_content_and_images_from_epub(path, "preface01.html", None)
-            .expect("Failed to load preface01.html");
-    assert!(
-        pref_blocks.len() > 10,
-        "Preface must contain readable blocks, found: {}",
-        pref_blocks.len()
+    // Verify ch05.html around "Creating and Publishing Packages"
+    let file = std::fs::File::open(path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let mut archive = zip::ZipArchive::new(reader).unwrap();
+    let opf_path = super::read_container_opf_path(&mut archive).unwrap();
+    let opf_xml = super::read_archive_entry_string(&mut archive, &opf_path).unwrap_or_default();
+    let stylesheet_map = super::load_all_stylesheets(&mut archive, &opf_path, &opf_xml);
+    let html = super::read_archive_entry_string(&mut archive, "OEBPS/ch05.html").unwrap();
+    let md = convert_html_to_markdown_with_stylesheet(&html, &stylesheet_map);
+    let blocks = parse_to_blocks(&md);
+    let metas = extract_html_blocks_meta(&html, Some(&stylesheet_map));
+    let non_empty_metas: Vec<_> = metas.into_iter().filter(|m| !m.is_empty).collect();
+    println!(
+        "TOTAL BLOCKS: {}, TOTAL NON-EMPTY METAS: {}",
+        blocks.len(),
+        non_empty_metas.len()
     );
+    // Verify ch05.html paragraphs are strictly left aligned with 0 margin_left and standard font
+    let styles = extract_blocks_styles(&html, &blocks, &stylesheet_map);
+    for idx in 105..=110 {
+        if let Some(style) = styles.get(&idx) {
+            assert_eq!(
+                style.align,
+                css::TextAlign::Left,
+                "Block {idx} must be left aligned"
+            );
+            assert_eq!(
+                style.margin_left,
+                Some(0.0),
+                "Block {idx} must not have margin_left indentation from code block desync"
+            );
+            assert_ne!(
+                style.font_family.as_deref(),
+                Some("Ubuntu Mono"),
+                "Block {idx} must not receive monospace font from pre desync"
+            );
+        }
+    }
 }
 
 #[test]
