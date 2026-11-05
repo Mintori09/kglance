@@ -292,15 +292,31 @@ fn build_scrollable_content<'a>(
                 };
                 let element = render_block(index, block, state, &block_ctx);
                 let margin = block_margin_with_next(block, blocks.get(index + 1), ctx.font_size);
-                container(element)
+                let block_widget = container(element)
                     .padding(Padding {
                         top: 0.0,
                         right: 0.0,
                         bottom: margin,
                         left: 0.0,
                     })
-                    .width(Length::Fill)
-                    .into()
+                    .width(Length::Fill);
+
+                Measured::new(
+                    block_widget,
+                    index,
+                    state
+                        .block_layouts
+                        .get(index)
+                        .map_or(0.0, BlockLayout::effective_height),
+                    |block_index, height| {
+                        crate::app::messages::MarkdownMsg::BlockMeasured {
+                            block_index,
+                            height,
+                        }
+                        .into()
+                    },
+                )
+                .into()
             })
             .collect()
     };

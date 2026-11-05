@@ -79,6 +79,8 @@ pub struct MarkdownState {
     pub scroll_controller: ScrollController,
     /// Styles for rendered blocks (alignment, indentation, bold), keyed by block index.
     pub block_styles: HashMap<usize, crate::features::epub::parser::css::BlockStyle>,
+    /// Horizontal scroll offsets for markdown tables, keyed by block index.
+    pub table_scroll_offsets: HashMap<usize, f32>,
 }
 
 impl Default for MarkdownState {
@@ -125,6 +127,7 @@ impl Default for MarkdownState {
             touchpad_tracker: TouchpadGestureTracker::default(),
             scroll_controller: ScrollController::default(),
             block_styles: HashMap::new(),
+            table_scroll_offsets: HashMap::new(),
         }
     }
 }
