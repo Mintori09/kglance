@@ -497,10 +497,12 @@ pub fn extract_html_blocks_meta(
                     div_callout_stack.push(is_callout);
                 }
 
-                if matches!(tag_str.as_str(), "h1" | "h2" | "h3" | "h4" | "h5" | "h6")
-                    && div_callout_stack.last().copied().unwrap_or(false)
-                {
-                    in_callout_heading = true;
+                // Elements inside callout divs (headings and inner paragraphs) are part of
+                // Markdown Alert blocks and must not generate top-level block style metas.
+                if div_callout_stack.iter().any(|&c| c) {
+                    if matches!(tag_str.as_str(), "h1" | "h2" | "h3" | "h4" | "h5" | "h6") {
+                        in_callout_heading = true;
+                    }
                     buf.clear();
                     continue;
                 }

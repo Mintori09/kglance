@@ -539,11 +539,13 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                             if style.vertical_align.is_some() {
                                 vertical_align = style.vertical_align;
                             }
-                            if style.color.is_some() {
-                                color = style.color;
-                            }
-                            if style.background_color.is_some() {
-                                background_color = style.background_color;
+                            if self.stylesheet_map.is_none() {
+                                if style.color.is_some() {
+                                    color = style.color;
+                                }
+                                if style.background_color.is_some() {
+                                    background_color = style.background_color;
+                                }
                             }
                         }
                     }
@@ -592,11 +594,13 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                             if inline_style.vertical_align.is_some() {
                                 vertical_align = inline_style.vertical_align;
                             }
-                            if inline_style.color.is_some() {
-                                color = inline_style.color;
-                            }
-                            if inline_style.background_color.is_some() {
-                                background_color = inline_style.background_color;
+                            if self.stylesheet_map.is_none() {
+                                if inline_style.color.is_some() {
+                                    color = inline_style.color;
+                                }
+                                if inline_style.background_color.is_some() {
+                                    background_color = inline_style.background_color;
+                                }
                             }
                             for decl in val.split(';') {
                                 if let Some((k, v)) = decl.split_once(':') {
