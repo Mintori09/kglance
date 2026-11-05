@@ -239,10 +239,7 @@ fn try_spreadsheet_direct(path: &str) -> Result<ParsedContent, ParseError> {
                 .map(|row| row.iter().map(cell_to_string).collect())
                 .collect();
 
-            let max_cols = rows.iter().map(|r| r.len()).max().unwrap_or(0);
-            let headers: Vec<String> = (0..max_cols)
-                .map(crate::features::sheet::column_index_to_letter)
-                .collect();
+            let (headers, rows) = crate::features::sheet::extract_headers_and_data(rows);
 
             sheets.push(SheetData {
                 name: name.clone(),

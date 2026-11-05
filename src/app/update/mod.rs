@@ -558,6 +558,18 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::SpreadsheetMsg::ColumnClicked(col) => {
                 crate::features::sheet::update::handle_column_clicked(app, col)
             }
+            crate::app::messages::SpreadsheetMsg::ColumnHeaderPressed(col) => {
+                crate::features::sheet::update::handle_column_header_pressed(app, col)
+            }
+            crate::app::messages::SpreadsheetMsg::ColumnHeaderEntered(col) => {
+                crate::features::sheet::update::handle_column_header_entered(app, col)
+            }
+            crate::app::messages::SpreadsheetMsg::ColumnResizeStarted { col, cursor_x } => {
+                crate::features::sheet::update::handle_column_resize_started(app, col, cursor_x)
+            }
+            crate::app::messages::SpreadsheetMsg::ColumnAutoFit(col) => {
+                crate::features::sheet::update::handle_column_auto_fit(app, col)
+            }
             crate::app::messages::SpreadsheetMsg::CellPressed { row, col } => {
                 crate::features::sheet::update::handle_cell_pressed(app, row, col)
             }
@@ -566,6 +578,9 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             }
             crate::app::messages::SpreadsheetMsg::CellReleased => {
                 crate::features::sheet::update::handle_cell_released(app)
+            }
+            crate::app::messages::SpreadsheetMsg::SelectAllCells => {
+                crate::features::sheet::update::handle_select_all_cells(app)
             }
             crate::app::messages::SpreadsheetMsg::RowHeaderPressed(row) => {
                 crate::features::sheet::update::handle_row_header_pressed(app, row)
@@ -582,8 +597,20 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::SpreadsheetMsg::SearchQueryChanged(q) => {
                 crate::features::sheet::update::handle_search_query_changed(app, q)
             }
+            crate::app::messages::SpreadsheetMsg::SearchNext => {
+                crate::features::sheet::update::handle_search_next(app)
+            }
+            crate::app::messages::SpreadsheetMsg::SearchPrev => {
+                crate::features::sheet::update::handle_search_prev(app)
+            }
             crate::app::messages::SpreadsheetMsg::SearchClosed => {
                 crate::features::sheet::update::handle_search_closed(app)
+            }
+            crate::app::messages::SpreadsheetMsg::NextSheetTab => {
+                crate::features::sheet::update::handle_next_sheet_tab(app)
+            }
+            crate::app::messages::SpreadsheetMsg::PrevSheetTab => {
+                crate::features::sheet::update::handle_prev_sheet_tab(app)
             }
             crate::app::messages::SpreadsheetMsg::Scrolled(vp) => {
                 crate::features::sheet::update::handle_spreadsheet_scrolled(app, vp)

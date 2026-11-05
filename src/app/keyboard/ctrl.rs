@@ -394,8 +394,7 @@ impl KglanceApp {
                 if self.state.spreadsheet.search_visible {
                     Some(iced::widget::operation::focus("ss_search_input"))
                 } else {
-                    self.state.spreadsheet.search_query.clear();
-                    Some(Task::none())
+                    Some(crate::features::sheet::update::handle_search_closed(self))
                 }
             }
 

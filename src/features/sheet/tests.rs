@@ -2,10 +2,13 @@ use crate::app::KglanceApp;
 use crate::core::PreviewData;
 use crate::features::common::parser::traits::PreviewParser;
 use crate::features::common::parser::types::ParsedContent;
+use crate::features::sheet::formatting::format_number_with_commas;
 use crate::features::sheet::parser::{
     CsvParser, column_index_to_letter, infer_column_types_and_widths, sniff_delimiter,
 };
-use crate::features::sheet::types::{CellCoord, CellRange, ColumnMeta, ColumnType, SheetInfo};
+use crate::features::sheet::types::{
+    CellCoord, CellRange, ColumnMeta, ColumnType, SheetInfo, SpreadsheetState,
+};
 use crate::features::sheet::update::{
     compute_prefix_widths, handle_auto_scroll_tick, handle_cell_entered, handle_cell_pressed,
     handle_cell_released, handle_row_header_entered, handle_row_header_pressed,
@@ -43,6 +46,19 @@ fn test_column_index_to_letter() {
     assert_eq!(column_index_to_letter(52), "BA");
     assert_eq!(column_index_to_letter(701), "ZZ");
     assert_eq!(column_index_to_letter(702), "AAA");
+}
+
+#[test]
+fn test_number_formatting_with_commas() {
+    assert_eq!(format_number_with_commas("12500.5"), "12,500.5");
+    assert_eq!(format_number_with_commas("35600.75"), "35,600.75");
+    assert_eq!(format_number_with_commas("450"), "450");
+    assert_eq!(format_number_with_commas("1200"), "1,200");
+    assert_eq!(format_number_with_commas("1000000"), "1,000,000");
+    assert_eq!(format_number_with_commas("-9876543.21"), "-9,876,543.21");
+    assert_eq!(format_number_with_commas("KB-001"), "KB-001");
+    assert_eq!(format_number_with_commas("hello"), "hello");
+    assert_eq!(format_number_with_commas("12.34"), "12.34");
 }
 
 #[test]
@@ -293,18 +309,44 @@ fn test_csv_parser_rfc4180_quotes_and_multiline() {
         let sheet = &sheets[0];
         assert_eq!(
             sheet.headers,
+            vec![
+                "name".to_string(),
+                "description".to_string(),
+                "count".to_string()
+            ]
+        );
+        assert_eq!(sheet.rows.len(), 2);
+        assert_eq!(sheet.rows[0][0], "Alice, Jr.");
+        assert_eq!(sheet.rows[0][1], "Likes apples, oranges");
+        assert_eq!(sheet.rows[0][2], "10");
+        assert_eq!(sheet.rows[1][0], "Bob \"The Builder\"");
+        assert_eq!(sheet.rows[1][1], "Works with\nmultiline tools");
+        assert_eq!(sheet.rows[1][2], "5");
+    } else {
+        panic!("Expected ParsedContent::Spreadsheet");
+    }
+}
+
+#[test]
+fn test_csv_parser_without_headers() {
+    let mut temp = NamedTempFile::new().unwrap();
+    let csv_data = "10,20,30\n\
+                    40,50,60\n";
+    temp.write_all(csv_data.as_bytes()).unwrap();
+
+    let parser = CsvParser;
+    let res = parser.parse(temp.path()).unwrap();
+
+    if let ParsedContent::Spreadsheet { sheets } = res {
+        assert_eq!(sheets.len(), 1);
+        let sheet = &sheets[0];
+        assert_eq!(
+            sheet.headers,
             vec!["A".to_string(), "B".to_string(), "C".to_string()]
         );
-        assert_eq!(sheet.rows.len(), 3);
-        assert_eq!(sheet.rows[0][0], "name");
-        assert_eq!(sheet.rows[0][1], "description");
-        assert_eq!(sheet.rows[0][2], "count");
-        assert_eq!(sheet.rows[1][0], "Alice, Jr.");
-        assert_eq!(sheet.rows[1][1], "Likes apples, oranges");
-        assert_eq!(sheet.rows[1][2], "10");
-        assert_eq!(sheet.rows[2][0], "Bob \"The Builder\"");
-        assert_eq!(sheet.rows[2][1], "Works with\nmultiline tools");
-        assert_eq!(sheet.rows[2][2], "5");
+        assert_eq!(sheet.rows.len(), 2);
+        assert_eq!(sheet.rows[0][0], "10");
+        assert_eq!(sheet.rows[1][0], "40");
     } else {
         panic!("Expected ParsedContent::Spreadsheet");
     }
@@ -930,4 +972,225 @@ fn test_spreadsheet_font_scaling_and_geometry_rescale() {
     let _ = app.update(crate::app::messages::SettingsMsg::FontSizeChanged(21.0).into());
     assert_eq!(app.state.font_size, 21.0);
     assert_eq!(app.state.spreadsheet.scroll_y, 200.0 * (21.0 / 14.0));
+}
+
+#[test]
+fn test_rfc4180_and_html_clipboard() {
+    let sheet = SheetInfo {
+        name: "TestSheet".to_string(),
+        headers: vec!["Name".to_string(), "Notes".to_string()],
+        rows: vec![
+            vec!["Alice".to_string(), "Line1\nLine2".to_string()],
+            vec!["Bob\tSmith".to_string(), "Contains \"quotes\"".to_string()],
+        ],
+        columns: vec![
+            ColumnMeta {
+                name: "Name".to_string(),
+                col_type: ColumnType::Text,
+                width: 100.0,
+            },
+            ColumnMeta {
+                name: "Notes".to_string(),
+                col_type: ColumnType::Text,
+                width: 150.0,
+            },
+        ],
+    };
+
+    let indices = vec![0, 1];
+    let range = CellRange {
+        start: CellCoord { row: 0, col: 0 },
+        end: CellCoord { row: 1, col: 1 },
+    };
+
+    // Test TSV RFC 4180 escaping
+    let tsv = crate::features::sheet::clipboard::build_tsv_text(&sheet, &indices, range).unwrap();
+    assert_eq!(
+        tsv,
+        "Alice\t\"Line1\nLine2\"\n\"Bob\tSmith\"\t\"Contains \"\"quotes\"\"\""
+    );
+
+    // Test HTML Table Generation
+    let html =
+        crate::features::sheet::clipboard::build_html_table(&sheet, &indices, range).unwrap();
+    assert!(html.starts_with("<table"));
+    assert!(html.contains("<td>Alice</td>"));
+    assert!(html.contains("<td>Line1<br>Line2</td>"));
+    assert!(html.contains("<td>Contains &quot;quotes&quot;</td>"));
+    assert!(html.ends_with("</table>"));
+}
+
+#[test]
+fn test_selection_stats() {
+    let sheet = SheetInfo {
+        name: "StatsSheet".to_string(),
+        headers: vec![
+            "Product".to_string(),
+            "Price".to_string(),
+            "Qty".to_string(),
+        ],
+        rows: vec![
+            vec!["Apples".to_string(), "10.5".to_string(), "2".to_string()],
+            vec!["Oranges".to_string(), "20.0".to_string(), "4".to_string()],
+            vec!["Bananas".to_string(), "-".to_string(), "6".to_string()],
+        ],
+        columns: vec![
+            ColumnMeta {
+                name: "Product".to_string(),
+                col_type: ColumnType::Text,
+                width: 100.0,
+            },
+            ColumnMeta {
+                name: "Price".to_string(),
+                col_type: ColumnType::Float,
+                width: 100.0,
+            },
+            ColumnMeta {
+                name: "Qty".to_string(),
+                col_type: ColumnType::Integer,
+                width: 100.0,
+            },
+        ],
+    };
+
+    let indices = vec![0, 1, 2];
+
+    // Select all Price and Qty columns (rows 0..=2, cols 1..=2)
+    let range = CellRange {
+        start: CellCoord { row: 0, col: 1 },
+        end: CellCoord { row: 2, col: 2 },
+    };
+
+    let stats = crate::features::sheet::stats::calculate_selection_stats(&sheet, &indices, range);
+    assert_eq!(stats.cell_count, 6);
+    assert_eq!(stats.numeric_count, 5); // 10.5, 2, 20.0, 4, 6
+    assert!((stats.sum.unwrap() - 42.5).abs() < 1e-4);
+    assert!((stats.avg.unwrap() - 8.5).abs() < 1e-4);
+    assert_eq!(stats.min, Some(2.0));
+    assert_eq!(stats.max, Some(20.0));
+
+    let summary = stats.format_summary().unwrap();
+    assert!(summary.contains("Selected: 6 cells"));
+    assert!(summary.contains("Sum: 42.5"));
+    assert!(summary.contains("Avg: 8.5"));
+}
+
+#[test]
+fn test_column_resize_and_autofit() {
+    let sheet = SheetInfo {
+        name: "ResizeSheet".to_string(),
+        headers: vec!["Short".to_string(), "LongColumnHeaderWithData".to_string()],
+        rows: vec![
+            vec![
+                "a".to_string(),
+                "https://example.com/very/long/url/data".to_string(),
+            ],
+            vec!["b".to_string(), "short".to_string()],
+        ],
+        columns: vec![
+            ColumnMeta {
+                name: "Short".to_string(),
+                col_type: ColumnType::Text,
+                width: 80.0,
+            },
+            ColumnMeta {
+                name: "LongColumnHeaderWithData".to_string(),
+                col_type: ColumnType::Text,
+                width: 120.0,
+            },
+        ],
+    };
+
+    let mut state = SpreadsheetState {
+        sheets: vec![sheet],
+        active_sheet: 0,
+        display_indices: vec![0, 1],
+        prefix_widths: vec![0.0, 80.0, 200.0],
+        ..Default::default()
+    };
+
+    let base_font = CELL_TEXT_SIZE;
+    // Start resize on column 0 at cursor_x = 80.0
+    crate::features::sheet::resize::start_column_resize(&mut state, 0, 80.0, base_font);
+    assert!(state.resizing_col.is_some());
+
+    // Drag 50px to the right -> cursor_x = 130.0
+    let updated =
+        crate::features::sheet::resize::update_column_resize(&mut state, 130.0, base_font);
+    assert!(updated);
+    assert_eq!(state.sheets[0].columns[0].width, 130.0);
+
+    // End resize
+    crate::features::sheet::resize::end_column_resize(&mut state);
+    assert!(state.resizing_col.is_none());
+
+    // Auto-fit column 1 (has a 38-char URL)
+    let fitted = crate::features::sheet::resize::auto_fit_column(&mut state, 1, base_font);
+    assert!(fitted);
+    assert!(state.sheets[0].columns[1].width > 300.0);
+}
+
+#[test]
+fn test_keyboard_grid_navigation() {
+    let sheet = SheetInfo {
+        name: "NavSheet".to_string(),
+        headers: vec!["C0".to_string(), "C1".to_string(), "C2".to_string()],
+        rows: vec![
+            vec!["0,0".to_string(), "0,1".to_string(), "0,2".to_string()],
+            vec!["1,0".to_string(), "1,1".to_string(), "1,2".to_string()],
+            vec!["2,0".to_string(), "2,1".to_string(), "2,2".to_string()],
+        ],
+        columns: vec![
+            ColumnMeta {
+                name: "C0".to_string(),
+                col_type: ColumnType::Text,
+                width: 100.0,
+            },
+            ColumnMeta {
+                name: "C1".to_string(),
+                col_type: ColumnType::Text,
+                width: 100.0,
+            },
+            ColumnMeta {
+                name: "C2".to_string(),
+                col_type: ColumnType::Text,
+                width: 100.0,
+            },
+        ],
+    };
+
+    let mut state = SpreadsheetState {
+        sheets: vec![sheet],
+        active_sheet: 0,
+        display_indices: vec![0, 1, 2],
+        prefix_widths: vec![0.0, 100.0, 200.0, 300.0],
+        prefix_heights: vec![0.0, 26.0, 52.0, 78.0],
+        ..Default::default()
+    };
+
+    // Initial navigation: Right from (0, 0)
+    let _ = crate::features::sheet::navigation::navigate_grid(
+        &mut state,
+        crate::features::sheet::navigation::NavDirection::Right,
+        false,
+    );
+    assert_eq!(state.selection.unwrap().start, CellCoord { row: 0, col: 1 });
+    assert_eq!(state.selection.unwrap().end, CellCoord { row: 0, col: 1 });
+
+    // Navigate Down -> (1, 1)
+    let _ = crate::features::sheet::navigation::navigate_grid(
+        &mut state,
+        crate::features::sheet::navigation::NavDirection::Down,
+        false,
+    );
+    assert_eq!(state.selection.unwrap().start, CellCoord { row: 1, col: 1 });
+
+    // Shift + Right -> extends to end at col 2
+    let _ = crate::features::sheet::navigation::navigate_grid(
+        &mut state,
+        crate::features::sheet::navigation::NavDirection::Right,
+        true,
+    );
+    assert_eq!(state.selection.unwrap().start, CellCoord { row: 1, col: 1 });
+    assert_eq!(state.selection.unwrap().end, CellCoord { row: 1, col: 2 });
 }

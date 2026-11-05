@@ -76,8 +76,8 @@ impl SearchKind {
             },
             Self::Spreadsheet => SearchMessages {
                 on_query: |q| crate::app::messages::SpreadsheetMsg::SearchQueryChanged(q).into(),
-                on_next: None,
-                on_prev: None,
+                on_next: Some(crate::app::messages::SpreadsheetMsg::SearchNext.into()),
+                on_prev: Some(crate::app::messages::SpreadsheetMsg::SearchPrev.into()),
                 on_close: crate::app::messages::SpreadsheetMsg::SearchClosed.into(),
             },
             Self::Grid => SearchMessages {

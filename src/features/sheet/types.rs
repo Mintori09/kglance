@@ -74,6 +74,13 @@ impl CellRange {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ColumnResizeState {
+    pub col_idx: usize,
+    pub start_x: f32,
+    pub initial_width: f32,
+}
+
 #[derive(Debug, Clone)]
 pub struct SpreadsheetState {
     pub sheets: Vec<SheetInfo>,
@@ -92,6 +99,12 @@ pub struct SpreadsheetState {
     pub sort_ascending: Option<bool>,
     pub search_visible: bool,
     pub search_query: String,
+    pub search_info: String,
+    pub search_matches: Vec<CellCoord>,
+    pub search_match_index: usize,
+    pub active_cell: Option<CellCoord>,
+    pub custom_col_widths: std::collections::HashMap<usize, f32>,
+    pub resizing_col: Option<ColumnResizeState>,
     pub scroll_x: f32,
     pub scroll_y: f32,
     pub viewport_width: f32,
@@ -108,30 +121,36 @@ impl SpreadsheetState {
     pub fn selected_text(&self) -> Option<String> {
         let range = self.selection?;
         let sheet = self.sheets.get(self.active_sheet)?;
-        let (min_r, max_r) = range.row_range();
-        let (min_c, max_c) = range.col_range();
+        crate::features::sheet::clipboard::build_tsv_text(sheet, &self.display_indices, range)
+    }
 
-        let mut lines = Vec::new();
-        for r in min_r..=max_r {
-            if let Some(row_data) = self
-                .display_indices
-                .get(r)
-                .and_then(|&orig_idx| sheet.rows.get(orig_idx))
-            {
-                let mut row_cells = Vec::new();
-                for c in min_c..=max_c {
-                    let cell_text = row_data.get(c).map(String::as_str).unwrap_or("");
-                    row_cells.push(cell_text);
-                }
-                lines.push(row_cells.join("\t"));
-            }
-        }
+    pub fn selected_html(&self) -> Option<String> {
+        let range = self.selection?;
+        let sheet = self.sheets.get(self.active_sheet)?;
+        crate::features::sheet::clipboard::build_html_table(sheet, &self.display_indices, range)
+    }
 
-        if lines.is_empty() {
-            None
-        } else {
-            Some(lines.join("\n"))
-        }
+    pub fn active_cell_info(&self) -> Option<(String, String)> {
+        let sheet = self.sheets.get(self.active_sheet)?;
+        let coord = self
+            .active_cell
+            .or_else(|| self.selection.map(|s| s.start))?;
+        let orig_idx = *self.display_indices.get(coord.row)?;
+        let row_data = sheet.rows.get(orig_idx)?;
+        let cell_text = row_data.get(coord.col).cloned().unwrap_or_default();
+        let col_letter = crate::features::sheet::parser::column_index_to_letter(coord.col);
+        let addr = format!("{col_letter}{}", orig_idx + 1);
+        Some((addr, cell_text))
+    }
+
+    pub fn selection_stats(&self) -> Option<crate::features::sheet::stats::SelectionStats> {
+        let range = self.selection?;
+        let sheet = self.sheets.get(self.active_sheet)?;
+        Some(crate::features::sheet::stats::calculate_selection_stats(
+            sheet,
+            &self.display_indices,
+            range,
+        ))
     }
 }
 
@@ -154,6 +173,12 @@ impl Default for SpreadsheetState {
             sort_ascending: None,
             search_visible: false,
             search_query: String::new(),
+            search_info: String::new(),
+            search_matches: Vec::new(),
+            search_match_index: 0,
+            active_cell: None,
+            custom_col_widths: std::collections::HashMap::new(),
+            resizing_col: None,
             scroll_x: 0.0,
             scroll_y: 0.0,
             viewport_width: 1000.0,

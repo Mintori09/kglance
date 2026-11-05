@@ -1285,9 +1285,9 @@ impl KglanceApp {
                     Some(Message::MousePressed(0.0, 0.0))
                 }
             }
-            iced::Event::Mouse(iced::mouse::Event::ButtonReleased(iced::mouse::Button::Left)) => {
-                Some(Message::MouseReleased)
-            }
+            iced::Event::Mouse(iced::mouse::Event::ButtonReleased(iced::mouse::Button::Left))
+            | iced::Event::Mouse(iced::mouse::Event::CursorLeft)
+            | iced::Event::Window(iced::window::Event::Unfocused) => Some(Message::MouseReleased),
             iced::Event::Mouse(iced::mouse::Event::WheelScrolled { delta }) => {
                 let (dx, dy) = match delta {
                     iced::mouse::ScrollDelta::Lines { x, y } => (x * 80.0, y * 80.0),

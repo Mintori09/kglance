@@ -11,7 +11,26 @@ pub use crate::features::sheet::font::{
     row_number_col_width, scale_col_width, zoom_spreadsheet_font,
 };
 
-const CONTENT_SCROLL_ID: &str = "content_scroll";
+pub const CONTENT_SCROLL_ID: &str = "content_scroll";
+pub const HEADER_SCROLL_ID: &str = "header_scroll";
+pub const ROW_SCROLL_ID: &str = "row_scroll";
+
+pub fn sync_scroll_all(x: f32, y: f32) -> Task<Message> {
+    Task::batch(vec![
+        iced::widget::operation::scroll_to(
+            CONTENT_SCROLL_ID,
+            iced::widget::operation::AbsoluteOffset { x, y },
+        ),
+        iced::widget::operation::scroll_to(
+            HEADER_SCROLL_ID,
+            iced::widget::operation::AbsoluteOffset { x, y: 0.0 },
+        ),
+        iced::widget::operation::scroll_to(
+            ROW_SCROLL_ID,
+            iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+        ),
+    ])
+}
 
 pub fn compute_prefix_widths(columns: &[ColumnMeta], font_size: f32) -> Vec<f32> {
     let mut prefix = Vec::with_capacity(columns.len() + 1);
@@ -38,6 +57,7 @@ pub fn populate_state(state: &mut KglanceState, sheets: &[SheetInfo], active_she
     state.spreadsheet.sort_col = None;
     state.spreadsheet.sort_ascending = None;
     state.spreadsheet.selection = None;
+    state.spreadsheet.active_cell = None;
     state.spreadsheet.is_dragging = false;
     state.spreadsheet.is_dragging_row_headers = false;
     state.spreadsheet.auto_scroll_delta_y = None;
@@ -226,6 +246,7 @@ pub fn handle_sheet_tab_clicked(app: &mut KglanceApp, index: usize) -> Task<Mess
         app.state.spreadsheet.sort_col = None;
         app.state.spreadsheet.sort_ascending = None;
         app.state.spreadsheet.selection = None;
+        app.state.spreadsheet.active_cell = None;
         app.state.spreadsheet.scroll_x = 0.0;
         app.state.spreadsheet.scroll_y = 0.0;
         app.state.spreadsheet.smooth_scroll.stop(0.0);
@@ -294,6 +315,29 @@ pub fn handle_cell_released(app: &mut KglanceApp) -> Task<Message> {
     Task::none()
 }
 
+pub fn handle_select_all_cells(app: &mut KglanceApp) -> Task<Message> {
+    let sheet_state = &mut app.state.spreadsheet;
+    let total_rows = sheet_state.display_indices.len();
+    let col_count = sheet_state
+        .sheets
+        .get(sheet_state.active_sheet)
+        .map_or(0, |s| s.columns.len());
+
+    if total_rows > 0 && col_count > 0 {
+        let max_row = total_rows - 1;
+        let max_col = col_count - 1;
+        sheet_state.selection = Some(crate::features::sheet::CellRange {
+            start: crate::features::sheet::CellCoord { row: 0, col: 0 },
+            end: crate::features::sheet::CellCoord {
+                row: max_row,
+                col: max_col,
+            },
+        });
+        sheet_state.active_cell = Some(crate::features::sheet::CellCoord { row: 0, col: 0 });
+    }
+    Task::none()
+}
+
 pub fn handle_row_header_pressed(app: &mut KglanceApp, row: usize) -> Task<Message> {
     let is_shift = app.shift_held;
     let sheet_state = &mut app.state.spreadsheet;
@@ -355,13 +399,120 @@ pub fn handle_copy_selection(app: &mut KglanceApp) -> Task<Message> {
         .selected_text()
         .filter(|t| !t.is_empty())
     {
+        let html = app.state.spreadsheet.selected_html();
         let toast = app.show_toast("Copied selected!");
         return Task::batch(vec![
-            crate::core::clipboard::copy_to_clipboard(text, None),
+            crate::core::clipboard::copy_to_clipboard(text, html),
             toast,
         ]);
     }
     Task::none()
+}
+
+pub fn handle_column_header_pressed(app: &mut KglanceApp, col: usize) -> Task<Message> {
+    let is_shift = app.shift_held;
+    let sheet_state = &mut app.state.spreadsheet;
+    let total_rows = sheet_state.display_indices.len();
+    if total_rows > 0 {
+        let max_row = total_rows.saturating_sub(1);
+        sheet_state.is_dragging = false;
+        sheet_state.is_dragging_row_headers = false;
+        if is_shift {
+            if let Some(existing) = sheet_state.selection {
+                sheet_state.selection = Some(crate::features::sheet::CellRange {
+                    start: crate::features::sheet::CellCoord {
+                        row: 0,
+                        col: existing.start.col,
+                    },
+                    end: crate::features::sheet::CellCoord { row: max_row, col },
+                });
+            } else {
+                sheet_state.selection = Some(crate::features::sheet::CellRange {
+                    start: crate::features::sheet::CellCoord { row: 0, col },
+                    end: crate::features::sheet::CellCoord { row: max_row, col },
+                });
+            }
+        } else {
+            sheet_state.selection = Some(crate::features::sheet::CellRange {
+                start: crate::features::sheet::CellCoord { row: 0, col },
+                end: crate::features::sheet::CellCoord { row: max_row, col },
+            });
+            sheet_state.active_cell = Some(crate::features::sheet::CellCoord { row: 0, col });
+        }
+    }
+    Task::none()
+}
+
+pub fn handle_column_header_entered(app: &mut KglanceApp, col: usize) -> Task<Message> {
+    let sheet_state = &mut app.state.spreadsheet;
+    if sheet_state.is_dragging {
+        let total_rows = sheet_state.display_indices.len();
+        if total_rows > 0 {
+            let max_row = total_rows.saturating_sub(1);
+            if let Some(ref mut selection) = sheet_state.selection {
+                selection.end = crate::features::sheet::CellCoord { row: max_row, col };
+            }
+        }
+    }
+    Task::none()
+}
+
+pub fn handle_column_resize_started(
+    app: &mut KglanceApp,
+    col: usize,
+    cursor_x: f32,
+) -> Task<Message> {
+    crate::features::sheet::resize::start_column_resize(
+        &mut app.state.spreadsheet,
+        col,
+        cursor_x,
+        app.state.font_size,
+    );
+    Task::none()
+}
+
+pub fn handle_column_auto_fit(app: &mut KglanceApp, col: usize) -> Task<Message> {
+    if crate::features::sheet::resize::auto_fit_column(
+        &mut app.state.spreadsheet,
+        col,
+        app.state.font_size,
+    ) {
+        let scroll_x = app.state.spreadsheet.scroll_x;
+        let scroll_y = app.state.spreadsheet.scroll_y;
+        iced::widget::operation::scroll_to(
+            CONTENT_SCROLL_ID,
+            iced::widget::operation::AbsoluteOffset {
+                x: scroll_x,
+                y: scroll_y,
+            },
+        )
+    } else {
+        Task::none()
+    }
+}
+
+pub fn handle_next_sheet_tab(app: &mut KglanceApp) -> Task<Message> {
+    let total = app.state.spreadsheet.sheets.len();
+    if total > 1 {
+        let next = (app.state.spreadsheet.active_sheet + 1) % total;
+        handle_sheet_tab_clicked(app, next)
+    } else {
+        Task::none()
+    }
+}
+
+pub fn handle_prev_sheet_tab(app: &mut KglanceApp) -> Task<Message> {
+    let total = app.state.spreadsheet.sheets.len();
+    if total > 1 {
+        let prev = if app.state.spreadsheet.active_sheet == 0 {
+            total - 1
+        } else {
+            app.state.spreadsheet.active_sheet - 1
+        };
+        handle_sheet_tab_clicked(app, prev)
+    } else {
+        Task::none()
+    }
 }
 
 pub fn handle_column_clicked(app: &mut KglanceApp, col: usize) -> Task<Message> {
@@ -421,9 +572,97 @@ pub fn handle_search_query_changed(app: &mut KglanceApp, query: String) -> Task<
         sort.prefix_heights = prefix_heights;
         sort.total_content_height = total_h + header_height(font_size) + ROWS_LIST_SPACING;
         sort.total_content_width = compute_total_content_width(sheet, font_size);
+
+        // Find matching cells
+        let mut matches = Vec::new();
+        let query_lower = query.trim().to_lowercase();
+        if !query_lower.is_empty() {
+            for (disp_row, &orig_row) in sort.display_indices.iter().enumerate() {
+                if let Some(row_data) = sheet.rows.get(orig_row) {
+                    for (c, cell) in row_data.iter().enumerate() {
+                        if cell.to_lowercase().contains(&query_lower) {
+                            matches.push(crate::features::sheet::CellCoord {
+                                row: disp_row,
+                                col: c,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        sort.search_matches = matches;
+        sort.search_match_index = 0;
+
+        if !sort.search_matches.is_empty() {
+            sort.search_info = format!(
+                "{} of {} matches",
+                sort.search_match_index + 1,
+                sort.search_matches.len()
+            );
+        } else if !query.trim().is_empty() {
+            sort.search_info = "No matches".to_string();
+        } else {
+            sort.search_info.clear();
+        }
+
+        if let Some(&first_match) = sort.search_matches.first() {
+            sort.selection = Some(crate::features::sheet::CellRange::single(first_match));
+            sort.active_cell = Some(first_match);
+            if let Some(offset) =
+                crate::features::sheet::navigation::compute_scroll_into_view(sort, first_match)
+            {
+                return iced::widget::operation::scroll_to(CONTENT_SCROLL_ID, offset);
+            }
+        }
     }
 
     Task::none()
+}
+
+pub fn handle_search_next(app: &mut KglanceApp) -> Task<Message> {
+    let sort = &mut app.state.spreadsheet;
+    if sort.search_matches.is_empty() {
+        return Task::none();
+    }
+    sort.search_match_index = (sort.search_match_index + 1) % sort.search_matches.len();
+    sort.search_info = format!(
+        "{} of {} matches",
+        sort.search_match_index + 1,
+        sort.search_matches.len()
+    );
+    let target = sort.search_matches[sort.search_match_index];
+    sort.selection = Some(crate::features::sheet::CellRange::single(target));
+    sort.active_cell = Some(target);
+    if crate::features::sheet::navigation::compute_scroll_into_view(sort, target).is_some() {
+        sync_scroll_all(sort.scroll_x, sort.scroll_y)
+    } else {
+        Task::none()
+    }
+}
+
+pub fn handle_search_prev(app: &mut KglanceApp) -> Task<Message> {
+    let sort = &mut app.state.spreadsheet;
+    if sort.search_matches.is_empty() {
+        return Task::none();
+    }
+    if sort.search_match_index == 0 {
+        sort.search_match_index = sort.search_matches.len() - 1;
+    } else {
+        sort.search_match_index -= 1;
+    }
+    sort.search_info = format!(
+        "{} of {} matches",
+        sort.search_match_index + 1,
+        sort.search_matches.len()
+    );
+    let target = sort.search_matches[sort.search_match_index];
+    sort.selection = Some(crate::features::sheet::CellRange::single(target));
+    sort.active_cell = Some(target);
+    if crate::features::sheet::navigation::compute_scroll_into_view(sort, target).is_some() {
+        sync_scroll_all(sort.scroll_x, sort.scroll_y)
+    } else {
+        Task::none()
+    }
 }
 
 pub fn handle_search_closed(app: &mut KglanceApp) -> Task<Message> {
@@ -431,6 +670,9 @@ pub fn handle_search_closed(app: &mut KglanceApp) -> Task<Message> {
     let sort = &mut app.state.spreadsheet;
     sort.search_visible = false;
     sort.search_query.clear();
+    sort.search_info.clear();
+    sort.search_matches.clear();
+    sort.search_match_index = 0;
     sort.scroll_y = 0.0;
     sort.smooth_scroll.stop(0.0);
     sort.scroll_controller.stop(0.0);
@@ -512,7 +754,17 @@ pub fn handle_spreadsheet_scrolled(
     state.smooth_scroll_x.stop(x);
     state.scroll_controller_x.stop(x);
     state.scroll_x = x;
-    Task::none()
+
+    Task::batch(vec![
+        iced::widget::operation::scroll_to(
+            HEADER_SCROLL_ID,
+            iced::widget::operation::AbsoluteOffset { x, y: 0.0 },
+        ),
+        iced::widget::operation::scroll_to(
+            ROW_SCROLL_ID,
+            iced::widget::operation::AbsoluteOffset { x: 0.0, y },
+        ),
+    ])
 }
 
 pub fn handle_wheel_scrolled(
@@ -572,10 +824,7 @@ pub fn handle_wheel_scrolled(
                 if (new_y - prev_y).abs() > f32::EPSILON || (new_x - prev_x).abs() > f32::EPSILON {
                     state.scroll_y = new_y;
                     state.scroll_x = new_x;
-                    return iced::widget::operation::scroll_to(
-                        CONTENT_SCROLL_ID,
-                        iced::widget::operation::AbsoluteOffset { x: new_x, y: new_y },
-                    );
+                    return sync_scroll_all(new_x, new_y);
                 }
             }
             Task::none()
@@ -633,13 +882,7 @@ pub fn handle_wheel_scrolled(
                 }
             }
 
-            iced::widget::operation::scroll_to(
-                CONTENT_SCROLL_ID,
-                iced::widget::operation::AbsoluteOffset {
-                    x: state.scroll_x,
-                    y: state.scroll_y,
-                },
-            )
+            sync_scroll_all(state.scroll_x, state.scroll_y)
         }
     }
 }
@@ -690,13 +933,7 @@ pub fn handle_smooth_scroll_tick(app: &mut KglanceApp, now: std::time::Instant) 
     }
 
     if changed {
-        iced::widget::operation::scroll_to(
-            CONTENT_SCROLL_ID,
-            iced::widget::operation::AbsoluteOffset {
-                x: state.scroll_x,
-                y: state.scroll_y,
-            },
-        )
+        sync_scroll_all(state.scroll_x, state.scroll_y)
     } else {
         Task::none()
     }
@@ -783,13 +1020,7 @@ pub fn handle_auto_scroll_tick(app: &mut KglanceApp) -> Task<Message> {
     }
 
     if changed {
-        iced::widget::operation::scroll_to(
-            CONTENT_SCROLL_ID,
-            iced::widget::operation::AbsoluteOffset {
-                x: state.scroll_x,
-                y: state.scroll_y,
-            },
-        )
+        sync_scroll_all(state.scroll_x, state.scroll_y)
     } else {
         Task::none()
     }

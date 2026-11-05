@@ -76,6 +76,80 @@ impl super::KglanceApp {
             return task;
         }
 
+        if matches!(self.current_content, Some(PreviewData::Spreadsheet { .. })) {
+            if modifiers.alt() {
+                match key {
+                    iced::keyboard::Key::Named(Named::PageDown) => {
+                        return self
+                            .update(crate::app::messages::SpreadsheetMsg::NextSheetTab.into());
+                    }
+                    iced::keyboard::Key::Named(Named::PageUp) => {
+                        return self
+                            .update(crate::app::messages::SpreadsheetMsg::PrevSheetTab.into());
+                    }
+                    _ => {}
+                }
+            }
+
+            if !self.ctrl_held
+                && !modifiers.control()
+                && !modifiers.command()
+                && !self.state.spreadsheet.search_visible
+            {
+                let nav_dir = match &key {
+                    iced::keyboard::Key::Named(Named::ArrowUp) => {
+                        Some(crate::features::sheet::navigation::NavDirection::Up)
+                    }
+                    iced::keyboard::Key::Named(Named::ArrowDown) => {
+                        Some(crate::features::sheet::navigation::NavDirection::Down)
+                    }
+                    iced::keyboard::Key::Named(Named::ArrowLeft) => {
+                        Some(crate::features::sheet::navigation::NavDirection::Left)
+                    }
+                    iced::keyboard::Key::Named(Named::ArrowRight) => {
+                        Some(crate::features::sheet::navigation::NavDirection::Right)
+                    }
+                    iced::keyboard::Key::Named(Named::Home) => {
+                        Some(crate::features::sheet::navigation::NavDirection::Home)
+                    }
+                    iced::keyboard::Key::Named(Named::End) => {
+                        Some(crate::features::sheet::navigation::NavDirection::End)
+                    }
+                    iced::keyboard::Key::Named(Named::Tab) => {
+                        if self.shift_held {
+                            Some(crate::features::sheet::navigation::NavDirection::Left)
+                        } else {
+                            Some(crate::features::sheet::navigation::NavDirection::Right)
+                        }
+                    }
+                    iced::keyboard::Key::Named(Named::Enter) => {
+                        if self.shift_held {
+                            Some(crate::features::sheet::navigation::NavDirection::Up)
+                        } else {
+                            Some(crate::features::sheet::navigation::NavDirection::Down)
+                        }
+                    }
+                    _ => None,
+                };
+
+                if let Some(dir) = nav_dir {
+                    if crate::features::sheet::navigation::navigate_grid(
+                        &mut self.state.spreadsheet,
+                        dir,
+                        self.shift_held,
+                    )
+                    .is_some()
+                    {
+                        return crate::features::sheet::update::sync_scroll_all(
+                            self.state.spreadsheet.scroll_x,
+                            self.state.spreadsheet.scroll_y,
+                        );
+                    }
+                    return Task::none();
+                }
+            }
+        }
+
         if matches!(key, iced::keyboard::Key::Named(Named::Tab)) {
             self.stop_active_scroll_animations();
             return self.update(crate::app::messages::NavigationMsg::ToggleViewMode.into());

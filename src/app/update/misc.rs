@@ -382,6 +382,7 @@ pub fn handle_mouse_released(app: &mut KglanceApp) -> Task<Message> {
     app.state.spreadsheet.is_dragging_row_headers = false;
     app.state.spreadsheet.auto_scroll_delta_y = None;
     app.state.spreadsheet.auto_scroll_delta_x = None;
+    crate::features::sheet::resize::end_column_resize(&mut app.state.spreadsheet);
     app.state.pdf.is_selecting = false;
     app.state.pdf.auto_scroll_delta = None;
     crate::features::pdf::selection::handle_selection_drag_end(&mut app.state.pdf);
@@ -610,6 +611,14 @@ pub fn handle_mouse_moved(app: &mut KglanceApp, x: f32, y: f32) -> Task<Message>
         } else {
             s.auto_scroll_delta_x = None;
         }
+    }
+
+    if app.state.spreadsheet.resizing_col.is_some() {
+        crate::features::sheet::resize::update_column_resize(
+            &mut app.state.spreadsheet,
+            x,
+            app.state.font_size,
+        );
     }
 
     for (resizing, start_x, start_w, width, min, max) in [

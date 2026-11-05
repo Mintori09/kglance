@@ -47,6 +47,17 @@ fn left_metadata_text(state: &KglanceState) -> String {
     } else if !state.text.document.as_str().is_empty() {
         let lines = state.text.document.total_lines();
         parts.push(format!("{lines} lines"));
+    } else if let Some(sheet) = state.spreadsheet.sheets.get(state.spreadsheet.active_sheet) {
+        let rows = sheet.rows.len();
+        let cols = sheet.columns.len();
+        if rows > 0 || cols > 0 {
+            parts.push(format!("{rows} rows × {cols} cols"));
+        }
+        if let Some(stats) = state.spreadsheet.selection_stats()
+            && let Some(summary) = stats.format_summary()
+        {
+            parts.push(summary);
+        }
     }
 
     parts.join(" • ")
