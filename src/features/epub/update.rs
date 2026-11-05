@@ -70,11 +70,18 @@ pub fn ensure_chapter_loaded(app: &mut KglanceApp, idx: usize) {
                     chapters: preview_chapters,
                     ..
                 }) = &mut app.current_content
-                    && let Some(preview_ch) = preview_chapters.get_mut(idx)
                 {
-                    preview_ch.blocks = blocks.clone();
+                    for preview_ch in preview_chapters.iter_mut() {
+                        if preview_ch.file_href == chapter_file_href {
+                            preview_ch.blocks = blocks.clone();
+                        }
+                    }
                 }
-                app.state.epub.chapters[idx].blocks = blocks;
+                for ch in app.state.epub.chapters.iter_mut() {
+                    if ch.file_href == chapter_file_href {
+                        ch.blocks = blocks.clone();
+                    }
+                }
             } else if !path_str.is_empty() {
                 let path = std::path::Path::new(&path_str);
                 if let Ok((new_blocks, new_images, new_styles)) =
@@ -93,12 +100,18 @@ pub fn ensure_chapter_loaded(app: &mut KglanceApp, idx: usize) {
                         for (k, v) in new_images {
                             images.insert(k, v);
                         }
-                        if let Some(preview_ch) = preview_chapters.get_mut(idx) {
-                            preview_ch.blocks = new_blocks.clone();
+                        for preview_ch in preview_chapters.iter_mut() {
+                            if preview_ch.file_href == chapter_file_href {
+                                preview_ch.blocks = new_blocks.clone();
+                            }
                         }
                     }
                     app.state.epub.markdown_state.block_styles = new_styles;
-                    app.state.epub.chapters[idx].blocks = new_blocks;
+                    for ch in app.state.epub.chapters.iter_mut() {
+                        if ch.file_href == chapter_file_href {
+                            ch.blocks = new_blocks.clone();
+                        }
+                    }
                 }
             }
         }
