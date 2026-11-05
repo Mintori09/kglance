@@ -6,13 +6,6 @@ use kglance::engine::build_registry;
 use kglance::{dbus, log_error, log_info};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Prefer pure Vulkan backend if not explicitly overridden, bypassing GL/GLES probing.
-    if std::env::var_os("WGPU_BACKEND").is_none() {
-        // SAFETY: Called at the very beginning of main before any threads are spawned.
-        unsafe {
-            std::env::set_var("WGPU_BACKEND", "vulkan");
-        }
-    }
     let args: Vec<String> = std::env::args().collect();
 
     let file_paths: Vec<String> = args
