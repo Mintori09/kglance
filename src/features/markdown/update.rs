@@ -699,6 +699,58 @@ pub fn start_smooth_scroll(state: &mut crate::core::MarkdownState, target_y: f32
         .start_navigation(state.scroll_y, target_y, max_y);
 }
 
+pub fn handle_table_scrolled(app: &mut KglanceApp, block_index: usize, x: f32) -> Task<Message> {
+    let state = active_markdown_state_mut(app);
+    state.table_scroll_offsets.insert(block_index, x);
+    Task::none()
+}
+
+fn find_table_under_cursor<'a>(
+    blocks: &'a [Block],
+    state: &crate::core::MarkdownState,
+    cursor: iced::Point,
+) -> Option<(usize, &'a crate::parsers::markdown::TableBlock)> {
+    if state.block_y_offsets.is_empty() {
+        return None;
+    }
+
+    let pad_top = crate::parsers::markdown::layout_constants::CONTENT_PADDING;
+    let page_y = cursor.y + state.scroll_y - pad_top;
+    if page_y < 0.0 {
+        return None;
+    }
+
+    // Binary search the block index whose offset is <= page_y
+    let block_idx = match state.block_y_offsets.binary_search_by(|probe| {
+        probe
+            .partial_cmp(&page_y)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    }) {
+        Ok(idx) => idx,
+        Err(idx) => idx.saturating_sub(1),
+    };
+
+    if block_idx >= blocks.len() {
+        return None;
+    }
+
+    // Check if the block is indeed a Table
+    if let Block::Table(table) = &blocks[block_idx] {
+        let block_top = state.block_y_offsets[block_idx];
+        let block_height = state
+            .block_layouts
+            .get(block_idx)
+            .map_or(0.0, |l| l.effective_height());
+        let block_bottom = block_top + block_height;
+
+        if page_y >= block_top && page_y <= block_bottom {
+            return Some((block_idx, table));
+        }
+    }
+
+    None
+}
+
 pub fn handle_smooth_wheel_scrolled(
     app: &mut KglanceApp,
     delta: iced::mouse::ScrollDelta,
@@ -753,7 +805,53 @@ pub fn handle_smooth_wheel_scrolled(
     let max_y = extent.max_scroll_y();
 
     match delta {
-        iced::mouse::ScrollDelta::Lines { y, .. } => {
+        iced::mouse::ScrollDelta::Lines { x, y } => {
+            let mut table_task = Task::none();
+            if x.abs() > f32::EPSILON
+                && let Some(cursor) = app.state.last_cursor_position
+            {
+                let maybe_table_info = match &app.current_content {
+                    Some(PreviewData::Markdown { blocks, .. }) => {
+                        let state = &app.state.markdown;
+                        find_table_under_cursor(blocks, state, cursor)
+                            .map(|(idx, tbl)| (idx, tbl.clone()))
+                    }
+                    Some(PreviewData::Epub { .. }) => {
+                        let blocks = app.state.epub.active_blocks();
+                        let state = &app.state.epub.markdown_state;
+                        find_table_under_cursor(blocks, state, cursor)
+                            .map(|(idx, tbl)| (idx, tbl.clone()))
+                    }
+                    _ => None,
+                };
+
+                if let Some((table_idx, table)) = maybe_table_info {
+                    let content_w = (win_w - 60.0).max(100.0);
+                    let total_table_w =
+                        crate::features::markdown::view::components::estimate_table_total_width(
+                            &table, font_size, content_w,
+                        );
+                    let max_scroll_x = (total_table_w - content_w).max(0.0);
+                    let state = active_markdown_state_mut(app);
+                    let curr_x = state
+                        .table_scroll_offsets
+                        .get(&table_idx)
+                        .copied()
+                        .unwrap_or(0.0);
+                    let step_x = -x * (font_size * 4.0);
+                    let next_x = (curr_x + step_x).clamp(0.0, max_scroll_x);
+
+                    if (next_x - curr_x).abs() > f32::EPSILON {
+                        state.table_scroll_offsets.insert(table_idx, next_x);
+                        table_task = iced::widget::operation::scroll_to(
+                            crate::features::markdown::view::components::table_scroll_id(table_idx),
+                            iced::widget::operation::AbsoluteOffset { x: next_x, y: 0.0 },
+                        );
+                    }
+                }
+            }
+
+            let state = active_markdown_state_mut(app);
             if y.abs() > f32::EPSILON {
                 state.scroll_controller.stop(state.scroll_y);
                 let line_height =
@@ -773,17 +871,71 @@ pub fn handle_smooth_wheel_scrolled(
                         let toc_task = scroll_toc_to_active(state, new_y, detection_offset);
                         let epub_task = sync_epub_active_chapter_on_scroll(app, new_y);
                         app.record_read_position();
-                        return Task::batch([scroll_task, toc_task, epub_task]);
+                        return Task::batch([scroll_task, toc_task, epub_task, table_task]);
                     }
                 }
             }
-            Task::none()
+            table_task
         }
         iced::mouse::ScrollDelta::Pixels { x, y } => {
-            let now = std::time::Instant::now();
-            let scaled_delta_y = -y * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
+            let mut table_task = Task::none();
             let scaled_delta_x = -x * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
+            let scaled_delta_y = -y * crate::core::scroll::TOUCHPAD_SCROLL_MULTIPLIER;
 
+            if scaled_delta_x.abs() > f32::EPSILON
+                && let Some(cursor) = app.state.last_cursor_position
+            {
+                let content_w = (win_w - 60.0).max(100.0);
+                let maybe_table_info = match &app.current_content {
+                    Some(PreviewData::Markdown { blocks, .. }) => {
+                        let state = &app.state.markdown;
+                        find_table_under_cursor(blocks, state, cursor).map(|(idx, tbl)| {
+                            let w = crate::features::markdown::view::components::estimate_table_total_width(
+                                tbl, font_size, content_w,
+                            );
+                            (idx, w)
+                        })
+                    }
+                    Some(PreviewData::Epub { .. }) => {
+                        let blocks = app.state.epub.active_blocks();
+                        let state = &app.state.epub.markdown_state;
+                        find_table_under_cursor(blocks, state, cursor).map(|(idx, tbl)| {
+                            let w = crate::features::markdown::view::components::estimate_table_total_width(
+                                tbl, font_size, content_w,
+                            );
+                            (idx, w)
+                        })
+                    }
+                    _ => None,
+                };
+
+                if let Some((table_idx, total_table_w)) = maybe_table_info {
+                    let content_w = match &app.current_content {
+                        Some(PreviewData::Markdown { .. }) => app.state.markdown_content_width(),
+                        Some(PreviewData::Epub { .. }) => app.state.epub_content_width(),
+                        _ => win_w - 60.0,
+                    };
+                    let max_scroll_x = (total_table_w - content_w).max(0.0);
+                    let state = active_markdown_state_mut(app);
+                    let curr_x = state
+                        .table_scroll_offsets
+                        .get(&table_idx)
+                        .copied()
+                        .unwrap_or(0.0);
+                    let next_x = (curr_x + scaled_delta_x).clamp(0.0, max_scroll_x);
+
+                    if (next_x - curr_x).abs() > f32::EPSILON {
+                        state.table_scroll_offsets.insert(table_idx, next_x);
+                        table_task = iced::widget::operation::scroll_to(
+                            crate::features::markdown::view::components::table_scroll_id(table_idx),
+                            iced::widget::operation::AbsoluteOffset { x: next_x, y: 0.0 },
+                        );
+                    }
+                }
+            }
+
+            let now = std::time::Instant::now();
+            let state = active_markdown_state_mut(app);
             state.scroll_controller.set_position_y(state.scroll_y);
             state.scroll_controller.handle_input(
                 crate::core::scroll::ScrollInput::Motion {
@@ -806,7 +958,7 @@ pub fn handle_smooth_wheel_scrolled(
             let toc_task = scroll_toc_to_active(state, new_y, detection_offset);
             let epub_task = sync_epub_active_chapter_on_scroll(app, new_y);
             app.record_read_position();
-            Task::batch([scroll_task, toc_task, epub_task])
+            Task::batch([scroll_task, toc_task, epub_task, table_task])
         }
     }
 }

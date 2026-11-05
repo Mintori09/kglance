@@ -239,6 +239,7 @@ pub fn render_selection_menu_layer<'a>(state: &'a KglanceState) -> Option<Elemen
                         show_heading_divider: true,
                         is_epub: false,
                         epub_override_book_font: false,
+                        content_width: 500.0,
                     };
                     let el = crate::features::markdown::view::render_block(
                         i,

@@ -20,7 +20,7 @@ pub use flatten::{
 pub use handle::{parse_markdown, parse_to_blocks};
 pub use layout::{
     block_margin, block_margin_with_next, calculate_column_weights, estimated_block_height,
-    estimated_block_height_with_next, extract_toc, extract_toc_from_offsets,
+    estimated_block_height_with_next, extract_toc, extract_toc_from_offsets, inlines_metrics,
     intrinsic_block_height, is_caption_paragraph, rescale_markdown_scroll_y, slugify,
 };
 pub use mermaid::render_mermaid_to_png;

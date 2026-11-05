@@ -267,9 +267,46 @@ pub(super) fn table_separator_style(theme: AppTheme) -> container::Style {
     }
 }
 
-pub(super) fn table_row_background_style(_theme: AppTheme) -> container::Style {
+pub(super) fn table_row_background_style(
+    theme: AppTheme,
+    is_alternate: bool,
+    is_last: bool,
+) -> container::Style {
+    let bg = if is_alternate {
+        Some(theme.palette().base.surface_raised.into())
+    } else {
+        None
+    };
+    let r = STYLE.table.border_radius;
+    let radius = if is_last {
+        iced::border::Radius {
+            top_left: 0.0,
+            top_right: 0.0,
+            bottom_right: r,
+            bottom_left: r,
+        }
+    } else {
+        0.0.into()
+    };
     container::Style {
-        background: None,
+        background: bg,
+        border: Border {
+            radius,
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+pub(super) fn table_toolbar_badge_style(theme: AppTheme) -> container::Style {
+    let p = theme.palette().base;
+    container::Style {
+        background: Some(p.bg.into()),
+        text_color: Some(p.text_dim),
+        border: Border {
+            radius: STYLE.general.button_border_radius.into(),
+            ..Default::default()
+        },
         ..Default::default()
     }
 }

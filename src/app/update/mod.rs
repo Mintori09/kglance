@@ -712,6 +712,9 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             } => {
                 crate::features::markdown::measure::handle_block_measured(app, block_index, height)
             }
+            crate::app::messages::MarkdownMsg::TableScrolled { block_index, x } => {
+                crate::features::markdown::update::handle_table_scrolled(app, block_index, x)
+            }
             crate::app::messages::MarkdownMsg::TouchpadGestureEnded(event_time) => {
                 crate::features::markdown::update::handle_touchpad_gesture_ended(app, event_time)
             }

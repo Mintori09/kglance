@@ -408,6 +408,7 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
         touchpad_tracker: crate::core::scroll::TouchpadGestureTracker::default(),
         scroll_controller: crate::core::scroll::ScrollController::default(),
         block_styles: HashMap::new(),
+        table_scroll_offsets: HashMap::new(),
     };
 
     for (i, block) in blocks.iter().enumerate() {
