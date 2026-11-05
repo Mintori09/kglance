@@ -2806,6 +2806,16 @@ fn test_epub_parse_efficient_nodejs_file_if_present() {
             }
         }
     }
+
+    // Verify preface01.html loads readable blocks and is NOT hidden by #sbo-rt-content descendant selectors
+    let (pref_blocks, _pref_images, _pref_styles) =
+        super::load_chapter_content_and_images_from_epub(path, "preface01.html", None)
+            .expect("Failed to load preface01.html");
+    assert!(
+        pref_blocks.len() > 10,
+        "Preface must contain readable blocks, found: {}",
+        pref_blocks.len()
+    );
 }
 
 #[test]

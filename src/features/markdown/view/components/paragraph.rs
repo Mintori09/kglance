@@ -79,9 +79,14 @@ pub(crate) fn render_paragraph<'a>(
         None
     };
 
-    let base_color = style
-        .and_then(|s| s.color)
-        .map(|[r, g, b, a]| iced::Color::from_rgba8(r, g, b, a as f32 / 255.0));
+    let base_color = if ctx.is_epub {
+        // Enforce user rule: in EPUB, text colors follow the configured theme, not EPUB CSS
+        None
+    } else {
+        style
+            .and_then(|s| s.color)
+            .map(|[r, g, b, a]| iced::Color::from_rgba8(r, g, b, a as f32 / 255.0))
+    };
 
     let opts = InlineStyleOptions {
         base_weight: weight,
