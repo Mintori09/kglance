@@ -521,6 +521,10 @@ pub fn extract_html_blocks_meta(
                         | "pre"
                         | "ul"
                         | "ol"
+                        | "blockquote"
+                        | "aside"
+                        | "dd"
+                        | "dt"
                 ) {
                     if let Some(mut prev) = current_block.take() {
                         prev.is_empty = text_count == 0 && !matches!(prev.tag.as_str(), "hr");
@@ -575,6 +579,10 @@ pub fn extract_html_blocks_meta(
                         | "pre"
                         | "ul"
                         | "ol"
+                        | "blockquote"
+                        | "aside"
+                        | "dd"
+                        | "dt"
                 ) {
                     if let Some(mut prev) = current_block.take() {
                         prev.is_empty = text_count == 0 && !matches!(prev.tag.as_str(), "hr");
@@ -633,10 +641,9 @@ pub fn extract_html_blocks_meta(
                     continue;
                 }
 
-                if let Some(ref cur) = current_block
-                    && cur.tag == tag_str
+                if current_block.as_ref().is_some_and(|cur| cur.tag == tag_str)
+                    && let Some(mut block) = current_block.take()
                 {
-                    let mut block = current_block.take().unwrap();
                     block.is_empty = text_count == 0 && !matches!(block.tag.as_str(), "hr");
                     metas.push(block);
                     text_count = 0;

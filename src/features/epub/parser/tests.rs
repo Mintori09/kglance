@@ -633,6 +633,31 @@ fn test_extract_nav_and_cover_href_multi_properties() {
 }
 
 #[test]
+fn test_extract_html_blocks_meta_includes_blockquote_and_aside() {
+    let html = r#"
+        <html xmlns="http://www.w3.org/1999/xhtml">
+        <body>
+            <blockquote class="famous-quote">Direct quote without p tag</blockquote>
+            <p class="chapter-lead">Lead paragraph following quote</p>
+            <aside class="sidebar-note">Sidebar aside note</aside>
+            <p class="body-text">Normal body text</p>
+        </body>
+        </html>
+    "#;
+    let metas = crate::features::common::parser::html::extract_html_blocks_meta(html, None);
+    let non_empty: Vec<_> = metas.into_iter().filter(|m| !m.is_empty).collect();
+    assert_eq!(non_empty.len(), 4);
+    assert_eq!(non_empty[0].tag, "blockquote");
+    assert_eq!(non_empty[0].classes, vec!["famous-quote"]);
+    assert_eq!(non_empty[1].tag, "p");
+    assert_eq!(non_empty[1].classes, vec!["chapter-lead"]);
+    assert_eq!(non_empty[2].tag, "aside");
+    assert_eq!(non_empty[2].classes, vec!["sidebar-note"]);
+    assert_eq!(non_empty[3].tag, "p");
+    assert_eq!(non_empty[3].classes, vec!["body-text"]);
+}
+
+#[test]
 fn test_extract_headings_from_html() {
     let html = r#"
         <html xmlns="http://www.w3.org/1999/xhtml">

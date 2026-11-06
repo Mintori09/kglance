@@ -191,7 +191,12 @@ pub fn extract_blocks_styles(
                 }
             }
             let is_compatible_tag = match block {
-                Block::Paragraph(..) => matches!(meta.tag.as_str(), "p" | "blockquote"),
+                Block::Paragraph(..) => {
+                    matches!(
+                        meta.tag.as_str(),
+                        "p" | "blockquote" | "aside" | "dd" | "dt"
+                    )
+                }
                 Block::Heading { .. } => matches!(
                     meta.tag.as_str(),
                     "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p"

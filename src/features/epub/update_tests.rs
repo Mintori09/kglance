@@ -1290,3 +1290,27 @@ fn test_ensure_chapter_loaded_propagates_shared_file_href() {
         assert_eq!(chapters[1].blocks.len(), 1);
     }
 }
+
+#[test]
+fn test_epub_gallery_image_paths_populated() {
+    let mut images = std::collections::HashMap::new();
+    images.insert("img/1.png".to_string(), vec![1, 2, 3]);
+    let chapters = vec![crate::core::types::EpubChapterInfo {
+        title: "Ch 1".into(),
+        level: 1,
+        anchor: None,
+        file_href: "ch1.xhtml".into(),
+        blocks: vec![crate::features::markdown::Block::Image {
+            path: "img/1.png".into(),
+            link_url: None,
+            width: None,
+            height: None,
+            alt: String::new(),
+        }],
+    }];
+    let mut state = crate::core::types::KglanceState::default();
+    crate::features::epub::state::populate_state(
+        &mut state, "Book", "Author", &chapters, 0, &images,
+    );
+    assert_eq!(state.epub.gallery_image_paths, vec!["img/1.png"]);
+}
