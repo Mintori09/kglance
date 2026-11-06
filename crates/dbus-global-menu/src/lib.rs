@@ -191,8 +191,23 @@ impl MenuHandle {
         updated
     }
 
+    /// Returns the current revision of the menu layout.
+    pub fn revision(&self) -> u32 {
+        *self.revision.read()
+    }
+
+    /// Increments the revision counter and emits a `LayoutUpdated(revision, 0)` D-Bus signal.
+    pub fn notify_layout_updated(&self) {
+        let new_rev = {
+            let mut rev = self.revision.write();
+            *rev += 1;
+            *rev
+        };
+        self.emit_layout_updated(new_rev, 0);
+    }
+
     /// Emits a `LayoutUpdated(revision, parent_id)` D-Bus signal.
-    fn emit_layout_updated(&self, revision: u32, parent_id: i32) {
+    pub fn emit_layout_updated(&self, revision: u32, parent_id: i32) {
         let conn = self.connection.clone();
         let path = self.object_path.clone();
         let emit_task = async move {
@@ -342,6 +357,7 @@ impl GlobalMenuBuilder {
             object_path: self.object_path,
             _dbus_connection: connection,
             binding: None,
+            bound_xid: None,
             handle,
         })
     }
@@ -353,6 +369,7 @@ pub struct GlobalMenu {
     object_path: String,
     _dbus_connection: zbus::Connection,
     binding: Option<PlasmaAppMenuBinding>,
+    bound_xid: Option<u32>,
     handle: MenuHandle,
 }
 
@@ -367,6 +384,32 @@ impl GlobalMenu {
         self.handle.clone()
     }
 
+    /// Detaches the currently bound window surface and releases desktop appmenu resources.
+    pub fn detach_window(&mut self) {
+        self.binding = None;
+        if let Some(xid) = self.bound_xid.take() {
+            let conn = self._dbus_connection.clone();
+            let detach_task = async move {
+                let _ = conn
+                    .call_method(
+                        Some("com.canonical.AppMenu.Registrar"),
+                        "/com/canonical/AppMenu/Registrar",
+                        Some("com.canonical.AppMenu.Registrar"),
+                        "UnregisterWindow",
+                        &(xid,),
+                    )
+                    .await;
+            };
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                handle.spawn(detach_task);
+            } else {
+                std::thread::spawn(move || {
+                    zbus::block_on(detach_task);
+                });
+            }
+        }
+    }
+
     /// Binds an application window to the desktop global menu bar.
     ///
     /// Automatically detects Wayland (`org_kde_kwin_appmenu`) or X11 (`com.canonical.AppMenu.Registrar`)
@@ -378,6 +421,9 @@ impl GlobalMenu {
     where
         W: HasDisplayHandle + HasWindowHandle + ?Sized,
     {
+        // First detach any previously bound window cleanly
+        self.detach_window();
+
         let raw_display = window
             .display_handle()
             .map_err(|e| format!("Failed to get display handle: {:?}", e))?
@@ -387,6 +433,12 @@ impl GlobalMenu {
             .map_err(|e| format!("Failed to get window handle: {:?}", e))?
             .as_raw();
 
+        let service_address = self
+            ._dbus_connection
+            .unique_name()
+            .map(|n| n.as_str())
+            .unwrap_or(&self.service_name);
+
         match (raw_display, raw_window) {
             (
                 raw_window_handle::RawDisplayHandle::Wayland(_),
@@ -395,10 +447,11 @@ impl GlobalMenu {
                 let binding = PlasmaAppMenuBinding::bind(
                     raw_display,
                     raw_window,
-                    &self.service_name,
+                    service_address,
                     &self.object_path,
                 )?;
                 self.binding = Some(binding);
+                self.handle.notify_layout_updated();
                 Ok(())
             }
             (
@@ -430,7 +483,10 @@ impl GlobalMenu {
                         )
                         .await;
                     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
-                })
+                })?;
+                self.bound_xid = Some(xid);
+                self.handle.notify_layout_updated();
+                Ok(())
             }
             _ => Err("Unsupported display or window backend".into()),
         }

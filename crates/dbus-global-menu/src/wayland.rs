@@ -122,3 +122,12 @@ impl PlasmaAppMenuBinding {
         })
     }
 }
+
+impl Drop for PlasmaAppMenuBinding {
+    fn drop(&mut self) {
+        if self.appmenu.is_alive() {
+            self.appmenu.release();
+            let _ = self.connection.flush();
+        }
+    }
+}
