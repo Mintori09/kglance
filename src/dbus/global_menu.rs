@@ -7,11 +7,12 @@ use tokio::sync::mpsc;
 pub const ID_FILE_ROOT: i32 = 100;
 pub const ID_FILE_OPEN: i32 = 101;
 pub const ID_FILE_OPEN_DOLPHIN: i32 = 102;
-pub const ID_FILE_COPY_PATH: i32 = 103;
 pub const ID_FILE_CLOSE: i32 = 104;
 
 pub const ID_EDIT_ROOT: i32 = 200;
 pub const ID_EDIT_COPY: i32 = 201;
+pub const ID_EDIT_SELECT_ALL: i32 = 202;
+pub const ID_EDIT_FIND: i32 = 203;
 
 pub const ID_VIEW_ROOT: i32 = 300;
 pub const ID_VIEW_WORD_WRAP: i32 = 301;
@@ -21,20 +22,18 @@ pub const ID_VIEW_THEME_SUBMENU: i32 = 320;
 
 pub const ID_THEME_BASE: i32 = 330;
 pub const THEME_ITEMS: &[(&str, &str)] = &[
-    ("Dark", "Dark"),
-    ("Light", "Light"),
-    ("Catppuccin Mocha", "CatppuccinMocha"),
-    ("Catppuccin Latte", "CatppuccinLatte"),
-    ("Tokyo Night", "TokyoNight"),
-    ("Gruvbox Dark", "GruvboxDark"),
-    ("Nord", "Nord"),
-    ("Dracula", "Dracula"),
-    ("Proper Dark", "ProperDark"),
+    ("Dark", "dark"),
+    ("Light", "light"),
+    ("Catppuccin Mocha", "catppuccin-mocha"),
+    ("Catppuccin Latte", "catppuccin-latte"),
+    ("Tokyo Night", "tokyo-night"),
+    ("Gruvbox Dark", "gruvbox-dark"),
+    ("Nord", "nord"),
+    ("Dracula", "dracula"),
+    ("Proper Dark", "proper-dark"),
 ];
 
 pub const ID_CONTEXT_ROOT: i32 = 400;
-pub const ID_HELP_ROOT: i32 = 900;
-pub const ID_HELP_ABOUT: i32 = 901;
 
 pub fn build_root_menu(config: &AppConfig, active_theme: &AppTheme) -> MenuItem {
     let mut root = MenuItem::new(0, "Root");
@@ -46,20 +45,29 @@ pub fn build_root_menu(config: &AppConfig, active_theme: &AppTheme) -> MenuItem 
         .with_shortcut_str("Return");
     let dolphin_item = MenuItem::new(ID_FILE_OPEN_DOLPHIN, "Open Containing Folder")
         .with_action("file.open_dolphin");
-    let copy_path_item = MenuItem::new(ID_FILE_COPY_PATH, "Copy Path")
-        .with_action("file.copy_path")
-        .with_shortcut_str("Ctrl+C");
     let close_item = MenuItem::new(ID_FILE_CLOSE, "Close Preview")
         .with_action("file.close")
         .with_shortcut_str("Escape");
 
-    file_menu.children = vec![open_item, dolphin_item, copy_path_item, close_item];
+    file_menu.children = vec![open_item, dolphin_item, close_item];
 
     // 2. Edit Menu
     let mut edit_menu = MenuItem::new(ID_EDIT_ROOT, "Edit");
-    let copy_selection =
-        MenuItem::new(ID_EDIT_COPY, "Copy Selection").with_action("edit.copy_selection");
-    edit_menu.children = vec![copy_selection];
+    let copy_item = MenuItem::new(ID_EDIT_COPY, "Copy Path")
+        .with_action("edit.copy")
+        .with_shortcut_str("Ctrl+C");
+    let select_all_item = MenuItem::new(ID_EDIT_SELECT_ALL, "Select All")
+        .with_action("edit.select_all")
+        .with_shortcut_str("Ctrl+A");
+    let find_item = MenuItem::new(ID_EDIT_FIND, "Find...")
+        .with_action("edit.find")
+        .with_shortcut_str("Ctrl+F");
+    edit_menu.children = vec![
+        copy_item,
+        select_all_item,
+        MenuItem::separator(290),
+        find_item,
+    ];
 
     // 3. View Menu
     let mut view_menu = MenuItem::new(ID_VIEW_ROOT, "View");
@@ -71,7 +79,7 @@ pub fn build_root_menu(config: &AppConfig, active_theme: &AppTheme) -> MenuItem 
     let toggle_wrap = MenuItem::new(ID_VIEW_WORD_WRAP, "Word Wrap")
         .with_checkbox(wrap_state)
         .with_action("toggle.word_wrap")
-        .with_shortcut_str("Alt+Z");
+        .with_shortcut_str("Ctrl+W");
 
     let scroll_state = if config.scroll.smooth_scroll_enabled {
         ToggleState::On
@@ -88,12 +96,10 @@ pub fn build_root_menu(config: &AppConfig, active_theme: &AppTheme) -> MenuItem 
 
     // Themes Submenu
     let mut theme_submenu = MenuItem::new(ID_VIEW_THEME_SUBMENU, "Theme");
-    let current_theme_name = format!("{active_theme:?}");
+    let current_theme_key = active_theme.name();
     let mut theme_children = Vec::new();
     for (idx, (label, theme_key)) in THEME_ITEMS.iter().enumerate() {
-        let is_active = current_theme_name.eq_ignore_ascii_case(theme_key)
-            || (*theme_key == "Dark" && current_theme_name == "KglanceDark")
-            || (*theme_key == "Light" && current_theme_name == "KglanceLight");
+        let is_active = current_theme_key == *theme_key;
         let toggle = if is_active {
             ToggleState::On
         } else {
@@ -115,15 +121,15 @@ pub fn build_root_menu(config: &AppConfig, active_theme: &AppTheme) -> MenuItem 
         preferences,
     ];
 
-    // 4. Dynamic Context Menu (empty by default)
-    let context_menu = MenuItem::new(ID_CONTEXT_ROOT, "Actions");
+    // 4. Dynamic Context Menu
+    let mut context_menu = MenuItem::new(ID_CONTEXT_ROOT, "Actions");
+    context_menu.children = vec![
+        MenuItem::new(499, "No specific actions")
+            .with_action("none")
+            .enabled(false),
+    ];
 
-    // 5. Help Menu
-    let mut help_menu = MenuItem::new(ID_HELP_ROOT, "Help");
-    let about = MenuItem::new(ID_HELP_ABOUT, "About Kglance").with_action("help.about");
-    help_menu.children = vec![about];
-
-    root.children = vec![file_menu, edit_menu, view_menu, context_menu, help_menu];
+    root.children = vec![file_menu, edit_menu, view_menu, context_menu];
     root
 }
 
@@ -158,11 +164,9 @@ pub fn sync_menu_states(handle: &MenuHandle, config: &AppConfig, active_theme: &
     };
     handle.set_toggle_state(ID_VIEW_SMOOTH_SCROLL, scroll_state);
 
-    let current_theme_name = format!("{active_theme:?}");
+    let current_theme_key = active_theme.name();
     for (idx, (_, theme_key)) in THEME_ITEMS.iter().enumerate() {
-        let is_active = current_theme_name.eq_ignore_ascii_case(theme_key)
-            || (*theme_key == "Dark" && current_theme_name == "KglanceDark")
-            || (*theme_key == "Light" && current_theme_name == "KglanceLight");
+        let is_active = current_theme_key == *theme_key;
         let toggle = if is_active {
             ToggleState::On
         } else {
@@ -170,6 +174,15 @@ pub fn sync_menu_states(handle: &MenuHandle, config: &AppConfig, active_theme: &
         };
         handle.set_toggle_state(ID_THEME_BASE + idx as i32, toggle);
     }
+}
+
+pub fn sync_copy_menu_label(handle: &MenuHandle, has_selection: bool) {
+    let label = if has_selection {
+        "Copy Selection"
+    } else {
+        "Copy Path"
+    };
+    handle.set_label(ID_EDIT_COPY, label);
 }
 
 pub fn update_context_menu(handle: &MenuHandle, content: Option<&PreviewData>) {
@@ -237,12 +250,12 @@ pub fn update_context_menu(handle: &MenuHandle, content: Option<&PreviewData>) {
                         .with_shortcut_str("T"),
                 );
             }
-            PreviewData::Media { .. } | PreviewData::Audio { .. } => {
-                label = "Media";
+            PreviewData::Audio { .. } => {
+                label = "Audio";
                 actions.push(
                     MenuItem::new(431, "Play / Pause")
                         .with_action("media.toggle_pause")
-                        .with_shortcut_str("Space"),
+                        .with_shortcut_str("P"),
                 );
                 actions.push(
                     MenuItem::new(432, "Mute / Unmute")
@@ -250,8 +263,42 @@ pub fn update_context_menu(handle: &MenuHandle, content: Option<&PreviewData>) {
                         .with_shortcut_str("M"),
                 );
             }
+            PreviewData::Media { .. } => {
+                label = "Video";
+                actions.push(
+                    MenuItem::new(431, "Play / Pause")
+                        .with_action("media.toggle_pause")
+                        .with_shortcut_str("P"),
+                );
+                actions.push(
+                    MenuItem::new(433, "Cycle Subtitles")
+                        .with_action("media.cycle_subtitles")
+                        .with_shortcut_str("C"),
+                );
+            }
+            PreviewData::Text { .. } | PreviewData::Markdown { .. } => {
+                label = "Document";
+                actions.push(
+                    MenuItem::new(405, "Toggle Outline / Table of Contents")
+                        .with_action("text.toggle_outline")
+                        .with_shortcut_str("T"),
+                );
+            }
+            PreviewData::Json { .. } => {
+                label = "JSON";
+                actions.push(
+                    MenuItem::new(406, "Toggle Tree / Raw View")
+                        .with_action("json.toggle_mode")
+                        .with_shortcut_str("Ctrl+M"),
+                );
+            }
             _ => {
                 label = "Actions";
+                actions.push(
+                    MenuItem::new(499, "No specific actions")
+                        .with_action("none")
+                        .enabled(false),
+                );
             }
         }
     }

@@ -264,6 +264,7 @@ impl KglanceApp {
             let cfg = self.load_config();
             crate::dbus::global_menu::sync_menu_states(handle, &cfg, &self.state.app_theme);
             crate::dbus::global_menu::update_context_menu(handle, self.current_content.as_ref());
+            self.sync_global_menu_copy_label();
         }
 
         if let Some(content) = self

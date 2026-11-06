@@ -160,35 +160,28 @@ fn is_allowed_link(link: &str) -> bool {
 }
 
 pub fn handle_theme_toggled(app: &mut KglanceApp) -> Task<Message> {
-    app.state.app_theme = app.state.app_theme.next_theme();
-    app.state.theme_setting = app.state.app_theme.display_name().to_string();
-    let theme = app.state.app_theme;
-    let text_scroll = app.state.text.scroll_y;
-    app.state.text.syntax_cache.clear();
-    app.state.text.cached_tokens.clear();
-    crate::features::text::update_tokens_for_viewport(&mut app.state.text, text_scroll, theme);
+    let new_theme = if app.state.app_theme.is_dark() {
+        crate::ui::theme::color::AppTheme::Light
+    } else {
+        crate::ui::theme::color::AppTheme::Dark
+    };
+    app.state.app_theme = new_theme;
+    app.state.theme_setting = new_theme.name().to_string();
 
-    let json_scroll = app.state.json.raw_text.scroll_y;
-    app.state.json.raw_text.syntax_cache.clear();
-    app.state.json.raw_text.cached_tokens.clear();
-    crate::features::text::update_tokens_for_viewport(
-        &mut app.state.json.raw_text,
-        json_scroll,
-        theme,
-    );
-
-    let typst_scroll = app.state.typst.source_text.scroll_y;
-    app.state.typst.source_text.syntax_cache.clear();
-    app.state.typst.source_text.cached_tokens.clear();
-    crate::features::text::update_tokens_for_viewport(
-        &mut app.state.typst.source_text,
-        typst_scroll,
-        theme,
-    );
+    app.state.for_each_text_state_mut(|st| {
+        let scroll = st.scroll_y;
+        st.syntax_cache.clear();
+        st.cached_tokens.clear();
+        crate::features::text::update_tokens_for_viewport(st, scroll, new_theme);
+    });
 
     let _ = app.save_current_config();
+    if let Some(ref handle) = app.menu_handle {
+        let cfg = app.load_config();
+        crate::dbus::global_menu::sync_menu_states(handle, &cfg, &new_theme);
+    }
 
-    app.show_toast(format!("Theme: {}", theme.display_name()))
+    app.show_toast(format!("Theme: {}", new_theme.display_name()))
 }
 
 pub fn handle_toast_dismissed(app: &mut KglanceApp, id: u64) -> Task<Message> {

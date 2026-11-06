@@ -320,7 +320,7 @@ impl ScrollController {
             return;
         }
 
-        let friction = KINETIC_FRICTION_COEFFICIENT;
+        let friction = self.physics.friction_coefficient.max(0.01);
         let cutoff_secs = (clamped_v.abs() / KINETIC_VELOCITY_CUTOFF).max(1.0).ln() / friction;
         let cutoff_time = Duration::from_secs_f32(cutoff_secs);
 
