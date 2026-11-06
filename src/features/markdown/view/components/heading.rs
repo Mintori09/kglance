@@ -66,6 +66,12 @@ pub(crate) fn render_heading<'a>(
             .or(color)
     };
 
+    // Clamp heading line-height to maintain tight typography and prevent excessive vertical spacing on wrapped lines
+    let heading_line_height = style
+        .and_then(|s| s.line_height)
+        .map(|lh| lh.clamp(1.15, 1.35))
+        .or(Some(1.25));
+
     let opts = InlineStyleOptions {
         base_weight: weight,
         base_style,
@@ -74,7 +80,7 @@ pub(crate) fn render_heading<'a>(
         prefix_text: None,
         base_underline: is_underline,
         base_strikethrough: is_strikethrough,
-        line_height: style.and_then(|s| s.line_height),
+        line_height: heading_line_height,
         font_family: style.and_then(|s| s.font_family.as_deref()),
     };
 
@@ -85,7 +91,7 @@ pub(crate) fn render_heading<'a>(
             s.effective_margin_left(),
             s.effective_margin_right(),
             s.effective_margin_top(),
-            s.effective_margin_bottom(),
+            s.effective_margin_bottom().min(24.0),
         ),
         None => (0.0, 0.0, 0.0, 0.0),
     };
