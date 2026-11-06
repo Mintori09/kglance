@@ -68,6 +68,12 @@ impl KglanceApp {
                 .send(crate::core::file_watcher::WatchCommand::Unwatch);
         }
 
+        if let Some(ref menu_arc) = self.global_menu
+            && let Ok(mut menu) = menu_arc.lock()
+        {
+            menu.detach_window();
+        }
+
         self.clear_media();
         self.current_content = None;
         self.state.reset_content_state();
@@ -172,16 +178,7 @@ impl KglanceApp {
 
         let (_, open_task) = window::open(settings);
 
-        open_task.map(move |opened_window_id| {
-            crate::app::messages::SystemMsg::WindowEvent(
-                opened_window_id,
-                WindowEvent::Opened {
-                    position: None,
-                    size: default_size,
-                },
-            )
-            .into()
-        })
+        open_task.map(|_| Message::None)
     }
 
     pub fn handle_window_event(
@@ -223,6 +220,12 @@ impl KglanceApp {
     }
 
     fn handle_window_opened(&mut self, window_id: window::Id, size: Size) -> Task<Message> {
+        if self.window_id == Some(window_id)
+            && self.is_gui_open.load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Task::none();
+        }
+
         self.window_id = Some(window_id);
         self.is_window_opening = false;
         self.is_gui_open
@@ -301,6 +304,12 @@ impl KglanceApp {
             let _ = watcher
                 .cmd_tx
                 .send(crate::core::file_watcher::WatchCommand::Unwatch);
+        }
+
+        if let Some(ref menu_arc) = self.global_menu
+            && let Ok(mut menu) = menu_arc.lock()
+        {
+            menu.detach_window();
         }
 
         self.clear_media();
@@ -406,5 +415,11 @@ mod tests {
         let _task = app.handle_window_opened(window_id, iced::Size::new(800.0, 600.0));
         assert!(!app.is_window_opening);
         assert_eq!(app.window_id, Some(window_id));
+
+        // Duplicate call with the same window_id while GUI is open should be ignored (idempotent)
+        let duplicate_task = app.handle_window_opened(window_id, iced::Size::new(800.0, 600.0));
+        assert_eq!(app.window_id, Some(window_id));
+        assert!(app.is_gui_open.load(std::sync::atomic::Ordering::Acquire));
+        let _ = duplicate_task;
     }
 }
