@@ -35,38 +35,6 @@ impl Default for InlineStyleOptions<'_> {
     }
 }
 
-pub fn render_inlines<'a>(
-    inlines: &[Inline],
-    font_size: f32,
-    ctx: &RenderContext<'_>,
-) -> Element<'a, Message> {
-    render_inlines_aligned(
-        inlines,
-        font_size,
-        None,
-        None,
-        iced::alignment::Horizontal::Left,
-        ctx,
-    )
-}
-
-pub fn render_inlines_styled<'a>(
-    inlines: &[Inline],
-    font_size: f32,
-    base_weight: Option<iced::font::Weight>,
-    base_color: Option<iced::Color>,
-    ctx: &RenderContext<'_>,
-) -> Element<'a, Message> {
-    render_inlines_aligned(
-        inlines,
-        font_size,
-        base_weight,
-        base_color,
-        iced::alignment::Horizontal::Left,
-        ctx,
-    )
-}
-
 pub fn render_inlines_aligned<'a>(
     inlines: &[Inline],
     font_size: f32,

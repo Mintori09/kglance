@@ -2,7 +2,9 @@ use super::style::STYLE;
 use crate::app::Message;
 use crate::core::config::RubyDisplayMode;
 use crate::features::markdown::view::blocks::render_block;
-use crate::features::markdown::view::components::{render_inlines, render_inlines_styled};
+use crate::features::markdown::view::components::inline::{
+    InlineStyleOptions, render_inlines_with_options,
+};
 use crate::parsers::markdown::{Block, Inline, ListItem};
 use crate::ui::components::selectable_text::ruby_top_padding;
 use crate::ui::types::RenderContext;
@@ -31,6 +33,7 @@ fn render_list_level<'a>(
 ) -> Element<'a, Message> {
     let mut item_elements = Vec::with_capacity(items.len());
     let list_style_type_none = block_style.is_some_and(|s| s.list_style_type_none);
+    let font_family = block_style.and_then(|s| s.font_family.as_deref());
 
     for (index, item) in items.iter().enumerate() {
         let has_direct_content =
@@ -40,17 +43,49 @@ fn render_list_level<'a>(
 
         if has_direct_content {
             let has_ruby = has_stacked_ruby(&item.content, ctx.ruby_display_mode);
-            let content = if item.is_task == Some(true) {
-                render_inlines_styled(
-                    &item.content,
-                    ctx.font_size,
-                    None,
-                    Some(ctx.theme.palette().base.text_dim),
-                    ctx,
-                )
-            } else {
-                render_inlines(&item.content, ctx.font_size, ctx)
+            let (weight, style, color, underline, strikethrough) = match block_style {
+                Some(s) => (
+                    if s.is_bold {
+                        Some(iced::font::Weight::Bold)
+                    } else {
+                        None
+                    },
+                    if s.is_italic {
+                        Some(iced::font::Style::Italic)
+                    } else {
+                        None
+                    },
+                    if ctx.is_epub {
+                        None
+                    } else {
+                        s.color
+                            .map(|[r, g, b, a]| iced::Color::from_rgba8(r, g, b, a as f32 / 255.0))
+                    },
+                    s.is_underline,
+                    s.is_strikethrough,
+                ),
+                None => (None, None, None, false, false),
             };
+
+            let (base_weight, base_color) = if item.is_task == Some(true) {
+                (None, Some(ctx.theme.palette().base.text_dim))
+            } else {
+                (weight, color)
+            };
+
+            let opts = InlineStyleOptions {
+                base_weight,
+                base_style: style,
+                base_color,
+                align_x: iced::alignment::Horizontal::Left,
+                prefix_text: None,
+                base_underline: underline,
+                base_strikethrough: strikethrough,
+                line_height: block_style.and_then(|s| s.line_height),
+                font_family,
+            };
+
+            let content = render_inlines_with_options(&item.content, ctx.font_size, opts, ctx);
 
             if list_style_type_none {
                 children.push(content);
