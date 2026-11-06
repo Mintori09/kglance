@@ -51,6 +51,7 @@ pub struct HtmlToMarkdownConverter<'a> {
     pre_lang: Option<String>,
     pre_buffer: String,
     in_code: bool,
+    pending_code_close: bool,
     in_table: bool,
     table_headers: Vec<String>,
     table_rows: Vec<Vec<String>>,
@@ -116,6 +117,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             pre_lang: None,
             pre_buffer: String::new(),
             in_code: false,
+            pending_code_close: false,
             in_table: false,
             table_headers: Vec::new(),
             table_rows: Vec::new(),
@@ -209,6 +211,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                     }
                 }
                 Ok(Event::Eof) | Err(_) => {
+                    self.flush_pending_code_close();
                     self.flush_pending_formats();
                     if self.in_ruby {
                         self.in_ruby = false;
@@ -256,6 +259,10 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                 self.hidden_tag_stack.push(name.to_string());
             }
             return;
+        }
+
+        if name != "code" {
+            self.flush_pending_code_close();
         }
 
         match name {
@@ -326,7 +333,13 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                     if self.pre_lang.is_none() {
                         self.pre_lang = extract_code_lang(e);
                     }
+                } else if self.pending_code_close {
+                    // Previous <code> just ended and another <code> starts immediately;
+                    // merge them into the same inline code span without emitting closing/opening backticks!
+                    self.pending_code_close = false;
+                    self.in_code = true;
                 } else {
+                    self.flush_pending_code_close();
                     self.in_code = true;
                     self.append_str("`");
                 }
@@ -815,6 +828,10 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             return;
         }
 
+        if name != "code" {
+            self.flush_pending_code_close();
+        }
+
         match name {
             "math" => {
                 self.in_math = false;
@@ -865,7 +882,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             "code" => {
                 if !self.in_pre {
                     self.in_code = false;
-                    self.append_str("`");
+                    self.pending_code_close = true;
                 }
             }
             "a" => {
@@ -1122,6 +1139,8 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             return;
         }
 
+        self.flush_pending_code_close();
+
         if !self.in_pre
             && let Some(id) = extract_id_or_name(e)
         {
@@ -1284,6 +1303,8 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             return;
         }
 
+        self.flush_pending_code_close();
+
         let normalized_text_storage: String;
         let text_to_append = if text_to_append.contains('´')
             || text_to_append.contains('`')
@@ -1390,6 +1411,25 @@ impl<'a> HtmlToMarkdownConverter<'a> {
 
     fn append_str(&mut self, s: &str) {
         self.current_target_mut().push_str(s);
+    }
+
+    fn flush_pending_code_close(&mut self) {
+        if self.pending_code_close {
+            self.pending_code_close = false;
+            let target = self.current_target_mut();
+            let trimmed_len = target
+                .trim_end_matches(|c: char| c.is_whitespace() || c == '\u{a0}')
+                .trim_end_matches("&nbsp;")
+                .len();
+            if trimmed_len < target.len() {
+                let trailing = target[trimmed_len..].to_string();
+                target.truncate(trimmed_len);
+                target.push('`');
+                target.push_str(&trailing);
+            } else {
+                target.push('`');
+            }
+        }
     }
 
     fn append_closing_format(&mut self, fmt: InlineFormat) {

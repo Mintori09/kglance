@@ -2958,3 +2958,31 @@ fn test_callout_internal_heading_does_not_desync_blocks() {
         );
     }
 }
+
+#[test]
+fn test_convert_html_adjacent_code_tags_merged() {
+    let html = r#"<p>Element <code class="inlineCode">&lt;</code><code class="inlineCode">div</code><code class="inlineCode"> id="app"/</code><code class="inlineCode">&gt;</code> rendered.</p>"#;
+    let md = convert_html_to_markdown(html);
+    assert_eq!(md, r#"Element `<div id="app"/>` rendered."#);
+
+    let html_call = r#"<p>The <code class="inlineCode">onSubmit</code><code class="inlineCode">()</code> event.</p>"#;
+    let md_call = convert_html_to_markdown(html_call);
+    assert_eq!(md_call, "The `onSubmit()` event.");
+
+    let html_path = r#"<p>Path: <code class="inlineCode">/</code><code class="inlineCode">api</code><code class="inlineCode">/videos</code> endpoint.</p>"#;
+    let md_path = convert_html_to_markdown(html_path);
+    assert_eq!(md_path, "Path: `/api/videos` endpoint.");
+
+    // Real EPUB sample from Packt Spring Boot:
+    let html_packt = r#"<li class="bulletList-level-1"><code class="inlineCode">&lt;</code><code class="inlineCode">div</code><code class="inlineCode"> id="app"/</code><code class="inlineCode">&gt;</code> is the element that the React component <code class="inlineCode">&lt;</code><code class="inlineCode">App</code><code class="inlineCode"> /</code><code class="inlineCode">&gt;</code> will be rendered at per the <code class="inlineCode">document.getElementById</code><code class="inlineCode">("app")</code> from earlier in this section.</li>"#;
+    let md_packt = convert_html_to_markdown(html_packt);
+    assert!(md_packt.contains("`<div id=\"app\"/>`"));
+    assert!(md_packt.contains("`<App />`"));
+    assert!(md_packt.contains("`document.getElementById(\"app\")`"));
+    assert!(!md_packt.contains("``"));
+
+    // Ensure separate code tags with actual text or space between them are NOT merged
+    let html_separate = r#"<p>Call <code>foo()</code> or <code>bar()</code>.</p>"#;
+    let md_separate = convert_html_to_markdown(html_separate);
+    assert_eq!(md_separate, "Call `foo()` or `bar()`.");
+}
