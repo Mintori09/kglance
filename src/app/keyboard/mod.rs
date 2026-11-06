@@ -68,6 +68,13 @@ impl super::KglanceApp {
             return Task::none();
         }
 
+        if modifiers.alt()
+            && matches!(&key, iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("z"))
+            && let Some(task) = crate::features::text::update::handle_toggle_word_wrap(self)
+        {
+            return task;
+        }
+
         if let Some(task) = self.handle_folder_navigation(&key) {
             return task;
         }
@@ -293,8 +300,11 @@ impl super::KglanceApp {
 
         if matches!(self.current_content, Some(PreviewData::Image { .. })) {
             match &key {
-                iced::keyboard::Key::Character(c) if c == "=" => {
+                iced::keyboard::Key::Character(c) if c == "=" || c.eq_ignore_ascii_case("f") => {
                     return self.update(crate::app::messages::ImageMsg::FitToWindow.into());
+                }
+                iced::keyboard::Key::Character(c) if c == "1" => {
+                    return self.update(crate::app::messages::ImageMsg::DoubleClick.into());
                 }
                 iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("i") => {
                     return self.update(crate::app::messages::ImageMsg::ToggleInfo.into());

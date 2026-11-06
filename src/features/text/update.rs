@@ -846,6 +846,14 @@ pub fn handle_toggle_word_wrap(app: &mut KglanceApp) -> Option<Task<Message>> {
     if let Err(err) = app.save_current_config() {
         crate::log_error!("failed to save word-wrap preference: {err}");
     }
+    if let Some(ref handle) = app.menu_handle {
+        let state = if app.state.word_wrap {
+            dbus_global_menu::ToggleState::On
+        } else {
+            dbus_global_menu::ToggleState::Off
+        };
+        handle.set_toggle_state(crate::dbus::global_menu::ID_VIEW_WORD_WRAP, state);
+    }
 
     Some(Task::none())
 }

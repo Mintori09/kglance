@@ -5,7 +5,7 @@ use crate::app::KglanceApp;
 use crate::core::PreviewData;
 
 impl KglanceApp {
-    pub(super) fn handle_ctrl_shortcuts(
+    pub(crate) fn handle_ctrl_shortcuts(
         &mut self,
         key: &iced::keyboard::Key,
         modifiers: iced::keyboard::Modifiers,
@@ -21,7 +21,16 @@ impl KglanceApp {
         let shift_active = self.shift_held || modifiers.shift();
 
         match c {
-            "c" | "C" | "\u{3}" => self.handle_ctrl_copy(),
+            "c" | "C" | "\u{3}" => {
+                if shift_active {
+                    Some(self.handle_copy_path())
+                } else {
+                    Some(
+                        self.handle_ctrl_copy()
+                            .unwrap_or_else(|| self.handle_copy_path()),
+                    )
+                }
+            }
             "," => self.handle_toggle_settings(),
             "a" | "A" | "\u{1}" => self.handle_ctrl_a(),
             "t" | "T" | "\u{14}" => self.handle_toggle_theme(),
@@ -62,7 +71,7 @@ impl KglanceApp {
             }
             "f" | "F" | "\u{6}" => self.handle_ctrl_f(),
             "g" | "G" | "\u{7}" => self.handle_ctrl_g(),
-            "e" | "E" | "\u{5}" | "i" | "I" | "\t" | "P" | "p" | "\u{10}" => {
+            "e" | "E" | "\u{5}" | "i" | "I" | "\t" | "P" | "p" | "\u{10}" | "m" | "M" | "\r" => {
                 self.handle_json_shortcut(c)
             }
             "w" | "W" | "\u{17}" => crate::features::text::update::handle_toggle_word_wrap(self),
@@ -86,6 +95,7 @@ impl KglanceApp {
             "e" | "\u{5}" => crate::app::messages::JsonMsg::ExpandAll,
             "E" => crate::app::messages::JsonMsg::CollapseAll,
             "P" | "p" | "\u{10}" => crate::app::messages::JsonMsg::ToggleFormat,
+            "m" | "M" | "\r" => crate::app::messages::JsonMsg::ToggleMode,
             _ => return None,
         };
 
@@ -117,20 +127,7 @@ impl KglanceApp {
         }
     }
 
-    fn active_code_viewer(&self) -> Option<&crate::core::TextState> {
-        match self.current_content {
-            Some(PreviewData::Text { .. }) => Some(&self.state.text),
-            Some(PreviewData::Json { .. }) if !self.state.json.tree_mode => {
-                Some(&self.state.json.raw_text)
-            }
-            Some(PreviewData::Typst { .. }) if self.state.typst.show_source => {
-                Some(&self.state.typst.source_text)
-            }
-            _ => None,
-        }
-    }
-
-    fn handle_ctrl_a(&mut self) -> Option<Task<Message>> {
+    pub(crate) fn handle_ctrl_a(&mut self) -> Option<Task<Message>> {
         if let Some(viewer) = self.active_code_viewer_mut() {
             viewer.select_all();
             return Some(Task::none());
@@ -170,7 +167,7 @@ impl KglanceApp {
         }
     }
 
-    pub(super) fn handle_ctrl_copy(&mut self) -> Option<Task<Message>> {
+    pub(crate) fn handle_ctrl_copy(&mut self) -> Option<Task<Message>> {
         if let crate::core::SelectionMenuState::Result {
             content,
             selected_text,
@@ -311,7 +308,7 @@ impl KglanceApp {
         }
     }
 
-    fn handle_ctrl_f(&mut self) -> Option<Task<Message>> {
+    pub(crate) fn handle_ctrl_f(&mut self) -> Option<Task<Message>> {
         match self.current_content {
             Some(PreviewData::Json { .. }) => {
                 self.state.json.search_visible = !self.state.json.search_visible;

@@ -44,6 +44,10 @@ pub struct KglanceApp {
     pub bench_start_time: Option<std::time::Instant>,
     pub is_bench_mode: bool,
     pub perf_tx: Option<tokio::sync::mpsc::Sender<crate::dbus::PreviewDisplayedEvent>>,
+    pub global_menu: Option<std::sync::Arc<std::sync::Mutex<dbus_global_menu::GlobalMenu>>>,
+    pub menu_handle: Option<dbus_global_menu::MenuHandle>,
+    pub menu_action_rx:
+        std::sync::Arc<tokio::sync::Mutex<Option<tokio::sync::mpsc::UnboundedReceiver<String>>>>,
 }
 
 impl Default for KglanceApp {
@@ -69,6 +73,9 @@ impl Default for KglanceApp {
             bench_start_time: None,
             is_bench_mode: false,
             perf_tx: None,
+            global_menu: None,
+            menu_handle: None,
+            menu_action_rx: Arc::new(tokio::sync::Mutex::new(None)),
         }
     }
 }
@@ -77,6 +84,84 @@ impl KglanceApp {
     #[inline]
     pub fn is_window_active(&self) -> bool {
         !self.is_daemon || self.window_id.is_some()
+    }
+
+    #[inline]
+    pub fn active_code_viewer(&self) -> Option<&crate::core::TextState> {
+        match self.current_content {
+            Some(PreviewData::Text { .. }) => Some(&self.state.text),
+            Some(PreviewData::Json { .. }) if !self.state.json.tree_mode => {
+                Some(&self.state.json.raw_text)
+            }
+            Some(PreviewData::Typst { .. }) if self.state.typst.show_source => {
+                Some(&self.state.typst.source_text)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn has_selection(&self) -> bool {
+        if let crate::core::SelectionMenuState::Result {
+            content,
+            selected_text,
+            ..
+        } = &self.state.selection_menu
+        {
+            let copy_target = selected_text
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .unwrap_or(content.as_str());
+            if !copy_target.is_empty() {
+                return true;
+            }
+        }
+
+        if let crate::core::SelectionMenuState::Toolbar { selected_text, .. }
+        | crate::core::SelectionMenuState::Running { selected_text, .. } =
+            &self.state.selection_menu
+            && !selected_text.is_empty()
+        {
+            return true;
+        }
+
+        if let Some(viewer) = self.active_code_viewer() {
+            return viewer.selection.as_ref().is_some_and(|s| !s.is_empty());
+        }
+
+        match &self.current_content {
+            Some(crate::core::PreviewData::Spreadsheet { .. }) => {
+                self.state.spreadsheet.selection.is_some()
+            }
+            Some(crate::core::PreviewData::Json { .. }) if self.state.json.tree_mode => {
+                self.state.json.active_node.is_some()
+            }
+            Some(crate::core::PreviewData::Pdf { .. }) => self
+                .state
+                .pdf
+                .selected_text
+                .as_ref()
+                .is_some_and(|s| !s.is_empty()),
+            Some(crate::core::PreviewData::Typst { .. }) if !self.state.typst.show_source => self
+                .state
+                .pdf
+                .selected_text
+                .as_ref()
+                .is_some_and(|s| !s.is_empty()),
+            Some(
+                crate::core::PreviewData::Markdown { .. } | crate::core::PreviewData::Epub { .. },
+            ) => {
+                let md = crate::features::markdown::update::active_markdown_state(self);
+                md.selected_text.as_ref().is_some_and(|s| !s.is_empty())
+                    || md.selection_range.is_some()
+            }
+            _ => false,
+        }
+    }
+
+    pub fn sync_global_menu_copy_label(&self) {
+        if let Some(ref handle) = self.menu_handle {
+            crate::dbus::global_menu::sync_copy_menu_label(handle, self.has_selection());
+        }
     }
 
     pub fn current_config(&self) -> crate::core::config::AppConfig {
@@ -181,9 +266,9 @@ impl KglanceApp {
             theme_setting,
             font_size: config.ui.font_size,
             default_font_size: config.ui.font_size,
-            font_family: config.ui.font_family,
-            font_family_mono: config.ui.font_family_mono,
-            epub_font_family: config.ui.epub_font_family,
+            font_family: config.ui.font_family.clone(),
+            font_family_mono: config.ui.font_family_mono.clone(),
+            epub_font_family: config.ui.epub_font_family.clone(),
             epub_override_book_font: config.ui.epub_override_book_font,
             epub_reading_mode: config.ui.epub_reading_mode,
             ruby_display_mode: config.ui.ruby_display_mode,
@@ -227,6 +312,19 @@ impl KglanceApp {
                 .update_external_path(std::path::Path::new(&initial_paths[0]));
         }
 
+        let (action_tx, action_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+        let (global_menu, menu_handle) =
+            match crate::dbus::global_menu::init_global_menu(action_tx, &config, &app_theme) {
+                Ok((menu, handle)) => (
+                    Some(std::sync::Arc::new(std::sync::Mutex::new(menu))),
+                    Some(handle),
+                ),
+                Err(e) => {
+                    crate::log_error!("Failed to initialize Global Menu: {e}");
+                    (None, None)
+                }
+            };
+
         let app = Self {
             state,
             registry,
@@ -248,6 +346,9 @@ impl KglanceApp {
             bench_start_time: None,
             is_bench_mode: false,
             perf_tx: None,
+            global_menu,
+            menu_handle,
+            menu_action_rx: Arc::new(tokio::sync::Mutex::new(Some(action_rx))),
         };
 
         let task = if !initial_paths.is_empty() {
@@ -673,7 +774,12 @@ impl KglanceApp {
         }
 
         content.populate_state(&mut self.state);
+
+        if let Some(ref handle) = self.menu_handle {
+            crate::dbus::global_menu::update_context_menu(handle, Some(content));
+        }
         self.current_content = Some(content.clone());
+        self.sync_global_menu_copy_label();
     }
 
     fn prepare_markdown_tasks(&self, content: &PreviewData, file_path: &str) -> Vec<Task<Message>> {
@@ -1422,6 +1528,10 @@ impl KglanceApp {
             Subscription::none()
         };
 
+        let menu_sub = subscription::from_recipe(
+            crate::dbus::recipe_global_menu::GlobalMenuRecipe::new(self.menu_action_rx.clone()),
+        );
+
         Subscription::batch(vec![
             dbus_sub,
             event_sub,
@@ -1441,6 +1551,7 @@ impl KglanceApp {
             image_anim_sub,
             model3d_anim_sub,
             bench_frame_sub,
+            menu_sub,
         ])
     }
 
@@ -1552,6 +1663,9 @@ pub(crate) mod test_util {
             bench_start_time: None,
             is_bench_mode: false,
             perf_tx: None,
+            global_menu: None,
+            menu_handle: None,
+            menu_action_rx: Arc::new(tokio::sync::Mutex::new(None)),
         }
     }
 

@@ -7,6 +7,7 @@ use iced::Task;
 
 pub mod file;
 pub mod file_tree;
+pub mod global_menu;
 pub mod grid;
 pub mod misc;
 pub mod navigation;
@@ -29,6 +30,7 @@ fn get_active_lightbox_image_state(
 pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
     let task = update_message(app, message);
     sync_virtual_windows(app);
+    app.sync_global_menu_copy_label();
     task
 }
 
@@ -936,5 +938,6 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
         Message::MouseMoved(x, y) => misc::handle_mouse_moved(app, x, y),
         Message::MousePressed(x, y) => misc::handle_mouse_pressed(app, x, y),
         Message::MouseReleased => misc::handle_mouse_released(app),
+        Message::GlobalMenu(msg) => global_menu::handle_global_menu_msg(app, msg),
     }
 }

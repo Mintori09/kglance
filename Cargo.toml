@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "crates/dbus-global-menu"]
+
 [package]
 name = "kglance"
 version = "0.5.0"
@@ -8,6 +11,7 @@ repository = "https://github.com/Mintori09/kglance"
 authors = ["Mintori"]
 
 [dependencies]
+dbus-global-menu = { path = "crates/dbus-global-menu" }
 syntect = { version = "5.3.0", default-features = false, features = [
   "default-onig",
   "default-syntaxes",
