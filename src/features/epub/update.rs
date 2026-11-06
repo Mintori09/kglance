@@ -84,13 +84,22 @@ pub fn ensure_chapter_loaded(app: &mut KglanceApp, idx: usize) {
                 }
             } else if !path_str.is_empty() {
                 let path = std::path::Path::new(&path_str);
-                if let Ok((new_blocks, new_images, new_styles)) =
-                    crate::features::epub::parser::load_chapter_content_and_images_from_epub(
+                let cached_css = if !app.state.epub.cached_stylesheets.is_empty() {
+                    Some(&app.state.epub.cached_stylesheets)
+                } else {
+                    None
+                };
+                if let Ok(((new_blocks, new_images, new_styles), parsed_css)) =
+                    crate::features::epub::parser::load_chapter_content_and_images_cached(
                         path,
                         &chapter_file_href,
                         chapter_anchor.as_deref(),
+                        cached_css,
                     )
                 {
+                    if let Some(css) = parsed_css {
+                        app.state.epub.cached_stylesheets = css;
+                    }
                     if let Some(crate::core::PreviewData::Epub {
                         images,
                         chapters: preview_chapters,

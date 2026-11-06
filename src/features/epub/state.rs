@@ -157,6 +157,7 @@ pub fn populate_state(
     let old_sidebar = state.epub.sidebar_visible;
     let old_scroll = state.epub.markdown_state.scroll_y;
     let old_collapsed = std::mem::take(&mut state.epub.collapsed_chapters);
+    let mut old_stylesheets = std::mem::take(&mut state.epub.cached_stylesheets);
     let mut markdown_state = MarkdownState::default();
 
     let (loaded_chapters, chapter_block_offsets, effective_blocks) = match reading_mode {
@@ -196,17 +197,27 @@ pub fn populate_state(
                 .map(|ch| ch.blocks.as_slice())
                 .unwrap_or(&[]);
 
+            let cached_css = if !old_stylesheets.is_empty() {
+                Some(&old_stylesheets)
+            } else {
+                None
+            };
+
             if !state.file_name.is_empty()
                 && let Some(ch) = chapters.get(active_chapter)
                 && !ch.file_href.is_empty()
-                && let Ok((_, _, styles)) =
-                    crate::features::epub::parser::load_chapter_content_and_images_from_epub(
+                && let Ok(((_, _, styles), parsed_css)) =
+                    crate::features::epub::parser::load_chapter_content_and_images_cached(
                         std::path::Path::new(&state.file_name),
                         &ch.file_href,
                         ch.anchor.as_deref(),
+                        cached_css,
                     )
             {
                 markdown_state.block_styles = styles;
+                if let Some(css) = parsed_css {
+                    old_stylesheets = css;
+                }
             }
 
             let content_width = state.epub_content_width();
@@ -318,6 +329,7 @@ pub fn populate_state(
         lightbox: None,
         chapter_y_offsets: Vec::new(),
         gallery_image_paths,
+        cached_stylesheets: old_stylesheets,
     };
     crate::features::epub::view::sidebar::rebuild_chapter_y_offsets(&mut state.epub);
     state
