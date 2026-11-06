@@ -675,6 +675,12 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::MarkdownMsg::SearchClosed => {
                 crate::features::markdown::update::handle_search_closed(app)
             }
+            crate::app::messages::MarkdownMsg::SearchResultClicked(idx) => {
+                crate::features::markdown::update::handle_search_result_clicked(app, idx)
+            }
+            crate::app::messages::MarkdownMsg::SidebarTabChanged(tab) => {
+                crate::features::markdown::update::handle_sidebar_tab_changed(app, tab)
+            }
             crate::app::messages::MarkdownMsg::SidebarResized(w) => {
                 misc::handle_markdown_sidebar_resized(app, w)
             }

@@ -56,7 +56,6 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
         padding: 8,
     },
     toc: TocStyle {
-        scroll_offset_margin: 50.0,
         indent_per_level: crate::ui::components::sidebar::INDENT_PER_LEVEL,
         entry_font_size: crate::ui::components::sidebar::SIDEBAR_ENTRY_FONT_SIZE,
         entry_padding: [
@@ -66,7 +65,6 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
         container_padding: spacing::S,
         item_spacing: crate::ui::components::sidebar::SIDEBAR_ITEM_SPACING,
         chevron_placeholder_width: 15.0,
-        sidebar_border_width: crate::ui::components::sidebar::SIDEBAR_BORDER_WIDTH,
     },
 };
 
@@ -165,14 +163,12 @@ pub(crate) struct MathStyle {
 
 #[derive(Clone, Copy)]
 pub(crate) struct TocStyle {
-    pub scroll_offset_margin: f32,
     pub indent_per_level: f32,
     pub entry_font_size: f32,
     pub entry_padding: [u16; 2],
     pub container_padding: f32,
     pub item_spacing: f32,
     pub chevron_placeholder_width: f32,
-    pub sidebar_border_width: f32,
 }
 
 pub(crate) use crate::parsers::markdown::layout_constants::heading_layout;

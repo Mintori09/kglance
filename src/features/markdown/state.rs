@@ -407,6 +407,7 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
     state.markdown = MarkdownState {
         toc: extract_toc(blocks, fs, &old_image_s, content_width),
         toc_visible: old_toc_visible,
+        sidebar_tab: crate::features::markdown::types::MarkdownSidebarTab::default(),
         sidebar_width: sidebar_w,
         sidebar_resizing: false,
         sidebar_drag_start_x: None,
@@ -440,6 +441,7 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
         search_match_count: 0,
         search_match_index: 0,
         search_match_blocks: Vec::new(),
+        search_matches: Vec::new(),
         search_info: String::new(),
         selected_text: None,
         selection_range: None,

@@ -7,7 +7,7 @@ use crate::core::{PreviewData, ViewMode};
 const SPREADSHEET_SEARCH_INPUT_ID: &str = "ss_search_input";
 const GRID_SEARCH_INPUT_ID: &str = "grid_search_input";
 const TEXT_SEARCH_INPUT_ID: &str = "txt_search_input";
-const MARKDOWN_SEARCH_INPUT_ID: &str = "md_search_input";
+const MARKDOWN_SEARCH_INPUT_ID: &str = "md_sidebar_search_input";
 const JSON_SEARCH_INPUT_ID: &str = "json_search_input";
 const SEARCH_TRIGGER: &str = "/";
 
@@ -244,6 +244,9 @@ impl KglanceApp {
     }
 
     fn open_markdown_search(&mut self) -> Task<Message> {
+        self.state.markdown.toc_visible = true;
+        self.state.markdown.sidebar_tab =
+            crate::features::markdown::types::MarkdownSidebarTab::Search;
         self.state.markdown.search_visible = true;
         self.state.markdown.search_match_blocks.clear();
         iced::widget::operation::focus(MARKDOWN_SEARCH_INPUT_ID)

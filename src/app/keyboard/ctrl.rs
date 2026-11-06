@@ -355,29 +355,9 @@ impl KglanceApp {
                 }
             }
 
-            Some(PreviewData::Markdown { .. }) => {
-                self.state.markdown.search_visible = !self.state.markdown.search_visible;
-
-                let y = self.state.markdown.scroll_y;
-                let scroll_task = iced::widget::operation::scroll_to(
-                    "content_scroll",
-                    iced::widget::operation::AbsoluteOffset { x: 0.0, y },
-                );
-
-                if self.state.markdown.search_visible {
-                    Some(Task::batch([
-                        iced::widget::operation::focus("md_search_input"),
-                        scroll_task,
-                    ]))
-                } else {
-                    self.state.markdown.search_query.clear();
-                    self.state.markdown.search_match_count = 0;
-                    self.state.markdown.search_match_index = 0;
-                    self.state.markdown.search_match_blocks.clear();
-                    self.state.markdown.search_info.clear();
-                    Some(scroll_task)
-                }
-            }
+            Some(PreviewData::Markdown { .. }) => Some(
+                crate::features::markdown::update::handle_search_toggle(self),
+            ),
 
             Some(PreviewData::Epub { .. }) => {
                 // Ensure sidebar is open when opening search

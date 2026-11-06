@@ -172,37 +172,6 @@ pub(crate) fn active_markdown_state_mut(app: &mut KglanceApp) -> &mut crate::cor
     }
 }
 
-fn markdown_block_y_offset(
-    blocks: &[Block],
-    target_index: usize,
-    font_size: f32,
-    image_sizes: &std::collections::HashMap<String, (u32, u32)>,
-    content_width: f32,
-) -> f32 {
-    // This is an O(n) fallback that should never fire in practice:
-    // block_y_offsets is always populated before any search navigation.
-    // If this assertion fires, it means block_y_offsets was empty or stale.
-    crate::log_debug!(
-        "markdown_block_y_offset O(n) fallback fired for index {target_index}; \
-         block_y_offsets should have been populated"
-    );
-    let mut y: f32 = crate::features::markdown::parser::layout_constants::CONTENT_PADDING;
-    for (i, block) in blocks.iter().enumerate() {
-        if i == target_index {
-            return y;
-        }
-        y += crate::parsers::markdown::estimated_block_height_with_next(
-            block,
-            blocks.get(i + 1),
-            font_size,
-            i,
-            image_sizes,
-            content_width,
-        );
-    }
-    0.0
-}
-
 pub fn handle_toc_toggled(app: &mut KglanceApp) -> Task<Message> {
     app.state.markdown.toc_visible = !app.state.markdown.toc_visible;
     if app.state.markdown.toc_visible {
@@ -348,87 +317,99 @@ pub fn handle_markdown_scrolled(
 
 pub fn handle_search_toggle(app: &mut KglanceApp) -> Task<Message> {
     let s = &mut app.state.markdown;
-    s.search_visible = !s.search_visible;
-    let y = s.scroll_y;
-    let scroll_task =
-        operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y });
-    if !s.search_visible {
-        s.search_query.clear();
-        s.search_match_count = 0;
-        s.search_match_index = 0;
-        s.search_match_blocks.clear();
-        s.search_info.clear();
-        scroll_task
+    s.toc_visible = true;
+    s.sidebar_tab = crate::features::markdown::types::MarkdownSidebarTab::Search;
+    s.search_visible = true;
+    operation::focus("md_sidebar_search_input")
+}
+
+pub fn handle_sidebar_tab_changed(
+    app: &mut KglanceApp,
+    tab: crate::features::markdown::types::MarkdownSidebarTab,
+) -> Task<Message> {
+    let s = &mut app.state.markdown;
+    s.sidebar_tab = tab;
+    if tab == crate::features::markdown::types::MarkdownSidebarTab::Search {
+        operation::focus("md_sidebar_search_input")
     } else {
-        Task::batch([operation::focus("md_search_input"), scroll_task])
+        Task::none()
     }
+}
+
+pub fn handle_search_result_clicked(app: &mut KglanceApp, match_idx: usize) -> Task<Message> {
+    jump_to_search_match(app, match_idx)
+}
+
+fn jump_to_search_match(app: &mut KglanceApp, match_idx: usize) -> Task<Message> {
+    let s = &mut app.state.markdown;
+    let count = if !s.search_matches.is_empty() {
+        s.search_matches.len()
+    } else {
+        s.search_match_blocks.len()
+    };
+    if count == 0 || match_idx >= count {
+        return Task::none();
+    }
+    s.search_match_index = match_idx;
+    s.search_info = format!("{}/{}", match_idx + 1, count);
+    let block_idx = if let Some(m) = s.search_matches.get(match_idx) {
+        m.block_index
+    } else {
+        s.search_match_blocks[match_idx]
+    };
+    let raw_block_y = s.block_y_offsets.get(block_idx).copied().unwrap_or(0.0);
+    let vh = s.viewport_height;
+    let offset_padding = if vh > 0.0 {
+        (vh * 0.25).max(40.0)
+    } else {
+        40.0
+    };
+    let target_y = (raw_block_y - offset_padding).max(0.0);
+    let max_y = crate::core::scroll::max_scroll_y(s.total_content_height, vh);
+    let clamped_y = if max_y > 0.0 {
+        target_y.clamp(0.0, max_y)
+    } else {
+        target_y
+    };
+
+    s.scroll_controller.stop(s.scroll_y);
+    s.smooth_scroll
+        .start_navigation(s.scroll_y, clamped_y, max_y);
+    s.scroll_y = clamped_y;
+
+    crate::features::markdown::view::window::sync_window(
+        &mut s.virtual_window,
+        &s.block_y_offsets,
+        clamped_y,
+        vh,
+        crate::features::markdown::view::VIRTUAL_THRESHOLD,
+    );
+
+    operation::scroll_to(
+        "content_scroll",
+        operation::AbsoluteOffset {
+            x: 0.0,
+            y: clamped_y,
+        },
+    )
 }
 
 pub fn handle_search_query_changed(app: &mut KglanceApp, query: String) -> Task<Message> {
     let s = &mut app.state.markdown;
     s.search_query = query.clone();
     s.search_match_index = 0;
-    if query.is_empty() {
+    if query.trim().is_empty() {
         s.search_match_count = 0;
         s.search_match_blocks.clear();
+        s.search_matches.clear();
         s.search_info.clear();
     } else if let Some(PreviewData::Markdown { blocks, .. }) = &app.current_content {
-        let q = query.to_lowercase();
-        let mut count = 0;
-        let mut match_blocks = Vec::new();
-        for (bi, block) in blocks.iter().enumerate() {
-            let n = match block {
-                Block::CodeBlock { code, .. } | Block::Math(code) => {
-                    code.to_lowercase().matches(&q).count()
-                }
-                Block::Heading { content, .. } | Block::Paragraph(content) => {
-                    let text = crate::parsers::markdown::flatten_inlines(content);
-                    text.to_lowercase().matches(&q).count()
-                }
-                Block::Quote(inner) => {
-                    let mut inner_count = 0;
-                    for ib in inner {
-                        if let Block::Heading { content, .. } | Block::Paragraph(content) = ib {
-                            let text = crate::parsers::markdown::flatten_inlines(content);
-                            inner_count += text.to_lowercase().matches(&q).count();
-                        }
-                    }
-                    inner_count
-                }
-                Block::List { items, .. } => {
-                    let mut list_count = 0;
-                    for item in items {
-                        let text = crate::parsers::markdown::flatten_inlines(&item.content);
-                        list_count += text.to_lowercase().matches(&q).count();
-                        for lb in &item.sub_blocks {
-                            if let Block::Heading { content, .. } | Block::Paragraph(content) = lb {
-                                let sub_text = crate::parsers::markdown::flatten_inlines(content);
-                                list_count += sub_text.to_lowercase().matches(&q).count();
-                            }
-                        }
-                    }
-                    list_count
-                }
-                Block::Table(tbl) => {
-                    let mut tbl_count = 0;
-                    for r in &tbl.rows {
-                        for cell in r {
-                            let cell_text =
-                                crate::parsers::markdown::flatten_inlines(&cell.content);
-                            tbl_count += cell_text.to_lowercase().matches(&q).count();
-                        }
-                    }
-                    tbl_count
-                }
-                _ => 0,
-            };
-            for _ in 0..n {
-                match_blocks.push(bi);
-            }
-            count += n;
-        }
+        let matches = super::search::search_blocks(blocks, &query);
+        let count = matches.len();
+        let match_blocks: Vec<usize> = matches.iter().map(|m| m.block_index).collect();
         s.search_match_count = count;
         s.search_match_blocks = match_blocks;
+        s.search_matches = matches;
         s.search_info = if count > 0 {
             format!("1/{}", count)
         } else {
@@ -439,91 +420,31 @@ pub fn handle_search_query_changed(app: &mut KglanceApp, query: String) -> Task<
 }
 
 pub fn handle_search_next(app: &mut KglanceApp) -> Task<Message> {
-    if app.state.markdown.search_match_count > 0 {
-        let s = &mut app.state.markdown;
-        s.search_match_index = (s.search_match_index + 1) % s.search_match_count;
-        s.search_info = format!("{}/{}", s.search_match_index + 1, s.search_match_count);
-        let block_idx = s.search_match_blocks[s.search_match_index];
-        let y = s.block_y_offsets.get(block_idx).copied();
-        let y = match y {
-            Some(y) => y,
-            None => {
-                if let Some(PreviewData::Markdown { blocks, .. }) = &app.current_content {
-                    let cw = app.state.markdown_content_width();
-                    markdown_block_y_offset(
-                        blocks,
-                        block_idx,
-                        app.state.font_size,
-                        &app.state.markdown.cached_image_sizes,
-                        cw,
-                    )
-                } else {
-                    0.0
-                }
-            }
-        };
-        let s = &mut app.state.markdown;
-        let target_y = (y - s.viewport_height * 0.25).max(0.0);
-        let max_y = crate::core::scroll::max_scroll_y(s.total_content_height, s.viewport_height);
-        let target_y = target_y.min(max_y);
-        s.scroll_controller.stop(s.scroll_y);
-        s.smooth_scroll
-            .start_navigation(s.scroll_y, target_y, max_y);
-        let scroll_task = operation::scroll_to(
-            "content_scroll",
-            operation::AbsoluteOffset {
-                x: 0.0,
-                y: target_y,
-            },
-        );
-        return scroll_task;
+    let count = if !app.state.markdown.search_matches.is_empty() {
+        app.state.markdown.search_matches.len()
+    } else {
+        app.state.markdown.search_match_blocks.len()
+    };
+    if count > 0 {
+        let next_idx = (app.state.markdown.search_match_index + 1) % count;
+        return jump_to_search_match(app, next_idx);
     }
     Task::none()
 }
 
 pub fn handle_search_prev(app: &mut KglanceApp) -> Task<Message> {
-    if app.state.markdown.search_match_count > 0 {
-        let s = &mut app.state.markdown;
-        s.search_match_index = if s.search_match_index == 0 {
-            s.search_match_count - 1
+    let count = if !app.state.markdown.search_matches.is_empty() {
+        app.state.markdown.search_matches.len()
+    } else {
+        app.state.markdown.search_match_blocks.len()
+    };
+    if count > 0 {
+        let prev_idx = if app.state.markdown.search_match_index == 0 {
+            count - 1
         } else {
-            s.search_match_index - 1
+            app.state.markdown.search_match_index - 1
         };
-        s.search_info = format!("{}/{}", s.search_match_index + 1, s.search_match_count);
-        let block_idx = s.search_match_blocks[s.search_match_index];
-        let y = s.block_y_offsets.get(block_idx).copied();
-        let y = match y {
-            Some(y) => y,
-            None => {
-                if let Some(PreviewData::Markdown { blocks, .. }) = &app.current_content {
-                    let cw = app.state.markdown_content_width();
-                    markdown_block_y_offset(
-                        blocks,
-                        block_idx,
-                        app.state.font_size,
-                        &app.state.markdown.cached_image_sizes,
-                        cw,
-                    )
-                } else {
-                    0.0
-                }
-            }
-        };
-        let s = &mut app.state.markdown;
-        let target_y = (y - s.viewport_height * 0.25).max(0.0);
-        let max_y = crate::core::scroll::max_scroll_y(s.total_content_height, s.viewport_height);
-        let target_y = target_y.min(max_y);
-        s.scroll_controller.stop(s.scroll_y);
-        s.smooth_scroll
-            .start_navigation(s.scroll_y, target_y, max_y);
-        let scroll_task = operation::scroll_to(
-            "content_scroll",
-            operation::AbsoluteOffset {
-                x: 0.0,
-                y: target_y,
-            },
-        );
-        return scroll_task;
+        return jump_to_search_match(app, prev_idx);
     }
     Task::none()
 }
@@ -535,9 +456,10 @@ pub fn handle_search_closed(app: &mut KglanceApp) -> Task<Message> {
     s.search_match_count = 0;
     s.search_match_index = 0;
     s.search_match_blocks.clear();
+    s.search_matches.clear();
     s.search_info.clear();
-    let y = s.scroll_y;
-    operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y })
+    s.sidebar_tab = crate::features::markdown::types::MarkdownSidebarTab::Toc;
+    Task::none()
 }
 
 pub fn handle_selection_changed(app: &mut KglanceApp, selected: Option<String>) -> Task<Message> {
