@@ -104,7 +104,7 @@ impl KglanceApp {
             }
             Key::Named(Named::Home) => self.handle_home_shortcut(),
             Key::Named(Named::End) => Some(self.snap_to_bottom()),
-            Key::Character(character) if character == "t" && self.pending_g => {
+            Key::Character(character) if character.eq_ignore_ascii_case("t") => {
                 self.toggle_sidebar()
             }
             Key::Character(character) if character == "e" && self.pending_g => {

@@ -575,7 +575,7 @@ fn test_ctrl_t_toggles_theme_and_syncs_setting() {
     // Calling handle_theme_toggled directly updates app_theme and theme_setting
     let _ = crate::app::update::misc::handle_theme_toggled(&mut app);
     assert_eq!(app.state.app_theme, crate::ui::theme::AppTheme::Light);
-    assert_eq!(app.state.theme_setting, "Light");
+    assert_eq!(app.state.theme_setting, "light");
 }
 
 #[test]

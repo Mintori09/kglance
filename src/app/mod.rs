@@ -86,6 +86,84 @@ impl KglanceApp {
         !self.is_daemon || self.window_id.is_some()
     }
 
+    #[inline]
+    pub fn active_code_viewer(&self) -> Option<&crate::core::TextState> {
+        match self.current_content {
+            Some(PreviewData::Text { .. }) => Some(&self.state.text),
+            Some(PreviewData::Json { .. }) if !self.state.json.tree_mode => {
+                Some(&self.state.json.raw_text)
+            }
+            Some(PreviewData::Typst { .. }) if self.state.typst.show_source => {
+                Some(&self.state.typst.source_text)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn has_selection(&self) -> bool {
+        if let crate::core::SelectionMenuState::Result {
+            content,
+            selected_text,
+            ..
+        } = &self.state.selection_menu
+        {
+            let copy_target = selected_text
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .unwrap_or(content.as_str());
+            if !copy_target.is_empty() {
+                return true;
+            }
+        }
+
+        if let crate::core::SelectionMenuState::Toolbar { selected_text, .. }
+        | crate::core::SelectionMenuState::Running { selected_text, .. } =
+            &self.state.selection_menu
+            && !selected_text.is_empty()
+        {
+            return true;
+        }
+
+        if let Some(viewer) = self.active_code_viewer() {
+            return viewer.selection.as_ref().is_some_and(|s| !s.is_empty());
+        }
+
+        match &self.current_content {
+            Some(crate::core::PreviewData::Spreadsheet { .. }) => {
+                self.state.spreadsheet.selection.is_some()
+            }
+            Some(crate::core::PreviewData::Json { .. }) if self.state.json.tree_mode => {
+                self.state.json.active_node.is_some()
+            }
+            Some(crate::core::PreviewData::Pdf { .. }) => self
+                .state
+                .pdf
+                .selected_text
+                .as_ref()
+                .is_some_and(|s| !s.is_empty()),
+            Some(crate::core::PreviewData::Typst { .. }) if !self.state.typst.show_source => self
+                .state
+                .pdf
+                .selected_text
+                .as_ref()
+                .is_some_and(|s| !s.is_empty()),
+            Some(
+                crate::core::PreviewData::Markdown { .. } | crate::core::PreviewData::Epub { .. },
+            ) => {
+                let md = crate::features::markdown::update::active_markdown_state(self);
+                md.selected_text.as_ref().is_some_and(|s| !s.is_empty())
+                    || md.selection_range.is_some()
+            }
+            _ => false,
+        }
+    }
+
+    pub fn sync_global_menu_copy_label(&self) {
+        if let Some(ref handle) = self.menu_handle {
+            crate::dbus::global_menu::sync_copy_menu_label(handle, self.has_selection());
+        }
+    }
+
     pub fn current_config(&self) -> crate::core::config::AppConfig {
         crate::core::config::AppConfig {
             ui: crate::core::config::UiConfig {
@@ -701,6 +779,7 @@ impl KglanceApp {
             crate::dbus::global_menu::update_context_menu(handle, Some(content));
         }
         self.current_content = Some(content.clone());
+        self.sync_global_menu_copy_label();
     }
 
     fn prepare_markdown_tasks(&self, content: &PreviewData, file_path: &str) -> Vec<Task<Message>> {

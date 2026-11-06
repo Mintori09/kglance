@@ -1,5 +1,5 @@
 use crate::app::KglanceApp;
-use crate::app::messages::{GlobalMenuMsg, Message, NavigationMsg};
+use crate::app::messages::{GlobalMenuMsg, Message, NavigationMsg, SettingsMsg};
 use crate::core::config::ConfigManager;
 use iced::Task;
 
@@ -32,48 +32,23 @@ fn handle_action_triggered(app: &mut KglanceApp, action: &str) -> Task<Message> 
             }
             Task::none()
         }
-        "file.copy_path" => app.handle_copy_path(),
         "file.close" => app.handle_close(),
 
         // Edit actions
-        "edit.copy_selection" => app.handle_copy_path(),
+        "edit.copy" | "edit.copy_selection" => app
+            .handle_ctrl_copy()
+            .unwrap_or_else(|| app.handle_copy_path()),
+        "edit.select_all" => app.handle_ctrl_a().unwrap_or_else(Task::none),
+        "edit.find" => app.handle_ctrl_f().unwrap_or_else(Task::none),
 
         // View actions
         "settings.open" => app.update(NavigationMsg::ToggleSettingsClicked.into()),
 
-        "toggle.word_wrap" => {
-            let new_val = !app.state.word_wrap;
-            app.state.word_wrap = new_val;
-            let mut cfg = app.load_config();
-            cfg.ui.word_wrap = new_val;
-            let _ = app.save_config(&cfg);
-            if let Some(ref handle) = app.menu_handle {
-                let state = if new_val {
-                    dbus_global_menu::ToggleState::On
-                } else {
-                    dbus_global_menu::ToggleState::Off
-                };
-                handle.set_toggle_state(crate::dbus::global_menu::ID_VIEW_WORD_WRAP, state);
-            }
-            Task::none()
-        }
+        "toggle.word_wrap" => app.update(SettingsMsg::WordWrapChanged(!app.state.word_wrap).into()),
 
-        "toggle.smooth_scroll" => {
-            let new_val = !app.state.scroll_config.smooth_scroll_enabled;
-            app.state.scroll_config.smooth_scroll_enabled = new_val;
-            let mut cfg = app.load_config();
-            cfg.scroll.smooth_scroll_enabled = new_val;
-            let _ = app.save_config(&cfg);
-            if let Some(ref handle) = app.menu_handle {
-                let state = if new_val {
-                    dbus_global_menu::ToggleState::On
-                } else {
-                    dbus_global_menu::ToggleState::Off
-                };
-                handle.set_toggle_state(crate::dbus::global_menu::ID_VIEW_SMOOTH_SCROLL, state);
-            }
-            Task::none()
-        }
+        "toggle.smooth_scroll" => app.update(
+            SettingsMsg::SmoothScrollChanged(!app.state.scroll_config.smooth_scroll_enabled).into(),
+        ),
 
         // Dynamic Context Actions
         "image.rotate_cw" => app.update(crate::app::messages::ImageMsg::RotateRight.into()),
@@ -89,6 +64,9 @@ fn handle_action_triggered(app: &mut KglanceApp, action: &str) -> Task<Message> 
         "epub.next_chapter" => app.scroll_page(0.85),
         "epub.toggle_toc" => app.update(crate::app::messages::EpubMsg::SidebarToggled.into()),
 
+        "text.toggle_outline" => app.update(crate::app::messages::TextMsg::ToggleOutline.into()),
+        "json.toggle_mode" => app.update(crate::app::messages::JsonMsg::ToggleMode.into()),
+
         "media.toggle_pause" => {
             if self_is_audio(app) {
                 app.update(crate::app::messages::AudioMsg::PlayPauseClicked.into())
@@ -103,19 +81,24 @@ fn handle_action_triggered(app: &mut KglanceApp, action: &str) -> Task<Message> 
                 Task::none()
             }
         }
-
-        "help.about" => {
-            crate::log_info!("Help > About triggered");
-            Task::none()
+        "media.cycle_subtitles" => {
+            app.update(crate::app::messages::MediaMsg::CycleSubtitleTrack.into())
         }
 
         action if action.starts_with("theme.set.") => {
             let theme_name = &action["theme.set.".len()..];
-            let theme_setting = theme_name.to_lowercase();
+            let theme_setting = theme_name.to_string();
             let app_theme = ConfigManager::resolve_theme(&theme_setting);
 
             app.state.theme_setting = theme_setting.clone();
             app.state.app_theme = app_theme;
+
+            app.state.for_each_text_state_mut(|st| {
+                let scroll = st.scroll_y;
+                st.syntax_cache.clear();
+                st.cached_tokens.clear();
+                crate::features::text::update_tokens_for_viewport(st, scroll, app_theme);
+            });
 
             let mut cfg = app.load_config();
             cfg.ui.theme = Some(theme_setting);
@@ -133,3 +116,7 @@ fn handle_action_triggered(app: &mut KglanceApp, action: &str) -> Task<Message> 
         }
     }
 }
+
+#[cfg(test)]
+#[path = "global_menu_tests.rs"]
+mod tests;

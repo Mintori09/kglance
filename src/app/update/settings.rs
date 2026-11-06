@@ -21,6 +21,10 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 crate::features::text::update_tokens_for_viewport(st, scroll, theme);
             });
             let _ = app.save_current_config();
+            if let Some(ref handle) = app.menu_handle {
+                let cfg = app.load_config();
+                crate::dbus::global_menu::sync_menu_states(handle, &cfg, &theme);
+            }
             Task::none()
         }
         SettingsMsg::FontSizeChanged(s) => {
@@ -348,6 +352,14 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             );
 
             app.save_current_config_logged("word wrap changed");
+            if let Some(ref handle) = app.menu_handle {
+                let state = if enabled {
+                    dbus_global_menu::ToggleState::On
+                } else {
+                    dbus_global_menu::ToggleState::Off
+                };
+                handle.set_toggle_state(crate::dbus::global_menu::ID_VIEW_WORD_WRAP, state);
+            }
             Task::none()
         }
         SettingsMsg::JsonTreeViewChanged(enabled) => {
@@ -421,6 +433,14 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             app.state.scroll_config.smooth_scroll_enabled = enabled;
             app.state.apply_scroll_controllers();
             app.save_current_config_logged("smooth scroll changed");
+            if let Some(ref handle) = app.menu_handle {
+                let state = if enabled {
+                    dbus_global_menu::ToggleState::On
+                } else {
+                    dbus_global_menu::ToggleState::Off
+                };
+                handle.set_toggle_state(crate::dbus::global_menu::ID_VIEW_SMOOTH_SCROLL, state);
+            }
             Task::none()
         }
         SettingsMsg::ScrollFrictionChanged(friction) => {

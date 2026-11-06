@@ -81,7 +81,7 @@ impl MenuHandle {
     where
         F: FnOnce(&mut MenuItem),
     {
-        let (updated, new_rev, parent_id) = {
+        let (updated, new_rev) = {
             let mut root = self.root.write();
             let mut rev = self.revision.write();
             *rev += 1;
@@ -89,14 +89,15 @@ impl MenuHandle {
 
             if let Some(item) = DbusMenuService::find_item_by_id_mut(&mut root, id) {
                 updater(item);
-                (true, current_rev, id)
+                (true, current_rev)
             } else {
-                (false, current_rev, 0)
+                (false, current_rev)
             }
         };
 
         if updated {
-            self.emit_layout_updated(new_rev, parent_id);
+            // Emitting layout updated with parent=0 notifies client of top-level changes (such as new submenus)
+            self.emit_layout_updated(new_rev, 0);
         }
         updated
     }
@@ -109,6 +110,9 @@ impl MenuHandle {
         let (updated, new_rev) = {
             let mut root = self.root.write();
             if let Some(item) = DbusMenuService::find_item_by_id_mut(&mut root, id) {
+                if item.toggle_state == st {
+                    return false;
+                }
                 item.toggle_state = st;
                 let mut rev = self.revision.write();
                 *rev += 1;
@@ -134,6 +138,9 @@ impl MenuHandle {
         let (updated, new_rev) = {
             let mut root = self.root.write();
             if let Some(item) = DbusMenuService::find_item_by_id_mut(&mut root, id) {
+                if item.enabled == enabled {
+                    return false;
+                }
                 item.enabled = enabled;
                 let mut rev = self.revision.write();
                 *rev += 1;
@@ -155,17 +162,21 @@ impl MenuHandle {
     /// Dynamically changes the label of a menu item by ID.
     ///
     /// Emits both `ItemsPropertiesUpdated` and `LayoutUpdated`.
-    pub fn set_label(&self, id: i32, label: impl Into<String>) -> bool {
-        let label_str = label.into();
-        let (updated, new_rev) = {
+    pub fn set_label(&self, id: i32, label: impl AsRef<str>) -> bool {
+        let label_ref = label.as_ref();
+        let (updated, new_rev, label_str) = {
             let mut root = self.root.write();
             if let Some(item) = DbusMenuService::find_item_by_id_mut(&mut root, id) {
-                item.label = label_str.clone();
+                if item.label == label_ref {
+                    return false;
+                }
+                let s = label_ref.to_string();
+                item.label = s.clone();
                 let mut rev = self.revision.write();
                 *rev += 1;
-                (true, *rev)
+                (true, *rev, s)
             } else {
-                (false, 0)
+                (false, 0, String::new())
             }
         };
 
