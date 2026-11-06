@@ -377,6 +377,7 @@ pub struct RawHtmlBlockMeta {
     pub id: Option<String>,
     pub is_empty: bool,
     pub child_classes: Vec<String>,
+    pub is_custom_bullet: bool,
 }
 
 pub const HTML_VOID_TAGS: &[&str] = &[
@@ -533,6 +534,7 @@ pub fn extract_html_blocks_meta(
                         id: extract_id_or_name(e),
                         is_empty,
                         child_classes: Vec::new(),
+                        is_custom_bullet: false,
                     });
                     text_count = 0;
                 } else if let Some(ref mut block) = current_block {
@@ -586,6 +588,7 @@ pub fn extract_html_blocks_meta(
                         id: extract_id_or_name(e),
                         is_empty,
                         child_classes: Vec::new(),
+                        is_custom_bullet: false,
                     });
                     text_count = 0;
                 } else if let Some(ref mut block) = current_block {
@@ -641,9 +644,27 @@ pub fn extract_html_blocks_meta(
             }
             Ok(Event::Text(ref e)) => {
                 if hidden_tag_stack.is_empty() && !in_callout_heading {
-                    let s = e.as_ref();
+                    let raw = e.as_ref();
+                    let decoded;
+                    let s = if raw.contains('&') {
+                        decoded = super::decode_html_entities(raw);
+                        &decoded
+                    } else {
+                        raw
+                    };
                     let clean = s.replace('\u{a0}', " ");
                     if !clean.trim().is_empty() {
+                        if let Some(ref mut block) = current_block
+                            && text_count == 0
+                            && block.tag == "p"
+                            && clean
+                                .trim_start()
+                                .chars()
+                                .next()
+                                .is_some_and(|ch| super::CUSTOM_BULLET_CHARS.contains(&ch))
+                        {
+                            block.is_custom_bullet = true;
+                        }
                         text_count += clean.trim().len();
                     }
                 }

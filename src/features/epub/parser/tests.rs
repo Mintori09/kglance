@@ -2988,6 +2988,7 @@ fn test_convert_html_adjacent_code_tags_merged() {
 }
 
 #[test]
+
 fn test_convert_html_coalesces_chapter_number_and_title() {
     let html = r#"<section class="chapter-first"><h1 class="chapterNumber" id="h1_3">1</h1>
 <h1 class="chapterTitle" id="h1_4">Core Features of Spring Boot</h1>
@@ -3076,4 +3077,173 @@ fn test_convert_html_does_not_demote_headings_without_chapter_title() {
         md.contains("<a id=\"h1_2\"></a>"),
         "Should preserve id h1_2. Output was:\n{md}"
     );
+}
+
+#[test]
+fn test_split_list_by_code_block_does_not_desync_following_paragraphs() {
+    let css = r#"
+        ol.steps { margin-left: 20px; }
+        pre.snippet { font-family: "Courier"; }
+        p.normal { font-family: "Crimson Pro"; font-size: 1.2em; }
+    "#;
+    let stylesheet_map = css::parse_stylesheet(css);
+    let html = r#"
+        <ol class="steps">
+          <li>Step 1
+            <pre class="snippet"><code>npm install</code></pre>
+          </li>
+          <li>Step 2</li>
+          <li>Step 3</li>
+        </ol>
+        <p class="normal">Paragraph 1 text</p>
+        <p class="normal">Paragraph 2 text</p>
+    "#;
+
+    let md = convert_html_to_markdown_with_stylesheet(html, &stylesheet_map);
+    let blocks = parse_to_blocks(&md);
+    let styles = extract_blocks_styles(html, &blocks, &stylesheet_map);
+
+    // Verify blocks structure: List -> CodeBlock -> List continuation -> Paragraph 1 -> Paragraph 2
+    assert!(blocks.len() >= 5);
+    assert!(matches!(&blocks[0], Block::List { .. }));
+    assert!(matches!(&blocks[1], Block::CodeBlock { .. }));
+    assert!(matches!(&blocks[2], Block::List { .. }));
+    assert!(matches!(&blocks[3], Block::Paragraph(..)));
+    assert!(matches!(&blocks[4], Block::Paragraph(..)));
+
+    // Paragraph 1 and Paragraph 2 MUST preserve p.normal style without desync
+    let p1_style = styles.get(&3).expect("Paragraph 1 must have style");
+    assert_eq!(p1_style.font_family.as_deref(), Some("Crimson Pro"));
+    assert_eq!(p1_style.font_scale, Some(1.2));
+
+    let p2_style = styles.get(&4).expect("Paragraph 2 must have style");
+    assert_eq!(p2_style.font_family.as_deref(), Some("Crimson Pro"));
+    assert_eq!(p2_style.font_scale, Some(1.2));
+}
+
+#[test]
+fn test_custom_bullet_list_consumes_matching_p_metas() {
+    let css = r#"
+        p.normal { font-family: "Crimson Pro"; font-size: 1.1em; }
+    "#;
+    let stylesheet_map = css::parse_stylesheet(css);
+    let html = r#"
+        <p class="bullet">♦ Item 1</p>
+        <p class="bullet">♦ Item 2</p>
+        <p class="bullet">♦ Item 3</p>
+        <p class="normal">Follow-up text</p>
+    "#;
+
+    let md = convert_html_to_markdown_with_stylesheet(html, &stylesheet_map);
+    let blocks = parse_to_blocks(&md);
+    let styles = extract_blocks_styles(html, &blocks, &stylesheet_map);
+
+    assert_eq!(blocks.len(), 2);
+    assert!(matches!(&blocks[0], Block::List { .. }));
+    assert!(matches!(&blocks[1], Block::Paragraph(..)));
+
+    let p_style = styles.get(&1).expect("Follow-up text must have style");
+    assert_eq!(p_style.font_family.as_deref(), Some("Crimson Pro"));
+    assert_eq!(p_style.font_scale, Some(1.1));
+}
+
+#[test]
+fn test_packt_csrf_styling_uniformity_if_present() {
+    let path = std::path::Path::new(
+        "/home/mintori/Documents/Learning Spring Boot 4 - 4 Edition - Simplify the -- Wanderson Xesquevixos, Ranga Rao Karanam, Magnus Larsson, -- 2026 -- Packt -- 657ad18699818b1c33c0a6c6d7880e67 -- Anna’s Archive(1).epub",
+    );
+    if !path.exists() {
+        return;
+    }
+    let res = super::load_chapter_content_and_images_from_epub(path, "Chapter_4.xhtml", None);
+    let (blocks, _images, styles) = match res {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Error loading chapter: {e:?}");
+            return;
+        }
+    };
+
+    // Find the heading "To CSRF or not to CSRF, that is the question"
+    let heading_idx = blocks
+        .iter()
+        .position(|b| match b {
+            Block::Heading { content, .. } => {
+                flatten_inlines(content).contains("To CSRF or not to CSRF")
+            }
+            _ => false,
+        })
+        .expect("Should find CSRF heading");
+
+    // Check subsequent paragraphs around CSRF section
+    for offset in 1..=6 {
+        let idx = heading_idx + offset;
+        if let Some(Block::Paragraph(_)) = blocks.get(idx) {
+            let style = styles.get(&idx);
+            assert!(style.is_some(), "Paragraph {idx} should have style");
+            let s = style.unwrap();
+            assert_eq!(
+                s.font_family.as_deref(),
+                Some("Crimson Pro"),
+                "Paragraph {idx} should be Crimson Pro"
+            );
+        }
+    }
+
+    // Find hierarchical fashion block (from Chapter 71/78 screenshot)
+    let pos = blocks
+        .iter()
+        .position(|b| match b {
+            Block::Paragraph(inlines) => flatten_inlines(inlines).contains("hierarchical fashion"),
+            _ => false,
+        })
+        .expect("Should find hierarchical fashion");
+
+    // All paragraphs in this section should consistently be "Crimson Pro"
+    for idx in pos..=(pos + 4) {
+        if let Some(Block::Paragraph(_)) = blocks.get(idx) {
+            let style = styles.get(&idx);
+            assert!(style.is_some(), "Paragraph {idx} should have style");
+            let s = style.unwrap();
+            assert_eq!(
+                s.font_family.as_deref(),
+                Some("Crimson Pro"),
+                "Paragraph {idx} should have Crimson Pro font"
+            );
+        }
+    }
+
+    // Verify Summary section (from Chapter 4 screenshot)
+    let summary_pos = blocks
+        .iter()
+        .position(|b| match b {
+            Block::Heading { content, .. } => flatten_inlines(content).contains("Summary"),
+            _ => false,
+        })
+        .expect("Should find Summary heading");
+
+    // Summary heading must be Jost font (heading font)
+    let summary_style = styles
+        .get(&summary_pos)
+        .expect("Summary heading must have style");
+    assert_eq!(
+        summary_style.font_family.as_deref(),
+        Some("Jost"),
+        "Summary heading should be Jost"
+    );
+
+    // All paragraphs under Summary must consistently have Crimson Pro font (no desync or alternating styles)
+    for offset in 1..=3 {
+        let idx = summary_pos + offset;
+        if let Some(Block::Paragraph(_)) = blocks.get(idx) {
+            let style = styles
+                .get(&idx)
+                .unwrap_or_else(|| panic!("Summary paragraph {idx} must have style"));
+            assert_eq!(
+                style.font_family.as_deref(),
+                Some("Crimson Pro"),
+                "Summary paragraph {idx} should have Crimson Pro font"
+            );
+        }
+    }
 }
