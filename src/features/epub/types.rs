@@ -1,7 +1,7 @@
 use crate::core::config::EpubReadingMode;
 use crate::features::markdown::MarkdownState;
 use crate::parsers::markdown::Block;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone)]
 pub struct EpubChapterInfo {
@@ -50,6 +50,7 @@ pub struct EpubState {
     pub lightbox: Option<EpubLightboxState>,
     pub chapter_y_offsets: Vec<f32>,
     pub gallery_image_paths: Vec<String>,
+    pub cached_stylesheets: HashMap<String, super::parser::css::BlockStyle>,
 }
 
 impl EpubState {
@@ -88,6 +89,7 @@ impl Default for EpubState {
             lightbox: None,
             chapter_y_offsets: Vec::new(),
             gallery_image_paths: Vec::new(),
+            cached_stylesheets: HashMap::new(),
         }
     }
 }

@@ -60,27 +60,48 @@ pub type LoadedChapterContent = (
     HashMap<usize, css::BlockStyle>,
 );
 
-pub fn load_chapter_content_and_images_from_epub(
+pub fn load_chapter_content_and_images_cached(
     path: &Path,
     file_href: &str,
     _anchor: Option<&str>,
-) -> Result<LoadedChapterContent, ParseError> {
+    cached_stylesheets: Option<&HashMap<String, css::BlockStyle>>,
+) -> Result<
+    (
+        LoadedChapterContent,
+        Option<HashMap<String, css::BlockStyle>>,
+    ),
+    ParseError,
+> {
     let file = File::open(path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     let reader = BufReader::new(file);
     let mut archive =
         zip::ZipArchive::new(reader).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
     let opf_path = read_container_opf_path(&mut archive)?;
-    let opf_xml = read_archive_entry_string(&mut archive, &opf_path).unwrap_or_default();
-    let stylesheet_map = load_all_stylesheets(&mut archive, &opf_path, &opf_xml);
+
+    let mut fallback_map = None;
+    let stylesheet_map = if let Some(cached) = cached_stylesheets {
+        cached
+    } else {
+        let opf_xml = read_archive_entry_string(&mut archive, &opf_path).unwrap_or_default();
+        fallback_map.insert(load_all_stylesheets(&mut archive, &opf_path, &opf_xml))
+    };
 
     let resolved_path = resolve_relative_path(&opf_path, file_href);
     let html = read_archive_entry_string(&mut archive, &resolved_path)?;
-    let md = convert_html_to_markdown_with_stylesheet(&html, &stylesheet_map);
+    let md = convert_html_to_markdown_with_stylesheet(&html, stylesheet_map);
     let blocks = parse_to_blocks(&md);
-    let styles = extract_blocks_styles(&html, &blocks, &stylesheet_map);
+    let styles = extract_blocks_styles(&html, &blocks, stylesheet_map);
 
     let images = extract_selective_images(&mut archive, &opf_path, None, &blocks, Some(file_href));
-    Ok((blocks, images, styles))
+    Ok(((blocks, images, styles), fallback_map))
+}
+
+pub fn load_chapter_content_and_images_from_epub(
+    path: &Path,
+    file_href: &str,
+    anchor: Option<&str>,
+) -> Result<LoadedChapterContent, ParseError> {
+    load_chapter_content_and_images_cached(path, file_href, anchor, None).map(|(c, _)| c)
 }
 
 pub fn load_chapter_from_epub(
@@ -865,28 +886,29 @@ pub fn find_block_index(
     {
         let t_norm = normalize_for_matching(t);
         if !t_norm.is_empty() {
-            // Pass 1: Prioritize Block::Heading exact normalized match
+            let mut substring_match = None;
+
+            // Combined Heading pass: Check exact match first, record first substring match
             for (i, block) in blocks.iter().enumerate() {
                 if let Block::Heading { content, .. } = block {
                     let h_text = normalize_for_matching(&flatten_inlines(content));
                     if h_text == t_norm {
                         return Some(i);
                     }
-                }
-            }
-
-            // Pass 2: Block::Heading substring match
-            for (i, block) in blocks.iter().enumerate() {
-                if let Block::Heading { content, .. } = block {
-                    let h_text = normalize_for_matching(&flatten_inlines(content));
-                    if !h_text.is_empty() && (h_text.contains(&t_norm) || t_norm.contains(&h_text))
+                    if substring_match.is_none()
+                        && !h_text.is_empty()
+                        && (h_text.contains(&t_norm) || t_norm.contains(&h_text))
                     {
-                        return Some(i);
+                        substring_match = Some(i);
                     }
                 }
             }
 
-            // Pass 3: Fallback to non-heading blocks (e.g. bold paragraph pseudo-headings)
+            if let Some(idx) = substring_match {
+                return Some(idx);
+            }
+
+            // Pass 2: Fallback to non-heading blocks (e.g. bold paragraph pseudo-headings)
             for (i, block) in blocks.iter().enumerate() {
                 if let Block::Paragraph(content) = block {
                     let p_text = normalize_for_matching(&flatten_inlines(content));
@@ -901,13 +923,22 @@ pub fn find_block_index(
     None
 }
 
-fn normalize_for_matching(text: &str) -> String {
+pub(crate) fn normalize_for_matching(text: &str) -> String {
     let stripped = crate::parsers::markdown::strip_anchor_tags(text);
-    stripped
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_lowercase()
+    let mut result = String::with_capacity(stripped.len());
+    let mut words = stripped.split_whitespace();
+    if let Some(first) = words.next() {
+        for c in first.chars() {
+            result.extend(c.to_lowercase());
+        }
+        for word in words {
+            result.push(' ');
+            for c in word.chars() {
+                result.extend(c.to_lowercase());
+            }
+        }
+    }
+    result
 }
 
 fn contains_attr_value_case_insensitive(haystack: &str, attr_prefix: &str, value: &str) -> bool {
