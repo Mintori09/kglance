@@ -2986,3 +2986,94 @@ fn test_convert_html_adjacent_code_tags_merged() {
     let md_separate = convert_html_to_markdown(html_separate);
     assert_eq!(md_separate, "Call `foo()` or `bar()`.");
 }
+
+#[test]
+fn test_convert_html_coalesces_chapter_number_and_title() {
+    let html = r#"<section class="chapter-first"><h1 class="chapterNumber" id="h1_3">1</h1>
+<h1 class="chapterTitle" id="h1_4">Core Features of Spring Boot</h1>
+<p class="normal">Rod Johnson</p></section>"#;
+    let md = convert_html_to_markdown(html);
+    assert!(
+        md.contains("# Chapter 1: Core Features of Spring Boot"),
+        "Output was:\n{md}"
+    );
+    assert!(
+        md.contains("<a id=\"h1_3\"></a>"),
+        "Should preserve anchor h1_3. Output was:\n{md}"
+    );
+    assert!(
+        md.contains("<a id=\"h1_4\"></a>"),
+        "Should preserve anchor h1_4. Output was:\n{md}"
+    );
+
+    // Chapter 2 test with different IDs
+    let html2 = r#"<section class="chapter"><h1 class="chapterNumber" id="h1_19">2</h1>
+<h1 class="chapterTitle" id="h1_20">Creating Web and API Applications with Spring Boot</h1></section>"#;
+    let md2 = convert_html_to_markdown(html2);
+    assert!(
+        md2.contains("# Chapter 2: Creating Web and API Applications with Spring Boot"),
+        "Output was:\n{md2}"
+    );
+    assert!(
+        md2.contains("<a id=\"h1_19\"></a>"),
+        "Should preserve anchor h1_19. Output was:\n{md2}"
+    );
+    assert!(
+        md2.contains("<a id=\"h1_20\"></a>"),
+        "Should preserve anchor h1_20. Output was:\n{md2}"
+    );
+}
+
+#[test]
+fn test_convert_html_demotes_subheadings_when_chapter_title_present() {
+    let html = r#"<section class="chapter">
+<h1 class="chapterNumber" id="h1_3">1</h1>
+<h1 class="chapterTitle" id="h1_4">Core Features of Spring Boot</h1>
+<h1 class="heading-1" id="h1_5">Technical requirements</h1>
+<h2 class="heading-2" id="h2_6">Installing Java 25</h2>
+<p>Some text</p>
+</section>"#;
+    let md = convert_html_to_markdown(html);
+    assert!(
+        md.contains("# Chapter 1: Core Features of Spring Boot"),
+        "Output was:\n{md}"
+    );
+    assert!(
+        md.contains("## Technical requirements"),
+        "heading-1 should be demoted to level 2 (##). Output was:\n{md}"
+    );
+    assert!(
+        md.contains("### Installing Java 25"),
+        "heading-2 should be demoted to level 3 (###). Output was:\n{md}"
+    );
+    assert!(
+        md.contains("<a id=\"h1_5\"></a>"),
+        "Should preserve id h1_5. Output was:\n{md}"
+    );
+    assert!(
+        md.contains("<a id=\"h2_6\"></a>"),
+        "Should preserve id h2_6. Output was:\n{md}"
+    );
+}
+
+#[test]
+fn test_convert_html_does_not_demote_headings_without_chapter_title() {
+    let html = r#"<section class="preface">
+<h1 class="mainHeading" id="h1_1">Welcome</h1>
+<h1 class="heading-1" id="h1_2">Learning Spring Boot 4</h1>
+</section>"#;
+    let md = convert_html_to_markdown(html);
+    assert!(md.contains("# Welcome"), "Output was:\n{md}");
+    assert!(
+        md.contains("# Learning Spring Boot 4"),
+        "heading-1 should remain level 1 (#) when no chapterTitle is present. Output was:\n{md}"
+    );
+    assert!(
+        md.contains("<a id=\"h1_1\"></a>"),
+        "Should preserve id h1_1. Output was:\n{md}"
+    );
+    assert!(
+        md.contains("<a id=\"h1_2\"></a>"),
+        "Should preserve id h1_2. Output was:\n{md}"
+    );
+}

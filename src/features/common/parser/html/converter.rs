@@ -92,6 +92,7 @@ pub struct HtmlToMarkdownConverter<'a> {
     in_dl: bool,
     in_dt: bool,
     in_dd: bool,
+    has_chapter_title: bool,
     stylesheet_map: Option<&'a HashMap<String, BlockStyle>>,
 }
 
@@ -158,6 +159,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             in_dl: false,
             in_dt: false,
             in_dd: false,
+            has_chapter_title: false,
             stylesheet_map: None,
         }
     }
@@ -170,7 +172,19 @@ impl<'a> HtmlToMarkdownConverter<'a> {
     }
 
     pub fn convert(&mut self, html: &str) -> String {
-        let mut reader = Reader::from_str(html);
+        let coalesced_storage;
+        let html_input = if html.contains("chapterNumber") || html.contains("chapternumber") {
+            coalesced_storage = coalesce_chapter_number_and_title(html);
+            &coalesced_storage
+        } else {
+            html
+        };
+
+        let has_chapter_title =
+            html_input.contains("chapterTitle") || html_input.contains("chaptertitle");
+        self.has_chapter_title = has_chapter_title;
+
+        let mut reader = Reader::from_str(html_input);
         reader.config_mut().check_end_names = false;
         reader.config_mut().trim_text(false);
 
@@ -355,14 +369,21 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                     return;
                 }
                 self.in_heading = true;
-                let hashes = match name {
-                    "h1" => "#",
-                    "h2" => "##",
-                    "h3" => "###",
-                    "h4" => "####",
-                    "h5" => "#####",
-                    "h6" => "######",
-                    _ => "#",
+                let hashes = if self.has_chapter_title && has_class_or_attr(e, "class", "heading-1")
+                {
+                    "##"
+                } else if self.has_chapter_title && has_class_or_attr(e, "class", "heading-2") {
+                    "###"
+                } else {
+                    match name {
+                        "h1" => "#",
+                        "h2" => "##",
+                        "h3" => "###",
+                        "h4" => "####",
+                        "h5" => "#####",
+                        "h6" => "######",
+                        _ => "#",
+                    }
                 };
                 let id_attr = extract_id_or_name(e);
                 if let Some(id) = id_attr {
@@ -2108,4 +2129,105 @@ fn extract_style_dimension(style: &str, prop: &str) -> Option<u32> {
 
 pub fn strip_html_tags(html: &str) -> String {
     convert_html_to_markdown(html)
+}
+
+fn coalesce_chapter_number_and_title(html: &str) -> String {
+    let lower = html.to_ascii_lowercase();
+    let Some(tag_pos) = lower.find("chapternumber") else {
+        return html.to_string();
+    };
+
+    let Some(h1_open) = lower[..tag_pos].rfind("<h") else {
+        return html.to_string();
+    };
+    let Some(rel_gt) = lower[h1_open..].find('>') else {
+        return html.to_string();
+    };
+    let h1_open_gt = h1_open + rel_gt;
+    if h1_open_gt < tag_pos {
+        return html.to_string();
+    }
+
+    if h1_open + 3 > lower.len() {
+        return html.to_string();
+    }
+    let tag1_name = &lower[h1_open + 1..h1_open + 3];
+    let h1_close_str = format!("</{tag1_name}>");
+    let Some(rel_close) = lower[h1_open_gt..].find(&h1_close_str) else {
+        return html.to_string();
+    };
+    let h1_close = h1_open_gt + rel_close;
+
+    let num_tag = &html[h1_open..=h1_open_gt];
+    let num_text = html[h1_open_gt + 1..h1_close].trim();
+
+    let after_first = h1_close + h1_close_str.len();
+    let mut curr = after_first;
+    let bytes = html.as_bytes();
+    while curr < bytes.len() && bytes[curr].is_ascii_whitespace() {
+        curr += 1;
+    }
+
+    if curr + 2 > lower.len() || !lower[curr..].starts_with("<h") {
+        return html.to_string();
+    }
+
+    let h2_open = curr;
+    let Some(rel_gt2) = lower[h2_open..].find('>') else {
+        return html.to_string();
+    };
+    let h2_open_gt = h2_open + rel_gt2;
+    let h2_tag_str = &lower[h2_open..=h2_open_gt];
+    if !h2_tag_str.contains("chaptertitle") {
+        return html.to_string();
+    }
+
+    if h2_open + 3 > lower.len() {
+        return html.to_string();
+    }
+    let tag2_name = &lower[h2_open + 1..h2_open + 3];
+    let h2_close_str = format!("</{tag2_name}>");
+    let Some(rel_close2) = lower[h2_open_gt..].find(&h2_close_str) else {
+        return html.to_string();
+    };
+    let h2_close = h2_open_gt + rel_close2;
+
+    let title_tag = &html[h2_open..=h2_open_gt];
+    let title_text = html[h2_open_gt + 1..h2_close].trim();
+
+    let id1 = extract_attr_id(num_tag);
+    let id2 = extract_attr_id(title_tag);
+
+    let extra_anchor = if let (Some(a), Some(b)) = (&id1, &id2)
+        && a != b
+    {
+        format!("<a id=\"{b}\"></a>")
+    } else {
+        String::new()
+    };
+
+    let replacement = format!(
+        "{extra_anchor}<h1 class=\"chapterTitle\" id=\"{}\">Chapter {num_text}: {title_text}</h1>",
+        id1.as_deref().or(id2.as_deref()).unwrap_or("")
+    );
+
+    let mut result = String::with_capacity(html.len() + replacement.len());
+    result.push_str(&html[..h1_open]);
+    result.push_str(&replacement);
+    result.push_str(&html[h2_close + h2_close_str.len()..]);
+    result
+}
+
+fn extract_attr_id(tag: &str) -> Option<String> {
+    let lower = tag.to_ascii_lowercase();
+    let idx = lower.find("id=")?;
+    let after_id = &tag[idx + 3..];
+    let quote = after_id.chars().next()?;
+    if quote == '"' || quote == '\'' {
+        let remainder = &after_id[quote.len_utf8()..];
+        let end_idx = remainder.find(quote)?;
+        Some(remainder[..end_idx].to_string())
+    } else {
+        None
+    }
 }
