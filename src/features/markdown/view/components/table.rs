@@ -137,8 +137,11 @@ pub(crate) fn render_table<'a>(
         children.push(separator.into());
     }
 
+    pub const MAX_VISIBLE_ROWS: usize = 100;
     let total_rows = table.rows.len();
-    for (row_index, row_data) in table.rows.iter().enumerate() {
+    let visible_rows = total_rows.min(MAX_VISIBLE_ROWS);
+
+    for (row_index, row_data) in table.rows.iter().take(visible_rows).enumerate() {
         if row_index > 0 {
             let separator = container(text(""))
                 .style(move |_: &iced::Theme| table_separator_style(theme))
@@ -166,7 +169,7 @@ pub(crate) fn render_table<'a>(
             .collect();
 
         let is_alternate = row_index % 2 == 1;
-        let is_last = row_index == total_rows - 1;
+        let is_last = row_index == visible_rows - 1 && total_rows <= MAX_VISIBLE_ROWS;
         let row_container = container(
             row(row_cells)
                 .spacing(0)
@@ -176,6 +179,24 @@ pub(crate) fn render_table<'a>(
         .style(move |_: &iced::Theme| table_row_background_style(theme, is_alternate, is_last));
 
         children.push(row_container.into());
+    }
+
+    if total_rows > MAX_VISIBLE_ROWS {
+        let remaining = total_rows - MAX_VISIBLE_ROWS;
+        let truncated_msg = format!(
+            "Showing {MAX_VISIBLE_ROWS} of {total_rows} rows ({remaining} more rows - copy table to view all)"
+        );
+        let footer_label = text(truncated_msg)
+            .size(scale_size(11.0, ctx.font_size))
+            .style(move |_: &iced::Theme| text::Style {
+                color: Some(STYLE.inline.image_alt_color),
+            });
+        let footer = container(footer_label)
+            .padding(STYLE.table.cell_padding)
+            .width(Length::Fixed(total_table_w))
+            .align_x(Horizontal::Center)
+            .style(move |_: &iced::Theme| table_row_background_style(theme, true, true));
+        children.push(footer.into());
     }
 
     let table_content = column(children).spacing(0);

@@ -121,6 +121,23 @@ pub fn handle_mermaid_rendered(
     }
     if let Some(png) = png_bytes {
         if let Some(handle) = png_to_rgba_handle(png) {
+            if app.state.markdown.cached_mermaid_handles.len()
+                >= crate::features::markdown::types::MAX_MERMAID_HANDLES
+                && !app
+                    .state
+                    .markdown
+                    .cached_mermaid_handles
+                    .contains_key(&index)
+                && let Some(evict_idx) = app
+                    .state
+                    .markdown
+                    .cached_mermaid_handles
+                    .keys()
+                    .next()
+                    .copied()
+            {
+                app.state.markdown.cached_mermaid_handles.remove(&evict_idx);
+            }
             app.state
                 .markdown
                 .cached_mermaid_handles
@@ -212,6 +229,24 @@ pub fn handle_markdown_image_loaded(
             old_size != Some((w, h))
         } else {
             let old_size = app.state.markdown.cached_image_sizes.get(&path).copied();
+
+            // Bounded eviction: enforce MAX_IMAGE_HANDLES
+            if app.state.markdown.cached_image_handles.len()
+                >= crate::features::markdown::types::MAX_IMAGE_HANDLES
+                && !app.state.markdown.cached_image_handles.contains_key(&path)
+                && let Some(evict_key) = app
+                    .state
+                    .markdown
+                    .cached_image_handles
+                    .keys()
+                    .next()
+                    .cloned()
+            {
+                app.state.markdown.cached_image_handles.remove(&evict_key);
+                app.state.markdown.cached_image_sizes.remove(&evict_key);
+                app.state.markdown.animated_gifs.remove(&evict_key);
+            }
+
             app.state
                 .markdown
                 .cached_image_handles

@@ -1,9 +1,11 @@
 mod flatten;
+mod frontmatter;
 mod handle;
 mod html;
 mod layout;
 pub mod layout_constants;
 mod mermaid;
+mod split;
 mod types;
 
 #[cfg(test)]
