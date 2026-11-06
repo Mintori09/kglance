@@ -3,13 +3,23 @@ use crate::app::Message;
 use crate::core::config::RubyDisplayMode;
 use crate::features::markdown::view::blocks::render_block;
 use crate::features::markdown::view::components::inline::{
-    InlineStyleOptions, render_inlines_with_options,
+    InlineStyleOptions, render_inlines_with_options, resolve_body_font_size,
 };
 use crate::parsers::markdown::{Block, Inline, ListItem};
 use crate::ui::components::selectable_text::ruby_top_padding;
 use crate::ui::types::RenderContext;
 use iced::widget::{column, container, row, text};
 use iced::{Border, Color, Element, Length, Padding};
+
+struct ListPrefixArgs<'a> {
+    ordered: bool,
+    start_number: u64,
+    index: usize,
+    item: &'a ListItem,
+    level: usize,
+    has_stacked_ruby: bool,
+    font_size: f32,
+}
 
 pub(crate) fn render_list<'a>(
     ordered: bool,
@@ -34,6 +44,8 @@ fn render_list_level<'a>(
     let mut item_elements = Vec::with_capacity(items.len());
     let list_style_type_none = block_style.is_some_and(|s| s.list_style_type_none);
     let font_family = block_style.and_then(|s| s.font_family.as_deref());
+    let font_scale = block_style.and_then(|s| s.font_scale);
+    let font_size = resolve_body_font_size(font_scale, ctx);
 
     for (index, item) in items.iter().enumerate() {
         let has_direct_content =
@@ -85,13 +97,21 @@ fn render_list_level<'a>(
                 font_family,
             };
 
-            let content = render_inlines_with_options(&item.content, ctx.font_size, opts, ctx);
+            let content = render_inlines_with_options(&item.content, font_size, opts, ctx);
 
             if list_style_type_none {
                 children.push(content);
             } else {
-                let prefix =
-                    create_list_prefix(ordered, start_number, index, item, ctx, level, has_ruby);
+                let prefix_args = ListPrefixArgs {
+                    ordered,
+                    start_number,
+                    index,
+                    item,
+                    level,
+                    has_stacked_ruby: has_ruby,
+                    font_size,
+                };
+                let prefix = create_list_prefix(prefix_args, ctx);
                 children.push(
                     row![prefix, content]
                         .spacing(STYLE.list.item_spacing)
@@ -124,15 +144,16 @@ fn render_list_level<'a>(
                     children.push(sub_element);
                 } else {
                     let has_ruby = block_starts_with_stacked_ruby(sub_block, ctx.ruby_display_mode);
-                    let prefix = create_list_prefix(
+                    let prefix_args = ListPrefixArgs {
                         ordered,
                         start_number,
                         index,
                         item,
-                        ctx,
                         level,
-                        has_ruby,
-                    );
+                        has_stacked_ruby: has_ruby,
+                        font_size,
+                    };
+                    let prefix = create_list_prefix(prefix_args, ctx);
                     children.push(
                         row![prefix, sub_element]
                             .spacing(STYLE.list.item_spacing)
@@ -178,16 +199,11 @@ fn render_list_level<'a>(
 }
 
 fn create_list_prefix<'a>(
-    ordered: bool,
-    start_number: u64,
-    index: usize,
-    item: &ListItem,
+    args: ListPrefixArgs<'a>,
     ctx: &RenderContext<'_>,
-    level: usize,
-    has_stacked_ruby: bool,
 ) -> Element<'a, Message> {
-    let base_prefix: Element<'a, Message> = if let Some(checked) = item.is_task {
-        let box_size = (ctx.font_size * 0.9).round().max(14.0);
+    let base_prefix: Element<'a, Message> = if let Some(checked) = args.item.is_task {
+        let box_size = (args.font_size * 0.9).round().max(14.0);
         let border_color = if checked {
             ctx.theme.palette().roles.accent
         } else {
@@ -233,31 +249,31 @@ fn create_list_prefix<'a>(
                 left: 0.0,
             })
             .into()
-    } else if ordered {
+    } else if args.ordered {
         let color = ctx.theme.palette().roles.accent;
-        text(format!("{}. ", start_number + index as u64))
-            .size(ctx.font_size)
+        text(format!("{}. ", args.start_number + args.index as u64))
+            .size(args.font_size)
             .color(color)
             .shaping(iced::widget::text::Shaping::Basic)
             .into()
     } else {
-        let bullet = match level % 3 {
+        let bullet = match args.level % 3 {
             0 => "• ",
             1 => "◦ ",
             _ => "▪ ",
         };
         let color = ctx.theme.palette().roles.accent;
         text(bullet)
-            .size(ctx.font_size)
+            .size(args.font_size)
             .color(color)
             .shaping(iced::widget::text::Shaping::Basic)
             .into()
     };
 
-    if has_stacked_ruby {
+    if args.has_stacked_ruby {
         container(base_prefix)
             .padding(Padding {
-                top: ruby_top_padding(ctx.font_size),
+                top: ruby_top_padding(args.font_size),
                 right: 0.0,
                 bottom: 0.0,
                 left: 0.0,

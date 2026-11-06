@@ -3337,6 +3337,85 @@ fn test_packt_csrf_styling_uniformity_if_present() {
 }
 
 #[test]
+fn test_packt_bullet_and_paragraph_typography_uniformity() {
+    let css = r#"
+        #sbo-rt-content p.normal {
+            font-family: "Crimson Pro";
+            font-size: 10.5pt;
+            line-height: 13.75pt;
+        }
+        #sbo-rt-content ul.bulletList-level-1 {
+            font-family: "Crimson Pro";
+            font-size: 10.5pt;
+            line-height: 14.225pt;
+        }
+    "#;
+    let stylesheet_map = css::parse_stylesheet(css);
+    let html = r#"
+        <div id="sbo-rt-content">
+            <ul class="bulletList-level-1">
+                <li class="bulletList-level-1">Option 3: If a class has but one constructor</li>
+            </ul>
+            <p class="normal">With VideoService injected into HomeController, we can update.</p>
+        </div>
+    "#;
+
+    let md = convert_html_to_markdown_with_stylesheet(html, &stylesheet_map);
+    let blocks = parse_to_blocks(&md);
+    let styles = extract_blocks_styles(html, &blocks, &stylesheet_map);
+
+    assert_eq!(blocks.len(), 3);
+    assert!(is_standalone_anchor_block(&blocks[0]));
+    assert!(matches!(&blocks[1], Block::List { .. }));
+    assert!(matches!(&blocks[2], Block::Paragraph(..)));
+
+    let list_style = styles.get(&1);
+    let para_style = styles.get(&2).expect("Paragraph must have style");
+
+    let next_idx = std::cell::Cell::new(0);
+    let counter = std::cell::Cell::new(0);
+    let ctx = crate::ui::types::RenderContext {
+        next_block_index: &next_idx,
+        selection_range: None,
+        drag_active: false,
+        search_query: "",
+        active_match: 0,
+        counter: &counter,
+        theme: crate::ui::theme::AppTheme::default(),
+        font_size: 16.0,
+        font_family: None,
+        font_family_mono: None,
+        ruby_display_mode: crate::core::config::RubyDisplayMode::Hidden,
+        footnotes: None,
+        result_popup: false,
+        show_heading_divider: true,
+        is_epub: true,
+        epub_override_book_font: false,
+        content_width: 800.0,
+    };
+
+    let list_font_size =
+        crate::features::markdown::view::components::inline::resolve_body_font_size(
+            list_style.and_then(|s| s.font_scale),
+            &ctx,
+        );
+    let para_font_size =
+        crate::features::markdown::view::components::inline::resolve_body_font_size(
+            para_style.font_scale,
+            &ctx,
+        );
+
+    assert_eq!(
+        list_font_size, para_font_size,
+        "List and paragraph body text must have identical font sizes"
+    );
+    assert_eq!(
+        para_font_size, 16.0,
+        "Print-oriented 10.5pt must normalize to user base font size 16.0px"
+    );
+}
+
+#[test]
 fn test_normalize_for_matching_whitespace_and_casing() {
     use super::normalize_for_matching;
 

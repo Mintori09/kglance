@@ -141,3 +141,26 @@ pub fn render_inlines_with_options<'a>(
     )
     .into()
 }
+
+/// Resolves the effective font size for body blocks (paragraphs, lists).
+///
+/// In EPUB mode, print CSS styles often specify rigid, minor sizing variations
+/// (e.g. 10pt = 0.833, 10.5pt = 0.875, 11pt = 0.916, 14px = 0.875, 0.9em = 0.9)
+/// that were intended for print paper layout rather than digital reading.
+/// If `epub_override_book_font` is enabled or if the scale falls within the near-1.0
+/// body band (0.80..=1.15), the size is normalized to `ctx.font_size` so that
+/// body paragraphs and list items render consistently without jarring size jumps.
+/// Structural font scales (e.g. footnotes/subscripts < 0.80, display callouts > 1.15)
+/// are preserved.
+#[inline]
+pub(crate) fn resolve_body_font_size(font_scale: Option<f32>, ctx: &RenderContext<'_>) -> f32 {
+    if let Some(scale) = font_scale {
+        if ctx.is_epub && (ctx.epub_override_book_font || (0.80..=1.15).contains(&scale)) {
+            ctx.font_size
+        } else {
+            (ctx.font_size * scale).round()
+        }
+    } else {
+        ctx.font_size
+    }
+}
