@@ -570,6 +570,69 @@ fn test_extract_epub3_navpoints() {
 }
 
 #[test]
+fn test_extract_epub3_navpoints_with_span_grouping() {
+    let nav_html = r#"
+        <nav epub:type="toc">
+            <ol>
+                <li>
+                    <span>Part I: Foundations</span>
+                    <ol>
+                        <li><a href="c1.xhtml">Chapter 1</a></li>
+                        <li><a href="c2.xhtml">Chapter 2</a></li>
+                    </ol>
+                </li>
+                <li>
+                    <span>Part II: Advanced</span>
+                    <ol>
+                        <li><a href="c3.xhtml">Chapter 3</a></li>
+                    </ol>
+                </li>
+            </ol>
+        </nav>
+    "#;
+    let navpoints = crate::features::epub::parser::ncx::extract_epub3_navpoints(nav_html);
+    assert_eq!(navpoints.len(), 5);
+    // Part I span inherits first child's file
+    assert_eq!(navpoints[0].0, "Part I: Foundations");
+    assert_eq!(navpoints[0].1, 1);
+    assert_eq!(navpoints[0].2, "c1.xhtml");
+
+    assert_eq!(navpoints[1].0, "Chapter 1");
+    assert_eq!(navpoints[1].1, 2);
+    assert_eq!(navpoints[1].2, "c1.xhtml");
+
+    assert_eq!(navpoints[2].0, "Chapter 2");
+    assert_eq!(navpoints[2].1, 2);
+    assert_eq!(navpoints[2].2, "c2.xhtml");
+
+    // Part II span inherits c3.xhtml
+    assert_eq!(navpoints[3].0, "Part II: Advanced");
+    assert_eq!(navpoints[3].1, 1);
+    assert_eq!(navpoints[3].2, "c3.xhtml");
+
+    assert_eq!(navpoints[4].0, "Chapter 3");
+    assert_eq!(navpoints[4].1, 2);
+    assert_eq!(navpoints[4].2, "c3.xhtml");
+}
+
+#[test]
+fn test_extract_nav_and_cover_href_multi_properties() {
+    let opf_xml = r#"
+        <package>
+            <manifest>
+                <item id="item-toc" href="nav.xhtml" properties="landmarks nav" media-type="application/xhtml+xml"/>
+                <item id="item-cover" href="cover.jpg" properties="cover-image scripted" media-type="image/jpeg"/>
+            </manifest>
+        </package>
+    "#;
+    let nav_href = super::opf::extract_nav_href(opf_xml);
+    assert_eq!(nav_href.as_deref(), Some("nav.xhtml"));
+
+    let cover_href = super::opf::extract_cover_image_href(opf_xml);
+    assert_eq!(cover_href.as_deref(), Some("cover.jpg"));
+}
+
+#[test]
 fn test_extract_headings_from_html() {
     let html = r#"
         <html xmlns="http://www.w3.org/1999/xhtml">
