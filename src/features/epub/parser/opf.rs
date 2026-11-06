@@ -44,25 +44,30 @@ pub fn extract_nav_href(opf_xml: &str) -> Option<String> {
     let mut search_str = opf_xml;
 
     while let Some(idx) = search_str.find("<item") {
-        let tag_end = search_str[idx..].find('>')?;
+        let tag_end = search_str[idx..].find('>').unwrap_or(0);
         let tag = &search_str[idx..idx + tag_end];
 
-        let is_nav = tag.contains("properties=\"nav\"")
-            || tag.contains("properties='nav'")
-            || tag.contains("properties=\"toc\"")
-            || tag.contains("properties='toc'")
-            || tag.contains("id=\"nav\"")
-            || tag.contains("id='nav'")
-            || tag.contains("id=\"toc\"")
-            || tag.contains("id='toc'");
+        let has_nav_prop = extract_attribute(tag, "properties=\"")
+            .or_else(|| extract_attribute(tag, "properties='"))
+            .map(|props| {
+                props
+                    .split_whitespace()
+                    .any(|p| p.eq_ignore_ascii_case("nav") || p.eq_ignore_ascii_case("toc"))
+            })
+            .unwrap_or(false);
 
-        if is_nav
+        let has_nav_id = extract_attribute(tag, "id=\"")
+            .or_else(|| extract_attribute(tag, "id='"))
+            .map(|id| id.eq_ignore_ascii_case("nav") || id.eq_ignore_ascii_case("toc"))
+            .unwrap_or(false);
+
+        if (has_nav_prop || has_nav_id)
             && let Some(href) =
                 extract_attribute(tag, "href=\"").or_else(|| extract_attribute(tag, "href='"))
         {
             return Some(href);
         }
-        search_str = &search_str[idx + tag_end..];
+        search_str = &search_str[idx + tag_end.max(1)..];
     }
     None
 }
@@ -101,10 +106,20 @@ pub fn extract_cover_image_href(opf_xml: &str) -> Option<String> {
     while let Some(idx) = search_str.find("<item") {
         let tag_end = search_str[idx..].find('>').unwrap_or(0);
         let tag = &search_str[idx..idx + tag_end];
-        let is_cover_tag = tag.contains("properties=\"cover-image\"")
-            || tag.contains("id=\"cover\"")
-            || tag.contains("id=\"cover-image\"");
-        if is_cover_tag && let Some(href) = extract_attribute(tag, "href=\"") {
+        let has_cover_prop = extract_attribute(tag, "properties=\"")
+            .or_else(|| extract_attribute(tag, "properties='"))
+            .map(|props| {
+                props
+                    .split_whitespace()
+                    .any(|p| p.eq_ignore_ascii_case("cover-image"))
+            })
+            .unwrap_or(false);
+        let is_cover_tag =
+            has_cover_prop || tag.contains("id=\"cover\"") || tag.contains("id=\"cover-image\"");
+        if is_cover_tag
+            && let Some(href) =
+                extract_attribute(tag, "href=\"").or_else(|| extract_attribute(tag, "href='"))
+        {
             return Some(href);
         }
         search_str = &search_str[idx + tag_end.max(1)..];

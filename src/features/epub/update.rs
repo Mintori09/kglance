@@ -139,6 +139,57 @@ pub fn ensure_chapter_loaded(app: &mut KglanceApp, idx: usize) {
     }
 }
 
+pub fn ensure_all_chapters_loaded(app: &mut KglanceApp) {
+    if !app.state.epub.chapters.iter().any(|c| c.blocks.is_empty())
+        || app.state.file_name.is_empty()
+    {
+        return;
+    }
+
+    let path = std::path::Path::new(&app.state.file_name);
+    if let Ok((full_chs, new_imgs, full_styles)) =
+        crate::features::epub::parser::load_all_chapters_and_images_from_epub(
+            path,
+            &app.state.epub.chapters,
+        )
+    {
+        for (i, ch) in full_chs.into_iter().enumerate() {
+            if let Some(target) = app.state.epub.chapters.get_mut(i)
+                && target.blocks.is_empty()
+            {
+                target.blocks = ch.blocks;
+            }
+        }
+
+        if let Some(crate::core::PreviewData::Epub {
+            chapters, images, ..
+        }) = &mut app.current_content
+        {
+            for (i, ch) in app.state.epub.chapters.iter().enumerate() {
+                if let Some(preview_ch) = chapters.get_mut(i)
+                    && preview_ch.blocks.is_empty()
+                {
+                    preview_ch.blocks = ch.blocks.clone();
+                }
+            }
+            for (k, v) in new_imgs {
+                images.entry(k).or_insert(v);
+            }
+        }
+
+        if app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
+            for (k, v) in full_styles {
+                app.state
+                    .epub
+                    .markdown_state
+                    .block_styles
+                    .entry(k)
+                    .or_insert(v);
+            }
+        }
+    }
+}
+
 pub fn handle_chapter_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message> {
     handle_chapter_and_anchor_jump(app, idx, None)
 }
@@ -432,6 +483,8 @@ pub fn handle_search_query_changed(app: &mut KglanceApp, query: String) -> Task<
         app.state.epub.markdown_state.search_info.clear();
         return Task::none();
     }
+
+    ensure_all_chapters_loaded(app);
 
     let matches = super::search::search_epub_chapters(&app.state.epub.chapters, &query);
     let total = matches.len();

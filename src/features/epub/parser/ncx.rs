@@ -160,6 +160,7 @@ pub fn extract_epub3_navpoints(nav_html: &str) -> Vec<NcxNavPoint> {
     let mut current_href: Option<String> = None;
     let mut current_text = String::new();
     let mut inside_a = false;
+    let mut inside_span = false;
 
     loop {
         match reader.read_event_into(&mut buf) {
@@ -184,6 +185,9 @@ pub fn extract_epub3_navpoints(nav_html: &str) -> Vec<NcxNavPoint> {
                                 current_href = Some(attr.value.to_string());
                             }
                         }
+                    } else if tag_name.as_ref().eq_ignore_ascii_case("span") && !inside_a {
+                        inside_span = true;
+                        current_text.clear();
                     }
                 }
             }
@@ -219,16 +223,24 @@ pub fn extract_epub3_navpoints(nav_html: &str) -> Vec<NcxNavPoint> {
                             }
                         }
                         current_text.clear();
+                    } else if tag_name.as_ref().eq_ignore_ascii_case("span") && inside_span {
+                        inside_span = false;
+                        let clean_label = current_text.trim().to_string();
+                        if !clean_label.is_empty() {
+                            // Section grouping in EPUB 3 navigation without explicit link
+                            entries.push((clean_label, list_depth.max(1), String::new(), None));
+                        }
+                        current_text.clear();
                     }
                 }
             }
             Ok(Event::Text(ref e)) => {
-                if inside_toc_nav && inside_a {
+                if inside_toc_nav && (inside_a || inside_span) {
                     current_text.push_str(e.as_ref());
                 }
             }
             Ok(Event::CData(ref e)) => {
-                if inside_toc_nav && inside_a {
+                if inside_toc_nav && (inside_a || inside_span) {
                     current_text.push_str(e.as_ref());
                 }
             }
@@ -237,6 +249,17 @@ pub fn extract_epub3_navpoints(nav_html: &str) -> Vec<NcxNavPoint> {
             _ => {}
         }
         buf.clear();
+    }
+
+    // Backfill file_part for section headings without explicit href from following children
+    for i in (0..entries.len()).rev() {
+        if entries[i].2.is_empty() {
+            if i + 1 < entries.len() && !entries[i + 1].2.is_empty() {
+                entries[i].2 = entries[i + 1].2.clone();
+            } else if i > 0 && !entries[i - 1].2.is_empty() {
+                entries[i].2 = entries[i - 1].2.clone();
+            }
+        }
     }
 
     entries
