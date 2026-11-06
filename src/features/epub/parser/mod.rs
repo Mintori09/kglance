@@ -124,11 +124,23 @@ pub fn extract_blocks_styles(
     blocks: &[Block],
     stylesheet_map: &HashMap<String, css::BlockStyle>,
 ) -> HashMap<usize, css::BlockStyle> {
-    let metas = extract_html_blocks_meta(html, Some(stylesheet_map));
+    let coalesced_storage;
+    let html_input = if html.contains("chapterNumber") || html.contains("chapternumber") {
+        coalesced_storage =
+            crate::features::common::parser::html::converter::coalesce_chapter_number_and_title(
+                html,
+            );
+        &coalesced_storage
+    } else {
+        html
+    };
+
+    let metas = extract_html_blocks_meta(html_input, Some(stylesheet_map));
     let non_empty_metas: Vec<_> = metas.into_iter().filter(|m| !m.is_empty).collect();
     let mut styles = HashMap::new();
     let mut meta_idx = 0usize;
     let body_style = stylesheet_map.get("body");
+    let mut last_list_style: Option<css::BlockStyle> = None;
 
     for (b_idx, block) in blocks.iter().enumerate() {
         if is_standalone_anchor_block(block) {
@@ -138,15 +150,30 @@ pub fn extract_blocks_styles(
         let consumed_count = match block {
             Block::Image { .. } => 0,
             Block::Alert { .. } => 0,
-            Block::List { items, .. } => {
-                // If the next meta is an actual ul/ol tag, the whole list consumed only 1 tag.
+            Block::List { ordered, items, .. } => {
+                // If the next meta is an actual ul/ol tag, consume all consecutive list tags
+                // of the same type that were merged into this single Markdown Block::List.
                 // If it is 'p', this list was synthesized from multiple custom bullet paragraphs (O'Reilly).
-                if let Some(next_meta) = non_empty_metas.get(meta_idx)
-                    && (next_meta.tag == "ul" || next_meta.tag == "ol")
-                {
-                    1
+                // If it is neither (or a continuation of an already-split list), it consumes 0 tags.
+                if let Some(next_meta) = non_empty_metas.get(meta_idx) {
+                    if next_meta.tag == "ul" || next_meta.tag == "ol" {
+                        let expected_tag = next_meta.tag.as_str();
+                        let mut count = 0;
+                        while let Some(m) = non_empty_metas.get(meta_idx + count) {
+                            if m.tag == expected_tag {
+                                count += 1;
+                            } else {
+                                break;
+                            }
+                        }
+                        count
+                    } else if !*ordered && next_meta.tag == "p" && next_meta.is_custom_bullet {
+                        items.len().max(1)
+                    } else {
+                        0
+                    }
                 } else {
-                    items.len().max(1)
+                    0
                 }
             }
             Block::Quote(items) => items.len().max(1),
@@ -170,7 +197,14 @@ pub fn extract_blocks_styles(
                     "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p"
                 ),
                 Block::CodeBlock { .. } => matches!(meta.tag.as_str(), "pre"),
-                Block::List { .. } => matches!(meta.tag.as_str(), "ul" | "ol" | "p"),
+                Block::List { .. } => {
+                    if consumed_count > 0 {
+                        matches!(meta.tag.as_str(), "ul" | "ol")
+                            || (meta.tag == "p" && meta.is_custom_bullet)
+                    } else {
+                        false
+                    }
+                }
                 Block::Table(..) => matches!(meta.tag.as_str(), "table"),
                 _ => true,
             };
@@ -185,13 +219,23 @@ pub fn extract_blocks_styles(
                     stylesheet_map,
                     is_heading,
                 )
+            } else if consumed_count == 0 && matches!(block, Block::List { .. }) {
+                last_list_style.clone().unwrap_or_default()
             } else {
                 css::BlockStyle::default()
             };
             css::merge_block_style(&mut style, &block_style);
+            if matches!(block, Block::List { .. }) && consumed_count > 0 {
+                last_list_style = Some(style.clone());
+            }
             if style != css::BlockStyle::default() {
                 styles.insert(b_idx, style);
             }
+        } else if consumed_count == 0
+            && matches!(block, Block::List { .. })
+            && let Some(ref l_style) = last_list_style
+        {
+            styles.insert(b_idx, l_style.clone());
         }
         meta_idx += consumed_count;
     }

@@ -2131,7 +2131,7 @@ pub fn strip_html_tags(html: &str) -> String {
     convert_html_to_markdown(html)
 }
 
-fn coalesce_chapter_number_and_title(html: &str) -> String {
+pub fn coalesce_chapter_number_and_title(html: &str) -> String {
     let lower = html.to_ascii_lowercase();
     let Some(tag_pos) = lower.find("chapternumber") else {
         return html.to_string();
