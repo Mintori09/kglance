@@ -246,6 +246,26 @@ impl KglanceApp {
 
         self.update_grid_cols(width, height);
 
+        let mut tasks = Vec::new();
+
+        if let Some(ref menu_arc) = self.global_menu {
+            let menu_arc_clone = menu_arc.clone();
+            tasks.push(iced::window::run(window_id, move |window| {
+                if let Ok(mut menu) = menu_arc_clone.lock()
+                    && let Err(e) = menu.attach_window(window)
+                {
+                    crate::log_error!("Failed to attach window to global menu: {e}");
+                }
+                Message::None
+            }));
+        }
+
+        if let Some(ref handle) = self.menu_handle {
+            let cfg = self.load_config();
+            crate::dbus::global_menu::sync_menu_states(handle, &cfg, &self.state.app_theme);
+            crate::dbus::global_menu::update_context_menu(handle, self.current_content.as_ref());
+        }
+
         if let Some(content) = self
             .current_content
             .as_ref()
@@ -253,11 +273,15 @@ impl KglanceApp {
         {
             let target_size = content.initial_window_size(&self.state);
             if target_size.width > 0.0 && target_size.height > 0.0 {
-                return window::resize(window_id, target_size);
+                tasks.push(window::resize(window_id, target_size));
             }
         }
 
-        Task::none()
+        if tasks.is_empty() {
+            Task::none()
+        } else {
+            Task::batch(tasks)
+        }
     }
 
     pub(crate) fn clear_media(&mut self) {

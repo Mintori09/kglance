@@ -243,7 +243,7 @@ impl KglanceApp {
         }
     }
 
-    fn scroll_page(&mut self, fraction: f32) -> Task<Message> {
+    pub(crate) fn scroll_page(&mut self, fraction: f32) -> Task<Message> {
         self.reset_scroll_pending();
 
         if let Some(target) = self.active_scroll_target_mut() {

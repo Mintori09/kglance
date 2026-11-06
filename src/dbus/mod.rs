@@ -1,4 +1,6 @@
+pub mod global_menu;
 pub mod recipe;
+pub mod recipe_global_menu;
 pub mod service;
 
 pub use service::{DaemonCommand, DaemonService};

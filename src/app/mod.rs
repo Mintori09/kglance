@@ -44,6 +44,10 @@ pub struct KglanceApp {
     pub bench_start_time: Option<std::time::Instant>,
     pub is_bench_mode: bool,
     pub perf_tx: Option<tokio::sync::mpsc::Sender<crate::dbus::PreviewDisplayedEvent>>,
+    pub global_menu: Option<std::sync::Arc<std::sync::Mutex<dbus_global_menu::GlobalMenu>>>,
+    pub menu_handle: Option<dbus_global_menu::MenuHandle>,
+    pub menu_action_rx:
+        std::sync::Arc<tokio::sync::Mutex<Option<tokio::sync::mpsc::UnboundedReceiver<String>>>>,
 }
 
 impl Default for KglanceApp {
@@ -69,6 +73,9 @@ impl Default for KglanceApp {
             bench_start_time: None,
             is_bench_mode: false,
             perf_tx: None,
+            global_menu: None,
+            menu_handle: None,
+            menu_action_rx: Arc::new(tokio::sync::Mutex::new(None)),
         }
     }
 }
@@ -181,9 +188,9 @@ impl KglanceApp {
             theme_setting,
             font_size: config.ui.font_size,
             default_font_size: config.ui.font_size,
-            font_family: config.ui.font_family,
-            font_family_mono: config.ui.font_family_mono,
-            epub_font_family: config.ui.epub_font_family,
+            font_family: config.ui.font_family.clone(),
+            font_family_mono: config.ui.font_family_mono.clone(),
+            epub_font_family: config.ui.epub_font_family.clone(),
             epub_override_book_font: config.ui.epub_override_book_font,
             epub_reading_mode: config.ui.epub_reading_mode,
             ruby_display_mode: config.ui.ruby_display_mode,
@@ -227,6 +234,19 @@ impl KglanceApp {
                 .update_external_path(std::path::Path::new(&initial_paths[0]));
         }
 
+        let (action_tx, action_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+        let (global_menu, menu_handle) =
+            match crate::dbus::global_menu::init_global_menu(action_tx, &config, &app_theme) {
+                Ok((menu, handle)) => (
+                    Some(std::sync::Arc::new(std::sync::Mutex::new(menu))),
+                    Some(handle),
+                ),
+                Err(e) => {
+                    crate::log_error!("Failed to initialize Global Menu: {e}");
+                    (None, None)
+                }
+            };
+
         let app = Self {
             state,
             registry,
@@ -248,6 +268,9 @@ impl KglanceApp {
             bench_start_time: None,
             is_bench_mode: false,
             perf_tx: None,
+            global_menu,
+            menu_handle,
+            menu_action_rx: Arc::new(tokio::sync::Mutex::new(Some(action_rx))),
         };
 
         let task = if !initial_paths.is_empty() {
@@ -673,6 +696,10 @@ impl KglanceApp {
         }
 
         content.populate_state(&mut self.state);
+
+        if let Some(ref handle) = self.menu_handle {
+            crate::dbus::global_menu::update_context_menu(handle, Some(content));
+        }
         self.current_content = Some(content.clone());
     }
 
@@ -1422,6 +1449,10 @@ impl KglanceApp {
             Subscription::none()
         };
 
+        let menu_sub = subscription::from_recipe(
+            crate::dbus::recipe_global_menu::GlobalMenuRecipe::new(self.menu_action_rx.clone()),
+        );
+
         Subscription::batch(vec![
             dbus_sub,
             event_sub,
@@ -1441,6 +1472,7 @@ impl KglanceApp {
             image_anim_sub,
             model3d_anim_sub,
             bench_frame_sub,
+            menu_sub,
         ])
     }
 
@@ -1552,6 +1584,9 @@ pub(crate) mod test_util {
             bench_start_time: None,
             is_bench_mode: false,
             perf_tx: None,
+            global_menu: None,
+            menu_handle: None,
+            menu_action_rx: Arc::new(tokio::sync::Mutex::new(None)),
         }
     }
 
