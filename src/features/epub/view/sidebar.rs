@@ -397,21 +397,7 @@ fn build_sidebar_gallery<'a>(
     let palette = theme.palette().base;
     let mut elements: Vec<Element<'a, Message>> = Vec::new();
 
-    let mut all_image_paths = Vec::new();
-    if state.reading_mode == crate::core::config::EpubReadingMode::Continuous {
-        all_image_paths =
-            crate::features::epub::parser::extract_images_from_blocks(&state.continuous_blocks);
-    } else {
-        for ch in &state.chapters {
-            for p in crate::features::epub::parser::extract_images_from_blocks(&ch.blocks) {
-                if !all_image_paths.contains(&p) {
-                    all_image_paths.push(p);
-                }
-            }
-        }
-    }
-
-    if all_image_paths.is_empty() {
+    if state.gallery_image_paths.is_empty() {
         return container(
             text("No images found")
                 .size(12)
@@ -425,18 +411,18 @@ fn build_sidebar_gallery<'a>(
 
     let mut current_row: Vec<Element<'a, Message>> = Vec::new();
 
-    for path in all_image_paths {
+    for path in &state.gallery_image_paths {
         let path_clone = path.clone();
-        let filename = std::path::Path::new(&path)
+        let filename = std::path::Path::new(path.as_str())
             .file_name()
             .and_then(|n| n.to_str())
-            .unwrap_or(&path)
+            .unwrap_or(path.as_str())
             .to_string();
 
         let thumb: Element<'a, Message> = if let Some(handle) = state
             .markdown_state
             .cached_image_handles
-            .get(&path)
+            .get(path.as_str())
             .or_else(|| {
                 state
                     .markdown_state
@@ -448,7 +434,7 @@ fn build_sidebar_gallery<'a>(
                 .height(Length::Fixed(90.0))
                 .into()
         } else {
-            container(text("🖼️").size(24))
+            container(text("IMG").size(11).font(main_font).color(palette.text_dim))
                 .width(Length::Fixed(90.0))
                 .height(Length::Fixed(90.0))
                 .center_x(Length::Fill)

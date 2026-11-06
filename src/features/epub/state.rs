@@ -278,6 +278,20 @@ pub fn populate_state(
         Vec::new()
     };
 
+    let gallery_image_paths = if reading_mode == EpubReadingMode::Continuous {
+        crate::features::epub::parser::extract_images_from_blocks(&effective_blocks)
+    } else {
+        let mut paths = Vec::new();
+        for ch in &loaded_chapters {
+            for p in crate::features::epub::parser::extract_images_from_blocks(&ch.blocks) {
+                if !paths.contains(&p) {
+                    paths.push(p);
+                }
+            }
+        }
+        paths
+    };
+
     state.epub = EpubState {
         title: title.to_string(),
         author: author.to_string(),
@@ -303,6 +317,7 @@ pub fn populate_state(
         sidebar_tab: state.epub.sidebar_tab,
         lightbox: None,
         chapter_y_offsets: Vec::new(),
+        gallery_image_paths,
     };
     crate::features::epub::view::sidebar::rebuild_chapter_y_offsets(&mut state.epub);
     state

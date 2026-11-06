@@ -112,6 +112,12 @@ pub fn ensure_chapter_loaded(app: &mut KglanceApp, idx: usize) {
                             ch.blocks = new_blocks.clone();
                         }
                     }
+                    for p in crate::features::epub::parser::extract_images_from_blocks(&new_blocks)
+                    {
+                        if !app.state.epub.gallery_image_paths.contains(&p) {
+                            app.state.epub.gallery_image_paths.push(p);
+                        }
+                    }
                 }
             }
         }
@@ -185,6 +191,14 @@ pub fn ensure_all_chapters_loaded(app: &mut KglanceApp) {
                     .block_styles
                     .entry(k)
                     .or_insert(v);
+            }
+        }
+
+        for ch in &app.state.epub.chapters {
+            for p in crate::features::epub::parser::extract_images_from_blocks(&ch.blocks) {
+                if !app.state.epub.gallery_image_paths.contains(&p) {
+                    app.state.epub.gallery_image_paths.push(p);
+                }
             }
         }
     }
