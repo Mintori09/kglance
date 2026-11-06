@@ -85,7 +85,17 @@ pub fn create_search_snippet(text: &str, match_start: usize, match_len: usize) -
     let cleaned: String = raw_slice.split_whitespace().collect::<Vec<_>>().join(" ");
 
     let snippet = format!("{prefix_ellipsis}{cleaned}{suffix_ellipsis}");
-    let relative_offset = prefix_ellipsis.len() + (match_start.saturating_sub(start_byte));
+    let match_slice = &text[match_start..(match_start + match_len).min(text.len())];
+    let trimmed_match = match_slice.trim();
+    let relative_offset = if !trimmed_match.is_empty() {
+        if let Some(pos) = cleaned.to_lowercase().find(&trimmed_match.to_lowercase()) {
+            prefix_ellipsis.chars().count() + cleaned[..pos].chars().count()
+        } else {
+            prefix_ellipsis.chars().count()
+        }
+    } else {
+        prefix_ellipsis.chars().count()
+    };
     (snippet, relative_offset)
 }
 
