@@ -237,9 +237,12 @@ pub fn recompute_markdown_layout(
     font_size: f32,
     content_width: f32,
 ) {
+    const WIDTH_EPSILON: f32 = 1.0;
+    const FONT_EPSILON: f32 = 0.1;
+
     if state.block_layouts.len() == blocks.len()
-        && (state.layout_content_width - content_width).abs() < 1.0
-        && (state.layout_font_size - font_size).abs() < 0.1
+        && (state.layout_content_width - content_width).abs() < WIDTH_EPSILON
+        && (state.layout_font_size - font_size).abs() < FONT_EPSILON
     {
         return;
     }

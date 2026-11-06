@@ -14,6 +14,8 @@ use iced::alignment::Horizontal;
 use iced::widget::{button, column, container, row, scrollable, text};
 use iced::{Element, Length};
 
+pub const MAX_VISIBLE_ROWS: usize = 100;
+
 fn map_alignment(align: Option<&pulldown_cmark::Alignment>) -> Horizontal {
     match align {
         Some(pulldown_cmark::Alignment::Center) => Horizontal::Center,
@@ -137,7 +139,6 @@ pub(crate) fn render_table<'a>(
         children.push(separator.into());
     }
 
-    pub const MAX_VISIBLE_ROWS: usize = 100;
     let total_rows = table.rows.len();
     let visible_rows = total_rows.min(MAX_VISIBLE_ROWS);
 
