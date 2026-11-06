@@ -508,11 +508,17 @@ pub enum Model3dMsg {
 }
 
 #[derive(Debug, Clone)]
+pub enum GlobalMenuMsg {
+    ActionTriggered(String),
+}
+
+#[derive(Debug, Clone)]
 pub enum Message {
     None,
     // Action & System
     Action(ActionMsg),
     System(SystemMsg),
+    GlobalMenu(GlobalMenuMsg),
     // Sub-domain messages
     Navigation(NavigationMsg),
     Image(ImageMsg),
@@ -659,5 +665,10 @@ impl From<TrashMsg> for Message {
 impl From<FolderMsg> for Message {
     fn from(m: FolderMsg) -> Self {
         Message::Folder(m)
+    }
+}
+impl From<GlobalMenuMsg> for Message {
+    fn from(m: GlobalMenuMsg) -> Self {
+        Message::GlobalMenu(m)
     }
 }
