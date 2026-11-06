@@ -1,0 +1,20 @@
+[package]
+name = "dbus-global-menu"
+version = "0.1.0"
+authors = ["Mintori09"]
+edition = "2024"
+description = "Universal Linux Global Menu (DBusMenu & Wayland/X11) for Rust GUI frameworks (GPUI, Iced, Tauri, Winit, Slint, Egui)"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/mintori/dbus-global-menu"
+
+[dependencies]
+zbus = "5.19"
+serde = { version = "1.0", features = ["derive"] }
+wayland-client = "0.31"
+wayland-backend = { version = "0.3", features = ["client_system"] }
+wayland-protocols-plasma = { version = "0.3", features = ["client"] }
+raw-window-handle = "0.6"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros"] }
+parking_lot = "0.12"
+log = "0.4"
+
