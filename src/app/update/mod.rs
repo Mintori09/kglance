@@ -29,9 +29,10 @@ fn get_active_lightbox_image_state(
 
 pub fn update(app: &mut KglanceApp, message: Message) -> Task<Message> {
     let task = update_message(app, message);
+    let measure_task = crate::features::markdown::measure::flush_pending_block_measurements(app);
     sync_virtual_windows(app);
     app.sync_global_menu_copy_label();
-    task
+    Task::batch([task, measure_task])
 }
 
 /// Refreshes the stored virtual windows after any state change so the views

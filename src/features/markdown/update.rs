@@ -33,9 +33,25 @@ pub(crate) fn estimate_toc_entry_height(
     let extra_w = 16.0 + 8.0 + indent + if has_subheadings { 19.0 } else { 0.0 };
     let available_w = (sidebar_width - extra_w).max(80.0);
 
-    let avg_char_w = font_size * 0.54;
-    let approx_text_w = text.chars().count() as f32 * avg_char_w;
-    let lines = (approx_text_w / available_w).ceil().max(1.0);
+    let approx_text_w: f32 = text
+        .chars()
+        .map(|c| match c {
+            '\u{0300}'..='\u{036F}'
+            | '\u{1DC0}'..='\u{1DFF}'
+            | '\u{20D0}'..='\u{20FF}'
+            | '\u{FE20}'..='\u{FE2F}' => 0.0,
+            '\u{1100}'..='\u{115F}'
+            | '\u{2E80}'..='\u{A4CF}'
+            | '\u{AC00}'..='\u{D7A3}'
+            | '\u{F900}'..='\u{FAFF}'
+            | '\u{FE30}'..='\u{FE4F}'
+            | '\u{FF01}'..='\u{FF60}'
+            | '\u{FFE0}'..='\u{FFE6}' => font_size * 1.0,
+            'A'..='Z' => font_size * 0.65,
+            _ => font_size * 0.54,
+        })
+        .sum();
+    let lines = (approx_text_w / available_w).ceil().clamp(1.0, 5.0);
 
     let line_height = font_size * 1.35;
     let content_h = lines * line_height;
@@ -361,50 +377,51 @@ pub fn handle_search_query_changed(app: &mut KglanceApp, query: String) -> Task<
         let mut count = 0;
         let mut match_blocks = Vec::new();
         for (bi, block) in blocks.iter().enumerate() {
-            let text = match block {
-                Block::Heading { content, .. } | Block::Paragraph(content) => {
-                    crate::parsers::markdown::flatten_inlines(content)
+            let n = match block {
+                Block::CodeBlock { code, .. } | Block::Math(code) => {
+                    code.to_lowercase().matches(&q).count()
                 }
-                Block::CodeBlock { code, .. } | Block::Math(code) => code.clone(),
-                Block::Quote(inner) => inner
-                    .iter()
-                    .map(|ib| match ib {
-                        Block::Heading { content, .. } | Block::Paragraph(content) => {
-                            crate::parsers::markdown::flatten_inlines(content)
+                Block::Heading { content, .. } | Block::Paragraph(content) => {
+                    let text = crate::parsers::markdown::flatten_inlines(content);
+                    text.to_lowercase().matches(&q).count()
+                }
+                Block::Quote(inner) => {
+                    let mut inner_count = 0;
+                    for ib in inner {
+                        if let Block::Heading { content, .. } | Block::Paragraph(content) = ib {
+                            let text = crate::parsers::markdown::flatten_inlines(content);
+                            inner_count += text.to_lowercase().matches(&q).count();
                         }
-                        _ => String::new(),
-                    })
-                    .collect::<Vec<_>>()
-                    .join(" "),
-                Block::List { items, .. } => items
-                    .iter()
-                    .flat_map(|item| {
-                        let own = crate::parsers::markdown::flatten_inlines(&item.content);
-                        let sub: String = item
-                            .sub_blocks
-                            .iter()
-                            .map(|lb| match lb {
-                                Block::Heading { content, .. } | Block::Paragraph(content) => {
-                                    crate::parsers::markdown::flatten_inlines(content)
-                                }
-                                _ => String::new(),
-                            })
-                            .collect::<Vec<_>>()
-                            .join(" ");
-                        vec![own, sub]
-                    })
-                    .collect::<Vec<_>>()
-                    .join(" "),
-                Block::Table(tbl) => tbl
-                    .rows
-                    .iter()
-                    .flat_map(|r| r.iter())
-                    .map(|cell| crate::parsers::markdown::flatten_inlines(&cell.content))
-                    .collect::<Vec<_>>()
-                    .join(" "),
-                _ => String::new(),
+                    }
+                    inner_count
+                }
+                Block::List { items, .. } => {
+                    let mut list_count = 0;
+                    for item in items {
+                        let text = crate::parsers::markdown::flatten_inlines(&item.content);
+                        list_count += text.to_lowercase().matches(&q).count();
+                        for lb in &item.sub_blocks {
+                            if let Block::Heading { content, .. } | Block::Paragraph(content) = lb {
+                                let sub_text = crate::parsers::markdown::flatten_inlines(content);
+                                list_count += sub_text.to_lowercase().matches(&q).count();
+                            }
+                        }
+                    }
+                    list_count
+                }
+                Block::Table(tbl) => {
+                    let mut tbl_count = 0;
+                    for r in &tbl.rows {
+                        for cell in r {
+                            let cell_text =
+                                crate::parsers::markdown::flatten_inlines(&cell.content);
+                            tbl_count += cell_text.to_lowercase().matches(&q).count();
+                        }
+                    }
+                    tbl_count
+                }
+                _ => 0,
             };
-            let n = text.to_lowercase().matches(&q).count();
             for _ in 0..n {
                 match_blocks.push(bi);
             }

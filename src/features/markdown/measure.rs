@@ -6,18 +6,30 @@ use iced::widget::operation;
 
 use super::update::active_markdown_state_mut;
 
-/// Applies a block height measured from the rendered layout, keeping the
-/// block at the top of the viewport anchored in place.
+/// Queues a block height measurement to be processed in batch.
 pub fn handle_block_measured(
     app: &mut KglanceApp,
     block_index: usize,
     height: f32,
 ) -> Task<Message> {
+    let state = active_markdown_state_mut(app);
+    state.pending_measurements.push((block_index, height));
+    Task::none()
+}
+
+/// Flushes all pending block measurements in a single atomic batch pass,
+/// updating layout offsets and anchoring the scroll position.
+pub fn flush_pending_block_measurements(app: &mut KglanceApp) -> Task<Message> {
     let font_size = app.state.font_size;
     let state = active_markdown_state_mut(app);
+
+    if state.pending_measurements.is_empty() {
+        return Task::none();
+    }
+
+    let measurements = std::mem::take(&mut state.pending_measurements);
     let old_scroll_y = state.scroll_y;
-    let new_scroll_y =
-        super::apply_measured_block_heights(state, &[(block_index, height)], font_size);
+    let new_scroll_y = super::apply_measured_block_heights(state, &measurements, font_size);
 
     let is_animating = state.smooth_scroll.is_animating
         || state.scroll_controller.is_animating()

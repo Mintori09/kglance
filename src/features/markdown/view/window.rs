@@ -18,7 +18,9 @@ pub fn visible_range(
     block_count: usize,
 ) -> Range<usize> {
     let overscan = overscan_px(viewport_height);
-    let view_top = (scroll_y - overscan).max(0.0);
+    // Asymmetric/Directional overscan buffer: give 1.5x overscan buffer at the top to prevent
+    // top spacer jitter when scrolling down and measuring blocks.
+    let view_top = (scroll_y - overscan * 1.5).max(0.0);
     let view_bottom = scroll_y + viewport_height + overscan;
 
     let raw_first = offsets.partition_point(|&y| y < view_top).saturating_sub(1);

@@ -26,6 +26,9 @@ pub struct SelectionRange {
     pub end: SelectionPoint,
 }
 
+pub const MAX_IMAGE_HANDLES: usize = 64;
+pub const MAX_MERMAID_HANDLES: usize = 32;
+
 #[derive(Debug, Clone)]
 pub struct MarkdownState {
     pub cached_mermaid_handles: HashMap<usize, image::Handle>,
@@ -81,6 +84,8 @@ pub struct MarkdownState {
     pub block_styles: HashMap<usize, crate::features::epub::parser::css::BlockStyle>,
     /// Horizontal scroll offsets for markdown tables, keyed by block index.
     pub table_scroll_offsets: HashMap<usize, f32>,
+    /// Pending measured block heights batched for atomic update.
+    pub pending_measurements: Vec<(usize, f32)>,
 }
 
 impl Default for MarkdownState {
@@ -128,6 +133,7 @@ impl Default for MarkdownState {
             scroll_controller: ScrollController::default(),
             block_styles: HashMap::new(),
             table_scroll_offsets: HashMap::new(),
+            pending_measurements: Vec::new(),
         }
     }
 }

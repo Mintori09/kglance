@@ -147,14 +147,21 @@ pub fn apply_measured_block_heights(
     };
     let old_anchor_y = old_offsets.get(anchor_idx).copied().unwrap_or(0.0);
 
-    // 2. Batch update measured heights into BlockLayouts
+    // 2. Batch update measured heights and compute delta if single block changed
     let mut min_changed_idx = usize::MAX;
+    let mut changed_count = 0;
+    let mut single_delta = 0.0;
+
     for &(idx, measured_h) in measurements {
         if let Some(layout) = state.block_layouts.get_mut(idx)
             && layout.measured_height != Some(measured_h)
         {
+            let old_effective = layout.effective_height();
             layout.measured_height = Some(measured_h);
+            let new_effective = layout.effective_height();
+            single_delta += new_effective - old_effective;
             min_changed_idx = min_changed_idx.min(idx);
+            changed_count += 1;
         }
     }
 
@@ -162,12 +169,21 @@ pub fn apply_measured_block_heights(
         return state.scroll_y;
     }
 
-    // 3. Batched In-Place Prefix Update
-    let new_total_h = update_block_offsets_in_place(
-        &state.block_layouts,
-        &mut state.block_y_offsets,
-        min_changed_idx,
-    );
+    // 3. Fast Vectorized In-Place Prefix Update:
+    // When only one continuous block changed, we can apply SIMD vectorized linear addition.
+    let new_total_h =
+        if changed_count == 1 && state.block_y_offsets.len() == state.block_layouts.len() {
+            for offset in &mut state.block_y_offsets[min_changed_idx + 1..] {
+                *offset += single_delta;
+            }
+            state.total_content_height + single_delta
+        } else {
+            update_block_offsets_in_place(
+                &state.block_layouts,
+                &mut state.block_y_offsets,
+                min_changed_idx,
+            )
+        };
     let new_anchor_y = state
         .block_y_offsets
         .get(anchor_idx)
@@ -221,6 +237,13 @@ pub fn recompute_markdown_layout(
     font_size: f32,
     content_width: f32,
 ) {
+    if state.block_layouts.len() == blocks.len()
+        && (state.layout_content_width - content_width).abs() < 1.0
+        && (state.layout_font_size - font_size).abs() < 0.1
+    {
+        return;
+    }
+
     let (layouts, offsets, total_h) =
         compute_block_layouts(blocks, font_size, &state.cached_image_sizes, content_width);
     if state.toc.is_empty() {
@@ -318,28 +341,49 @@ pub fn compute_block_y_offsets(
 
 pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
     let fs = state.font_size;
-    let full_text: String = blocks
-        .iter()
-        .map(|b| match b {
-            Block::Heading { content, .. } | Block::Paragraph(content) => flatten_inlines(content),
-            Block::CodeBlock { code, .. } => code.clone(),
-            Block::Math(code) => code.clone(),
-            _ => String::new(),
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
+    let mut words = 0;
+    let mut chars = 0;
 
-    let words = full_text.split_whitespace().count();
-    let chars = full_text.chars().count();
+    for b in blocks {
+        match b {
+            Block::Heading { content, .. } | Block::Paragraph(content) => {
+                let text = flatten_inlines(content);
+                words += text.split_whitespace().count();
+                chars += text.chars().count();
+            }
+            Block::CodeBlock { code, .. } | Block::Math(code) => {
+                words += code.split_whitespace().count();
+                chars += code.chars().count();
+            }
+            _ => {}
+        }
+    }
+
     let mins = (words as f32 / 200.0).ceil() as usize;
 
     let old_toc_visible = state.markdown.toc_visible;
     let old_collapsed = std::mem::take(&mut state.markdown.collapsed_headings);
-    let old_mermaid = std::mem::take(&mut state.markdown.cached_mermaid_handles);
-    let old_image_h = std::mem::take(&mut state.markdown.cached_image_handles);
-    let old_image_s = std::mem::take(&mut state.markdown.cached_image_sizes);
-    let old_animated_gifs = std::mem::take(&mut state.markdown.animated_gifs);
+    let mut old_mermaid = std::mem::take(&mut state.markdown.cached_mermaid_handles);
+    let mut old_image_h = std::mem::take(&mut state.markdown.cached_image_handles);
+    let mut old_image_s = std::mem::take(&mut state.markdown.cached_image_sizes);
+    let mut old_animated_gifs = std::mem::take(&mut state.markdown.animated_gifs);
     let old_anim_start = state.markdown.animation_start_time;
+
+    // Retain only images and mermaids present in current document to prevent memory leak across files
+    let current_images: std::collections::HashSet<String> =
+        crate::features::epub::parser::extract_images_from_blocks(blocks)
+            .into_iter()
+            .collect();
+    old_image_h.retain(|path, _| current_images.contains(path));
+    old_image_s.retain(|path, _| current_images.contains(path));
+    old_animated_gifs.retain(|path, _| current_images.contains(path));
+
+    let current_mermaid_indices: std::collections::HashSet<usize> = blocks
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, b)| matches!(b, Block::Mermaid { .. }).then_some(idx))
+        .collect();
+    old_mermaid.retain(|idx, _| current_mermaid_indices.contains(idx));
 
     let old_sidebar_w = state.markdown.sidebar_width;
     let old_gen = Arc::clone(&state.markdown.generation_id);
@@ -409,6 +453,7 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
         scroll_controller: crate::core::scroll::ScrollController::default(),
         block_styles: HashMap::new(),
         table_scroll_offsets: HashMap::new(),
+        pending_measurements: Vec::new(),
     };
 
     for (i, block) in blocks.iter().enumerate() {
@@ -577,5 +622,31 @@ mod tests {
 
         assert_eq!(state.block_y_offsets[2], 210.0);
         assert_eq!(state.toc[1].y_offset, lc::CONTENT_PADDING + 210.0);
+    }
+
+    #[test]
+    fn test_recompute_markdown_layout_fast_path_guard() {
+        let blocks = vec![Block::Paragraph(vec![
+            crate::parsers::markdown::Inline::Text("Test content".into()),
+        ])];
+        let mut state = MarkdownState::default();
+
+        // Lần 1: tính toán bình thường
+        recompute_markdown_layout(&mut state, &blocks, 14.0, 800.0);
+        assert_eq!(state.block_layouts.len(), 1);
+        assert_eq!(state.layout_content_width, 800.0);
+        assert_eq!(state.layout_font_size, 14.0);
+
+        // Giả lập block được đo đạc chính xác
+        state.block_layouts[0].measured_height = Some(99.0);
+
+        // Lần 2: gọi lại với cùng kích thước -> fast-path guard return ngay, giữ nguyên measured_height
+        recompute_markdown_layout(&mut state, &blocks, 14.0, 800.4);
+        assert_eq!(state.block_layouts[0].measured_height, Some(99.0));
+
+        // Lần 3: gọi với content_width thay đổi đáng kể (> 1.0) -> recompute làm mất measured_height cũ
+        recompute_markdown_layout(&mut state, &blocks, 14.0, 810.0);
+        assert_eq!(state.block_layouts[0].measured_height, None);
+        assert_eq!(state.layout_content_width, 810.0);
     }
 }
