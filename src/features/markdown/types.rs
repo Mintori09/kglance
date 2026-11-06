@@ -26,6 +26,13 @@ pub struct SelectionRange {
     pub end: SelectionPoint,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MarkdownSidebarTab {
+    #[default]
+    Toc,
+    Search,
+}
+
 pub const MAX_IMAGE_HANDLES: usize = 64;
 pub const MAX_MERMAID_HANDLES: usize = 32;
 
@@ -38,6 +45,7 @@ pub struct MarkdownState {
     pub animation_start_time: Option<std::time::Instant>,
     pub toc: Vec<TocEntry>,
     pub toc_visible: bool,
+    pub sidebar_tab: MarkdownSidebarTab,
     pub sidebar_width: f32,
     pub sidebar_resizing: bool,
     pub sidebar_drag_start_x: Option<f32>,
@@ -52,6 +60,7 @@ pub struct MarkdownState {
     pub search_match_count: usize,
     pub search_match_index: usize,
     pub search_match_blocks: Vec<usize>,
+    pub search_matches: Vec<super::search::SearchMatchItem>,
     pub search_info: String,
     pub selected_text: Option<String>,
     pub selection_range: Option<SelectionRange>,
@@ -98,6 +107,7 @@ impl Default for MarkdownState {
             animation_start_time: None,
             toc: Vec::new(),
             toc_visible: false,
+            sidebar_tab: MarkdownSidebarTab::default(),
             sidebar_width: 250.0,
             sidebar_resizing: false,
             sidebar_drag_start_x: None,
@@ -112,6 +122,7 @@ impl Default for MarkdownState {
             search_match_count: 0,
             search_match_index: 0,
             search_match_blocks: Vec::new(),
+            search_matches: Vec::new(),
             search_info: String::new(),
             selected_text: None,
             selection_range: None,

@@ -1,6 +1,7 @@
 pub mod lightbox;
 pub mod measure;
 pub mod parser;
+pub mod search;
 pub mod state;
 pub mod tasks;
 pub mod types;

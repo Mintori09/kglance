@@ -12,11 +12,10 @@ use crate::parsers::markdown::Block;
 use crate::parsers::markdown::BlockLayout;
 use crate::ui::components::content_layout::scrollable_content;
 use crate::ui::components::measured::Measured;
-use crate::ui::components::search_bar::{SearchKind, search_bar};
 use crate::ui::components::selectable_text::SelectableText;
 use crate::ui::components::sidebar::with_sidebar_layout;
 use crate::ui::types::RenderContext;
-use iced::widget::{column, container};
+use iced::widget::container;
 use iced::{Element, Length, Padding};
 
 #[allow(clippy::too_many_arguments)]
@@ -178,22 +177,7 @@ pub fn view_markdown<'a>(
         content_width,
     };
     let scroll = build_scrollable_content(blocks, state, &ctx, max_text_width);
-    let content_area = build_content_area(state, scroll, &ctx);
-
-    if state.search_visible {
-        let search = search_bar(
-            SearchKind::Markdown,
-            &state.search_query,
-            if state.search_info.is_empty() {
-                None
-            } else {
-                Some(state.search_info.as_str())
-            },
-        );
-        column![search, content_area].height(Length::Fill).into()
-    } else {
-        content_area
-    }
+    build_content_area(state, scroll, &ctx)
 }
 
 fn build_scrollable_content<'a>(
@@ -350,7 +334,10 @@ fn build_content_area<'a>(
     ctx: &RenderContext<'_>,
 ) -> Element<'a, Message> {
     with_sidebar_layout(
-        state.toc_visible && !state.toc.is_empty(),
+        state.toc_visible
+            && (!state.toc.is_empty()
+                || state.sidebar_tab
+                    == crate::features::markdown::types::MarkdownSidebarTab::Search),
         state.sidebar_resizing,
         ctx.theme,
         || {

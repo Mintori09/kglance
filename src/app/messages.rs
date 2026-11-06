@@ -219,6 +219,8 @@ pub enum MarkdownMsg {
     SearchNext,
     SearchPrev,
     SearchClosed,
+    SearchResultClicked(usize),
+    SidebarTabChanged(crate::features::markdown::types::MarkdownSidebarTab),
     MermaidBlockRendered {
         generation_id: usize,
         index: usize,
