@@ -519,12 +519,14 @@ pub fn handle_double_click(app: &mut KglanceApp) -> Task<Message> {
 pub fn handle_toggle_info(app: &mut KglanceApp) -> Task<Message> {
     if !app.state.image.exif_content.is_empty() {
         app.state.image.show_info = !app.state.image.show_info;
+        app.sync_global_menu_context();
     }
     Task::none()
 }
 
 pub fn handle_close_info(app: &mut KglanceApp) -> Task<Message> {
     app.state.image.show_info = false;
+    app.sync_global_menu_context();
     Task::none()
 }
 

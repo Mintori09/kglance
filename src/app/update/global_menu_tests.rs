@@ -362,3 +362,173 @@ fn test_theme_toggle_flips_dark_and_light() {
     assert!(!app.state.app_theme.is_dark());
     assert_eq!(app.state.theme_setting, "light");
 }
+
+#[test]
+fn test_global_menu_view_toggles_selection_menu_and_remember_size() {
+    let mut app = test_app(None);
+
+    let initial_sel = app.state.selection_menu_config.enabled;
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("toggle.selection_menu".to_string()),
+    );
+    assert_eq!(app.state.selection_menu_config.enabled, !initial_sel);
+
+    assert!(!app.state.remember_window_size);
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("toggle.remember_size".to_string()),
+    );
+    assert!(app.state.remember_window_size);
+}
+
+#[test]
+fn test_global_menu_epub_actions() {
+    let mut app = test_app(None);
+
+    // 1. Toggle override font
+    assert!(!app.state.epub_override_book_font);
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("epub.toggle_override_font".to_string()),
+    );
+    assert!(app.state.epub_override_book_font);
+
+    // 2. Reading mode
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("epub.reading_mode.continuous".to_string()),
+    );
+    assert_eq!(
+        app.state.epub_reading_mode,
+        crate::core::config::EpubReadingMode::Continuous
+    );
+
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("epub.reading_mode.single".to_string()),
+    );
+    assert_eq!(
+        app.state.epub_reading_mode,
+        crate::core::config::EpubReadingMode::SingleChapter
+    );
+
+    // 3. Ruby display mode
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("epub.ruby_mode.tooltip".to_string()),
+    );
+    assert_eq!(
+        app.state.ruby_display_mode,
+        crate::core::config::RubyDisplayMode::Tooltip
+    );
+
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("epub.ruby_mode.hidden".to_string()),
+    );
+    assert_eq!(
+        app.state.ruby_display_mode,
+        crate::core::config::RubyDisplayMode::Hidden
+    );
+}
+
+#[test]
+fn test_global_menu_json_actions() {
+    let mut app = test_app(None);
+    app.current_content = Some(crate::core::PreviewData::Json {
+        nodes: vec![],
+        content: "{\"key\": 1}".to_string(),
+        pretty: "{\n  \"key\": 1\n}".to_string(),
+        has_parse_error: false,
+    });
+
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("json.toggle_format".to_string()),
+    );
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("json.expand_all".to_string()),
+    );
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("json.collapse_all".to_string()),
+    );
+}
+
+#[test]
+fn test_global_menu_markdown_actions() {
+    let mut app = test_app(None);
+
+    assert!(!app.state.prefer_mermaid_cli);
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("markdown.toggle_mermaid_cli".to_string()),
+    );
+    assert!(app.state.prefer_mermaid_cli);
+}
+
+#[test]
+fn test_global_menu_spreadsheet_and_image_actions() {
+    let mut app = test_app(None);
+
+    // Image flips and toggle info
+    app.current_content = Some(crate::core::PreviewData::Image {
+        data: vec![],
+        width: 100,
+        height: 100,
+        format_info: "PNG".to_string(),
+        exif_content: Some("Exif data".to_string()),
+    });
+    app.state.image.exif_content = "Exif data".to_string();
+
+    assert!(!app.state.image.show_info);
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("image.toggle_info".to_string()),
+    );
+    assert!(app.state.image.show_info);
+
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("image.flip_h".to_string()),
+    );
+    assert!(app.state.image.camera.flip.0);
+
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("image.flip_v".to_string()),
+    );
+    assert!(app.state.image.camera.flip.1);
+}
+
+#[test]
+fn test_global_menu_zoom_actions() {
+    let mut app = test_app(None);
+    app.current_content = Some(crate::core::PreviewData::Text {
+        content: "hello world".to_string(),
+        line_numbers: "1".to_string(),
+        language: "text".to_string(),
+    });
+    let initial_font_size = app.state.font_size;
+
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("zoom.in".to_string()),
+    );
+    assert_eq!(app.state.font_size, initial_font_size + 1.0);
+
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("zoom.out".to_string()),
+    );
+    assert_eq!(app.state.font_size, initial_font_size);
+
+    app.state.font_size = initial_font_size + 5.0;
+    let _ = handle_global_menu_msg(
+        &mut app,
+        GlobalMenuMsg::ActionTriggered("zoom.reset".to_string()),
+    );
+    assert_eq!(app.state.font_size, app.state.default_font_size);
+}

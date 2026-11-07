@@ -1,3 +1,6 @@
+pub mod context;
+pub use context::*;
+
 use crate::core::PreviewData;
 use crate::core::config::AppConfig;
 use crate::ui::theme::color::AppTheme;
@@ -17,6 +20,8 @@ pub const ID_EDIT_FIND: i32 = 203;
 pub const ID_VIEW_ROOT: i32 = 300;
 pub const ID_VIEW_WORD_WRAP: i32 = 301;
 pub const ID_VIEW_SMOOTH_SCROLL: i32 = 303;
+pub const ID_VIEW_SELECTION_MENU: i32 = 304;
+pub const ID_VIEW_REMEMBER_SIZE: i32 = 305;
 pub const ID_VIEW_PREFERENCES: i32 = 310;
 pub const ID_VIEW_THEME_SUBMENU: i32 = 320;
 
@@ -90,6 +95,24 @@ pub fn build_root_menu(config: &AppConfig, active_theme: &AppTheme) -> MenuItem 
         .with_checkbox(scroll_state)
         .with_action("toggle.smooth_scroll");
 
+    let selection_menu_state = if config.selection_menu.enabled {
+        ToggleState::On
+    } else {
+        ToggleState::Off
+    };
+    let toggle_selection_menu = MenuItem::new(ID_VIEW_SELECTION_MENU, "Selection Context Menu")
+        .with_checkbox(selection_menu_state)
+        .with_action("toggle.selection_menu");
+
+    let remember_size_state = if config.ui.remember_window_size {
+        ToggleState::On
+    } else {
+        ToggleState::Off
+    };
+    let toggle_remember_size = MenuItem::new(ID_VIEW_REMEMBER_SIZE, "Remember Window Size")
+        .with_checkbox(remember_size_state)
+        .with_action("toggle.remember_size");
+
     let preferences = MenuItem::new(ID_VIEW_PREFERENCES, "Preferences...")
         .with_action("settings.open")
         .with_shortcut_str("Ctrl+comma");
@@ -117,6 +140,8 @@ pub fn build_root_menu(config: &AppConfig, active_theme: &AppTheme) -> MenuItem 
         MenuItem::separator(390),
         toggle_wrap,
         toggle_scroll,
+        toggle_selection_menu,
+        toggle_remember_size,
         MenuItem::separator(391),
         preferences,
     ];
@@ -164,6 +189,20 @@ pub fn sync_menu_states(handle: &MenuHandle, config: &AppConfig, active_theme: &
     };
     handle.set_toggle_state(ID_VIEW_SMOOTH_SCROLL, scroll_state);
 
+    let sel_state = if config.selection_menu.enabled {
+        ToggleState::On
+    } else {
+        ToggleState::Off
+    };
+    handle.set_toggle_state(ID_VIEW_SELECTION_MENU, sel_state);
+
+    let remember_state = if config.ui.remember_window_size {
+        ToggleState::On
+    } else {
+        ToggleState::Off
+    };
+    handle.set_toggle_state(ID_VIEW_REMEMBER_SIZE, remember_state);
+
     let current_theme_key = active_theme.name();
     for (idx, (_, theme_key)) in THEME_ITEMS.iter().enumerate() {
         let is_active = current_theme_key == *theme_key;
@@ -185,126 +224,15 @@ pub fn sync_copy_menu_label(handle: &MenuHandle, has_selection: bool) {
     handle.set_label(ID_EDIT_COPY, label);
 }
 
-pub fn update_context_menu(handle: &MenuHandle, content: Option<&PreviewData>) {
-    let mut actions = Vec::new();
-    let mut label = "Actions";
-
-    if let Some(content) = content {
-        match content {
-            PreviewData::Image { .. } => {
-                label = "Image";
-                actions.push(
-                    MenuItem::new(401, "Rotate Clockwise")
-                        .with_action("image.rotate_cw")
-                        .with_shortcut_str("R"),
-                );
-                actions.push(
-                    MenuItem::new(402, "Rotate Counter-Clockwise")
-                        .with_action("image.rotate_ccw")
-                        .with_shortcut_str("Shift+R"),
-                );
-                actions.push(
-                    MenuItem::new(403, "Fit to Window")
-                        .with_action("image.fit")
-                        .with_shortcut_str("F"),
-                );
-                actions.push(
-                    MenuItem::new(404, "Original Size (100%)")
-                        .with_action("image.actual_size")
-                        .with_shortcut_str("1"),
-                );
-            }
-            PreviewData::Pdf { .. } => {
-                label = "PDF";
-                actions.push(
-                    MenuItem::new(411, "Previous Page")
-                        .with_action("pdf.prev_page")
-                        .with_shortcut_str("Page_Up"),
-                );
-                actions.push(
-                    MenuItem::new(412, "Next Page")
-                        .with_action("pdf.next_page")
-                        .with_shortcut_str("Page_Down"),
-                );
-                actions.push(
-                    MenuItem::new(413, "Toggle Table of Contents")
-                        .with_action("pdf.toggle_toc")
-                        .with_shortcut_str("T"),
-                );
-            }
-            PreviewData::Epub { .. } => {
-                label = "EPUB";
-                actions.push(
-                    MenuItem::new(421, "Previous Chapter")
-                        .with_action("epub.prev_chapter")
-                        .with_shortcut_str("Page_Up"),
-                );
-                actions.push(
-                    MenuItem::new(422, "Next Chapter")
-                        .with_action("epub.next_chapter")
-                        .with_shortcut_str("Page_Down"),
-                );
-                actions.push(
-                    MenuItem::new(423, "Toggle Table of Contents")
-                        .with_action("epub.toggle_toc")
-                        .with_shortcut_str("T"),
-                );
-            }
-            PreviewData::Audio { .. } => {
-                label = "Audio";
-                actions.push(
-                    MenuItem::new(431, "Play / Pause")
-                        .with_action("media.toggle_pause")
-                        .with_shortcut_str("P"),
-                );
-                actions.push(
-                    MenuItem::new(432, "Mute / Unmute")
-                        .with_action("media.toggle_mute")
-                        .with_shortcut_str("M"),
-                );
-            }
-            PreviewData::Media { .. } => {
-                label = "Video";
-                actions.push(
-                    MenuItem::new(431, "Play / Pause")
-                        .with_action("media.toggle_pause")
-                        .with_shortcut_str("P"),
-                );
-                actions.push(
-                    MenuItem::new(433, "Cycle Subtitles")
-                        .with_action("media.cycle_subtitles")
-                        .with_shortcut_str("C"),
-                );
-            }
-            PreviewData::Text { .. } | PreviewData::Markdown { .. } => {
-                label = "Document";
-                actions.push(
-                    MenuItem::new(405, "Toggle Outline / Table of Contents")
-                        .with_action("text.toggle_outline")
-                        .with_shortcut_str("T"),
-                );
-            }
-            PreviewData::Json { .. } => {
-                label = "JSON";
-                actions.push(
-                    MenuItem::new(406, "Toggle Tree / Raw View")
-                        .with_action("json.toggle_mode")
-                        .with_shortcut_str("Ctrl+M"),
-                );
-            }
-            _ => {
-                label = "Actions";
-                actions.push(
-                    MenuItem::new(499, "No specific actions")
-                        .with_action("none")
-                        .enabled(false),
-                );
-            }
-        }
-    }
+pub fn update_context_menu(
+    handle: &MenuHandle,
+    content: Option<&PreviewData>,
+    options: &ContextMenuOptions,
+) {
+    let (label, actions) = build_context_menu_items(content, options);
 
     handle.update_item(ID_CONTEXT_ROOT, move |item| {
-        item.label = label.to_string();
+        item.label = label;
         item.children = actions;
     });
 }

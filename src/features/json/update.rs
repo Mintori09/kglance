@@ -29,6 +29,7 @@ pub fn handle_toggle_mode(app: &mut KglanceApp) -> Task<Message> {
         );
     }
 
+    app.sync_global_menu_context();
     Task::none()
 }
 
