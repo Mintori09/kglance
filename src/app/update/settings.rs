@@ -414,8 +414,21 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             app.sync_global_menu_context();
             Task::none()
         }
+        SettingsMsg::MermaidRendererChanged(renderer) => {
+            app.state.mermaid_renderer = renderer;
+            app.state.prefer_mermaid_cli =
+                renderer == crate::core::config::MermaidRenderer::MermaidCli;
+            app.save_current_config_logged("mermaid renderer changed");
+            app.sync_global_menu_context();
+            Task::none()
+        }
         SettingsMsg::PreferMermaidCliChanged(enabled) => {
             app.state.prefer_mermaid_cli = enabled;
+            app.state.mermaid_renderer = if enabled {
+                crate::core::config::MermaidRenderer::MermaidCli
+            } else {
+                crate::core::config::MermaidRenderer::Mmdr
+            };
             app.save_current_config_logged("prefer mermaid cli changed");
             app.sync_global_menu_context();
             Task::none()
@@ -635,7 +648,9 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 default_config.ui.min_width as f32,
                 default_config.ui.min_height as f32,
             );
-            app.state.prefer_mermaid_cli = default_config.ui.prefer_mermaid_cli;
+            app.state.mermaid_renderer = default_config.ui.mermaid_renderer;
+            app.state.prefer_mermaid_cli = default_config.ui.mermaid_renderer
+                == crate::core::config::MermaidRenderer::MermaidCli;
             app.state.word_wrap = default_config.ui.word_wrap;
             app.state.text.wrap = default_config.ui.word_wrap;
             app.state.json_tree_view = default_config.ui.json_tree_view;

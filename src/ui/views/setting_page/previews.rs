@@ -3,7 +3,7 @@ use iced::{Alignment, Element, Font, Theme};
 
 use super::build_setting_row;
 use crate::app::messages::{CustomActionEditorMsg, Message, SettingsMsg};
-use crate::core::config::{EpubReadingMode, RubyDisplayMode, UiConfig};
+use crate::core::config::{EpubReadingMode, MermaidRenderer, RubyDisplayMode, UiConfig};
 use crate::core::selection_action::{CustomActionEditorState, SelectionMenuConfig};
 use crate::ui::theme::color::BaseColors;
 use crate::ui::theme::tokens::spacing;
@@ -42,6 +42,23 @@ impl std::fmt::Display for RubyModeDisplay {
             RubyModeDisplay::Tooltip => write!(f, "Tooltip (Hover over text)"),
             RubyModeDisplay::Parentheses => write!(f, "Parentheses (Text(Ruby))"),
             RubyModeDisplay::Hidden => write!(f, "Hidden (Base text only)"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MermaidRendererDisplay {
+    Mmdr,
+    MermaidCli,
+    Pele,
+}
+
+impl std::fmt::Display for MermaidRendererDisplay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MermaidRendererDisplay::Mmdr => write!(f, "mmdr (Internal)"),
+            MermaidRendererDisplay::MermaidCli => write!(f, "mermaid-cli (mmdc)"),
+            MermaidRendererDisplay::Pele => write!(f, "pele (Obsidian)"),
         }
     }
 }
@@ -128,17 +145,39 @@ pub fn previews_tab<'a>(
         base_colors.text_dim,
     );
 
-    let mermaid_cb = toggler(config.prefer_mermaid_cli)
-        .on_toggle(|enabled| Message::Settings(SettingsMsg::PreferMermaidCliChanged(enabled)))
-        .style({
-            let theme = theme_clone.clone();
-            move |_, status| default_toggler(&theme, status)
-        });
+    let selected_mermaid = match config.mermaid_renderer {
+        MermaidRenderer::Mmdr => MermaidRendererDisplay::Mmdr,
+        MermaidRenderer::MermaidCli => MermaidRendererDisplay::MermaidCli,
+        MermaidRenderer::Pele => MermaidRendererDisplay::Pele,
+    };
+
+    let mermaid_picker = pick_list(
+        vec![
+            MermaidRendererDisplay::Mmdr,
+            MermaidRendererDisplay::MermaidCli,
+            MermaidRendererDisplay::Pele,
+        ],
+        Some(selected_mermaid),
+        |display_mode| {
+            let mode = match display_mode {
+                MermaidRendererDisplay::Mmdr => MermaidRenderer::Mmdr,
+                MermaidRendererDisplay::MermaidCli => MermaidRenderer::MermaidCli,
+                MermaidRendererDisplay::Pele => MermaidRenderer::Pele,
+            };
+            Message::Settings(SettingsMsg::MermaidRendererChanged(mode))
+        },
+    )
+    .font(main_font)
+    .width(240)
+    .style({
+        let theme = theme.clone();
+        move |_, status| default_pick_list(&theme, status)
+    });
 
     let mermaid_row = build_setting_row(
-        "Mermaid Diagram CLI",
-        "Use external mmdc binary when installed for complex architecture diagrams",
-        mermaid_cb,
+        "Mermaid Renderer",
+        "Choose renderer engine for Mermaid diagrams (mmdr, mermaid-cli, pele)",
+        mermaid_picker,
         main_font,
         base_colors.text,
         base_colors.text_dim,

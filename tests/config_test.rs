@@ -17,7 +17,11 @@ fn test_ui_config_default() {
     assert_eq!(config.default_height, 768);
     assert_eq!(config.min_width, 800);
     assert_eq!(config.min_height, 600);
-    assert!(!config.prefer_mermaid_cli);
+    assert_eq!(
+        config.mermaid_renderer,
+        kglance::core::config::MermaidRenderer::Mmdr
+    );
+    assert_eq!(config.prefer_mermaid_cli, None);
     assert_eq!(
         config.ruby_display_mode,
         kglance::core::config::RubyDisplayMode::Stacked
@@ -47,7 +51,8 @@ fn test_config_serialization_round_trip() {
             default_height: 768,
             min_width: 800,
             min_height: 600,
-            prefer_mermaid_cli: false,
+            mermaid_renderer: kglance::core::config::MermaidRenderer::Mmdr,
+            prefer_mermaid_cli: None,
             word_wrap: false,
             json_tree_view: false,
             remember_window_size: false,

@@ -18,7 +18,8 @@ fn test_default_config_values() {
     assert_eq!(cfg.ui.default_height, 768);
     assert_eq!(cfg.ui.min_width, 800);
     assert_eq!(cfg.ui.min_height, 600);
-    assert!(!cfg.ui.prefer_mermaid_cli);
+    assert_eq!(cfg.ui.mermaid_renderer, MermaidRenderer::Mmdr);
+    assert_eq!(cfg.ui.prefer_mermaid_cli, None);
     assert!(!cfg.ui.word_wrap);
     assert!(cfg.ui.json_tree_view);
     assert!(!cfg.ui.remember_window_size);
@@ -116,7 +117,8 @@ fn test_load_existing_custom_config() {
             default_height: 900,
             min_width: 700,
             min_height: 500,
-            prefer_mermaid_cli: true,
+            mermaid_renderer: MermaidRenderer::MermaidCli,
+            prefer_mermaid_cli: None,
             word_wrap: true,
             json_tree_view: false,
             remember_window_size: false,
@@ -353,4 +355,64 @@ fn test_strip_json_comments() {
     assert!(!stripped.contains("comment 1"));
     assert!(!stripped.contains("/* block comment */"));
     assert!(stripped.contains("val // not a comment"));
+}
+
+#[test]
+fn test_migration_from_prefer_mermaid_cli_true() {
+    let dir = tempdir().expect("create temp dir");
+    let config_path = dir.path().join("config.json");
+
+    let legacy_json = r#"{
+  "ui": {
+    "prefer_mermaid_cli": true
+  }
+}"#;
+    fs::write(&config_path, legacy_json).expect("write legacy config");
+
+    let loaded = ConfigManager::load_from_path(&config_path);
+    assert_eq!(loaded.ui.mermaid_renderer, MermaidRenderer::MermaidCli);
+    assert_eq!(loaded.ui.prefer_mermaid_cli, None);
+
+    // Verify file on disk was automatically rewritten and migrated
+    let disk_content = fs::read_to_string(&config_path).expect("read migrated file");
+    assert!(!disk_content.contains("prefer_mermaid_cli"));
+    assert!(disk_content.contains("\"mermaid_renderer\": \"mermaid_cli\""));
+}
+
+#[test]
+fn test_migration_from_prefer_mermaid_cli_false() {
+    let dir = tempdir().expect("create temp dir");
+    let config_path = dir.path().join("config.json");
+
+    let legacy_json = r#"{
+  "ui": {
+    "prefer_mermaid_cli": false
+  }
+}"#;
+    fs::write(&config_path, legacy_json).expect("write legacy config");
+
+    let loaded = ConfigManager::load_from_path(&config_path);
+    assert_eq!(loaded.ui.mermaid_renderer, MermaidRenderer::Mmdr);
+    assert_eq!(loaded.ui.prefer_mermaid_cli, None);
+
+    // Verify file on disk was automatically rewritten without prefer_mermaid_cli
+    let disk_content = fs::read_to_string(&config_path).expect("read migrated file");
+    assert!(!disk_content.contains("prefer_mermaid_cli"));
+    assert!(disk_content.contains("\"mermaid_renderer\": \"mmdr\""));
+}
+
+#[test]
+fn test_no_migration_when_mermaid_renderer_already_present() {
+    let dir = tempdir().expect("create temp dir");
+    let config_path = dir.path().join("config.json");
+
+    let modern_json = r#"{
+  "ui": {
+    "mermaid_renderer": "pele"
+  }
+}"#;
+    fs::write(&config_path, modern_json).expect("write modern config");
+
+    let loaded = ConfigManager::load_from_path(&config_path);
+    assert_eq!(loaded.ui.mermaid_renderer, MermaidRenderer::Pele);
 }
