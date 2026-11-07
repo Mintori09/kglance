@@ -248,6 +248,17 @@ fn run_standalone_internal(
             width,
             height,
         );
+    } else if matches!(
+        ext.as_str(),
+        "mp4" | "mkv" | "avi" | "mov" | "wmv" | "webm" | "flv" | "m4v"
+    ) {
+        let (_, width, height) = kglance::features::video::probe_video_info(resolved);
+        initial_size = kglance::features::image::view::calculate_window_size(
+            config.ui.default_width as f32,
+            config.ui.default_height as f32,
+            width,
+            height,
+        );
     }
 
     let default_font = config
