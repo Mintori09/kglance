@@ -18,9 +18,21 @@ fn test_is_supported_path_linux() {
     assert!(!is_supported_path(Path::new(
         "/lib/x86_64-linux-gnu/libc.so"
     )));
-    assert!(!is_supported_path(Path::new("/home/user/script.sh")));
+    assert!(is_supported_path(Path::new("/home/user/script.sh")));
     assert!(!is_supported_path(Path::new("/home/user/package.deb")));
-    assert!(!is_supported_path(Path::new("/home/user/archive.tar.gz")));
+    assert!(is_supported_path(Path::new("/home/user/archive.tar.gz")));
+
+    // Additional checks for fonts, 3d models, archives, and videos
+    assert!(is_supported_path(Path::new("/home/user/fonts/font.ttf")));
+    assert!(is_supported_path(Path::new("/home/user/fonts/font.woff2")));
+    assert!(is_supported_path(Path::new("/home/user/models/object.stl")));
+    assert!(is_supported_path(Path::new(
+        "/home/user/archives/backup.zip"
+    )));
+    assert!(is_supported_path(Path::new(
+        "/home/user/archives/backup.7z"
+    )));
+    assert!(is_supported_path(Path::new("/home/user/videos/clip.mp4")));
 
     assert!(!is_supported_path(Path::new("/home/user/.bashrc")));
     assert!(!is_supported_path(Path::new("/home/user/.config")));
