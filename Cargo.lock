@@ -3285,6 +3285,7 @@ dependencies = [
  "trash",
  "ttf-parser",
  "unicode-normalization",
+ "unicode-width",
  "url",
  "wgpu",
  "wl-clipboard-rs",
