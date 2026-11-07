@@ -179,7 +179,7 @@ impl KglanceApp {
 
     pub fn sync_global_menu_view_states(&self) {
         if let Some(ref handle) = self.menu_handle {
-            let config = self.load_config();
+            let config = self.current_config();
             crate::dbus::global_menu::sync_menu_states(handle, &config, &self.state.app_theme);
         }
     }

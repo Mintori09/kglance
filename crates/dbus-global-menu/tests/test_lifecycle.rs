@@ -216,6 +216,17 @@ fn test_solution_detach_window_drops_binding_and_releases_resources() {
     println!("[TEST] Calling menu.detach_window()...");
     menu.detach_window();
 
+    // Verify root menu children are cleared and revision was bumped
+    assert!(
+        menu.handle().get_root().children.is_empty(),
+        "detach_window must clear root menu children so appmenu applet does not serve stale items"
+    );
+    assert_eq!(
+        menu.handle().revision(),
+        3,
+        "detach_window must increment revision to notify layout updated with empty menu"
+    );
+
     // Roundtrip to compositor to verify release() was received and handled cleanly
     let rt2 = queue.roundtrip(&mut state);
     println!("[VERIFICATION] Roundtrip after detach_window(): {:?}", rt2);
@@ -245,13 +256,19 @@ fn test_solution_sequential_lifecycle_simulation() {
         println!("[LIFECYCLE CYCLE {cycle}] Attaching window...");
         let attach_res = menu.attach_window(&win);
         assert!(attach_res.is_ok());
-        assert_eq!(menu.handle().revision(), 1 + cycle as u32);
+        // attach_window increments revision on attach, and detach_window increments revision on detach (to empty layout)
+        // Cycle 1 attach: 2. Detach: 3.
+        // Cycle 2 attach: 4. Detach: 5.
+        // Cycle 3 attach: 6. Detach: 7.
+        assert_eq!(menu.handle().revision(), 2 * cycle as u32);
 
         let rt_attach = queue.roundtrip(&mut state);
         assert!(rt_attach.is_ok());
 
         println!("[LIFECYCLE CYCLE {cycle}] Detaching window (closing window)...");
         menu.detach_window();
+        assert_eq!(menu.handle().revision(), 2 * cycle as u32 + 1);
+        assert!(menu.handle().get_root().children.is_empty());
 
         let rt_detach = queue.roundtrip(&mut state);
         assert!(rt_detach.is_ok());

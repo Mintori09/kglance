@@ -77,6 +77,7 @@ impl KglanceApp {
         self.clear_media();
         self.current_content = None;
         self.state.reset_content_state();
+        self.sync_global_menu_context();
         self.invalidate_render_generations();
         self.is_window_opening = false;
         self.is_gui_open
@@ -327,6 +328,7 @@ impl KglanceApp {
             }
             self.current_content = None;
             self.state.reset_content_state();
+            self.sync_global_menu_context();
             self.invalidate_render_generations();
             self.window_id = None;
             self.is_window_opening = false;
