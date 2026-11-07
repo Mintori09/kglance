@@ -422,6 +422,12 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::MediaMsg::SeekRelativeClicked(secs) => {
                 crate::features::video::update::handle_seek_relative(app, secs)
             }
+            crate::app::messages::MediaMsg::VolumeChanged(vol) => {
+                crate::features::video::update::handle_volume_change(app, vol)
+            }
+            crate::app::messages::MediaMsg::ToggleMuteClicked => {
+                crate::features::video::update::handle_toggle_mute(app)
+            }
             crate::app::messages::MediaMsg::VideoNewFrame => {
                 crate::features::video::update::handle_video_new_frame(app)
             }

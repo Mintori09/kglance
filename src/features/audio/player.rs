@@ -189,7 +189,6 @@ impl AudioPlayer {
 impl Drop for AudioPlayer {
     fn drop(&mut self) {
         let pipeline = self.pipeline.clone();
-        pipeline.set_property("volume", 0.0f64);
         if std::thread::Builder::new()
             .name("kglance-audio-teardown".into())
             .spawn(move || {
