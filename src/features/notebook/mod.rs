@@ -1,8 +1,10 @@
 pub mod lightbox;
 pub mod parser;
+pub mod state;
 pub mod types;
 pub mod view;
 
+pub use state::populate_state;
 pub use view::view_notebook;
 
 use std::path::Path;
