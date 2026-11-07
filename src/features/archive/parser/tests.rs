@@ -137,3 +137,56 @@ fn parses_7z_archive() {
         _ => panic!("expected Archive variant"),
     }
 }
+
+#[test]
+fn extract_entry_rejects_path_traversal() {
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let zip_path = tmp_dir.path().join("traversal.zip");
+    {
+        use ::zip::write::SimpleFileOptions;
+
+        let file = File::create(&zip_path).unwrap();
+        let mut zip = ::zip::ZipWriter::new(file);
+        zip.start_file("normal.txt", SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(b"safe").unwrap();
+        zip.finish().unwrap();
+    }
+
+    let traversal_paths = [
+        "../evil.txt",
+        "../../etc/passwd",
+        "/etc/passwd",
+        "a/../../b.txt",
+        "./../../secret",
+    ];
+
+    for path in traversal_paths {
+        let result = extract_entry(&zip_path, path);
+        assert!(
+            matches!(result, Err(ParseError::ParseFailed(_))),
+            "Expected traversal rejection for path: {path}"
+        );
+    }
+}
+
+#[test]
+fn extract_entry_succeeds_for_valid_entry() {
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let zip_path = tmp_dir.path().join("valid.zip");
+    {
+        use ::zip::write::SimpleFileOptions;
+
+        let file = File::create(&zip_path).unwrap();
+        let mut zip = ::zip::ZipWriter::new(file);
+        zip.start_file("docs/readme.txt", SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(b"readme content").unwrap();
+        zip.finish().unwrap();
+    }
+
+    let extracted = extract_entry(&zip_path, "docs/readme.txt").expect("should extract valid file");
+    assert!(extracted.path.exists());
+    let content = std::fs::read_to_string(&extracted.path).unwrap();
+    assert_eq!(content, "readme content");
+}
