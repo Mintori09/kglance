@@ -38,6 +38,7 @@ pub fn handle_compile_error(app: &mut KglanceApp) -> Task<Message> {
 
 pub fn handle_toggle_source(app: &mut KglanceApp) -> Task<Message> {
     app.state.typst.show_source = !app.state.typst.show_source;
+    app.sync_global_menu_context();
     Task::none()
 }
 

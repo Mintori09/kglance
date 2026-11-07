@@ -60,13 +60,8 @@ impl KglanceApp {
                         self,
                         crate::features::markdown::update::DEFAULT_PAGE_WIDTH,
                     )
-                } else if matches!(self.current_content, Some(PreviewData::Image { .. })) {
-                    crate::features::image::update::handle_image_reset(self)
                 } else {
-                    self.handle_font_shortcuts(
-                        &iced::keyboard::Key::Character("+".into()),
-                        iced::keyboard::Modifiers::SHIFT,
-                    )
+                    self.handle_zoom_reset()
                 }
             }
             "f" | "F" | "\u{6}" => self.handle_ctrl_f(),
@@ -261,7 +256,18 @@ impl KglanceApp {
         ]))
     }
 
-    fn handle_zoom_or_font(&mut self, direction: f32) -> Option<Task<Message>> {
+    pub(crate) fn handle_zoom_reset(&mut self) -> Option<Task<Message>> {
+        if matches!(self.current_content, Some(PreviewData::Image { .. })) {
+            crate::features::image::update::handle_image_reset(self)
+        } else {
+            self.handle_font_shortcuts(
+                &iced::keyboard::Key::Character("+".into()),
+                iced::keyboard::Modifiers::SHIFT,
+            )
+        }
+    }
+
+    pub(crate) fn handle_zoom_or_font(&mut self, direction: f32) -> Option<Task<Message>> {
         match self.current_content {
             Some(PreviewData::Image { .. }) => {
                 crate::features::image::update::handle_image_zoom_step(self, direction)

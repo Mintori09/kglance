@@ -166,6 +166,24 @@ impl KglanceApp {
         }
     }
 
+    pub fn sync_global_menu_context(&self) {
+        if let Some(ref handle) = self.menu_handle {
+            let options = crate::dbus::global_menu::ContextMenuOptions::from_state(&self.state);
+            crate::dbus::global_menu::update_context_menu(
+                handle,
+                self.current_content.as_ref(),
+                &options,
+            );
+        }
+    }
+
+    pub fn sync_global_menu_view_states(&self) {
+        if let Some(ref handle) = self.menu_handle {
+            let config = self.load_config();
+            crate::dbus::global_menu::sync_menu_states(handle, &config, &self.state.app_theme);
+        }
+    }
+
     pub fn current_config(&self) -> crate::core::config::AppConfig {
         crate::core::config::AppConfig {
             ui: crate::core::config::UiConfig {
@@ -776,11 +794,8 @@ impl KglanceApp {
         }
 
         content.populate_state(&mut self.state);
-
-        if let Some(ref handle) = self.menu_handle {
-            crate::dbus::global_menu::update_context_menu(handle, Some(content));
-        }
         self.current_content = Some(content.clone());
+        self.sync_global_menu_context();
         self.sync_global_menu_copy_label();
     }
 

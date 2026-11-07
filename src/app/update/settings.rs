@@ -86,6 +86,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             }
 
             let _ = app.save_current_config();
+            app.sync_global_menu_context();
             Task::none()
         }
         SettingsMsg::FontFamilySelected(f) => {
@@ -131,6 +132,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 }
             }
             let _ = app.save_current_config();
+            app.sync_global_menu_context();
             Task::none()
         }
         SettingsMsg::FontFamilyMonoSelected(f) => {
@@ -147,6 +149,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 );
             });
             let _ = app.save_current_config();
+            app.sync_global_menu_context();
             Task::none()
         }
         SettingsMsg::EpubFontFamilySelected(f) => {
@@ -180,6 +183,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 }
             }
             let _ = app.save_current_config();
+            app.sync_global_menu_context();
             Task::none()
         }
         SettingsMsg::EpubOverrideBookFontToggled(enabled) => {
@@ -213,6 +217,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 }
             }
             let _ = app.save_current_config();
+            app.sync_global_menu_context();
             Task::none()
         }
         SettingsMsg::MaxTextWidthChanged(w) => {
@@ -352,20 +357,15 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             );
 
             app.save_current_config_logged("word wrap changed");
-            if let Some(ref handle) = app.menu_handle {
-                let state = if enabled {
-                    dbus_global_menu::ToggleState::On
-                } else {
-                    dbus_global_menu::ToggleState::Off
-                };
-                handle.set_toggle_state(crate::dbus::global_menu::ID_VIEW_WORD_WRAP, state);
-            }
+            app.sync_global_menu_view_states();
+            app.sync_global_menu_context();
             Task::none()
         }
         SettingsMsg::JsonTreeViewChanged(enabled) => {
             app.state.json_tree_view = enabled;
             app.state.json.tree_mode = enabled;
             app.save_current_config_logged("json tree view changed");
+            app.sync_global_menu_context();
             Task::none()
         }
         SettingsMsg::RememberWindowSizeChanged(enabled) => {
@@ -386,6 +386,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 );
             }
             app.save_current_config_logged("remember window size changed");
+            app.sync_global_menu_view_states();
             Task::none()
         }
         SettingsMsg::EpubReadingModeChanged(mode) => {
@@ -404,16 +405,19 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
                 app.state.read_positions_dirty = true;
             }
             app.save_current_config_logged("epub reading mode changed");
+            app.sync_global_menu_context();
             task
         }
         SettingsMsg::RubyDisplayModeChanged(mode) => {
             app.state.ruby_display_mode = mode;
             app.save_current_config_logged("ruby display mode changed");
+            app.sync_global_menu_context();
             Task::none()
         }
         SettingsMsg::PreferMermaidCliChanged(enabled) => {
             app.state.prefer_mermaid_cli = enabled;
             app.save_current_config_logged("prefer mermaid cli changed");
+            app.sync_global_menu_context();
             Task::none()
         }
         SettingsMsg::MaxMemoryMbChanged(mb) => {
@@ -433,14 +437,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             app.state.scroll_config.smooth_scroll_enabled = enabled;
             app.state.apply_scroll_controllers();
             app.save_current_config_logged("smooth scroll changed");
-            if let Some(ref handle) = app.menu_handle {
-                let state = if enabled {
-                    dbus_global_menu::ToggleState::On
-                } else {
-                    dbus_global_menu::ToggleState::Off
-                };
-                handle.set_toggle_state(crate::dbus::global_menu::ID_VIEW_SMOOTH_SCROLL, state);
-            }
+            app.sync_global_menu_view_states();
             Task::none()
         }
         SettingsMsg::ScrollFrictionChanged(friction) => {
@@ -458,6 +455,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
         SettingsMsg::SelectionMenuToggled(enabled) => {
             app.state.selection_menu_config.enabled = enabled;
             app.save_current_config_logged("selection menu toggled");
+            app.sync_global_menu_view_states();
             Task::none()
         }
         SettingsMsg::CustomAction(action_msg) => {
