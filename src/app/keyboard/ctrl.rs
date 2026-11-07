@@ -257,7 +257,10 @@ impl KglanceApp {
     }
 
     pub(crate) fn handle_zoom_reset(&mut self) -> Option<Task<Message>> {
-        if matches!(self.current_content, Some(PreviewData::Image { .. })) {
+        if self.state.lightbox.is_some()
+            || self.state.epub.lightbox.is_some()
+            || matches!(self.current_content, Some(PreviewData::Image { .. }))
+        {
             crate::features::image::update::handle_image_reset(self)
         } else {
             self.handle_font_shortcuts(
@@ -268,6 +271,10 @@ impl KglanceApp {
     }
 
     pub(crate) fn handle_zoom_or_font(&mut self, direction: f32) -> Option<Task<Message>> {
+        if self.state.lightbox.is_some() || self.state.epub.lightbox.is_some() {
+            return crate::features::image::update::handle_image_zoom_step(self, direction);
+        }
+
         match self.current_content {
             Some(PreviewData::Image { .. }) => {
                 crate::features::image::update::handle_image_zoom_step(self, direction)

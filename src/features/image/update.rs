@@ -440,29 +440,15 @@ pub fn handle_zoom(app: &mut KglanceApp, factor: f32, cursor: iced::Point) -> Ta
     let camera = &mut app.state.image.camera;
     let win = app.state.current_window_size;
     let canvas_height = (win.height - FOOTER_HEIGHT).max(1.0);
-
-    if (camera.zoom - 1.0).abs() < f32::EPSILON
-        && camera.offset_x == 0.0
-        && camera.offset_y == 0.0
-        && app.state.image.display_width > 0
-        && app.state.image.display_height > 0
-    {
-        let (vis_w, vis_h) = if camera.rotation.is_perpendicular() {
-            (
-                app.state.image.display_height as f32,
-                app.state.image.display_width as f32,
-            )
-        } else {
-            (
-                app.state.image.display_width as f32,
-                app.state.image.display_height as f32,
-            )
-        };
-        let fit = (win.width / vis_w).min(canvas_height / vis_h);
-        camera.zoom = fit;
-    }
-
     let viewport = iced::Size::new(win.width, canvas_height);
+
+    ViewerController::prepare_camera_for_zoom(
+        camera,
+        app.state.image.display_width,
+        app.state.image.display_height,
+        viewport,
+    );
+
     ViewerController::zoom(camera, factor, cursor, viewport);
     Task::none()
 }
@@ -565,20 +551,72 @@ pub fn handle_video_thumbnail_loaded(app: &mut KglanceApp, data: Vec<u8>) -> Tas
 }
 
 pub fn handle_image_reset(app: &mut KglanceApp) -> Option<Task<Message>> {
+    use crate::features::image::ViewerController;
+
+    if let Some(lb) = &mut app.state.lightbox {
+        ViewerController::reset(&mut lb.image_state.camera);
+        return Some(Task::none());
+    }
+
+    if let Some(lb) = &mut app.state.epub.lightbox {
+        ViewerController::reset(&mut lb.image_state.camera);
+        return Some(Task::none());
+    }
+
     if !matches!(app.current_content, Some(PreviewData::Image { .. })) {
         return None;
     }
 
-    use crate::features::image::ViewerController;
     ViewerController::reset(&mut app.state.image.camera);
 
     Some(Task::none())
 }
 
 pub fn handle_image_zoom_step(app: &mut KglanceApp, direction: f32) -> Option<Task<Message>> {
+    use crate::features::image::ViewerController;
+
     const ZOOM_STEP: f32 = 0.2;
     const ZOOM_MIN: f32 = 0.1;
     const ZOOM_MAX: f32 = 10.0;
+
+    let win = app.state.current_window_size;
+
+    if let Some(lb) = &mut app.state.lightbox {
+        let canvas_height = (win.height - 40.0).max(1.0);
+        let viewport = iced::Size::new(win.width, canvas_height);
+        ViewerController::prepare_camera_for_zoom(
+            &mut lb.image_state.camera,
+            lb.image_state.display_width,
+            lb.image_state.display_height,
+            viewport,
+        );
+        lb.image_state.camera.zoom =
+            (lb.image_state.camera.zoom + direction * ZOOM_STEP).clamp(ZOOM_MIN, ZOOM_MAX);
+        return Some(Task::none());
+    }
+
+    if let Some(lb) = &mut app.state.epub.lightbox {
+        let canvas_height = (win.height - 40.0).max(1.0);
+        let viewport = iced::Size::new(win.width, canvas_height);
+        ViewerController::prepare_camera_for_zoom(
+            &mut lb.image_state.camera,
+            lb.image_state.display_width,
+            lb.image_state.display_height,
+            viewport,
+        );
+        lb.image_state.camera.zoom =
+            (lb.image_state.camera.zoom + direction * ZOOM_STEP).clamp(ZOOM_MIN, ZOOM_MAX);
+        return Some(Task::none());
+    }
+
+    let canvas_height = (win.height - FOOTER_HEIGHT).max(1.0);
+    let viewport = iced::Size::new(win.width, canvas_height);
+    ViewerController::prepare_camera_for_zoom(
+        &mut app.state.image.camera,
+        app.state.image.display_width,
+        app.state.image.display_height,
+        viewport,
+    );
 
     app.state.image.camera.zoom =
         (app.state.image.camera.zoom + direction * ZOOM_STEP).clamp(ZOOM_MIN, ZOOM_MAX);
