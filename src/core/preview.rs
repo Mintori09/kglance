@@ -372,6 +372,7 @@ impl PreviewData {
             }
             PreviewData::Notebook(data) => {
                 state.file_type_text = format!("Jupyter Notebook ({} cells)", data.total_cells);
+                crate::features::notebook::populate_state(state, data);
             }
             PreviewData::Error(err) => {
                 state.file_type_text = format!("Error: {err}");
