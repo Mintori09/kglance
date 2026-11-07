@@ -1,4 +1,4 @@
-use crate::features::text::display_map::DisplayMap;
+use crate::features::text::display_map::{DisplayMap, str_display_width};
 use crate::features::text::document::CodeDocument;
 use crate::features::text::highlight::HighlightedSpan;
 use crate::ui::components::code_viewer::selection::{
@@ -595,9 +595,23 @@ where
                     let row_sel_start = start_col.max(sub_slice.start_col);
                     let row_sel_end = end_col.min(sub_slice.end_col);
                     if row_sel_start < row_sel_end {
-                        let sel_offset_chars = row_sel_start - sub_slice.start_col;
-                        let sel_x = code_x + (sel_offset_chars as f32 * char_w);
-                        let sel_w = ((row_sel_end - row_sel_start) as f32 * char_w).max(4.0);
+                        let sub_start_col = sub_slice.start_col;
+                        let line_chars: Vec<char> = line_text.chars().collect();
+                        let prefix_cols = if row_sel_start > sub_start_col {
+                            line_chars[sub_start_col..row_sel_start]
+                                .iter()
+                                .map(|c| crate::features::text::display_map::char_display_width(*c))
+                                .sum::<usize>()
+                        } else {
+                            0
+                        };
+                        let sel_display_cols = line_chars[row_sel_start..row_sel_end]
+                            .iter()
+                            .map(|c| crate::features::text::display_map::char_display_width(*c))
+                            .sum::<usize>();
+
+                        let sel_x = code_x + (prefix_cols as f32 * char_w);
+                        let sel_w = ((sel_display_cols as f32) * char_w).max(4.0);
                         renderer.fill_quad(
                             renderer::Quad {
                                 bounds: Rectangle {
@@ -625,9 +639,29 @@ where
                             let row_hl_start = m_col_0.max(sub_slice.start_col);
                             let row_hl_end = m_end_col.min(sub_slice.end_col);
                             if row_hl_start < row_hl_end {
-                                let hl_offset_chars = row_hl_start - sub_slice.start_col;
-                                let hl_x = code_x + (hl_offset_chars as f32 * char_w);
-                                let hl_w = ((row_hl_end - row_hl_start) as f32 * char_w).max(4.0);
+                                let sub_start_col = sub_slice.start_col;
+                                let line_chars: Vec<char> = line_text.chars().collect();
+                                let prefix_cols = if row_hl_start > sub_start_col {
+                                    line_chars[sub_start_col..row_hl_start]
+                                        .iter()
+                                        .map(|c| {
+                                            crate::features::text::display_map::char_display_width(
+                                                *c,
+                                            )
+                                        })
+                                        .sum::<usize>()
+                                } else {
+                                    0
+                                };
+                                let hl_display_cols = line_chars[row_hl_start..row_hl_end]
+                                    .iter()
+                                    .map(|c| {
+                                        crate::features::text::display_map::char_display_width(*c)
+                                    })
+                                    .sum::<usize>();
+
+                                let hl_x = code_x + (prefix_cols as f32 * char_w);
+                                let hl_w = ((hl_display_cols as f32) * char_w).max(4.0);
                                 let is_active = match_idx == self.search_match_index;
                                 let bg = if is_active {
                                     active_match_bg
@@ -681,8 +715,8 @@ where
                     }
                     let piece_str = &line_text[piece_start..piece_end];
                     let prefix = &line_text[sub_slice.start_byte..piece_start];
-                    let offset_chars = prefix.chars().count();
-                    let span_x = code_x + (offset_chars as f32 * char_w);
+                    let prefix_cols = str_display_width(prefix);
+                    let span_x = code_x + (prefix_cols as f32 * char_w);
                     let font = if is_bold { bold_font } else { self.font };
 
                     renderer.fill_text(

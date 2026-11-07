@@ -130,8 +130,25 @@ pub fn hit_test_position(
         },
     );
 
-    let col_in_sub = (x_in_code / char_w).round() as usize;
-    let col_idx = (sub_slice.start_col + col_in_sub).min(sub_slice.end_col);
+    let sub_str = if sub_slice.end_byte <= line_text.len() {
+        &line_text[sub_slice.start_byte..sub_slice.end_byte]
+    } else {
+        ""
+    };
+
+    let mut accumulated_w = 0.0;
+    let mut relative_char_idx = 0;
+    for ch in sub_str.chars() {
+        let cw = crate::features::text::display_map::char_display_width(ch) as f32 * char_w;
+        // Snap to nearest boundary: if clicked past half this character, advance
+        if x_in_code < accumulated_w + (cw * 0.5) {
+            break;
+        }
+        accumulated_w += cw;
+        relative_char_idx += 1;
+    }
+
+    let col_idx = (sub_slice.start_col + relative_char_idx).min(sub_slice.end_col);
 
     TextPosition::new(line_idx, col_idx)
 }
@@ -165,5 +182,45 @@ mod tests {
 
         let pos2 = hit_test_position(&doc, None, false, 14.0, iced::Point::new(70.0, 40.0));
         assert_eq!(pos2.line, 1);
+    }
+
+    #[test]
+    fn test_hit_test_cjk_double_width() {
+        let doc = crate::features::text::CodeDocument::new("日本語abc");
+        let font_size = 14.0;
+        let char_w = font_size * 0.60;
+        let digits = doc.max_digits();
+        let gutter_w = ((digits as f32) * char_w + 28.0).max(44.0);
+        let base_x = gutter_w + CODE_PADDING_LEFT;
+
+        // '日' is 2 * char_w wide. Clicking at base_x + 0.5 * char_w should hit index 0.
+        let pos0 = hit_test_position(
+            &doc,
+            None,
+            false,
+            font_size,
+            iced::Point::new(base_x + 0.5 * char_w, 15.0),
+        );
+        assert_eq!(pos0, TextPosition::new(0, 0));
+
+        // Clicking at base_x + 1.2 * char_w (past half of '日', which is 1.0 * char_w) snaps to char 1 ('本').
+        let pos1 = hit_test_position(
+            &doc,
+            None,
+            false,
+            font_size,
+            iced::Point::new(base_x + 1.2 * char_w, 15.0),
+        );
+        assert_eq!(pos1, TextPosition::new(0, 1));
+
+        // After 3 CJK chars (display width 6), 'a' begins at base_x + 6 * char_w.
+        let pos_a = hit_test_position(
+            &doc,
+            None,
+            false,
+            font_size,
+            iced::Point::new(base_x + 6.2 * char_w, 15.0),
+        );
+        assert_eq!(pos_a, TextPosition::new(0, 3));
     }
 }

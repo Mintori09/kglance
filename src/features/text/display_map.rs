@@ -1,4 +1,5 @@
 use crate::features::text::document::CodeDocument;
+use unicode_width::UnicodeWidthChar;
 
 /// Line wrapping display mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -248,20 +249,33 @@ impl Default for DisplayMap {
     }
 }
 
-/// Counts how many visual rows a line occupies given max characters per row.
+/// Returns visual display width (in columns) of a single character.
+#[inline]
+pub fn char_display_width(c: char) -> usize {
+    if c == '\t' { 4 } else { c.width().unwrap_or(0) }
+}
+
+/// Returns visual display width (in columns) of a string slice.
+#[inline]
+pub fn str_display_width(s: &str) -> usize {
+    s.chars().map(char_display_width).sum()
+}
+
+/// Counts how many visual rows a line occupies given max display columns per row.
 pub fn count_visual_rows(line: &str, max_cols: usize) -> usize {
-    let char_count = line.chars().count();
-    if char_count <= max_cols || max_cols == 0 {
+    let display_cols = str_display_width(line);
+    if display_cols <= max_cols || max_cols == 0 {
         1
     } else {
         wrap_line_to_slices(line, max_cols).len().max(1)
     }
 }
 
-/// Breaks a single line of text into visual sub-slices adhering to word boundaries.
+/// Breaks a single line of text into visual sub-slices adhering to word boundaries and display width.
 pub fn wrap_line_to_slices(line: &str, max_cols: usize) -> Vec<VisualSubSlice> {
     let char_count = line.chars().count();
-    if line.is_empty() || max_cols == 0 || char_count <= max_cols {
+    let display_cols = str_display_width(line);
+    if line.is_empty() || max_cols == 0 || display_cols <= max_cols {
         return vec![VisualSubSlice {
             start_byte: 0,
             end_byte: line.len(),
@@ -273,7 +287,7 @@ pub fn wrap_line_to_slices(line: &str, max_cols: usize) -> Vec<VisualSubSlice> {
     let mut slices = Vec::new();
     let mut cur_slice_start_byte = 0;
     let mut cur_slice_start_col = 0;
-    let mut cur_slice_len = 0;
+    let mut cur_slice_width = 0;
     let mut cur_byte = 0;
     let mut cur_col = 0;
 
@@ -281,11 +295,13 @@ pub fn wrap_line_to_slices(line: &str, max_cols: usize) -> Vec<VisualSubSlice> {
     while let Some(&(start_b, ch)) = chars.peek() {
         let is_space = ch.is_whitespace();
         let mut token_char_count = 0;
+        let mut token_width = 0;
         let mut token_end_byte = start_b;
 
         while let Some(&(b, c)) = chars.peek() {
             if c.is_whitespace() == is_space {
                 token_char_count += 1;
+                token_width += char_display_width(c);
                 token_end_byte = b + c.len_utf8();
                 chars.next();
             } else {
@@ -295,7 +311,7 @@ pub fn wrap_line_to_slices(line: &str, max_cols: usize) -> Vec<VisualSubSlice> {
 
         let token_byte_len = token_end_byte - start_b;
 
-        if is_space && !slices.is_empty() && cur_slice_len == 0 {
+        if is_space && !slices.is_empty() && cur_slice_width == 0 {
             cur_byte += token_byte_len;
             cur_col += token_char_count;
             cur_slice_start_byte = cur_byte;
@@ -303,12 +319,12 @@ pub fn wrap_line_to_slices(line: &str, max_cols: usize) -> Vec<VisualSubSlice> {
             continue;
         }
 
-        if cur_slice_len + token_char_count <= max_cols {
-            cur_slice_len += token_char_count;
+        if cur_slice_width + token_width <= max_cols {
+            cur_slice_width += token_width;
             cur_byte += token_byte_len;
             cur_col += token_char_count;
         } else {
-            if cur_slice_len > 0 {
+            if cur_slice_width > 0 {
                 slices.push(VisualSubSlice {
                     start_byte: cur_slice_start_byte,
                     end_byte: cur_byte,
@@ -317,31 +333,36 @@ pub fn wrap_line_to_slices(line: &str, max_cols: usize) -> Vec<VisualSubSlice> {
                 });
                 cur_slice_start_byte = cur_byte;
                 cur_slice_start_col = cur_col;
-                cur_slice_len = 0;
+                cur_slice_width = 0;
             }
 
-            if token_char_count > max_cols {
+            if token_width > max_cols {
                 let token_str = &line[start_b..token_end_byte];
                 let mut token_chars = token_str.char_indices().peekable();
                 let mut sub_start_b = 0;
+                let mut sub_start_w = 0;
                 let mut sub_start_c = 0;
+                let mut sub_w = 0;
                 let mut sub_c = 0;
 
                 while let Some(&(b, c)) = token_chars.peek() {
+                    let cw = char_display_width(c);
                     sub_c += 1;
+                    sub_w += cw;
                     let next_b = b + c.len_utf8();
                     token_chars.next();
 
-                    if sub_c - sub_start_c >= max_cols || token_chars.peek().is_none() {
+                    if sub_w - sub_start_w >= max_cols || token_chars.peek().is_none() {
                         let chunk_b = next_b - sub_start_b;
                         let chunk_c = sub_c - sub_start_c;
+                        let chunk_w = sub_w - sub_start_w;
 
-                        if token_chars.peek().is_none() && chunk_c < max_cols {
+                        if token_chars.peek().is_none() && chunk_w < max_cols {
                             cur_slice_start_byte = cur_byte;
                             cur_slice_start_col = cur_col;
                             cur_byte += chunk_b;
                             cur_col += chunk_c;
-                            cur_slice_len = chunk_c;
+                            cur_slice_width = chunk_w;
                         } else {
                             slices.push(VisualSubSlice {
                                 start_byte: cur_byte,
@@ -353,14 +374,15 @@ pub fn wrap_line_to_slices(line: &str, max_cols: usize) -> Vec<VisualSubSlice> {
                             cur_col += chunk_c;
                             cur_slice_start_byte = cur_byte;
                             cur_slice_start_col = cur_col;
-                            cur_slice_len = 0;
+                            cur_slice_width = 0;
                         }
                         sub_start_b = next_b;
                         sub_start_c = sub_c;
+                        sub_start_w = sub_w;
                     }
                 }
             } else {
-                cur_slice_len = token_char_count;
+                cur_slice_width = token_width;
                 cur_byte += token_byte_len;
                 cur_col += token_char_count;
             }
@@ -435,5 +457,21 @@ mod tests {
         // Continuation slice should not start with space
         let second_slice_str = &line[slices[1].start_byte..slices[1].end_byte];
         assert!(!second_slice_str.starts_with(' '));
+    }
+
+    #[test]
+    fn test_cjk_wrapping_and_display_width() {
+        let line = "日本語テスト簡単なコードです。";
+        // Each CJK character has width 2.
+        // 15 characters * 2 = 30 display width.
+        assert_eq!(str_display_width(line), 30);
+        assert_eq!(count_visual_rows(line, 10), 3);
+
+        let slices = wrap_line_to_slices(line, 10);
+        assert_eq!(slices.len(), 3);
+        for slice in &slices {
+            let slice_str = &line[slice.start_byte..slice.end_byte];
+            assert!(str_display_width(slice_str) <= 10);
+        }
     }
 }
