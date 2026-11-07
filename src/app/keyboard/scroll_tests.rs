@@ -699,3 +699,136 @@ fn test_pdf_ctrl_g_and_gg_behavior() {
     let _ = app.handle_key_pressed(esc_key, default_modifiers);
     assert!(!app.state.pdf.goto_page.is_visible);
 }
+
+#[test]
+fn test_notebook_page_down_and_up_triggers_smooth_navigation() {
+    let notebook_data = crate::features::notebook::types::NotebookData {
+        cells: vec![
+            crate::features::notebook::types::NotebookCell::Code {
+                source: "print('hello world')\n".repeat(30),
+                execution_count: Some(1),
+                outputs: vec![],
+                language: Some("python".into()),
+            },
+            crate::features::notebook::types::NotebookCell::Markdown {
+                source: "# Section 1\nSome description text.\n".repeat(20),
+                blocks: vec![],
+            },
+        ],
+        kernel_language: "python".to_string(),
+        total_cells: 2,
+        fallback_notice: None,
+    };
+    let preview = crate::core::PreviewData::Notebook(notebook_data);
+    let mut app = test_app(Some(preview.clone()));
+    preview.populate_state(&mut app.state);
+    app.state.markdown.viewport_height = 800.0;
+    app.state.markdown.total_content_height = 3000.0;
+
+    let default_modifiers = iced::keyboard::Modifiers::default();
+    let pgdn = iced::keyboard::Key::Named(iced::keyboard::key::Named::PageDown);
+    let pgup = iced::keyboard::Key::Named(iced::keyboard::key::Named::PageUp);
+
+    // 1. PageDown triggers smooth navigation
+    let _ = app.handle_key_pressed(pgdn, default_modifiers);
+    assert!(app.state.markdown.smooth_scroll.is_animating);
+    assert!(app.is_active_smooth_scrolling());
+    assert_eq!(app.state.markdown.smooth_scroll.target_y(), 800.0 * 0.85);
+
+    // 2. SmoothScrollTick advances position
+    let t0 = std::time::Instant::now();
+    let _ = app.update(crate::app::messages::Message::SmoothScrollTick(t0));
+    let t1 = t0 + std::time::Duration::from_millis(50);
+    let _ = app.update(crate::app::messages::Message::SmoothScrollTick(t1));
+    assert!(app.state.markdown.scroll_y > 0.0);
+
+    // 3. PageUp triggers smooth navigation back towards top
+    let _ = app.handle_key_pressed(pgup, default_modifiers);
+    assert!(app.state.markdown.smooth_scroll.is_animating);
+    assert!(app.is_active_smooth_scrolling());
+}
+
+#[test]
+fn test_notebook_vim_motions_and_home_end() {
+    let notebook_data = crate::features::notebook::types::NotebookData {
+        cells: vec![crate::features::notebook::types::NotebookCell::Code {
+            source: "x = 1\n".repeat(50),
+            execution_count: Some(1),
+            outputs: vec![],
+            language: Some("python".into()),
+        }],
+        kernel_language: "python".to_string(),
+        total_cells: 1,
+        fallback_notice: None,
+    };
+    let preview = crate::core::PreviewData::Notebook(notebook_data);
+    let mut app = test_app(Some(preview.clone()));
+    preview.populate_state(&mut app.state);
+    app.state.markdown.viewport_height = 800.0;
+    app.state.markdown.total_content_height = 4000.0;
+
+    let default_modifiers = iced::keyboard::Modifiers::default();
+    let j_key = iced::keyboard::Key::Character("j".into());
+    let k_key = iced::keyboard::Key::Character("k".into());
+    let d_key = iced::keyboard::Key::Character("d".into());
+    let u_key = iced::keyboard::Key::Character("u".into());
+    let end_key = iced::keyboard::Key::Named(iced::keyboard::key::Named::End);
+    let home_key = iced::keyboard::Key::Named(iced::keyboard::key::Named::Home);
+
+    // j: scroll down 80px
+    let _ = app.handle_key_pressed(j_key, default_modifiers);
+    assert!(app.state.markdown.smooth_scroll.is_animating);
+    assert!(app.is_active_smooth_scrolling());
+
+    // d: scroll half page down (400px)
+    app.state.markdown.smooth_scroll.stop(100.0);
+    app.state.markdown.scroll_y = 100.0;
+    let _ = app.handle_key_pressed(d_key, default_modifiers);
+    assert!(app.state.markdown.smooth_scroll.is_animating);
+    assert_eq!(app.state.markdown.smooth_scroll.target_y(), 500.0);
+
+    // u: scroll half page up (-400px clamped)
+    let _ = app.handle_key_pressed(u_key, default_modifiers);
+    assert!(app.state.markdown.smooth_scroll.is_animating);
+
+    // k: scroll up
+    let _ = app.handle_key_pressed(k_key, default_modifiers);
+    assert!(app.state.markdown.smooth_scroll.is_animating);
+
+    // End: snap to bottom
+    let _ = app.handle_key_pressed(end_key, default_modifiers);
+    assert!(app.state.markdown.smooth_scroll.is_animating);
+
+    // Home: snap to top
+    let _ = app.handle_key_pressed(home_key, default_modifiers);
+    assert!(app.state.markdown.smooth_scroll.is_animating);
+}
+
+#[test]
+fn test_notebook_populate_state_clears_markdown_offsets() {
+    let mut app = test_app(None);
+    // Simulate dirty Markdown state from previously viewed markdown file
+    app.state.markdown.block_y_offsets = vec![100.0; 250];
+    app.state.markdown.scroll_y = 500.0;
+    app.state.markdown.toc_visible = true;
+
+    let notebook_data = crate::features::notebook::types::NotebookData {
+        cells: vec![crate::features::notebook::types::NotebookCell::Code {
+            source: "a = 1".into(),
+            execution_count: Some(1),
+            outputs: vec![],
+            language: Some("python".into()),
+        }],
+        kernel_language: "python".to_string(),
+        total_cells: 1,
+        fallback_notice: None,
+    };
+    let preview = crate::core::PreviewData::Notebook(notebook_data);
+    preview.populate_state(&mut app.state);
+
+    assert_eq!(app.state.markdown.scroll_y, 0.0);
+    assert!(app.state.markdown.block_y_offsets.is_empty());
+    assert!(app.state.markdown.block_layouts.is_empty());
+    assert!(!app.state.markdown.toc_visible);
+    assert!(app.state.markdown.total_content_height >= 800.0);
+}

@@ -68,6 +68,8 @@ pub fn view_notebook<'a>(
         CONTENT_PADDING,
         NOTEBOOK_SCROLL_ID,
     )
+    .filter_wheel(true)
+    .on_wheel(|delta| crate::app::messages::MarkdownMsg::SmoothWheelScrolled(delta).into())
     .on_scroll(|v| {
         crate::app::messages::MarkdownMsg::Scrolled {
             y: v.absolute_offset().y,

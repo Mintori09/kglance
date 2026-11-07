@@ -886,7 +886,9 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
         // Global Layout / Input Events
         Message::SmoothScrollTick(now) => match app.current_content {
             Some(
-                crate::core::PreviewData::Markdown { .. } | crate::core::PreviewData::Epub { .. },
+                crate::core::PreviewData::Markdown { .. }
+                | crate::core::PreviewData::Epub { .. }
+                | crate::core::PreviewData::Notebook { .. },
             ) => crate::features::markdown::update::handle_smooth_scroll_tick(app, now),
             Some(crate::core::PreviewData::Pdf { .. }) => {
                 crate::features::pdf::update::handle_smooth_scroll_tick(app, now)
