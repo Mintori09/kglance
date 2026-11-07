@@ -1,6 +1,8 @@
 use std::fs::File;
+use std::io::Read;
 use std::path::Path;
 
+use super::MAX_EXTRACT_BYTES;
 use crate::{
     core::utils::format_timestamp,
     features::{archive::types::ArchiveEntry, common::parser::traits::ParseError},
@@ -60,8 +62,14 @@ pub fn extract_from_tar(
         if current_path == entry_path {
             let mut output_file =
                 File::create(output_path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-            std::io::copy(&mut entry, &mut output_file)
+            let mut limited_reader = (&mut entry).take(MAX_EXTRACT_BYTES + 1);
+            let copied_bytes = std::io::copy(&mut limited_reader, &mut output_file)
                 .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+
+            if copied_bytes > MAX_EXTRACT_BYTES {
+                let _ = std::fs::remove_file(output_path);
+                return Err(ParseError::TooLarge);
+            }
             return Ok(());
         }
     }

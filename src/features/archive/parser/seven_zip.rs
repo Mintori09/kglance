@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use super::MAX_EXTRACT_BYTES;
 use crate::features::archive::types::ArchiveEntry;
 use crate::features::common::parser::traits::ParseError;
 
@@ -74,6 +75,7 @@ pub fn extract_from_7z(
     let target_entry_path = entry_path.to_string();
     let target_output_path = output_path.to_owned();
     let mut is_entry_found = false;
+    let mut too_large = false;
 
     reader
         .for_each_entries(|entry, entry_reader: &mut dyn Read| {
@@ -86,14 +88,25 @@ pub fn extract_from_7z(
                     File::create(&target_output_path).map_err(sevenz_rust::Error::io)?;
 
                 if entry.size() > 0 {
-                    std::io::copy(entry_reader, &mut output_file)
+                    let mut limited_reader = entry_reader.take(MAX_EXTRACT_BYTES + 1);
+                    let copied_bytes = std::io::copy(&mut limited_reader, &mut output_file)
                         .map_err(sevenz_rust::Error::io)?;
+
+                    if copied_bytes > MAX_EXTRACT_BYTES {
+                        too_large = true;
+                        let _ = std::fs::remove_file(&target_output_path);
+                        return Ok(false);
+                    }
                 }
                 is_entry_found = true;
             }
             Ok(true)
         })
         .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+
+    if too_large {
+        return Err(ParseError::TooLarge);
+    }
 
     if is_entry_found {
         Ok(())
