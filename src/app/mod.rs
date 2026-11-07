@@ -1185,6 +1185,10 @@ impl KglanceApp {
                 vec![
                     iced::window::set_mode(id, iced::window::Mode::Windowed),
                     iced::window::gain_focus(id),
+                    Task::perform(
+                        crate::core::kwin::bring_to_current_desktop_and_focus(),
+                        |_| Message::None,
+                    ),
                 ]
             } else if !self.is_window_opening {
                 self.is_window_opening = true;

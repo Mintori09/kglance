@@ -156,6 +156,10 @@ impl KglanceApp {
             Task::batch(vec![
                 window::set_mode(window_id, Mode::Windowed),
                 window::gain_focus(window_id),
+                Task::perform(
+                    crate::core::kwin::bring_to_current_desktop_and_focus(),
+                    |_| Message::None,
+                ),
             ])
         } else if !self.is_window_opening {
             self.is_window_opening = true;

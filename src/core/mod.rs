@@ -4,6 +4,7 @@ pub mod config;
 pub mod config_watcher;
 pub mod disk_cache;
 pub mod file_watcher;
+pub mod kwin;
 pub mod limit;
 pub mod mmap;
 pub mod navigation;
