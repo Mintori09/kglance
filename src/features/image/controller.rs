@@ -20,6 +20,29 @@ pub enum ViewerAction {
 pub struct ViewerController;
 
 impl ViewerController {
+    pub fn prepare_camera_for_zoom(
+        camera: &mut Camera,
+        display_width: u32,
+        display_height: u32,
+        viewport: Size,
+    ) {
+        if (camera.zoom - 1.0).abs() < f32::EPSILON
+            && camera.offset_x == 0.0
+            && camera.offset_y == 0.0
+            && display_width > 0
+            && display_height > 0
+        {
+            let (vis_w, vis_h) = if camera.rotation.is_perpendicular() {
+                (display_height as f32, display_width as f32)
+            } else {
+                (display_width as f32, display_height as f32)
+            };
+            if vis_w > 0.0 && vis_h > 0.0 {
+                camera.zoom = (viewport.width / vis_w).min(viewport.height / vis_h);
+            }
+        }
+    }
+
     pub fn zoom(camera: &mut Camera, factor: f32, cursor: Point, viewport: Size) {
         let old_zoom = camera.zoom;
         let new_zoom = (old_zoom * factor).clamp(0.1, 10.0);
@@ -141,6 +164,20 @@ impl ViewerController {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_viewer_controller_prepare_camera_for_zoom() {
+        let mut camera = Camera::new();
+        let viewport = Size::new(1000.0, 500.0);
+        ViewerController::prepare_camera_for_zoom(&mut camera, 2000, 1000, viewport);
+        // visual_w = 2000, visual_h = 1000. fit = min(1000/2000, 500/1000) = 0.5
+        assert!((camera.zoom - 0.5).abs() < f32::EPSILON);
+
+        // If zoom is already non-default or offset is non-zero, it should NOT reset zoom
+        camera.zoom = 1.2;
+        ViewerController::prepare_camera_for_zoom(&mut camera, 2000, 1000, viewport);
+        assert!((camera.zoom - 1.2).abs() < f32::EPSILON);
+    }
 
     #[test]
     fn test_viewer_controller_rotate_and_flip() {
