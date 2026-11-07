@@ -181,6 +181,7 @@ pub fn sync_menu_states(handle: &MenuHandle, config: &AppConfig, active_theme: &
         ToggleState::Off
     };
     handle.set_toggle_state(ID_VIEW_WORD_WRAP, wrap_state);
+    handle.set_toggle_state(context::ID_TEXT_WORD_WRAP, wrap_state);
 
     let scroll_state = if config.scroll.smooth_scroll_enabled {
         ToggleState::On

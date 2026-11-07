@@ -853,7 +853,10 @@ pub fn handle_toggle_word_wrap(app: &mut KglanceApp) -> Option<Task<Message>> {
             dbus_global_menu::ToggleState::Off
         };
         handle.set_toggle_state(crate::dbus::global_menu::ID_VIEW_WORD_WRAP, state);
+        handle.set_toggle_state(crate::dbus::global_menu::context::ID_TEXT_WORD_WRAP, state);
     }
+    app.sync_global_menu_context();
+    app.sync_global_menu_view_states();
 
     Some(Task::none())
 }

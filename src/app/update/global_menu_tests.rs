@@ -532,3 +532,94 @@ fn test_global_menu_zoom_actions() {
     );
     assert_eq!(app.state.font_size, app.state.default_font_size);
 }
+
+#[test]
+fn test_word_wrap_sync_between_view_and_context_menu() {
+    let mut app = test_app(None);
+    app.current_content = Some(crate::core::PreviewData::Text {
+        content: "sample text line".to_string(),
+        line_numbers: "1".to_string(),
+        language: "text".to_string(),
+    });
+
+    let config = crate::core::config::AppConfig::default();
+    let theme = crate::ui::theme::color::AppTheme::default();
+    let root = crate::dbus::global_menu::build_root_menu(&config, &theme);
+    let service = dbus_global_menu::DbusMenuService::new(root, None, None);
+    let conn = zbus::block_on(async { zbus::Connection::session().await }).expect("dbus session");
+    let handle = dbus_global_menu::MenuHandle::new(
+        service.get_root_arc(),
+        service.get_revision_arc(),
+        conn,
+        "/MenuBarTest",
+    );
+    app.menu_handle = Some(handle.clone());
+
+    // Initially populate context menu
+    app.sync_global_menu_context();
+    app.sync_global_menu_view_states();
+
+    fn get_item_state(
+        handle: &dbus_global_menu::MenuHandle,
+        id: i32,
+    ) -> Option<dbus_global_menu::ToggleState> {
+        fn find_in_tree(
+            item: &dbus_global_menu::MenuItem,
+            target_id: i32,
+        ) -> Option<dbus_global_menu::ToggleState> {
+            if item.id == target_id {
+                return Some(item.toggle_state);
+            }
+            for child in &item.children {
+                if let Some(res) = find_in_tree(child, target_id) {
+                    return Some(res);
+                }
+            }
+            None
+        }
+        find_in_tree(&handle.get_root(), id)
+    }
+
+    // Initial state: word_wrap is false by default
+    assert_eq!(
+        get_item_state(&handle, crate::dbus::global_menu::ID_VIEW_WORD_WRAP),
+        Some(dbus_global_menu::ToggleState::Off)
+    );
+    assert_eq!(
+        get_item_state(
+            &handle,
+            crate::dbus::global_menu::context::ID_TEXT_WORD_WRAP
+        ),
+        Some(dbus_global_menu::ToggleState::Off)
+    );
+
+    // 1. Toggle via text feature handler (Ctrl+W)
+    let _ = crate::features::text::update::handle_toggle_word_wrap(&mut app);
+    assert!(app.state.word_wrap);
+    assert_eq!(
+        get_item_state(&handle, crate::dbus::global_menu::ID_VIEW_WORD_WRAP),
+        Some(dbus_global_menu::ToggleState::On)
+    );
+    assert_eq!(
+        get_item_state(
+            &handle,
+            crate::dbus::global_menu::context::ID_TEXT_WORD_WRAP
+        ),
+        Some(dbus_global_menu::ToggleState::On)
+    );
+
+    // 2. Toggle via SettingsMsg::WordWrapChanged (e.g. from Preferences UI or DBus)
+    let _ = handle_settings_message(&mut app, SettingsMsg::WordWrapChanged(false));
+    assert!(!app.state.word_wrap);
+    assert_eq!(
+        get_item_state(&handle, crate::dbus::global_menu::ID_VIEW_WORD_WRAP),
+        Some(dbus_global_menu::ToggleState::Off)
+    );
+    assert_eq!(
+        get_item_state(
+            &handle,
+            crate::dbus::global_menu::context::ID_TEXT_WORD_WRAP
+        ),
+        Some(dbus_global_menu::ToggleState::Off)
+    );
+}

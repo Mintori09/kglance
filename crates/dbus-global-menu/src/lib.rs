@@ -74,6 +74,18 @@ impl MenuHandle {
         self.emit_layout_updated(new_rev, 0);
     }
 
+    /// Clears all children of the root menu item and notifies the desktop panel.
+    pub fn set_empty(&self) {
+        let new_rev = {
+            let mut root = self.root.write();
+            root.children.clear();
+            let mut rev = self.revision.write();
+            *rev += 1;
+            *rev
+        };
+        self.emit_layout_updated(new_rev, 0);
+    }
+
     /// Updates a specific menu item by its ID using a mutation closure.
     ///
     /// Automatically increments the layout revision and emits `LayoutUpdated`.
@@ -320,6 +332,7 @@ impl GlobalMenuBuilder {
             }) as ActionCallback
         });
 
+        let root_clone = self.root.clone();
         let dbus_service = DbusMenuService::new(self.root, callback, self.about_to_show_callback);
         let root_arc = dbus_service.get_root_arc();
         let revision_arc = dbus_service.get_revision_arc();
@@ -358,6 +371,7 @@ impl GlobalMenuBuilder {
             _dbus_connection: connection,
             binding: None,
             bound_xid: None,
+            template_root: root_clone,
             handle,
         })
     }
@@ -370,6 +384,7 @@ pub struct GlobalMenu {
     _dbus_connection: zbus::Connection,
     binding: Option<PlasmaAppMenuBinding>,
     bound_xid: Option<u32>,
+    template_root: MenuItem,
     handle: MenuHandle,
 }
 
@@ -377,6 +392,11 @@ impl GlobalMenu {
     /// Creates a new `GlobalMenuBuilder`.
     pub fn builder(service_name: impl Into<String>) -> GlobalMenuBuilder {
         GlobalMenuBuilder::new(service_name)
+    }
+
+    /// Sets or updates the template root menu used when restoring the menu upon window attachment.
+    pub fn set_template_root(&mut self, root: MenuItem) {
+        self.template_root = root;
     }
 
     /// Returns a `MenuHandle` for thread-safe mutation of the menu.
@@ -408,6 +428,7 @@ impl GlobalMenu {
                 });
             }
         }
+        self.handle.set_empty();
     }
 
     /// Binds an application window to the desktop global menu bar.
@@ -421,8 +442,35 @@ impl GlobalMenu {
     where
         W: HasDisplayHandle + HasWindowHandle + ?Sized,
     {
-        // First detach any previously bound window cleanly
-        self.detach_window();
+        // First detach any previously bound window cleanly (without emptying menu)
+        self.binding = None;
+        if let Some(xid) = self.bound_xid.take() {
+            let conn = self._dbus_connection.clone();
+            let detach_task = async move {
+                let _ = conn
+                    .call_method(
+                        Some("com.canonical.AppMenu.Registrar"),
+                        "/com/canonical/AppMenu/Registrar",
+                        Some("com.canonical.AppMenu.Registrar"),
+                        "UnregisterWindow",
+                        &(xid,),
+                    )
+                    .await;
+            };
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                handle.spawn(detach_task);
+            } else {
+                std::thread::spawn(move || {
+                    zbus::block_on(detach_task);
+                });
+            }
+        }
+
+        // Restore root menu if empty
+        if self.handle.get_root().children.is_empty() && !self.template_root.children.is_empty() {
+            let mut root = self.handle.root.write();
+            *root = self.template_root.clone();
+        }
 
         let raw_display = window
             .display_handle()
