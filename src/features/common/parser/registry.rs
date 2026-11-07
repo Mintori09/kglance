@@ -438,12 +438,14 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                 path,
                 duration,
                 thumbnail,
+                width,
+                height,
             } => crate::core::preview::PreviewData::Media {
                 url: path,
                 metadata: format!("Video Duration: {:.2}s", duration),
                 thumbnail_or_waveform: thumbnail,
-                width: 320,
-                height: 240,
+                width,
+                height,
             },
             ParsedContent::Audio {
                 path,
