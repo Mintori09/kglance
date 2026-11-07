@@ -575,3 +575,100 @@ fn test_image_animation_tick_updates_previous_frame_handle() {
         Some(anim.frames[1].handle.id())
     );
 }
+
+#[test]
+fn test_image_zoom_transitions_from_fit_scale() {
+    use kglance::app::KglanceApp;
+    use kglance::features::image::handle_image_zoom_step;
+    use kglance::features::image::handle_zoom;
+
+    let mut app = KglanceApp::default();
+    app.state.current_window_size = iced::Size::new(1000.0, 600.0);
+    // canvas_height = 600.0 - 50.0 = 550.0
+    app.state.image.display_width = 2000;
+    app.state.image.display_height = 1000;
+    // visual_w = 2000, visual_h = 1000
+    // fit = min(1000 / 2000, 550 / 1000) = min(0.5, 0.55) = 0.5
+
+    assert_eq!(app.state.image.camera.zoom, 1.0);
+    assert_eq!(app.state.image.camera.offset_x, 0.0);
+    assert_eq!(app.state.image.camera.offset_y, 0.0);
+
+    // Zooming via handle_zoom (scroll factor 1.1)
+    let _ = handle_zoom(&mut app, 1.1, iced::Point::new(500.0, 275.0));
+
+    // Initial zoom should have transitioned from 0.5 (fit) * 1.1 = 0.55, NOT from 1.0 * 1.1 = 1.1!
+    let expected = 0.5 * 1.1;
+    assert!(
+        (app.state.image.camera.zoom - expected).abs() < 1e-4,
+        "Expected zoom ~ {}, got {}",
+        expected,
+        app.state.image.camera.zoom
+    );
+
+    // Reset camera and test handle_image_zoom_step (e.g. Ctrl + / -)
+    app.state.image.camera = kglance::features::image::Camera::new();
+    let _ = handle_image_zoom_step(&mut app, 1.0);
+    // Should transition from 0.5 (fit) + 1.0 * 0.2 = 0.7, NOT from 1.0 + 0.2 = 1.2!
+    assert!(
+        (app.state.image.camera.zoom - 0.7).abs() < 1e-4,
+        "Expected step zoom ~ 0.7, got {}",
+        app.state.image.camera.zoom
+    );
+}
+
+#[test]
+fn test_lightbox_image_zoom_transitions_from_fit_scale() {
+    use kglance::app::KglanceApp;
+    use kglance::app::messages::{ImageMsg, Message};
+    use kglance::core::types::ImageState;
+    use kglance::features::lightbox::types::{LightboxItem, LightboxState};
+
+    let mut app = KglanceApp::default();
+    app.state.current_window_size = iced::Size::new(1000.0, 600.0);
+    // lightbox canvas_height = 600.0 - 40.0 = 560.0
+    let image_state = ImageState {
+        display_width: 2000,
+        display_height: 1000,
+        ..Default::default()
+    };
+    // fit = min(1000 / 2000, 560 / 1000) = min(0.5, 0.56) = 0.5
+
+    app.state.lightbox = Some(LightboxState {
+        image_state,
+        items: vec![LightboxItem {
+            id: "/path/test.png".to_string(),
+            title: None,
+            subtitle: String::new(),
+            link_url: None,
+            in_memory_bytes: None,
+        }],
+        current_index: 0,
+    });
+
+    // Send ImageMsg::Zoom via app.update
+    let _ = app.update(Message::Image(ImageMsg::Zoom {
+        factor: 1.2,
+        cursor: iced::Point::new(500.0, 280.0),
+    }));
+
+    let lb = app.state.lightbox.as_ref().unwrap();
+    let expected = 0.5 * 1.2;
+    assert!(
+        (lb.image_state.camera.zoom - expected).abs() < 1e-4,
+        "Expected lightbox zoom ~ {}, got {}",
+        expected,
+        lb.image_state.camera.zoom
+    );
+
+    // Reset camera and test Ctrl + zoom step
+    app.state.lightbox.as_mut().unwrap().image_state.camera =
+        kglance::features::image::Camera::new();
+    let _ = kglance::features::image::handle_image_zoom_step(&mut app, 1.0);
+    let lb = app.state.lightbox.as_ref().unwrap();
+    assert!(
+        (lb.image_state.camera.zoom - 0.7).abs() < 1e-4,
+        "Expected lightbox step zoom ~ 0.7, got {}",
+        lb.image_state.camera.zoom
+    );
+}
