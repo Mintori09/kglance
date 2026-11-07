@@ -1087,6 +1087,52 @@ fn test_search_continuous_mode_accounts_for_chapter_header_blocks() {
 }
 
 #[test]
+fn test_search_single_chapter_mode_finds_matches_and_switches() {
+    let ch1_blocks = vec![crate::parsers::markdown::Block::Paragraph(vec![
+        crate::parsers::markdown::Inline::Text("Chapter 1 content".to_string()),
+    ])];
+    let ch2_blocks = vec![crate::parsers::markdown::Block::Paragraph(vec![
+        crate::parsers::markdown::Inline::Text(
+            "Chapter 2 content with rare_phrase target".to_string(),
+        ),
+    ])];
+    let chapters = vec![
+        crate::core::types::EpubChapterInfo {
+            title: "Chapter 1".to_string(),
+            level: 1,
+            anchor: None,
+            file_href: "ch1.xhtml".to_string(),
+            blocks: ch1_blocks,
+        },
+        crate::core::types::EpubChapterInfo {
+            title: "Chapter 2".to_string(),
+            level: 1,
+            anchor: None,
+            file_href: "ch2.xhtml".to_string(),
+            blocks: ch2_blocks,
+        },
+    ];
+    let mut app = test_app(Some(crate::core::PreviewData::Epub {
+        title: "Test Book".to_string(),
+        author: "Author".to_string(),
+        chapters: chapters.clone(),
+        active_chapter: 0,
+        images: std::collections::HashMap::new(),
+    }));
+    app.state.epub.reading_mode = crate::core::config::EpubReadingMode::SingleChapter;
+    app.state.epub.chapters = chapters;
+    app.state.epub.active_chapter = 0;
+
+    let _ = handle_search_query_changed(&mut app, "rare_phrase".to_string());
+    assert_eq!(app.state.epub.search.total_matches(), 1);
+    assert_eq!(app.state.epub.search.matches[0].chapter_index, 1);
+
+    // Clicking the match switches chapter to Chapter 1 (index 1)
+    let _ = handle_search_result_clicked(&mut app, 0);
+    assert_eq!(app.state.epub.active_chapter, 1);
+}
+
+#[test]
 fn test_epub_image_lightbox_open_close_and_navigate() {
     use crate::core::types::EpubChapterInfo;
     use crate::features::markdown::Block;
@@ -1243,4 +1289,28 @@ fn test_ensure_chapter_loaded_propagates_shared_file_href() {
     if let Some(crate::core::PreviewData::Epub { chapters, .. }) = &app.current_content {
         assert_eq!(chapters[1].blocks.len(), 1);
     }
+}
+
+#[test]
+fn test_epub_gallery_image_paths_populated() {
+    let mut images = std::collections::HashMap::new();
+    images.insert("img/1.png".to_string(), vec![1, 2, 3]);
+    let chapters = vec![crate::core::types::EpubChapterInfo {
+        title: "Ch 1".into(),
+        level: 1,
+        anchor: None,
+        file_href: "ch1.xhtml".into(),
+        blocks: vec![crate::features::markdown::Block::Image {
+            path: "img/1.png".into(),
+            link_url: None,
+            width: None,
+            height: None,
+            alt: String::new(),
+        }],
+    }];
+    let mut state = crate::core::types::KglanceState::default();
+    crate::features::epub::state::populate_state(
+        &mut state, "Book", "Author", &chapters, 0, &images,
+    );
+    assert_eq!(state.epub.gallery_image_paths, vec!["img/1.png"]);
 }

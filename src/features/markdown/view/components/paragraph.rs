@@ -2,7 +2,7 @@ use super::style::STYLE;
 use crate::app::Message;
 use crate::features::epub::parser::css::BlockStyle;
 use crate::features::markdown::view::components::inline::{
-    InlineStyleOptions, render_inlines_with_options,
+    InlineStyleOptions, render_inlines_with_options, resolve_body_font_size,
 };
 use crate::parsers::markdown::Inline;
 use crate::ui::types::RenderContext;
@@ -48,11 +48,7 @@ pub(crate) fn render_paragraph<'a>(
         None
     };
 
-    let font_size = if let Some(scale) = font_scale {
-        (ctx.font_size * scale).round()
-    } else {
-        ctx.font_size
-    };
+    let font_size = resolve_body_font_size(font_scale, ctx);
 
     let starts_with_bullet = content.first().is_some_and(|inline| match inline {
         Inline::Text(t) => {
@@ -105,7 +101,7 @@ pub(crate) fn render_paragraph<'a>(
     let [pad_v, pad_h] = STYLE.paragraph.padding;
     let is_heading_like = is_bold
         || align_x == iced::alignment::Horizontal::Center
-        || font_scale.is_some_and(|s| s > 1.05);
+        || font_size > ctx.font_size * 1.15;
     let (top_padding, bottom_padding) = if is_heading_like {
         (pad_v as f32 + 10.0, pad_v as f32 + 6.0)
     } else {

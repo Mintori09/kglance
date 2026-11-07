@@ -570,6 +570,94 @@ fn test_extract_epub3_navpoints() {
 }
 
 #[test]
+fn test_extract_epub3_navpoints_with_span_grouping() {
+    let nav_html = r#"
+        <nav epub:type="toc">
+            <ol>
+                <li>
+                    <span>Part I: Foundations</span>
+                    <ol>
+                        <li><a href="c1.xhtml">Chapter 1</a></li>
+                        <li><a href="c2.xhtml">Chapter 2</a></li>
+                    </ol>
+                </li>
+                <li>
+                    <span>Part II: Advanced</span>
+                    <ol>
+                        <li><a href="c3.xhtml">Chapter 3</a></li>
+                    </ol>
+                </li>
+            </ol>
+        </nav>
+    "#;
+    let navpoints = crate::features::epub::parser::ncx::extract_epub3_navpoints(nav_html);
+    assert_eq!(navpoints.len(), 5);
+    // Part I span inherits first child's file
+    assert_eq!(navpoints[0].0, "Part I: Foundations");
+    assert_eq!(navpoints[0].1, 1);
+    assert_eq!(navpoints[0].2, "c1.xhtml");
+
+    assert_eq!(navpoints[1].0, "Chapter 1");
+    assert_eq!(navpoints[1].1, 2);
+    assert_eq!(navpoints[1].2, "c1.xhtml");
+
+    assert_eq!(navpoints[2].0, "Chapter 2");
+    assert_eq!(navpoints[2].1, 2);
+    assert_eq!(navpoints[2].2, "c2.xhtml");
+
+    // Part II span inherits c3.xhtml
+    assert_eq!(navpoints[3].0, "Part II: Advanced");
+    assert_eq!(navpoints[3].1, 1);
+    assert_eq!(navpoints[3].2, "c3.xhtml");
+
+    assert_eq!(navpoints[4].0, "Chapter 3");
+    assert_eq!(navpoints[4].1, 2);
+    assert_eq!(navpoints[4].2, "c3.xhtml");
+}
+
+#[test]
+fn test_extract_nav_and_cover_href_multi_properties() {
+    let opf_xml = r#"
+        <package>
+            <manifest>
+                <item id="item-toc" href="nav.xhtml" properties="landmarks nav" media-type="application/xhtml+xml"/>
+                <item id="item-cover" href="cover.jpg" properties="cover-image scripted" media-type="image/jpeg"/>
+            </manifest>
+        </package>
+    "#;
+    let nav_href = super::opf::extract_nav_href(opf_xml);
+    assert_eq!(nav_href.as_deref(), Some("nav.xhtml"));
+
+    let cover_href = super::opf::extract_cover_image_href(opf_xml);
+    assert_eq!(cover_href.as_deref(), Some("cover.jpg"));
+}
+
+#[test]
+fn test_extract_html_blocks_meta_includes_blockquote_and_aside() {
+    let html = r#"
+        <html xmlns="http://www.w3.org/1999/xhtml">
+        <body>
+            <blockquote class="famous-quote">Direct quote without p tag</blockquote>
+            <p class="chapter-lead">Lead paragraph following quote</p>
+            <aside class="sidebar-note">Sidebar aside note</aside>
+            <p class="body-text">Normal body text</p>
+        </body>
+        </html>
+    "#;
+    let metas = crate::features::common::parser::html::extract_html_blocks_meta(html, None);
+    let non_empty: Vec<_> = metas.into_iter().filter(|m| !m.is_empty).collect();
+    assert_eq!(non_empty.len(), 4);
+    assert_eq!(non_empty[0].tag, "blockquote");
+    assert_eq!(non_empty[0].classes, vec!["famous-quote"]);
+    assert_eq!(non_empty[1].tag, "p");
+    assert_eq!(non_empty[1].classes, vec!["chapter-lead"]);
+    assert_eq!(non_empty[2].tag, "aside");
+    assert_eq!(non_empty[2].classes, vec!["sidebar-note"]);
+    assert_eq!(non_empty[3].tag, "p");
+    assert_eq!(non_empty[3].classes, vec!["body-text"]);
+}
+
+#[test]
 fn test_extract_headings_from_html() {
     let html = r#"
         <html xmlns="http://www.w3.org/1999/xhtml">
@@ -3246,4 +3334,197 @@ fn test_packt_csrf_styling_uniformity_if_present() {
             );
         }
     }
+}
+
+#[test]
+fn test_packt_bullet_and_paragraph_typography_uniformity() {
+    let css = r#"
+        #sbo-rt-content p.normal {
+            font-family: "Crimson Pro";
+            font-size: 10.5pt;
+            line-height: 13.75pt;
+        }
+        #sbo-rt-content ul.bulletList-level-1 {
+            font-family: "Crimson Pro";
+            font-size: 10.5pt;
+            line-height: 14.225pt;
+        }
+    "#;
+    let stylesheet_map = css::parse_stylesheet(css);
+    let html = r#"
+        <div id="sbo-rt-content">
+            <ul class="bulletList-level-1">
+                <li class="bulletList-level-1">Option 3: If a class has but one constructor</li>
+            </ul>
+            <p class="normal">With VideoService injected into HomeController, we can update.</p>
+        </div>
+    "#;
+
+    let md = convert_html_to_markdown_with_stylesheet(html, &stylesheet_map);
+    let blocks = parse_to_blocks(&md);
+    let styles = extract_blocks_styles(html, &blocks, &stylesheet_map);
+
+    assert_eq!(blocks.len(), 3);
+    assert!(is_standalone_anchor_block(&blocks[0]));
+    assert!(matches!(&blocks[1], Block::List { .. }));
+    assert!(matches!(&blocks[2], Block::Paragraph(..)));
+
+    let list_style = styles.get(&1);
+    let para_style = styles.get(&2).expect("Paragraph must have style");
+
+    let next_idx = std::cell::Cell::new(0);
+    let counter = std::cell::Cell::new(0);
+    let ctx = crate::ui::types::RenderContext {
+        next_block_index: &next_idx,
+        selection_range: None,
+        drag_active: false,
+        search_query: "",
+        active_match: 0,
+        counter: &counter,
+        theme: crate::ui::theme::AppTheme::default(),
+        font_size: 16.0,
+        font_family: None,
+        font_family_mono: None,
+        ruby_display_mode: crate::core::config::RubyDisplayMode::Hidden,
+        footnotes: None,
+        result_popup: false,
+        show_heading_divider: true,
+        is_epub: true,
+        epub_override_book_font: false,
+        content_width: 800.0,
+    };
+
+    let list_font_size =
+        crate::features::markdown::view::components::inline::resolve_body_font_size(
+            list_style.and_then(|s| s.font_scale),
+            &ctx,
+        );
+    let para_font_size =
+        crate::features::markdown::view::components::inline::resolve_body_font_size(
+            para_style.font_scale,
+            &ctx,
+        );
+
+    assert_eq!(
+        list_font_size, para_font_size,
+        "List and paragraph body text must have identical font sizes"
+    );
+    assert_eq!(
+        para_font_size, 16.0,
+        "Print-oriented 10.5pt must normalize to user base font size 16.0px"
+    );
+}
+
+#[test]
+fn test_normalize_for_matching_whitespace_and_casing() {
+    use super::normalize_for_matching;
+
+    let text = "  Chapter   1: \n  The   BEGINNING  ";
+    assert_eq!(normalize_for_matching(text), "chapter 1: the beginning");
+
+    let text_with_anchor = " <a id=\"intro\"></a>  Introduction  to  Oxiview ";
+    assert_eq!(
+        normalize_for_matching(text_with_anchor),
+        "introduction to oxiview"
+    );
+
+    let empty = "    ";
+    assert_eq!(normalize_for_matching(empty), "");
+}
+
+#[test]
+fn test_find_block_index_exact_vs_substring_priority() {
+    use super::find_block_index;
+    use crate::parsers::markdown::{Block, Inline};
+
+    let blocks = vec![
+        Block::Heading {
+            level: 2,
+            content: vec![Inline::Text(
+                "Chapter 1: Overview and Introduction".to_string(),
+            )],
+        },
+        Block::Paragraph(vec![Inline::Text("Body paragraph here".to_string())]),
+        Block::Heading {
+            level: 1,
+            content: vec![Inline::Text("Chapter 1".to_string())],
+        },
+    ];
+
+    // Searching for "Chapter 1" should exact-match block index 2, not substring-match block index 0
+    let exact_match = find_block_index(&blocks, None, Some("Chapter 1"));
+    assert_eq!(exact_match, Some(2));
+
+    // Searching for "Overview" has no exact heading, so it should match substring block index 0
+    let substr_match = find_block_index(&blocks, None, Some("Overview"));
+    assert_eq!(substr_match, Some(0));
+
+    // Searching for "Body paragraph" has no heading match, falls back to paragraph block index 1
+    let para_match = find_block_index(&blocks, None, Some("Body paragraph"));
+    assert_eq!(para_match, Some(1));
+}
+
+#[test]
+fn test_load_chapter_content_and_images_cached_roundtrip() {
+    use super::load_chapter_content_and_images_cached;
+    use std::io::Write;
+
+    let temp_dir = std::env::temp_dir();
+    let test_epub_path = temp_dir.join(format!("test_cached_css_{}.epub", std::process::id()));
+
+    let file = File::create(&test_epub_path).unwrap();
+    let mut zip = ::zip::ZipWriter::new(file);
+    let options = ::zip::write::SimpleFileOptions::default();
+
+    zip.start_file("META-INF/container.xml", options).unwrap();
+    zip.write_all(br#"<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#).unwrap();
+
+    zip.start_file("content.opf", options).unwrap();
+    zip.write_all(br#"<?xml version="1.0"?><package><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Cache Test</dc:title></metadata><manifest><item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml"/><item id="style" href="style.css" media-type="text/css"/></manifest><spine><itemref idref="ch1"/></spine></package>"#).unwrap();
+
+    zip.start_file("style.css", options).unwrap();
+    zip.write_all(
+        br#"
+        h1 { font-weight: bold; }
+        .intro { text-align: center; }
+    "#,
+    )
+    .unwrap();
+
+    zip.start_file("ch1.xhtml", options).unwrap();
+    zip.write_all(br#"<html><head><link rel="stylesheet" href="style.css"/></head><body><h1>Chapter Title</h1><p class="intro">Welcome</p></body></html>"#).unwrap();
+
+    zip.finish().unwrap();
+
+    let first_load =
+        load_chapter_content_and_images_cached(&test_epub_path, "ch1.xhtml", None, None);
+    assert!(first_load.is_ok(), "Initial chapter load must succeed");
+    let ((blocks, _, styles), parsed_css) = first_load.unwrap();
+    assert!(!blocks.is_empty());
+    assert!(!styles.is_empty());
+    assert!(
+        parsed_css.is_some(),
+        "Initial load without cache must return parsed stylesheets"
+    );
+
+    let cached_map = parsed_css.unwrap();
+    assert!(cached_map.contains_key("tag:h1") || cached_map.contains_key("h1"));
+    assert!(cached_map.contains_key(".intro") || cached_map.contains_key("intro"));
+
+    let second_load = load_chapter_content_and_images_cached(
+        &test_epub_path,
+        "ch1.xhtml",
+        None,
+        Some(&cached_map),
+    );
+    assert!(second_load.is_ok(), "Cached chapter load must succeed");
+    let ((blocks2, _, styles2), returned_css) = second_load.unwrap();
+    assert_eq!(blocks2.len(), blocks.len());
+    assert_eq!(styles2.len(), styles.len());
+    assert!(
+        returned_css.is_none(),
+        "Subsequent load with cache must not re-parse stylesheets"
+    );
+
+    let _ = std::fs::remove_file(test_epub_path);
 }

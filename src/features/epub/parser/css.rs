@@ -549,6 +549,21 @@ pub fn parse_stylesheet(css: &str) -> HashMap<String, BlockStyle> {
     map
 }
 
+#[inline]
+fn with_prefixed<R>(prefix: &str, s: &str, f: impl FnOnce(&str) -> R) -> R {
+    let total_len = prefix.len() + s.len();
+    if total_len <= 64 {
+        let mut buf = [0u8; 64];
+        buf[..prefix.len()].copy_from_slice(prefix.as_bytes());
+        buf[prefix.len()..total_len].copy_from_slice(s.as_bytes());
+        if let Ok(key) = std::str::from_utf8(&buf[..total_len]) {
+            return f(key);
+        }
+    }
+    let key = format!("{prefix}{s}");
+    f(&key)
+}
+
 /// Resolves effective style for an HTML element given its tag, classes, child classes, optional id, and optional inline style attribute.
 pub fn resolve_block_style(
     tag: Option<&str>,
@@ -562,13 +577,14 @@ pub fn resolve_block_style(
     let mut style = BlockStyle::default();
 
     if let Some(t) = tag {
-        let tag_key = format!("tag:{t}");
-        if let Some(tag_style) = stylesheet_map.get(&tag_key) {
+        let tag_style = with_prefixed("tag:", t, |k| stylesheet_map.get(k));
+        if let Some(tag_style) = tag_style {
             merge_block_style(&mut style, tag_style);
         } else if let Some(tag_style) = stylesheet_map.get(t) {
             let mut clean_tag_style = tag_style.clone();
             // If this tag style has color, ensure it came from a tag rule rather than a colliding class rule
-            if clean_tag_style.color.is_some() && stylesheet_map.contains_key(&format!(".{t}")) {
+            let has_class_collision = with_prefixed(".", t, |k| stylesheet_map.contains_key(k));
+            if clean_tag_style.color.is_some() && has_class_collision {
                 clean_tag_style.color = None;
             }
             merge_block_style(&mut style, &clean_tag_style);
@@ -576,22 +592,26 @@ pub fn resolve_block_style(
     }
 
     for cls in classes {
-        if let Some(cls_style) = stylesheet_map.get(cls) {
+        let cls_style =
+            with_prefixed(".", cls, |k| stylesheet_map.get(k)).or_else(|| stylesheet_map.get(cls));
+        if let Some(cls_style) = cls_style {
             merge_block_style(&mut style, cls_style);
         }
     }
 
     if let Some(id_name) = id {
-        if let Some(id_style) = stylesheet_map.get(&format!("#{id_name}")) {
-            merge_block_style(&mut style, id_style);
-        } else if let Some(id_style) = stylesheet_map.get(id_name) {
+        let id_style = with_prefixed("#", id_name, |k| stylesheet_map.get(k))
+            .or_else(|| stylesheet_map.get(id_name));
+        if let Some(id_style) = id_style {
             merge_block_style(&mut style, id_style);
         }
     }
 
     if is_heading_candidate {
         for cls in child_classes {
-            if let Some(cls_style) = stylesheet_map.get(cls) {
+            let cls_style = with_prefixed(".", cls, |k| stylesheet_map.get(k))
+                .or_else(|| stylesheet_map.get(cls));
+            if let Some(cls_style) = cls_style {
                 if cls_style.is_bold {
                     style.is_bold = true;
                 }
@@ -1310,5 +1330,68 @@ mod tests {
         assert_eq!(parse_css_color("blue"), Some([0, 0, 255, 255]));
         assert_eq!(parse_css_color("red !important"), Some([255, 0, 0, 255]));
         assert_eq!(parse_css_color("invalid"), None);
+    }
+
+    #[test]
+    fn test_with_prefixed_stack_and_heap() {
+        let res_small = with_prefixed("tag:", "h1", |s| s.to_string());
+        assert_eq!(res_small, "tag:h1");
+
+        let res_class = with_prefixed(".", "chapter-title", |s| s.to_string());
+        assert_eq!(res_class, ".chapter-title");
+
+        let res_id = with_prefixed("#", "sec_1", |s| s.to_string());
+        assert_eq!(res_id, "#sec_1");
+
+        let long_str = "a".repeat(100);
+        let res_large = with_prefixed("tag:", &long_str, |s| s.to_string());
+        assert_eq!(res_large, format!("tag:{long_str}"));
+    }
+
+    #[test]
+    fn test_resolve_block_style_with_prefixed_selectors() {
+        let mut map = HashMap::new();
+        map.insert(
+            "tag:h1".to_string(),
+            BlockStyle {
+                is_bold: true,
+                ..Default::default()
+            },
+        );
+        map.insert(
+            "tag:h2".to_string(),
+            BlockStyle {
+                is_italic: true,
+                ..Default::default()
+            },
+        );
+        map.insert(
+            "#chapter_intro".to_string(),
+            BlockStyle {
+                font_scale: Some(1.25),
+                ..Default::default()
+            },
+        );
+        map.insert(
+            ".title-lead".to_string(),
+            BlockStyle {
+                align: TextAlign::Center,
+                ..Default::default()
+            },
+        );
+
+        let style = resolve_block_style(
+            Some("h1"),
+            &["title-lead".to_string()],
+            &[],
+            Some("chapter_intro"),
+            None,
+            &map,
+            true,
+        );
+
+        assert!(style.is_bold);
+        assert_eq!(style.font_scale, Some(1.25));
+        assert_eq!(style.align, TextAlign::Center);
     }
 }
