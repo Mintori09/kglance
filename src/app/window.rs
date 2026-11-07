@@ -263,10 +263,9 @@ impl KglanceApp {
             }));
         }
 
-        if let Some(ref handle) = self.menu_handle {
-            let cfg = self.load_config();
-            crate::dbus::global_menu::sync_menu_states(handle, &cfg, &self.state.app_theme);
-            crate::dbus::global_menu::update_context_menu(handle, self.current_content.as_ref());
+        if self.menu_handle.is_some() {
+            self.sync_global_menu_view_states();
+            self.sync_global_menu_context();
             self.sync_global_menu_copy_label();
         }
 
