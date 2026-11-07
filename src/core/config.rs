@@ -24,6 +24,25 @@ pub enum RubyDisplayMode {
     Hidden,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MermaidRenderer {
+    #[default]
+    Mmdr,
+    MermaidCli,
+    Pele,
+}
+
+impl std::fmt::Display for MermaidRenderer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MermaidRenderer::Mmdr => write!(f, "mmdr (Internal)"),
+            MermaidRenderer::MermaidCli => write!(f, "mermaid-cli (mmdc)"),
+            MermaidRenderer::Pele => write!(f, "pele (Obsidian)"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct UiConfig {
@@ -46,7 +65,9 @@ pub struct UiConfig {
     #[serde(default = "default_min_height")]
     pub min_height: u32,
     #[serde(default)]
-    pub prefer_mermaid_cli: bool,
+    pub mermaid_renderer: MermaidRenderer,
+    #[serde(default, skip_serializing)]
+    pub prefer_mermaid_cli: Option<bool>,
     #[serde(default)]
     pub word_wrap: bool,
     #[serde(default = "default_json_tree_view")]
@@ -85,7 +106,8 @@ impl Default for UiConfig {
             default_height: 768,
             min_width: default_min_width(),
             min_height: default_min_height(),
-            prefer_mermaid_cli: false,
+            mermaid_renderer: MermaidRenderer::default(),
+            prefer_mermaid_cli: None,
             word_wrap: false,
             json_tree_view: default_json_tree_view(),
             remember_window_size: false,
@@ -274,6 +296,32 @@ impl ConfigManager {
                 {
                     config.ui.theme = Some("dark".to_string());
                 }
+
+                // Check for migration from prefer_mermaid_cli or legacy schema
+                let mut needs_save = false;
+                if let Ok(value) = serde_json::from_str::<serde_json::Value>(&sanitized)
+                    && let Some(ui_obj) = value.get("ui")
+                {
+                    let has_prefer_cli = ui_obj.get("prefer_mermaid_cli").is_some();
+                    let has_mermaid_renderer = ui_obj.get("mermaid_renderer").is_some();
+
+                    if has_prefer_cli {
+                        needs_save = true;
+                        if !has_mermaid_renderer && let Some(pref) = config.ui.prefer_mermaid_cli {
+                            if pref {
+                                config.ui.mermaid_renderer = MermaidRenderer::MermaidCli;
+                            } else {
+                                config.ui.mermaid_renderer = MermaidRenderer::Mmdr;
+                            }
+                        }
+                    }
+                }
+                config.ui.prefer_mermaid_cli = None;
+
+                if needs_save {
+                    let _ = Self::save_to_path(path, &config);
+                }
+
                 config
             }
             Err(err) => {

@@ -196,9 +196,41 @@ fn test_prefer_mermaid_cli_changed() {
     let mut app = test_app(None);
     let _ = handle_settings_message(&mut app, SettingsMsg::PreferMermaidCliChanged(true));
     assert!(app.state.prefer_mermaid_cli);
+    assert_eq!(
+        app.state.mermaid_renderer,
+        crate::core::config::MermaidRenderer::MermaidCli
+    );
 
     let _ = handle_settings_message(&mut app, SettingsMsg::PreferMermaidCliChanged(false));
     assert!(!app.state.prefer_mermaid_cli);
+    assert_eq!(
+        app.state.mermaid_renderer,
+        crate::core::config::MermaidRenderer::Mmdr
+    );
+}
+
+#[test]
+fn test_mermaid_renderer_changed() {
+    let mut app = test_app(None);
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::MermaidRendererChanged(crate::core::config::MermaidRenderer::Pele),
+    );
+    assert_eq!(
+        app.state.mermaid_renderer,
+        crate::core::config::MermaidRenderer::Pele
+    );
+    assert!(!app.state.prefer_mermaid_cli);
+
+    let _ = handle_settings_message(
+        &mut app,
+        SettingsMsg::MermaidRendererChanged(crate::core::config::MermaidRenderer::MermaidCli),
+    );
+    assert_eq!(
+        app.state.mermaid_renderer,
+        crate::core::config::MermaidRenderer::MermaidCli
+    );
+    assert!(app.state.prefer_mermaid_cli);
 }
 
 #[test]
@@ -237,7 +269,11 @@ fn test_reset_to_defaults() {
 
     let defaults = crate::core::config::AppConfig::default();
     assert_eq!(app.state.font_size, defaults.ui.font_size);
-    assert_eq!(app.state.prefer_mermaid_cli, defaults.ui.prefer_mermaid_cli);
+    assert_eq!(app.state.mermaid_renderer, defaults.ui.mermaid_renderer);
+    assert_eq!(
+        app.state.prefer_mermaid_cli,
+        defaults.ui.mermaid_renderer == crate::core::config::MermaidRenderer::MermaidCli
+    );
     assert_eq!(app.state.epub.reading_mode, defaults.ui.epub_reading_mode);
     assert_eq!(app.state.json.tree_mode, defaults.ui.json_tree_view);
     assert_eq!(app.state.cache_config, defaults.cache);

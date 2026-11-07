@@ -4,7 +4,8 @@ use std::sync::{Arc, LazyLock};
 use tempfile::NamedTempFile;
 
 use super::{Block, MarkdownParser};
-use crate::{log_debug, log_error};
+use crate::core::config::MermaidRenderer;
+use crate::{log_debug, log_error, log_info};
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -19,6 +20,16 @@ static MMDC_SEMAPHORE: LazyLock<std::sync::Mutex<()>> = LazyLock::new(|| std::sy
 
 static MMDC_AVAILABLE: LazyLock<bool> = LazyLock::new(|| {
     Command::new("mmdc")
+        .arg("--version")
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+});
+
+static PELE_SEMAPHORE: LazyLock<std::sync::Mutex<()>> = LazyLock::new(|| std::sync::Mutex::new(()));
+
+static PELE_AVAILABLE: LazyLock<bool> = LazyLock::new(|| {
+    Command::new("pele")
         .arg("--version")
         .output()
         .map(|output| output.status.success())
@@ -50,13 +61,13 @@ fn mermaid_cache_path(
 }
 
 impl MarkdownParser {
-    pub fn render_mermaid_blocks(blocks: &mut [Block], prefer_cli: bool) {
+    pub fn render_mermaid_blocks(blocks: &mut [Block], renderer: MermaidRenderer) {
         for block in blocks {
             if let Block::Mermaid { lines, rendered } = block
                 && rendered.is_none()
             {
                 let diagram_code = lines.join("\n");
-                *rendered = render_mermaid_to_png(&diagram_code, None, prefer_cli);
+                *rendered = render_mermaid_to_png(&diagram_code, None, renderer);
             }
         }
     }
@@ -65,7 +76,7 @@ impl MarkdownParser {
 pub fn render_mermaid_to_png(
     diagram_code: &str,
     background_color: Option<resvg::tiny_skia::Color>,
-    prefer_cli: bool,
+    renderer: MermaidRenderer,
 ) -> Option<Vec<u8>> {
     let cache_file = mermaid_cache_path(diagram_code, background_color);
     if let Some(ref path) = cache_file
@@ -76,15 +87,24 @@ pub fn render_mermaid_to_png(
         return Some(cached_bytes);
     }
 
-    let rendered_png = if prefer_cli && *MMDC_AVAILABLE {
-        if let Some(png) = render_mermaid_by_mermaid_cli(diagram_code, background_color) {
-            Some(png)
-        } else {
-            log_error!("mmdc rendering failed, falling back to mmdr");
-            render_mermaid_via_rust(diagram_code, background_color)
+    let rendered_png = match renderer {
+        MermaidRenderer::MermaidCli if *MMDC_AVAILABLE => {
+            if let Some(png) = render_mermaid_by_mermaid_cli(diagram_code, background_color) {
+                Some(png)
+            } else {
+                log_error!("mmdc rendering failed, falling back to mmdr");
+                render_mermaid_via_rust(diagram_code, background_color)
+            }
         }
-    } else {
-        render_mermaid_via_rust(diagram_code, background_color)
+        MermaidRenderer::Pele if *PELE_AVAILABLE => {
+            if let Some(png) = render_mermaid_by_pele(diagram_code, background_color) {
+                Some(png)
+            } else {
+                log_error!("pele rendering failed, falling back to mmdr");
+                render_mermaid_via_rust(diagram_code, background_color)
+            }
+        }
+        _ => render_mermaid_via_rust(diagram_code, background_color),
     };
 
     if let (Some(bytes), Some(path)) = (&rendered_png, &cache_file) {
@@ -230,6 +250,109 @@ fn render_mermaid_by_mermaid_cli(
         bytes.len()
     );
     Some(bytes)
+}
+
+fn render_mermaid_by_pele(
+    diagram_code: &str,
+    background_color: Option<resvg::tiny_skia::Color>,
+) -> Option<Vec<u8>> {
+    const TIMEOUT: Duration = Duration::from_millis(15000);
+
+    let _lock = PELE_SEMAPHORE.lock().ok()?;
+
+    log_info!("Attempting to render Mermaid diagram via pele");
+
+    let theme = match background_color {
+        Some(c) if (c.red() + c.green() + c.blue()) / 3.0 > 0.5 => "light",
+        _ => "dark",
+    };
+
+    let mut command = Command::new("pele");
+    command.arg("render").arg("--theme").arg(theme).arg("-");
+    command.stdin(std::process::Stdio::piped());
+    command.stdout(std::process::Stdio::piped());
+    command.stderr(std::process::Stdio::piped());
+
+    let mut child = command
+        .spawn()
+        .map_err(|err| {
+            log_error!("Failed to spawn pele process: {:?}", err);
+            err
+        })
+        .ok()?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        use std::io::Write;
+        if let Err(err) = stdin.write_all(diagram_code.as_bytes()) {
+            log_error!("Failed to write diagram to pele stdin: {:?}", err);
+            let _ = child.kill();
+            return None;
+        }
+    }
+
+    let start_time = std::time::Instant::now();
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Some(status),
+            Ok(None) => {
+                if start_time.elapsed() >= TIMEOUT {
+                    log_error!(
+                        "pele process timed out after {:?}, killing process to prevent leak",
+                        TIMEOUT
+                    );
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    break None;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(e) => {
+                log_error!("Error waiting for pele process: {:?}", e);
+                let _ = child.kill();
+                break None;
+            }
+        }
+    };
+
+    let exit_status = status?;
+    if !exit_status.success() {
+        let mut stderr = String::new();
+        if let Some(mut err_pipe) = child.stderr.take() {
+            use std::io::Read;
+            let _ = err_pipe.read_to_string(&mut stderr);
+        }
+        log_error!(
+            "Failed to render Mermaid diagram via pele (exit code {:?}): {}",
+            exit_status.code(),
+            stderr.trim()
+        );
+        return None;
+    }
+
+    let mut svg_output = String::new();
+    if let Some(mut out_pipe) = child.stdout.take() {
+        use std::io::Read;
+        out_pipe.read_to_string(&mut svg_output).ok()?;
+    }
+
+    if svg_output.trim().is_empty() {
+        log_error!("pele returned empty output");
+        return None;
+    }
+
+    let render_tree = parse_svg_tree(&svg_output)?;
+    let png_bytes = rasterize_svg_to_png(&render_tree, background_color)?;
+
+    if png_bytes.is_empty() {
+        log_error!("Rasterized pele PNG is empty");
+        return None;
+    }
+
+    log_info!(
+        "Successfully rendered Mermaid via pele ({} bytes)",
+        png_bytes.len()
+    );
+    Some(png_bytes)
 }
 
 fn make_background_transparent(svg: &mut String) {
@@ -390,9 +513,8 @@ mod tests {
 
     #[test]
     fn test_render_mermaid_to_png_prefer_cli_fallback() {
-        // When prefer_cli is true, if mmdc is not available (or fails), it falls back to mmdr
         let diagram = "graph TD;\n    A-->B;";
-        let result = render_mermaid_to_png(diagram, None, true);
+        let result = render_mermaid_to_png(diagram, None, MermaidRenderer::MermaidCli);
 
         assert!(
             result.is_some(),
@@ -402,9 +524,21 @@ mod tests {
     }
 
     #[test]
-    fn test_render_mermaid_to_png_prefer_cli_false() {
+    fn test_render_mermaid_to_png_pele_fallback() {
         let diagram = "graph TD;\n    A-->B;";
-        let result = render_mermaid_to_png(diagram, None, false);
+        let result = render_mermaid_to_png(diagram, None, MermaidRenderer::Pele);
+
+        assert!(
+            result.is_some(),
+            "should succeed either via pele or fallback to mmdr"
+        );
+        assert!(!result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_render_mermaid_to_png_mmdr() {
+        let diagram = "graph TD;\n    A-->B;";
+        let result = render_mermaid_to_png(diagram, None, MermaidRenderer::Mmdr);
 
         assert!(result.is_some(), "should succeed via mmdr");
         assert!(!result.unwrap().is_empty());

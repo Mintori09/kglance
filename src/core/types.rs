@@ -144,6 +144,7 @@ pub struct KglanceState {
 
     pub toasts: Vec<ToastInfo>,
     pub next_toast_id: u64,
+    pub mermaid_renderer: crate::core::config::MermaidRenderer,
     pub prefer_mermaid_cli: bool,
     pub word_wrap: bool,
     pub json_tree_view: bool,
@@ -230,6 +231,7 @@ impl Default for KglanceState {
             theme_setting: "dark".to_string(),
             toasts: Vec::new(),
             next_toast_id: 0,
+            mermaid_renderer: crate::core::config::MermaidRenderer::default(),
             prefer_mermaid_cli: false,
             word_wrap: false,
             json_tree_view: false,

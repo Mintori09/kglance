@@ -200,7 +200,8 @@ impl KglanceApp {
                 default_height: self.state.window_default_size.height.round() as u32,
                 min_width: self.state.window_min_size.width.round() as u32,
                 min_height: self.state.window_min_size.height.round() as u32,
-                prefer_mermaid_cli: self.state.prefer_mermaid_cli,
+                mermaid_renderer: self.state.mermaid_renderer,
+                prefer_mermaid_cli: None,
                 word_wrap: self.state.word_wrap,
                 json_tree_view: self.state.json_tree_view,
                 remember_window_size: self.state.remember_window_size,
@@ -301,7 +302,9 @@ impl KglanceApp {
                 config.ui.min_width as f32,
                 config.ui.min_height as f32,
             ),
-            prefer_mermaid_cli: config.ui.prefer_mermaid_cli,
+            mermaid_renderer: config.ui.mermaid_renderer,
+            prefer_mermaid_cli: config.ui.mermaid_renderer
+                == crate::core::config::MermaidRenderer::MermaidCli,
             word_wrap: config.ui.word_wrap,
             json_tree_view: config.ui.json_tree_view,
             remember_window_size: config.ui.remember_window_size,
@@ -811,7 +814,7 @@ impl KglanceApp {
                 {
                     log_debug!("Spawning async render for Mermaid block[{}]", i);
                     let code = lines.join("\n");
-                    let prefer_cli = self.state.prefer_mermaid_cli;
+                    let mermaid_renderer = self.state.mermaid_renderer;
                     let gen_arc = Arc::clone(&self.state.markdown.generation_id);
                     tasks.push(Task::perform(
                         async move {
@@ -829,7 +832,9 @@ impl KglanceApp {
                                     return None;
                                 }
                                 crate::parsers::markdown::render_mermaid_to_png(
-                                    &code, None, prefer_cli,
+                                    &code,
+                                    None,
+                                    mermaid_renderer,
                                 )
                             })
                             .await
