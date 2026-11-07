@@ -387,6 +387,19 @@ impl super::KglanceApp {
                 {
                     return self.update(crate::app::messages::MediaMsg::PlayPauseClicked.into());
                 }
+                iced::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("m") => {
+                    return self.update(crate::app::messages::MediaMsg::ToggleMuteClicked.into());
+                }
+                iced::keyboard::Key::Named(Named::ArrowUp) => {
+                    let next_vol = (self.state.media.volume + 0.05).min(1.0);
+                    return self
+                        .update(crate::app::messages::MediaMsg::VolumeChanged(next_vol).into());
+                }
+                iced::keyboard::Key::Named(Named::ArrowDown) => {
+                    let next_vol = (self.state.media.volume - 0.05).max(0.0);
+                    return self
+                        .update(crate::app::messages::MediaMsg::VolumeChanged(next_vol).into());
+                }
                 iced::keyboard::Key::Character(c)
                     if c.eq_ignore_ascii_case("c") || c.eq_ignore_ascii_case("v") =>
                 {

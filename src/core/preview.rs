@@ -359,8 +359,24 @@ impl PreviewData {
                 state.file_type_text = "Audio File".to_string();
             }
             PreviewData::Media { metadata, .. } => {
-                state.media = crate::core::MediaState::default();
-                state.media.metadata = metadata.clone();
+                let prev_volume = state.media.volume;
+                let prev_muted = state.media.muted;
+                let prev_vol_before = state.media.volume_before_mute;
+                state.media = crate::core::MediaState {
+                    metadata: metadata.clone(),
+                    volume: if prev_volume > 0.0 || prev_muted {
+                        prev_volume
+                    } else {
+                        1.0
+                    },
+                    muted: prev_muted,
+                    volume_before_mute: if prev_vol_before > 0.0 {
+                        prev_vol_before
+                    } else {
+                        1.0
+                    },
+                    ..Default::default()
+                };
                 state.file_type_text = "Video File".to_string();
             }
             PreviewData::Model3d(mesh) => {

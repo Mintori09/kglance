@@ -1080,6 +1080,8 @@ impl KglanceApp {
             || path_lower.ends_with(".avi")
             || path_lower.ends_with(".mov")
             || path_lower.ends_with(".wmv")
+            || path_lower.ends_with(".flv")
+            || path_lower.ends_with(".m4v")
             || path_lower.ends_with(".webm");
 
         let is_audio = path_lower.ends_with(".mp3")
@@ -1102,7 +1104,13 @@ impl KglanceApp {
 
         if is_video {
             match crate::features::video::handler::load_video(path) {
-                Ok(video) => {
+                Ok(mut video) => {
+                    let vol = if self.state.media.muted {
+                        0.0
+                    } else {
+                        self.state.media.volume as f64
+                    };
+                    video.set_volume(vol);
                     self.state.media.playing = true;
                     self.video = Some(video);
                 }

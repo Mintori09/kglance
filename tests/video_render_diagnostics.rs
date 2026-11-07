@@ -113,6 +113,49 @@ fn test_app_media_state_routing_and_video_flag() {
         state.media.has_video,
         "has_video flag must be true for .mp4 file"
     );
+    assert_eq!(state.media.volume, 1.0);
+    assert!(!state.media.muted);
+}
+
+#[test]
+fn test_media_state_volume_preservation() {
+    use kglance::core::KglanceState;
+    use kglance::core::preview::PreviewData;
+
+    let mut state = KglanceState::default();
+    state.media.volume = 0.42;
+    state.media.muted = true;
+    state.media.volume_before_mute = 0.42;
+
+    let media_data = PreviewData::Media {
+        url: "/tmp/sample2.mp4".to_string(),
+        metadata: "Video Duration: 5.00s".to_string(),
+        thumbnail_or_waveform: Vec::new(),
+        width: 320,
+        height: 240,
+    };
+
+    media_data.populate_state(&mut state);
+    assert!((state.media.volume - 0.42).abs() < f32::EPSILON);
+    assert!(state.media.muted);
+    assert!((state.media.volume_before_mute - 0.42).abs() < f32::EPSILON);
+}
+
+#[test]
+fn test_video_volume_control_and_mute() {
+    gst_init_once();
+    use kglance::features::video::handler::{load_video, set_volume};
+
+    let video_path = get_test_video();
+    let mut video = load_video(video_path.to_str().unwrap()).expect("Video should load");
+    set_volume(&mut video, 0.7);
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    let v1 = video.volume();
+    assert!((v1 - 0.7).abs() < 1e-3, "Expected 0.7, got {v1}");
+    set_volume(&mut video, 0.0);
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    let v2 = video.volume();
+    assert!(v2.abs() < 1e-3, "Expected 0.0, got {v2}");
 }
 
 // ── Test 4: Handle Invalidation & Redraw Rate Diagnosis ─────────────────────

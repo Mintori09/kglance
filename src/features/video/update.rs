@@ -31,6 +31,42 @@ pub fn handle_seek_relative(app: &mut KglanceApp, secs: f32) -> Task<Message> {
     Task::none()
 }
 
+pub fn handle_volume_change(app: &mut KglanceApp, vol: f32) -> Task<Message> {
+    let clamped = vol.clamp(0.0, 1.0);
+    app.state.media.volume = clamped;
+    app.state.media.muted = clamped == 0.0;
+    if clamped > 0.0 {
+        app.state.media.volume_before_mute = clamped;
+    }
+    if let Some(video) = &mut app.video {
+        crate::features::video::handler::set_volume(video, clamped as f64);
+    }
+    Task::none()
+}
+
+pub fn handle_toggle_mute(app: &mut KglanceApp) -> Task<Message> {
+    if app.state.media.muted {
+        let restored = if app.state.media.volume_before_mute > 0.0 {
+            app.state.media.volume_before_mute
+        } else {
+            1.0
+        };
+        app.state.media.volume = restored;
+        app.state.media.muted = false;
+        if let Some(video) = &mut app.video {
+            crate::features::video::handler::set_volume(video, restored as f64);
+        }
+    } else {
+        app.state.media.volume_before_mute = app.state.media.volume;
+        app.state.media.volume = 0.0;
+        app.state.media.muted = true;
+        if let Some(video) = &mut app.video {
+            crate::features::video::handler::set_volume(video, 0.0);
+        }
+    }
+    Task::none()
+}
+
 pub fn handle_video_new_frame(app: &mut KglanceApp) -> Task<Message> {
     if let Some(video) = &app.video {
         let position = video.position().as_secs_f64();
