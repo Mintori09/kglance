@@ -1,8 +1,11 @@
 use crate::features::video::subtitles::SubtitleTrack;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct MediaState {
     pub playing: bool,
+    pub volume: f32,
+    pub muted: bool,
+    pub volume_before_mute: f32,
     pub time: String,
     pub progress: f32,
     pub metadata: String,
@@ -22,4 +25,28 @@ pub struct MediaState {
     pub active_subtitle_track: Option<usize>,
     /// Text of subtitle active at current position
     pub current_subtitle_text: Option<String>,
+}
+
+impl Default for MediaState {
+    fn default() -> Self {
+        Self {
+            playing: false,
+            volume: 1.0,
+            muted: false,
+            volume_before_mute: 1.0,
+            time: String::new(),
+            progress: 0.0,
+            metadata: String::new(),
+            has_video: false,
+            show_controls: false,
+            position_secs: 0.0,
+            duration_secs: 0.0,
+            video_ended: false,
+            error: None,
+            subtitles_enabled: false,
+            subtitle_tracks: Vec::new(),
+            active_subtitle_track: None,
+            current_subtitle_text: None,
+        }
+    }
 }

@@ -100,6 +100,8 @@ pub enum MediaMsg {
     PlayPauseClicked,
     SeekClicked(f32),
     SeekRelativeClicked(f32),
+    VolumeChanged(f32),
+    ToggleMuteClicked,
     VideoNewFrame,
     VideoEndOfStream,
 
