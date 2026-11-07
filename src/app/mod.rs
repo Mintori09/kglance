@@ -148,7 +148,9 @@ impl KglanceApp {
                 .as_ref()
                 .is_some_and(|s| !s.is_empty()),
             Some(
-                crate::core::PreviewData::Markdown { .. } | crate::core::PreviewData::Epub { .. },
+                crate::core::PreviewData::Markdown { .. }
+                | crate::core::PreviewData::Epub { .. }
+                | crate::core::PreviewData::Notebook { .. },
             ) => {
                 let md = crate::features::markdown::update::active_markdown_state(self);
                 md.selected_text.as_ref().is_some_and(|s| !s.is_empty())
@@ -1558,7 +1560,9 @@ impl KglanceApp {
     pub(crate) fn is_active_smooth_scrolling(&self) -> bool {
         match self.current_content {
             Some(
-                crate::core::PreviewData::Markdown { .. } | crate::core::PreviewData::Epub { .. },
+                crate::core::PreviewData::Markdown { .. }
+                | crate::core::PreviewData::Epub { .. }
+                | crate::core::PreviewData::Notebook { .. },
             ) => {
                 let md = crate::features::markdown::update::active_markdown_state(self);
                 md.smooth_scroll.is_animating
