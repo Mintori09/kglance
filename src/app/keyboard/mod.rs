@@ -122,6 +122,12 @@ impl super::KglanceApp {
                     iced::keyboard::Key::Named(Named::End) => {
                         Some(crate::features::sheet::navigation::NavDirection::End)
                     }
+                    iced::keyboard::Key::Named(Named::PageUp) => {
+                        Some(crate::features::sheet::navigation::NavDirection::PageUp)
+                    }
+                    iced::keyboard::Key::Named(Named::PageDown) => {
+                        Some(crate::features::sheet::navigation::NavDirection::PageDown)
+                    }
                     iced::keyboard::Key::Named(Named::Tab) => {
                         if self.shift_held {
                             Some(crate::features::sheet::navigation::NavDirection::Left)

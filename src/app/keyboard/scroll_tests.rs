@@ -805,6 +805,72 @@ fn test_notebook_vim_motions_and_home_end() {
 }
 
 #[test]
+fn test_spreadsheet_page_up_down_navigates_grid_instead_of_smooth_scroll() {
+    let sheet = crate::features::sheet::types::SheetInfo {
+        name: "Sheet1".to_string(),
+        headers: vec!["A".to_string(), "B".to_string()],
+        columns: vec![
+            crate::features::sheet::types::ColumnMeta {
+                name: "A".to_string(),
+                col_type: crate::features::sheet::types::ColumnType::Text,
+                width: 100.0,
+            },
+            crate::features::sheet::types::ColumnMeta {
+                name: "B".to_string(),
+                col_type: crate::features::sheet::types::ColumnType::Text,
+                width: 100.0,
+            },
+        ],
+        rows: (0..50)
+            .map(|i| vec![format!("A{i}"), format!("B{i}")])
+            .collect(),
+    };
+    let mut app = test_app(Some(crate::core::PreviewData::Spreadsheet {
+        sheets: vec![sheet],
+        active_sheet: 0,
+    }));
+    app.state.spreadsheet.display_indices = (0..50).collect();
+    app.state.spreadsheet.prefix_widths = vec![0.0, 100.0, 200.0];
+    app.state.spreadsheet.prefix_heights = (0..=50).map(|i| i as f32 * 26.0).collect();
+    app.state.spreadsheet.selection = Some(crate::features::sheet::types::CellRange::single(
+        crate::features::sheet::types::CellCoord { row: 0, col: 0 },
+    ));
+
+    let default_modifiers = iced::keyboard::Modifiers::default();
+    let pgdn = iced::keyboard::Key::Named(iced::keyboard::key::Named::PageDown);
+    let pgup = iced::keyboard::Key::Named(iced::keyboard::key::Named::PageUp);
+
+    // PageDown should navigate grid cell row + 15, not trigger smooth scroll
+    let _ = app.handle_key_pressed(pgdn.clone(), default_modifiers);
+    assert!(!app.state.spreadsheet.smooth_scroll.is_animating);
+    assert_eq!(
+        app.state.spreadsheet.selection.unwrap().start,
+        crate::features::sheet::types::CellCoord { row: 15, col: 0 }
+    );
+
+    // PageUp should navigate grid cell row - 15, back to 0
+    let _ = app.handle_key_pressed(pgup, default_modifiers);
+    assert!(!app.state.spreadsheet.smooth_scroll.is_animating);
+    assert_eq!(
+        app.state.spreadsheet.selection.unwrap().start,
+        crate::features::sheet::types::CellCoord { row: 0, col: 0 }
+    );
+
+    // Shift + PageDown should extend selection to row 15
+    let shift_modifiers = iced::keyboard::Modifiers::SHIFT;
+    let _ = app.handle_key_pressed(pgdn, shift_modifiers);
+    assert!(!app.state.spreadsheet.smooth_scroll.is_animating);
+    assert_eq!(
+        app.state.spreadsheet.selection.unwrap().start,
+        crate::features::sheet::types::CellCoord { row: 0, col: 0 }
+    );
+    assert_eq!(
+        app.state.spreadsheet.selection.unwrap().end,
+        crate::features::sheet::types::CellCoord { row: 15, col: 0 }
+    );
+}
+
+#[test]
 fn test_notebook_populate_state_clears_markdown_offsets() {
     let mut app = test_app(None);
     // Simulate dirty Markdown state from previously viewed markdown file
