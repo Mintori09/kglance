@@ -36,6 +36,16 @@ static PELE_AVAILABLE: LazyLock<bool> = LazyLock::new(|| {
         .unwrap_or(false)
 });
 
+#[must_use]
+pub fn is_mmdc_available() -> bool {
+    *MMDC_AVAILABLE
+}
+
+#[must_use]
+pub fn is_pele_available() -> bool {
+    *PELE_AVAILABLE
+}
+
 fn mermaid_cache_path(
     diagram_code: &str,
     background_color: Option<resvg::tiny_skia::Color>,
@@ -394,18 +404,26 @@ fn rasterize_svg_to_png(
     render_tree: &resvg::usvg::Tree,
     background_color: Option<resvg::tiny_skia::Color>,
 ) -> Option<Vec<u8>> {
-    let dimensions = render_tree.size().to_int_size();
-    let mut pixmap = resvg::tiny_skia::Pixmap::new(dimensions.width(), dimensions.height())?;
+    // Render at 3.0x scale (Hi-DPI) so diagrams stay ultra-sharp when zoomed in the lightbox
+    const SCALE_FACTOR: f32 = 3.0;
+
+    let base_size = render_tree.size();
+    let width = (base_size.width() * SCALE_FACTOR).ceil() as u32;
+    let height = (base_size.height() * SCALE_FACTOR).ceil() as u32;
+
+    if width == 0 || height == 0 {
+        return None;
+    }
+
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height)?;
 
     if let Some(color) = background_color {
         pixmap.fill(color);
     }
 
-    resvg::render(
-        render_tree,
-        resvg::usvg::Transform::default(),
-        &mut pixmap.as_mut(),
-    );
+    let transform = resvg::usvg::Transform::from_scale(SCALE_FACTOR, SCALE_FACTOR);
+
+    resvg::render(render_tree, transform, &mut pixmap.as_mut());
 
     pixmap.encode_png().ok()
 }
