@@ -1193,4 +1193,31 @@ fn test_keyboard_grid_navigation() {
     );
     assert_eq!(state.selection.unwrap().start, CellCoord { row: 1, col: 1 });
     assert_eq!(state.selection.unwrap().end, CellCoord { row: 1, col: 2 });
+
+    // PageDown moves row by +15 clamped to max_row (2)
+    let _ = crate::features::sheet::navigation::navigate_grid(
+        &mut state,
+        crate::features::sheet::navigation::NavDirection::PageDown,
+        false,
+    );
+    assert_eq!(state.selection.unwrap().start, CellCoord { row: 2, col: 1 });
+    assert_eq!(state.selection.unwrap().end, CellCoord { row: 2, col: 1 });
+
+    // PageUp moves row by -15 clamped to 0
+    let _ = crate::features::sheet::navigation::navigate_grid(
+        &mut state,
+        crate::features::sheet::navigation::NavDirection::PageUp,
+        false,
+    );
+    assert_eq!(state.selection.unwrap().start, CellCoord { row: 0, col: 1 });
+    assert_eq!(state.selection.unwrap().end, CellCoord { row: 0, col: 1 });
+
+    // Shift + PageDown extends selection
+    let _ = crate::features::sheet::navigation::navigate_grid(
+        &mut state,
+        crate::features::sheet::navigation::NavDirection::PageDown,
+        true,
+    );
+    assert_eq!(state.selection.unwrap().start, CellCoord { row: 0, col: 1 });
+    assert_eq!(state.selection.unwrap().end, CellCoord { row: 2, col: 1 });
 }
