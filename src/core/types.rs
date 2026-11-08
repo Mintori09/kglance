@@ -308,6 +308,7 @@ impl KglanceState {
         self.epub = EpubState::default();
         self.json = JsonState::default();
         self.model3d = crate::features::model3d::types::Model3dState::default();
+        self.lightbox = None;
 
         self.apply_scroll_controllers();
     }
@@ -350,6 +351,7 @@ impl KglanceState {
         self.epub = EpubState::default();
         self.json = JsonState::default();
         self.model3d = crate::features::model3d::types::Model3dState::default();
+        self.lightbox = None;
         self.apply_scroll_controllers();
     }
 
@@ -414,5 +416,37 @@ mod tests {
         let state = SmoothScrollState::default();
         assert_eq!(state.target_y, 0.0);
         assert!(!state.is_animating);
+    }
+
+    #[test]
+    fn test_reset_content_state_clears_lightbox() {
+        let mut state = KglanceState {
+            lightbox: Some(crate::features::lightbox::LightboxState {
+                items: Vec::new(),
+                current_index: 0,
+                image_state: ImageState::default(),
+            }),
+            ..Default::default()
+        };
+        assert!(state.lightbox.is_some());
+
+        state.reset_content_state();
+        assert!(state.lightbox.is_none());
+    }
+
+    #[test]
+    fn test_reset_content_state_for_loading_clears_lightbox() {
+        let mut state = KglanceState {
+            lightbox: Some(crate::features::lightbox::LightboxState {
+                items: Vec::new(),
+                current_index: 0,
+                image_state: ImageState::default(),
+            }),
+            ..Default::default()
+        };
+        assert!(state.lightbox.is_some());
+
+        state.reset_content_state_for_loading("test.png".to_string());
+        assert!(state.lightbox.is_none());
     }
 }
