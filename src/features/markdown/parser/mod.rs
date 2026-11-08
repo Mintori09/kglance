@@ -25,7 +25,7 @@ pub use layout::{
     estimated_block_height_with_next, extract_toc, extract_toc_from_offsets, inlines_metrics,
     intrinsic_block_height, is_caption_paragraph, rescale_markdown_scroll_y, slugify,
 };
-pub use mermaid::render_mermaid_to_png;
+pub use mermaid::{is_mmdc_available, is_pele_available, render_mermaid_to_png};
 pub use types::{
     AlertKind, Block, BlockLayout, Inline, ListItem, TableBlock, TableCell,
     collect_all_image_paths, collect_image_paths,

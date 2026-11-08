@@ -151,22 +151,26 @@ pub fn previews_tab<'a>(
         MermaidRenderer::Pele => MermaidRendererDisplay::Pele,
     };
 
-    let mermaid_picker = pick_list(
-        vec![
-            MermaidRendererDisplay::Mmdr,
-            MermaidRendererDisplay::MermaidCli,
-            MermaidRendererDisplay::Pele,
-        ],
-        Some(selected_mermaid),
-        |display_mode| {
-            let mode = match display_mode {
-                MermaidRendererDisplay::Mmdr => MermaidRenderer::Mmdr,
-                MermaidRendererDisplay::MermaidCli => MermaidRenderer::MermaidCli,
-                MermaidRendererDisplay::Pele => MermaidRenderer::Pele,
-            };
-            Message::Settings(SettingsMsg::MermaidRendererChanged(mode))
-        },
-    )
+    let mut mermaid_options = vec![MermaidRendererDisplay::Mmdr];
+    if crate::features::markdown::is_mmdc_available()
+        || config.mermaid_renderer == MermaidRenderer::MermaidCli
+    {
+        mermaid_options.push(MermaidRendererDisplay::MermaidCli);
+    }
+    if crate::features::markdown::is_pele_available()
+        || config.mermaid_renderer == MermaidRenderer::Pele
+    {
+        mermaid_options.push(MermaidRendererDisplay::Pele);
+    }
+
+    let mermaid_picker = pick_list(mermaid_options, Some(selected_mermaid), |display_mode| {
+        let mode = match display_mode {
+            MermaidRendererDisplay::Mmdr => MermaidRenderer::Mmdr,
+            MermaidRendererDisplay::MermaidCli => MermaidRenderer::MermaidCli,
+            MermaidRendererDisplay::Pele => MermaidRenderer::Pele,
+        };
+        Message::Settings(SettingsMsg::MermaidRendererChanged(mode))
+    })
     .font(main_font)
     .width(240)
     .style({
