@@ -36,8 +36,8 @@ impl DesktopReporter {
 }
 
 /// Checks whether the Kglance window is on the active virtual desktop.
-/// If it is on the current desktop, KWin focuses it.
-/// Returns `Some(true)` if on current desktop, `Some(false)` if on another desktop,
+/// If it is on another virtual desktop, brings it to the current virtual desktop and focuses it.
+/// Returns `Some(true)` if on current desktop, `Some(false)` if was on another desktop and brought to current,
 /// or `None` if running outside KDE Wayland or if query fails.
 pub async fn is_on_current_desktop() -> Option<bool> {
     if !is_kde_wayland() {
@@ -76,9 +76,10 @@ pub async fn is_on_current_desktop() -> Option<bool> {
                     break;
                 }}
             }}
-            if (onCurrent) {{
-                workspace.activeWindow = win;
+            if (!onCurrent) {{
+                win.desktops = [workspace.currentDesktop];
             }}
+            workspace.activeWindow = win;
             break;
         }}
     }}

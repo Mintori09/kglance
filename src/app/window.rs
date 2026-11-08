@@ -154,15 +154,11 @@ impl KglanceApp {
         self.state.content_ready = false;
 
         if let Some(window_id) = self.window_id {
-            let is_on_current = crate::core::kwin::is_on_current_desktop_sync();
-            if is_on_current == Some(false) {
-                Task::batch(vec![self.close_current(), self.create_new_window()])
-            } else {
-                Task::batch(vec![
-                    window::set_mode(window_id, Mode::Windowed),
-                    window::gain_focus(window_id),
-                ])
-            }
+            let _ = crate::core::kwin::is_on_current_desktop_sync();
+            Task::batch(vec![
+                window::set_mode(window_id, Mode::Windowed),
+                window::gain_focus(window_id),
+            ])
         } else if !self.is_window_opening {
             self.is_window_opening = true;
             self.create_new_window()
@@ -199,6 +195,10 @@ impl KglanceApp {
                 if size.width > 0.0 && size.height > 0.0 {
                     self.update_grid_cols(size.width, size.height);
                 }
+                Task::none()
+            }
+            WindowEvent::Focused => {
+                // Event delivery to update() automatically marks the window for redraw on AboutToWait.
                 Task::none()
             }
             WindowEvent::Unfocused => {

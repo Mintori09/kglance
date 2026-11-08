@@ -1187,15 +1187,11 @@ impl KglanceApp {
     fn prepare_window_tasks(&mut self) -> Vec<Task<Message>> {
         if self.is_daemon {
             if let Some(id) = self.window_id {
-                let is_on_current = crate::core::kwin::is_on_current_desktop_sync();
-                if is_on_current == Some(false) {
-                    vec![self.close_current(), self.create_new_window()]
-                } else {
-                    vec![
-                        iced::window::set_mode(id, iced::window::Mode::Windowed),
-                        iced::window::gain_focus(id),
-                    ]
-                }
+                let _ = crate::core::kwin::is_on_current_desktop_sync();
+                vec![
+                    iced::window::set_mode(id, iced::window::Mode::Windowed),
+                    iced::window::gain_focus(id),
+                ]
             } else if !self.is_window_opening {
                 self.is_window_opening = true;
                 vec![self.create_new_window()]
@@ -1518,13 +1514,6 @@ impl KglanceApp {
             Subscription::none()
         };
 
-        let spinner_sub = if self.state.is_loading {
-            iced::time::every(std::time::Duration::from_millis(16))
-                .map(|_| crate::app::messages::SystemMsg::SpinnerTick.into())
-        } else {
-            Subscription::none()
-        };
-
         let is_epub = matches!(self.current_content, Some(PreviewData::Epub { .. }));
         let has_markdown_anim = if is_epub {
             !self.state.epub.markdown_state.animated_gifs.is_empty()
@@ -1533,6 +1522,13 @@ impl KglanceApp {
         };
 
         let gui_open = !self.is_daemon || self.is_gui_open.load(Ordering::Relaxed);
+
+        let spinner_sub = if self.state.is_loading && gui_open {
+            iced::time::every(std::time::Duration::from_millis(16))
+                .map(|_| crate::app::messages::SystemMsg::SpinnerTick.into())
+        } else {
+            Subscription::none()
+        };
 
         let markdown_anim_sub = if has_markdown_anim && gui_open {
             iced::time::every(std::time::Duration::from_millis(30))
