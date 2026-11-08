@@ -1,6 +1,5 @@
 use super::style::{STYLE, code_block_style, mermaid_badge_style};
 use crate::app::Message;
-use crate::log_debug;
 use crate::ui::theme::font::get_code_font;
 use crate::ui::theme::scale_size;
 use crate::ui::types::RenderContext;
@@ -27,7 +26,6 @@ pub(crate) fn render_mermaid<'a>(
     .style(move |_: &iced::Theme| mermaid_badge_style(theme));
 
     if let Some(handle) = state.cached_mermaid_handles.get(&index) {
-        log_debug!("render_mermaid[{}]: handle found, showing image", index);
         let image_container = container(
             image(handle.clone())
                 .width(Length::Shrink)
@@ -65,10 +63,6 @@ pub(crate) fn render_mermaid<'a>(
             .spacing(STYLE.general.section_spacing)
             .into()
     } else {
-        log_debug!(
-            "render_mermaid[{}]: no handle, showing text fallback",
-            index
-        );
         let code_font = get_code_font(ctx.font_family_mono);
         let line_widgets = lines.iter().map(|line| {
             let display = if line.contains("-->") {
