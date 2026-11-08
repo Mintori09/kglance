@@ -414,13 +414,13 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
                         };
                         let raw_size = if entry.is_dir { 0 } else { entry.size };
                         crate::core::FolderRowState {
-                            name: entry.name.clone(),
+                            name: entry.name,
                             kind,
                             size,
                             raw_size,
-                            modified: entry.modified.clone(),
+                            modified: entry.modified,
                             raw_modified: entry.raw_modified,
-                            path: entry.name,
+                            path: entry.path,
                             is_dir: entry.is_dir,
                             icon,
                         }

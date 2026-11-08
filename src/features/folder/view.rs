@@ -440,6 +440,7 @@ fn create_folder_rows<'a>(
         .padding(ROWS_LIST_PADDING);
 
     let query = state.search_query.trim().to_lowercase();
+    let mut visible_index = 0usize;
 
     for (row_index, row_data) in state.rows.iter().enumerate() {
         if !query.is_empty() && !row_data.name.to_lowercase().contains(&query) {
@@ -447,7 +448,9 @@ fn create_folder_rows<'a>(
         }
 
         let is_selected = state.selected_index == Some(row_index);
-        let is_odd = row_index % 2 == 1;
+        let is_odd = visible_index % 2 == 1;
+        visible_index += 1;
+
         let row_button = create_folder_row(row_index, row_data, is_selected, is_odd, ctx);
         rows_list = rows_list.push(row_button);
     }

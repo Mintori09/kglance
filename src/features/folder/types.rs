@@ -1,6 +1,7 @@
 #[derive(Debug, Clone)]
 pub struct DirEntry {
     pub name: String,
+    pub path: String,
     pub is_dir: bool,
     pub size: u64,
     pub modified: String,
@@ -69,7 +70,7 @@ pub fn sort_folder_rows(rows: &mut [FolderRowState], sort: &SortState) {
             (false, true) => std::cmp::Ordering::Greater,
             _ => {
                 let ord = match sort.field {
-                    SortField::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                    SortField::Name => compare_case_insensitive(&a.name, &b.name),
                     SortField::Kind => a.kind.cmp(&b.kind),
                     SortField::Size => a.raw_size.cmp(&b.raw_size),
                     SortField::Modified => a.raw_modified.cmp(&b.raw_modified),
@@ -78,6 +79,23 @@ pub fn sort_folder_rows(rows: &mut [FolderRowState], sort: &SortState) {
             }
         }
     });
+}
+
+fn compare_case_insensitive(a: &str, b: &str) -> std::cmp::Ordering {
+    let mut a_chars = a.chars().flat_map(char::to_lowercase);
+    let mut b_chars = b.chars().flat_map(char::to_lowercase);
+
+    loop {
+        match (a_chars.next(), b_chars.next()) {
+            (Some(c1), Some(c2)) => match c1.cmp(&c2) {
+                std::cmp::Ordering::Equal => continue,
+                ord => return ord,
+            },
+            (None, Some(_)) => return std::cmp::Ordering::Less,
+            (Some(_), None) => return std::cmp::Ordering::Greater,
+            (None, None) => return a.cmp(b),
+        }
+    }
 }
 
 pub fn human_file_kind(name: &str, is_dir: bool) -> &'static str {
@@ -157,6 +175,59 @@ pub fn human_file_kind(name: &str, is_dir: bool) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_sort_folder_rows_case_insensitive_no_alloc() {
+        let mut rows = vec![
+            FolderRowState {
+                name: "beta".to_string(),
+                kind: "File".to_string(),
+                size: "10 B".to_string(),
+                raw_size: 10,
+                modified: "today".to_string(),
+                raw_modified: 100,
+                path: "/path/beta".to_string(),
+                is_dir: false,
+                icon: "file",
+            },
+            FolderRowState {
+                name: "Alpha".to_string(),
+                kind: "File".to_string(),
+                size: "20 B".to_string(),
+                raw_size: 20,
+                modified: "today".to_string(),
+                raw_modified: 200,
+                path: "/path/Alpha".to_string(),
+                is_dir: false,
+                icon: "file",
+            },
+            FolderRowState {
+                name: "gamma_dir".to_string(),
+                kind: "Folder".to_string(),
+                size: "—".to_string(),
+                raw_size: 0,
+                modified: "today".to_string(),
+                raw_modified: 50,
+                path: "/path/gamma_dir".to_string(),
+                is_dir: true,
+                icon: "folder",
+            },
+        ];
+
+        let sort = SortState {
+            field: SortField::Name,
+            ascending: true,
+            active: true,
+        };
+
+        sort_folder_rows(&mut rows, &sort);
+
+        // Folders come first
+        assert_eq!(rows[0].name, "gamma_dir");
+        // Alpha < beta case-insensitively
+        assert_eq!(rows[1].name, "Alpha");
+        assert_eq!(rows[2].name, "beta");
+    }
 
     #[test]
     fn test_human_file_kind() {

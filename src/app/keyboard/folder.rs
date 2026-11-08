@@ -199,7 +199,12 @@ impl KglanceApp {
     fn open_selected_row(&self) -> Option<Task<Message>> {
         let selected_index = self.state.folder.selected_index?;
         let row = self.state.folder.rows.get(selected_index)?;
-        let selected_path = Path::new(&self.state.file_name).join(&row.path);
+        let row_path = Path::new(&row.path);
+        let selected_path = if row_path.is_absolute() {
+            row_path.to_path_buf()
+        } else {
+            Path::new(&self.state.file_name).join(row_path)
+        };
         let path = selected_path.to_string_lossy().into_owned();
 
         Some(crate::app::update::navigation::load_file_task(
