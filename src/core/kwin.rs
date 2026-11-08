@@ -1,5 +1,8 @@
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
+use tokio::sync::oneshot;
+use zbus::interface;
 
 static SCRIPT_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -19,64 +22,125 @@ fn is_kde_wayland() -> bool {
         || std::env::var_os("KDE_FULL_SESSION").is_some()
 }
 
-pub async fn bring_to_current_desktop_and_focus() {
-    if !is_kde_wayland() {
-        return;
-    }
+struct DesktopReporter {
+    tx: Arc<tokio::sync::Mutex<Option<oneshot::Sender<bool>>>>,
+}
 
-    let pid = std::process::id();
-    let counter = SCRIPT_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let plugin_name = format!("kglance_focus_{pid}_{counter}");
-
-    if let Err(e) = execute_kwin_focus_script(&plugin_name, pid).await {
-        crate::log_debug!("KWin focus script error: {e}");
+#[interface(name = "org.kde.kwin.KglanceDesktop")]
+impl DesktopReporter {
+    async fn report(&self, on_current: bool) {
+        if let Some(tx) = self.tx.lock().await.take() {
+            let _ = tx.send(on_current);
+        }
     }
 }
 
-async fn execute_kwin_focus_script(
-    plugin_name: &str,
-    pid: u32,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+/// Checks whether the Kglance window is on the active virtual desktop.
+/// If it is on the current desktop, KWin focuses it.
+/// Returns `Some(true)` if on current desktop, `Some(false)` if on another desktop,
+/// or `None` if running outside KDE Wayland or if query fails.
+pub async fn is_on_current_desktop() -> Option<bool> {
+    if !is_kde_wayland() {
+        return None;
+    }
+
+    let conn = zbus::Connection::session().await.ok()?;
+    let unique_name = conn.unique_name()?.to_string();
+
+    let pid = std::process::id();
+    let counter = SCRIPT_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let plugin_name = format!("kglance_desktop_query_{pid}_{counter}");
+    let obj_path = format!("/org/kde/kwin/KglanceDesktop/{pid}_{counter}");
+
+    let (tx, rx) = oneshot::channel();
+    let reporter = DesktopReporter {
+        tx: Arc::new(tokio::sync::Mutex::new(Some(tx))),
+    };
+
+    conn.object_server()
+        .at(obj_path.as_str(), reporter)
+        .await
+        .ok()?;
+
     let script_content = format!(
         r#"
 (function() {{
     var targetPid = {pid};
+    var onCurrent = false;
     for (var i = 0; i < workspace.stackingOrder.length; ++i) {{
         var win = workspace.stackingOrder[i];
         if (win.pid === targetPid || win.resourceClass === "kglance") {{
-            var onCurrent = false;
             for (var j = 0; j < win.desktops.length; ++j) {{
-                if (win.desktops[j] === workspace.currentDesktop) {{
+                if (win.desktops[j] === workspace.currentDesktop || (win.desktops[j].id && win.desktops[j].id === workspace.currentDesktop.id)) {{
                     onCurrent = true;
                     break;
                 }}
             }}
-            if (!onCurrent) {{
-                win.desktops = [workspace.currentDesktop];
+            if (onCurrent) {{
+                workspace.activeWindow = win;
             }}
-            workspace.activeWindow = win;
             break;
         }}
     }}
+    callDBus("{unique_name}", "{obj_path}", "org.kde.kwin.KglanceDesktop", "report", onCurrent);
 }})();
 "#
     );
 
     let script_path = std::env::temp_dir().join(format!("{plugin_name}.js"));
-    std::fs::write(&script_path, script_content)?;
+    if std::fs::write(&script_path, script_content).is_err() {
+        let _ = conn
+            .object_server()
+            .remove::<DesktopReporter, _>(obj_path.as_str())
+            .await;
+        return None;
+    }
 
-    let result = run_script_via_dbus(&script_path, plugin_name).await;
-
+    let run_res = run_script_via_dbus(&conn, &script_path, &plugin_name).await;
     let _ = std::fs::remove_file(&script_path);
 
-    result
+    let query_result = if run_res.is_ok() {
+        match tokio::time::timeout(Duration::from_millis(200), rx).await {
+            Ok(Ok(val)) => Some(val),
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    let _ = conn
+        .object_server()
+        .remove::<DesktopReporter, _>(obj_path.as_str())
+        .await;
+    query_result
+}
+
+/// Synchronous wrapper around `is_on_current_desktop()`.
+/// If called within or outside an async runtime, executes the query safely with a fallback.
+pub fn is_on_current_desktop_sync() -> Option<bool> {
+    if !is_kde_wayland() {
+        return None;
+    }
+
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        std::thread::scope(|s| {
+            s.spawn(|| handle.block_on(is_on_current_desktop()))
+                .join()
+                .unwrap_or(None)
+        })
+    } else {
+        match tokio::runtime::Runtime::new() {
+            Ok(rt) => rt.block_on(is_on_current_desktop()),
+            Err(_) => None,
+        }
+    }
 }
 
 async fn run_script_via_dbus(
+    conn: &zbus::Connection,
     script_path: &std::path::Path,
     plugin_name: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let conn = zbus::Connection::session().await?;
     let path_str = match script_path.to_str() {
         Some(s) => s,
         None => return Err("Invalid temp script path".into()),

@@ -51,7 +51,7 @@ impl KglanceApp {
         calculated_cols.max(MIN_GRID_COLUMNS as f32) as usize
     }
 
-    fn close_current(&mut self) -> Task<Message> {
+    pub(crate) fn close_current(&mut self) -> Task<Message> {
         self.record_read_position();
         if self.state.read_positions_dirty {
             let _ = self.save_read_positions();
@@ -154,14 +154,15 @@ impl KglanceApp {
         self.state.content_ready = false;
 
         if let Some(window_id) = self.window_id {
-            Task::batch(vec![
-                window::set_mode(window_id, Mode::Windowed),
-                window::gain_focus(window_id),
-                Task::perform(
-                    crate::core::kwin::bring_to_current_desktop_and_focus(),
-                    |_| Message::None,
-                ),
-            ])
+            let is_on_current = crate::core::kwin::is_on_current_desktop_sync();
+            if is_on_current == Some(false) {
+                Task::batch(vec![self.close_current(), self.create_new_window()])
+            } else {
+                Task::batch(vec![
+                    window::set_mode(window_id, Mode::Windowed),
+                    window::gain_focus(window_id),
+                ])
+            }
         } else if !self.is_window_opening {
             self.is_window_opening = true;
             self.create_new_window()

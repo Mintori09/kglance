@@ -1187,14 +1187,15 @@ impl KglanceApp {
     fn prepare_window_tasks(&mut self) -> Vec<Task<Message>> {
         if self.is_daemon {
             if let Some(id) = self.window_id {
-                vec![
-                    iced::window::set_mode(id, iced::window::Mode::Windowed),
-                    iced::window::gain_focus(id),
-                    Task::perform(
-                        crate::core::kwin::bring_to_current_desktop_and_focus(),
-                        |_| Message::None,
-                    ),
-                ]
+                let is_on_current = crate::core::kwin::is_on_current_desktop_sync();
+                if is_on_current == Some(false) {
+                    vec![self.close_current(), self.create_new_window()]
+                } else {
+                    vec![
+                        iced::window::set_mode(id, iced::window::Mode::Windowed),
+                        iced::window::gain_focus(id),
+                    ]
+                }
             } else if !self.is_window_opening {
                 self.is_window_opening = true;
                 vec![self.create_new_window()]
