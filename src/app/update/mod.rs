@@ -58,6 +58,7 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
             crate::app::messages::ActionMsg::BackClicked => Task::none(),
             crate::app::messages::ActionMsg::CloseRequested => app.handle_close(),
             crate::app::messages::ActionMsg::CopyText(text) => misc::handle_copy_text(app, text),
+            crate::app::messages::ActionMsg::ShowInFolder => app.handle_show_in_folder(),
         },
         Message::System(msg) => match msg {
             crate::app::messages::SystemMsg::WindowResized(width, height) => {

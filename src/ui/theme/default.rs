@@ -122,11 +122,9 @@ pub fn default_row_button(
     };
 
     let border = if is_selected {
-        let mut bc = role.accent;
-        bc.a = 0.15;
         Border {
-            color: bc,
-            width: 1.0,
+            color: role.accent,
+            width: 1.5,
             radius: radius::MD.into(),
         }
     } else {
@@ -206,7 +204,27 @@ pub fn default_button_primary(theme: &Theme, status: button::Status) -> button::
             width: 0.0,
             radius: radius::LG.into(),
         },
-        text_color: Color::WHITE,
+        text_color: role.accent_text,
+        shadow: subtle_shadow(p.shadow),
+        snap: false,
+    }
+}
+
+pub fn default_button_secondary(theme: &Theme, status: button::Status) -> button::Style {
+    let p = BaseColors::palette(theme);
+    let bg = match status {
+        button::Status::Hovered => p.surface_raised,
+        button::Status::Pressed => p.bg,
+        _ => p.surface,
+    };
+    button::Style {
+        background: Some(bg.into()),
+        border: Border {
+            color: p.border,
+            width: 1.0,
+            radius: radius::LG.into(),
+        },
+        text_color: p.text,
         shadow: subtle_shadow(p.shadow),
         snap: false,
     }

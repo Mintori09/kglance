@@ -442,18 +442,19 @@ pub fn icon_for_entry(name: &str, is_dir: bool) -> &'static str {
         "log" => "text-x-log",
 
         // =========================
-        // Executables
+        // Executables & Binaries
         // =========================
         "exe" => "application-x-ms-dos-executable",
         "dll" => "application-x-ms-dos-executable",
         "msi" => "application-x-ms-dos-executable",
         "so" => "application-x-sharedlib",
         "appimage" => "application-x-executable",
+        "bin" | "pkt" | "dat" | "raw" | "dump" | "img" => "application-octet-stream",
 
         // =========================
         // Default
         // =========================
-        _ => "text-x-generic",
+        _ => "application-octet-stream",
     }
 }
 

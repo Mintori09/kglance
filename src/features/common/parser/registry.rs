@@ -1,4 +1,5 @@
 use crate::core::limit::preview_size_limit;
+use crate::core::types::human_file_kind;
 use crate::core::utils::human_size;
 use crate::features::common::parser::traits::ParseError;
 use crate::features::common::parser::traits::{ParserRegistry, PreviewParser};
@@ -122,11 +123,40 @@ impl ParserRegistry {
             });
         }
 
-        log_error!(
-            "ParserRegistry: Unsupported format and cannot be read as plain text: {}",
+        log_info!(
+            "ParserRegistry: Generating UnsupportedFileInfo for {}",
             path_str
         );
-        Err(ParseError::UnsupportedFormat)
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("Unknown")
+            .to_string();
+        let file_size = metadata.len();
+        let modified = metadata.modified().ok();
+        let location = path
+            .parent()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_else(|| ".".to_string());
+        let kind = human_file_kind(&file_name, false);
+        let file_type = if kind != "File" {
+            format!("{kind} / Binary")
+        } else if !ext.is_empty() {
+            format!("{} / Octet-stream", ext.to_uppercase())
+        } else {
+            "Binary File / Octet-stream".to_string()
+        };
+
+        Ok(ParsedContent::Unsupported(
+            crate::features::common::parser::types::UnsupportedFileInfo {
+                file_name,
+                file_size,
+                file_type,
+                modified,
+                location,
+                is_binary: true,
+            },
+        ))
     }
 }
 
@@ -419,6 +449,9 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
             },
             ParsedContent::Model3d(mesh) => crate::core::preview::PreviewData::Model3d(mesh),
             ParsedContent::Notebook(data) => crate::core::preview::PreviewData::Notebook(data),
+            ParsedContent::Unsupported(info) => {
+                crate::core::preview::PreviewData::Unsupported(info)
+            }
         };
         Ok(preview)
     }

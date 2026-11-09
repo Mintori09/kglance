@@ -1,5 +1,6 @@
 pub mod loading;
 pub mod setting_page;
+pub mod unsupported;
 
 pub use crate::features::audio::view_audio;
 pub use crate::features::epub::view_epub;
@@ -17,3 +18,4 @@ pub use crate::features::text::view_text;
 pub use crate::features::typst::view_typst;
 pub use crate::features::video::view_media;
 pub use loading::view_loading;
+pub use unsupported::view_unsupported;

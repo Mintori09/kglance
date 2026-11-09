@@ -216,6 +216,12 @@ impl PreviewData {
                 }
                 bytes.max(512)
             }
+            PreviewData::Unsupported(info) => info
+                .file_name
+                .len()
+                .saturating_add(info.file_type.len())
+                .saturating_add(info.location.len())
+                .saturating_add(128),
             PreviewData::Error(msg) => msg.len().saturating_add(64),
         }
     }

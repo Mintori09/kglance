@@ -327,6 +327,7 @@ pub enum ActionMsg {
     BackClicked,
     CloseRequested,
     CopyText(String),
+    ShowInFolder,
 }
 
 #[derive(Debug, Clone)]

@@ -430,6 +430,14 @@ pub fn view_window<'a>(
     state: &'a KglanceState,
     preview_body: Element<'a, Message>,
 ) -> Element<'a, Message> {
+    view_window_with_options(state, preview_body, false)
+}
+
+pub fn view_window_with_options<'a>(
+    state: &'a KglanceState,
+    preview_body: Element<'a, Message>,
+    hide_footer: bool,
+) -> Element<'a, Message> {
     let show_settings_modal = matches!(state.view_mode, crate::core::ViewMode::Settings);
 
     let main_body: Element<'a, Message> = match &state.view_mode {
@@ -464,14 +472,24 @@ pub fn view_window<'a>(
         main_body
     };
 
-    let layout = column![
-        container(content_with_tree)
-            .width(Length::Fill)
-            .height(Length::Fill),
-        footer(state)
-    ]
-    .width(Length::Fill)
-    .height(Length::Fill);
+    let layout = if hide_footer {
+        column![
+            container(content_with_tree)
+                .width(Length::Fill)
+                .height(Length::Fill),
+        ]
+        .width(Length::Fill)
+        .height(Length::Fill)
+    } else {
+        column![
+            container(content_with_tree)
+                .width(Length::Fill)
+                .height(Length::Fill),
+            footer(state)
+        ]
+        .width(Length::Fill)
+        .height(Length::Fill)
+    };
 
     let base = container(layout)
         .width(Length::Fill)

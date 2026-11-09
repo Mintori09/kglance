@@ -35,6 +35,53 @@ pub fn format_timestamp(secs: u64) -> String {
     dt.format("%Y-%m-%d %H:%M").to_string()
 }
 
+pub fn format_number_thousands(n: u64) -> String {
+    let s = n.to_string();
+    let bytes = s.as_bytes();
+    let len = bytes.len();
+    let mut result = String::with_capacity(len + (len / 3));
+    for (i, &b) in bytes.iter().enumerate() {
+        if i > 0 && (len - i).is_multiple_of(3) {
+            result.push(',');
+        }
+        result.push(b as char);
+    }
+    result
+}
+
+pub fn format_file_size_with_bytes(bytes: u64) -> String {
+    format!(
+        "{} ({} bytes)",
+        human_size(bytes),
+        format_number_thousands(bytes)
+    )
+}
+
+pub fn shorten_path(path: &str, max_len: usize) -> String {
+    let mut normalized = path.to_string();
+    if let Some(home) = dirs::home_dir().and_then(|h| h.to_str().map(String::from))
+        && (normalized == home || normalized.starts_with(&format!("{home}/")))
+    {
+        normalized = format!("~{}", &normalized[home.len()..]);
+    }
+
+    if normalized.chars().count() <= max_len {
+        normalized
+    } else {
+        let chars: Vec<char> = normalized.chars().collect();
+        let total = chars.len();
+        if total <= 5 {
+            return normalized;
+        }
+        let keep = max_len.saturating_sub(1); // 1 char for '…'
+        let front_len = keep / 2;
+        let back_len = keep - front_len;
+        let front: String = chars[..front_len].iter().collect();
+        let back: String = chars[total - back_len..].iter().collect();
+        format!("{front}…{back}")
+    }
+}
+
 pub fn human_size(bytes: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
     let mut size = bytes as f64;
@@ -271,5 +318,22 @@ mod tests {
         let uri = path_to_file_uri(path_special);
         assert!(uri.starts_with("file:///tmp/test"));
         assert!(uri.contains("%23") || uri.contains('#'));
+    }
+
+    #[test]
+    fn test_format_number_thousands() {
+        assert_eq!(format_number_thousands(0), "0");
+        assert_eq!(format_number_thousands(999), "999");
+        assert_eq!(format_number_thousands(1000), "1,000");
+        assert_eq!(format_number_thousands(235116), "235,116");
+        assert_eq!(format_number_thousands(12345678), "12,345,678");
+    }
+
+    #[test]
+    fn test_shorten_path() {
+        let path = "/usr/share/icons/hicolor/scalable/apps/kglance.svg";
+        let shortened = shorten_path(path, 30);
+        assert!(shortened.len() <= 35);
+        assert!(shortened.contains('…'));
     }
 }

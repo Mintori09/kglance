@@ -111,6 +111,7 @@ pub enum PreviewData {
     },
     Model3d(crate::features::model3d::types::Model3dMesh),
     Notebook(crate::features::notebook::types::NotebookData),
+    Unsupported(crate::features::common::parser::types::UnsupportedFileInfo),
     Error(String),
 }
 
@@ -391,6 +392,9 @@ impl PreviewData {
                 state.file_type_text = format!("Jupyter Notebook ({} cells)", data.total_cells);
                 crate::features::notebook::populate_state(state, data);
             }
+            PreviewData::Unsupported(info) => {
+                state.file_type_text = info.file_type.clone();
+            }
             PreviewData::Error(err) => {
                 state.file_type_text = format!("Error: {err}");
             }
@@ -401,6 +405,7 @@ impl PreviewData {
 
     pub fn initial_window_size(&self, state: &KglanceState) -> iced::Size {
         match self {
+            PreviewData::Unsupported(_) => iced::Size::new(450.0, 380.0),
             PreviewData::Image { width, height, .. } => {
                 let max_w = if state.window_width > 0.0 {
                     state.window_width

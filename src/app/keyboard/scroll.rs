@@ -509,6 +509,7 @@ impl KglanceApp {
             | PreviewData::Font { .. }
             | PreviewData::Model3d(_)
             | PreviewData::Notebook(_)
+            | PreviewData::Unsupported(_)
             | PreviewData::Error(_) => None,
         }
     }

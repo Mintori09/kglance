@@ -103,4 +103,15 @@ pub enum ParsedContent {
     },
     Model3d(crate::features::model3d::types::Model3dMesh),
     Notebook(crate::features::notebook::types::NotebookData),
+    Unsupported(UnsupportedFileInfo),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnsupportedFileInfo {
+    pub file_name: String,
+    pub file_size: u64,
+    pub file_type: String,
+    pub modified: Option<std::time::SystemTime>,
+    pub location: String,
+    pub is_binary: bool,
 }

@@ -809,6 +809,11 @@ impl KglanceApp {
         self.update_loaded_file_state(&path, &content);
 
         let mut tasks = self.prepare_file_tasks(&path, &content);
+        if let Some(id) = self.window_id
+            && matches!(content, PreviewData::Unsupported(_))
+        {
+            tasks.push(iced::window::resize(id, iced::Size::new(450.0, 380.0)));
+        }
         tasks.push(self.restore_read_position_for(&path));
         tasks.push(self.trigger_preload());
 
@@ -1384,6 +1389,12 @@ impl KglanceApp {
                     self.state.font_family_mono.as_deref(),
                     self.state.max_text_width,
                 ),
+                PreviewData::Unsupported(info) => crate::ui::views::view_unsupported(
+                    info,
+                    self.state.app_theme,
+                    self.state.font_family.as_deref(),
+                    self.state.font_family_mono.as_deref(),
+                ),
                 PreviewData::Error(err) => iced::widget::text(err)
                     .size(crate::ui::theme::tokens::typography::DISPLAY)
                     .into(),
@@ -1400,7 +1411,9 @@ impl KglanceApp {
                 .into()
         };
 
-        let window = crate::ui::window::view_window(&self.state, preview_body);
+        let hide_footer = matches!(self.current_content, Some(PreviewData::Unsupported(_)));
+        let window =
+            crate::ui::window::view_window_with_options(&self.state, preview_body, hide_footer);
         let is_mod = self.ctrl_held;
         crate::ui::components::scroll_pane::ScrollFilter::new(window, is_mod).into()
     }

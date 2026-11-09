@@ -237,6 +237,7 @@ fn run_standalone_internal(
         .map(|e| e.to_ascii_lowercase())
         .unwrap_or_default();
 
+    let mut is_unsupported = false;
     if matches!(
         ext.as_str(),
         "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp"
@@ -259,6 +260,11 @@ fn run_standalone_internal(
             width,
             height,
         );
+    } else if let Ok(kglance::core::preview::PreviewData::Unsupported(_)) =
+        kglance::core::preview::FilePreviewer::parse(&*registry, resolved)
+    {
+        initial_size = Size::new(450.0, 340.0);
+        is_unsupported = true;
     }
 
     let default_font = config
@@ -274,6 +280,20 @@ fn run_standalone_internal(
     let reg = registry.clone();
     let is_gui_open = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let standalone_config = config.clone();
+    let min_size = if is_unsupported {
+        Some(Size::new(450.0, 340.0))
+    } else {
+        Some(Size::new(
+            config.ui.min_width as f32,
+            config.ui.min_height as f32,
+        ))
+    };
+    let max_size = if is_unsupported {
+        Some(Size::new(450.0, 340.0))
+    } else {
+        None
+    };
+    let resizable = !is_unsupported;
     iced::application(
         move || {
             let (mut app, task) = KglanceApp::new(
@@ -297,11 +317,10 @@ fn run_standalone_internal(
     )
     .window(iced::window::Settings {
         visible: true,
-        min_size: Some(Size::new(
-            config.ui.min_width as f32,
-            config.ui.min_height as f32,
-        )),
+        min_size,
+        max_size,
         size: initial_size,
+        resizable,
         icon: window_icon,
         exit_on_close_request: true,
         decorations: true,

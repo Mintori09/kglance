@@ -109,6 +109,18 @@ impl KglanceApp {
         self.close_current()
     }
 
+    pub fn handle_show_in_folder(&mut self) -> Task<Message> {
+        let path = self.state.file_name.clone();
+        if !path.is_empty() {
+            let _ = std::process::Command::new("dolphin")
+                .arg("--select")
+                .arg(&path)
+                .spawn();
+        }
+
+        self.close_current()
+    }
+
     pub fn handle_copy_path(&mut self) -> Task<Message> {
         let copy_task =
             crate::core::clipboard::copy_to_clipboard(self.state.file_name.clone(), None);
@@ -351,6 +363,7 @@ impl PreviewData {
                 | PreviewData::Font { .. }
                 | PreviewData::Audio { .. }
                 | PreviewData::Media { .. }
+                | PreviewData::Unsupported(_)
         )
     }
 }
