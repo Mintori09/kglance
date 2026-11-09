@@ -315,3 +315,64 @@ fn test_handle_scroll_delta_ctrl_resizes_pdf_and_replaces_toast() {
     assert_eq!(page_width_toasts.len(), 1);
     assert_eq!(page_width_toasts[0].message, "Page Width: 800px");
 }
+
+#[test]
+fn test_pdf_record_and_restore_read_position() {
+    let mut app = test_app(None);
+    let path = "/test/doc.pdf";
+    app.state.file_name = path.to_string();
+    app.current_content = Some(crate::core::PreviewData::Pdf {
+        page_count: 5,
+        current_page: 0,
+        data: Vec::new(),
+        width: 100,
+        height: 100,
+        outline: Vec::new(),
+        page_dimensions: Vec::new(),
+        first_page_text: None,
+    });
+    app.state.pdf.page_count = 5;
+    app.state.pdf.page_y_offsets = vec![0.0, 500.0, 1000.0, 1500.0, 2000.0];
+    app.state.pdf.page_ends = vec![500.0, 1000.0, 1500.0, 2000.0, 2500.0];
+    app.state.pdf.total_content_height = 2500.0;
+    app.state.pdf.viewport_height = 600.0;
+    app.state.pdf.scroll_y = 1500.0;
+    app.state
+        .pdf
+        .visible_page
+        .store(3, std::sync::atomic::Ordering::Relaxed);
+    app.state.pdf.current_page = 3;
+
+    // 1. Record position
+    app.record_read_position();
+    assert!(app.state.read_positions_dirty);
+    let saved = app.state.read_positions.get(path);
+    assert_eq!(
+        saved,
+        Some(crate::core::ReadPosition {
+            scroll_y: 1500.0,
+            chapter: 3,
+            reading_mode: None,
+        })
+    );
+
+    // 2. Reset PDF state to simulate reopening
+    app.state.pdf.scroll_y = 0.0;
+    app.state
+        .pdf
+        .visible_page
+        .store(0, std::sync::atomic::Ordering::Relaxed);
+    app.state.pdf.current_page = 0;
+
+    // 3. Restore position
+    let _ = app.restore_read_position_for(path);
+    assert_eq!(app.state.pdf.scroll_y, 1500.0);
+    assert_eq!(
+        app.state
+            .pdf
+            .visible_page
+            .load(std::sync::atomic::Ordering::Relaxed),
+        3
+    );
+    assert_eq!(app.state.pdf.current_page, 3);
+}

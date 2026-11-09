@@ -305,7 +305,7 @@ pub fn handle_scrolled(
             .store(page_index, std::sync::atomic::Ordering::Relaxed);
         promote_window_pages(pdf_state, page_index);
 
-        if pdf_state.sidebar_visible {
+        let sidebar_task = if pdf_state.sidebar_visible {
             match pdf_state.sidebar_mode {
                 crate::core::types::PdfSidebarMode::Thumbnails => {
                     if let Some(&thumb_y) = pdf_state.thumbnail_y_offsets.get(page_index) {
@@ -321,13 +321,15 @@ pub fn handle_scrolled(
                         };
                         let item_h = thumb_end - thumb_y;
                         let target_y = (thumb_y - (s_h - item_h) / 2.0).max(0.0);
-                        return iced::widget::operation::scroll_to(
+                        iced::widget::operation::scroll_to(
                             "pdf_thumb_scroll",
                             iced::widget::operation::AbsoluteOffset {
                                 x: 0.0,
                                 y: target_y,
                             },
-                        );
+                        )
+                    } else {
+                        Task::none()
                     }
                 }
                 crate::core::types::PdfSidebarMode::Toc => {
@@ -342,17 +344,24 @@ pub fn handle_scrolled(
                         const TOC_ITEM_HEIGHT: f32 = 30.0;
                         let item_y = active_pos as f32 * TOC_ITEM_HEIGHT;
                         let target_y = (item_y - (s_h - TOC_ITEM_HEIGHT) / 2.0).max(0.0);
-                        return iced::widget::operation::scroll_to(
+                        iced::widget::operation::scroll_to(
                             "pdf_toc_scroll",
                             iced::widget::operation::AbsoluteOffset {
                                 x: 0.0,
                                 y: target_y,
                             },
-                        );
+                        )
+                    } else {
+                        Task::none()
                     }
                 }
             }
-        }
+        } else {
+            Task::none()
+        };
+
+        app.record_read_position();
+        return sidebar_task;
     }
     Task::none()
 }
@@ -730,7 +739,7 @@ fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
         },
     );
 
-    if pdf_state.sidebar_visible {
+    let final_task = if pdf_state.sidebar_visible {
         match pdf_state.sidebar_mode {
             crate::core::types::PdfSidebarMode::Thumbnails => {
                 pdf_state
@@ -757,7 +766,9 @@ fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
                             y: target_thumb_y,
                         },
                     );
-                    return Task::batch([main_scroll, side_scroll]);
+                    Task::batch([main_scroll, side_scroll])
+                } else {
+                    main_scroll
                 }
             }
             crate::core::types::PdfSidebarMode::Toc => {
@@ -778,13 +789,18 @@ fn scroll_to_page(app: &mut KglanceApp, page_index: usize) -> Task<Message> {
                             y: target_toc_y,
                         },
                     );
-                    return Task::batch([main_scroll, side_scroll]);
+                    Task::batch([main_scroll, side_scroll])
+                } else {
+                    main_scroll
                 }
             }
         }
-    }
+    } else {
+        main_scroll
+    };
 
-    main_scroll
+    app.record_read_position();
+    final_task
 }
 
 pub fn handle_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task<Message> {
