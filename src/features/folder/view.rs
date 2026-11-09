@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use iced::widget::{button, column, container, row, scrollable, svg, text};
+use iced::widget::{Space, button, column, container, row, scrollable, svg, text};
 use iced::{Alignment, Border, Color, Element, Font, Length, Shadow, Theme, alignment};
 
 use super::breadcrumbs::create_breadcrumbs;
@@ -442,7 +442,25 @@ fn create_folder_rows<'a>(
     let query = state.search_query.trim().to_lowercase();
     let mut visible_index = 0usize;
 
+    let mut visible_parent_paths = std::collections::HashSet::new();
+
     for (row_index, row_data) in state.rows.iter().enumerate() {
+        let is_tree_visible = if row_data.depth == 0 {
+            true
+        } else if let Some(ref parent) = row_data.parent_path {
+            visible_parent_paths.contains(parent) && state.expanded_paths.contains(parent)
+        } else {
+            false
+        };
+
+        if !is_tree_visible {
+            continue;
+        }
+
+        if row_data.is_dir && state.expanded_paths.contains(&row_data.path) {
+            visible_parent_paths.insert(row_data.path.clone());
+        }
+
         if !query.is_empty() && !row_data.name.to_lowercase().contains(&query) {
             continue;
         }
@@ -451,7 +469,9 @@ fn create_folder_rows<'a>(
         let is_odd = visible_index % 2 == 1;
         visible_index += 1;
 
-        let row_button = create_folder_row(row_index, row_data, is_selected, is_odd, ctx);
+        let is_expanded = row_data.is_dir && state.expanded_paths.contains(&row_data.path);
+        let row_button =
+            create_folder_row(row_index, row_data, is_selected, is_odd, is_expanded, ctx);
         rows_list = rows_list.push(row_button);
     }
 
@@ -463,9 +483,10 @@ fn create_folder_row<'a>(
     row_data: &'a crate::core::FolderRowState,
     is_selected: bool,
     is_odd: bool,
+    is_expanded: bool,
     ctx: &FolderStyleContext,
 ) -> button::Button<'a, Message> {
-    let icon_element = render_row_icon(row_data.icon, row_data.is_dir);
+    let icon_element = render_row_icon(row_data.icon, row_data.is_dir, is_expanded);
 
     let name_font = if row_data.is_dir {
         ctx.main_font_medium
@@ -479,10 +500,32 @@ fn create_folder_row<'a>(
         ctx.dim_color
     };
 
+    let indent_width = (row_data.depth as f32) * 16.0;
+
+    let chevron_element: Element<'a, Message> = if row_data.is_dir {
+        let chevron_bytes = if is_expanded {
+            crate::features::folder::tree::CHEVRON_DOWN_SVG
+        } else {
+            crate::features::folder::tree::CHEVRON_RIGHT_SVG
+        };
+        svg(svg::Handle::from_memory(chevron_bytes))
+            .width(12.0)
+            .height(12.0)
+            .into()
+    } else {
+        Space::new().width(Length::Fixed(12.0)).into()
+    };
+
     let row_content = row![
         row![
+            if indent_width > 0.0 {
+                Element::from(Space::new().width(Length::Fixed(indent_width)))
+            } else {
+                Element::from(Space::new().width(Length::Fixed(0.0)))
+            },
+            chevron_element,
             icon_element,
-            text(&row_data.name)
+            text(&row_data.display_name)
                 .size(ROW_NAME_SIZE)
                 .font(name_font)
                 .color(ctx.text_color)
@@ -589,21 +632,33 @@ fn folder_row_style(
     }
 }
 
-fn render_row_icon<'a>(icon_name: &str, is_dir: bool) -> Element<'a, Message> {
-    if let Some(svg_handle) = icon_theme::get_icon_handle(icon_name).or_else(|| {
-        if is_dir {
-            icon_theme::get_icon_handle("folder")
+fn render_row_icon<'a>(icon_name: &str, is_dir: bool, is_expanded: bool) -> Element<'a, Message> {
+    let resolved_icon = if is_dir {
+        if is_expanded {
+            icon_theme::get_icon_handle("folder-open")
+                .or_else(|| icon_theme::get_icon_handle("inode-directory"))
         } else {
+            icon_theme::get_icon_handle("folder")
+                .or_else(|| icon_theme::get_icon_handle("inode-directory"))
+        }
+    } else {
+        icon_theme::get_icon_handle(icon_name).or_else(|| {
             icon_theme::get_icon_handle("text-x-generic")
                 .or_else(|| icon_theme::get_icon_handle("application-x-generic"))
-        }
-    }) {
+        })
+    };
+
+    if let Some(svg_handle) = resolved_icon {
         svg(svg_handle)
             .width(ROW_ICON_SIZE)
             .height(ROW_ICON_SIZE)
             .into()
     } else {
-        let fallback = if is_dir { "📁" } else { "📄" };
+        let fallback = if is_dir {
+            if is_expanded { "📂" } else { "📁" }
+        } else {
+            "📄"
+        };
         text(fallback).size(ROW_ICON_SIZE).into()
     }
 }

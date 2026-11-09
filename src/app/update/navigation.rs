@@ -164,6 +164,15 @@ pub fn handle_file_clicked_in_grid(app: &mut KglanceApp, idx: usize) -> Task<Mes
 pub fn handle_file_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message> {
     if idx < app.state.folder.rows.len() {
         app.state.folder.selected_index = Some(idx);
+        let row = &app.state.folder.rows[idx];
+        if row.is_dir {
+            let path = row.path.clone();
+            if app.state.folder.expanded_paths.contains(&path) {
+                app.state.folder.expanded_paths.remove(&path);
+            } else {
+                app.state.folder.expanded_paths.insert(path);
+            }
+        }
     }
     Task::none()
 }

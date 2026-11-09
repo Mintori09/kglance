@@ -1,11 +1,9 @@
 use crate::core::limit::preview_size_limit;
-use crate::core::types::human_file_kind;
 use crate::core::utils::human_size;
 use crate::features::common::parser::traits::ParseError;
 use crate::features::common::parser::traits::{ParserRegistry, PreviewParser};
 use crate::features::common::parser::types::ParsedContent;
 use crate::features::image::types::ImageFormat;
-use crate::ui::theme::icon_theme::icon_for_entry;
 use crate::{log_debug, log_error, log_info};
 use std::path::Path;
 
@@ -374,58 +372,12 @@ impl crate::core::preview::FilePreviewer for ParserRegistry {
             }
             ParsedContent::Archive { entries, .. } => {
                 let total_size = entries.iter().map(|e| e.size).sum();
-                let rows = entries
-                    .into_iter()
-                    .map(|entry| {
-                        let icon = icon_for_entry(&entry.path, entry.is_dir);
-                        let kind = human_file_kind(&entry.path, entry.is_dir).to_string();
-                        let size = if entry.is_dir {
-                            "—".to_string()
-                        } else {
-                            human_size(entry.size)
-                        };
-                        let raw_size = if entry.is_dir { 0 } else { entry.size };
-                        crate::core::FolderRowState {
-                            name: entry.path.clone(),
-                            kind,
-                            size,
-                            raw_size,
-                            modified: entry.modified.clone(),
-                            raw_modified: 0,
-                            path: entry.path,
-                            is_dir: entry.is_dir,
-                            icon,
-                        }
-                    })
-                    .collect();
+                let rows = crate::features::folder::tree::build_archive_tree_rows(entries);
                 crate::core::preview::PreviewData::Folder { rows, total_size }
             }
             ParsedContent::Folder { entries } => {
                 let total_size = entries.iter().map(|e| e.size).sum();
-                let rows = entries
-                    .into_iter()
-                    .map(|entry| {
-                        let icon = icon_for_entry(&entry.name, entry.is_dir);
-                        let kind = human_file_kind(&entry.name, entry.is_dir).to_string();
-                        let size = if entry.is_dir {
-                            "—".to_string()
-                        } else {
-                            human_size(entry.size)
-                        };
-                        let raw_size = if entry.is_dir { 0 } else { entry.size };
-                        crate::core::FolderRowState {
-                            name: entry.name,
-                            kind,
-                            size,
-                            raw_size,
-                            modified: entry.modified,
-                            raw_modified: entry.raw_modified,
-                            path: entry.path,
-                            is_dir: entry.is_dir,
-                            icon,
-                        }
-                    })
-                    .collect();
+                let rows = crate::features::folder::tree::build_folder_tree_rows(entries);
                 crate::core::preview::PreviewData::Folder { rows, total_size }
             }
             ParsedContent::Markdown {
