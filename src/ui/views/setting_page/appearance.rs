@@ -6,7 +6,7 @@ use crate::app::messages::{Message, SettingsMsg};
 use crate::core::config::{ConfigManager, UiConfig};
 use crate::ui::theme::color::{AppTheme, BaseColors};
 use crate::ui::theme::default_row_button;
-use crate::ui::theme::tokens::spacing;
+use crate::ui::theme::tokens::{spacing, typography};
 use crate::ui::theme::{default_card, default_pick_list, default_slider, default_toggler};
 
 pub const AVAILABLE_THEMES: [&str; 9] = [
@@ -57,7 +57,7 @@ pub fn appearance_tab<'a>(
             move |_, status| default_slider(&theme, status)
         }),
         text(format!("{font_size:.1} px"))
-            .size(11)
+            .size(typography::CAPTION)
             .font(main_font)
             .width(58.0)
             .align_x(iced::alignment::Horizontal::Right)
@@ -69,7 +69,7 @@ pub fn appearance_tab<'a>(
     .spacing(spacing::S);
 
     let size_row = build_setting_row(
-        "Base Font Size",
+        "Base font size",
         "Default reading text scale for Markdown, EPUB and source code",
         size_control,
         main_font,
@@ -101,7 +101,7 @@ pub fn appearance_tab<'a>(
     });
 
     let main_font_row = build_setting_row(
-        "Main Font Family",
+        "Main font family",
         "System proportional typeface for headings and interface reading",
         main_font_picker,
         main_font,
@@ -121,7 +121,7 @@ pub fn appearance_tab<'a>(
     });
 
     let mono_row = build_setting_row(
-        "Monospace Font Family",
+        "Monospace font family",
         "Fixed-pitch font for syntax highlighting and plain text viewers",
         mono_picker,
         main_font,
@@ -141,7 +141,7 @@ pub fn appearance_tab<'a>(
     });
 
     let epub_font_row = build_setting_row(
-        "EPUB Reader Font",
+        "EPUB reader font",
         "Book typography font for digitized publications and articles",
         epub_picker,
         main_font,
@@ -157,7 +157,7 @@ pub fn appearance_tab<'a>(
         });
 
     let override_book_font_row = build_setting_row(
-        "Override Book Fonts",
+        "Override book fonts",
         "Always apply your configured reader font instead of fonts specified in EPUB files",
         override_book_font_cb,
         main_font,
@@ -177,7 +177,7 @@ pub fn appearance_tab<'a>(
             move |_, status| default_slider(&theme, status)
         }),
         text(format!("{reader_width:.0} px"))
-            .size(11)
+            .size(typography::CAPTION)
             .font(main_font)
             .width(58.0)
             .align_x(iced::alignment::Horizontal::Right)
@@ -189,7 +189,7 @@ pub fn appearance_tab<'a>(
     .spacing(spacing::S);
 
     let width_row = build_setting_row(
-        "Max Text Reader Width",
+        "Max text reader width",
         "Column width boundary for comfortable long-form document reading",
         width_control,
         main_font,
@@ -200,7 +200,7 @@ pub fn appearance_tab<'a>(
     let typo_card = container(
         column![
             text("TYPOGRAPHY & READING COMFORT")
-                .size(11)
+                .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
                     color: Some(base_colors.text_dim)
@@ -229,7 +229,7 @@ fn build_theme_card<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> El
     });
 
     let header = text("VISUAL THEME")
-        .size(11)
+        .size(typography::CAPTION)
         .font(main_font)
         .style(move |_| iced::widget::text::Style {
             color: Some(base_colors.text_dim),
@@ -267,16 +267,19 @@ fn build_theme_card<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> El
 
         let theme_str = theme_name.to_string();
         let btn = button(
-            column![swatches, text(theme_name).size(11).font(main_font)]
-                .align_x(Alignment::Center)
-                .spacing(spacing::XS),
+            column![
+                swatches,
+                text(theme_name).size(typography::CAPTION).font(main_font)
+            ]
+            .align_x(Alignment::Center)
+            .spacing(spacing::XS),
         )
         .on_press(Message::Settings(SettingsMsg::ThemeChanged(theme_str)))
         .style({
             let theme_clone = theme.clone();
             move |_, status| default_row_button(&theme_clone, status, is_active)
         })
-        .padding([spacing::XS, spacing::S])
+        .padding([spacing::S, spacing::S])
         .width(iced::Length::Fill);
 
         if idx < 4 {

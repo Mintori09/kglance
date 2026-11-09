@@ -5,7 +5,7 @@ use super::build_setting_row;
 use crate::app::messages::{Message, SettingsMsg};
 use crate::core::config::{CacheConfig, ScrollConfigOptions};
 use crate::ui::theme::color::BaseColors;
-use crate::ui::theme::tokens::spacing;
+use crate::ui::theme::tokens::{spacing, typography};
 use crate::ui::theme::{default_card, default_slider, default_toggler};
 
 const MIN_MEMORY_MB: usize = 128;
@@ -51,7 +51,7 @@ pub fn cache_scroll_tab<'a>(
             move |_, status| default_slider(&theme, status)
         }),
         text(format!("{mem_mb} MB"))
-            .size(11)
+            .size(typography::CAPTION)
             .font(main_font)
             .width(VALUE_BADGE_WIDTH)
             .align_x(iced::alignment::Horizontal::Right)
@@ -63,7 +63,7 @@ pub fn cache_scroll_tab<'a>(
     .spacing(spacing::S);
 
     let mem_row = build_setting_row(
-        "Memory Cache (RAM)",
+        "Memory cache (RAM)",
         "Ceiling for in-memory parsed documents and decoded image bitmaps",
         mem_control,
         main_font,
@@ -85,7 +85,7 @@ pub fn cache_scroll_tab<'a>(
             move |_, status| default_slider(&theme, status)
         }),
         text(format!("{disk_mb} MB"))
-            .size(11)
+            .size(typography::CAPTION)
             .font(main_font)
             .width(VALUE_BADGE_WIDTH)
             .align_x(iced::alignment::Horizontal::Right)
@@ -97,7 +97,7 @@ pub fn cache_scroll_tab<'a>(
     .spacing(spacing::S);
 
     let disk_row = build_setting_row(
-        "Disk Cache Storage",
+        "Disk cache storage",
         "Storage limit for persistent PDF pages and thumbnails in ~/.cache/kglance",
         disk_control,
         main_font,
@@ -108,7 +108,7 @@ pub fn cache_scroll_tab<'a>(
     let cache_card = container(
         column![
             text("STORAGE & MEMORY LIMITS")
-                .size(11)
+                .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
                     color: Some(base_colors.text_dim)
@@ -127,7 +127,7 @@ pub fn cache_scroll_tab<'a>(
         .style(move |_, status| default_toggler(&theme_clone, status));
 
     let smooth_row = build_setting_row(
-        "Kinetic Smooth Scrolling",
+        "Kinetic smooth scrolling",
         "Enable high-framerate interpolated scrolling for touchpad & mouse wheel",
         smooth_cb,
         main_font,
@@ -147,7 +147,7 @@ pub fn cache_scroll_tab<'a>(
             move |_, status| default_slider(&theme, status)
         }),
         text(format!("{friction:.1}"))
-            .size(11)
+            .size(typography::CAPTION)
             .font(main_font)
             .width(VALUE_BADGE_WIDTH)
             .align_x(iced::alignment::Horizontal::Right)
@@ -159,7 +159,7 @@ pub fn cache_scroll_tab<'a>(
     .spacing(spacing::S);
 
     let friction_row = build_setting_row(
-        "Kinetic Scroll Friction",
+        "Kinetic scroll friction",
         "Deceleration rate for inertia glide gestures (lower = longer slide)",
         friction_control,
         main_font,
@@ -179,7 +179,7 @@ pub fn cache_scroll_tab<'a>(
             move |_, status| default_slider(&theme, status)
         }),
         text(format!("{spring:.0}"))
-            .size(11)
+            .size(typography::CAPTION)
             .font(main_font)
             .width(VALUE_BADGE_WIDTH)
             .align_x(iced::alignment::Horizontal::Right)
@@ -191,7 +191,7 @@ pub fn cache_scroll_tab<'a>(
     .spacing(spacing::S);
 
     let spring_row = build_setting_row(
-        "Spring Stiffness",
+        "Spring stiffness",
         "Rubber-band bounce resistance coefficient at viewport boundaries",
         spring_control,
         main_font,
@@ -202,7 +202,7 @@ pub fn cache_scroll_tab<'a>(
     let scroll_card = container(
         column![
             text("SMOOTH SCROLLING PHYSICS")
-                .size(11)
+                .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
                     color: Some(base_colors.text_dim)

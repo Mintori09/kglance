@@ -367,51 +367,34 @@ fn render_sidebar_tabs<'a>(
     active_mode: PdfSidebarMode,
     theme: crate::ui::theme::AppTheme,
 ) -> Element<'a, Message> {
-    let thumbs_btn = button(
-        container(
-            row![
-                text("🖼").size(typography::ICON_MD),
-                text("Thumbs").size(typography::CAPTION)
-            ]
-            .spacing(spacing::XS + 2.0)
-            .align_y(Alignment::Center),
-        )
-        .center_x(Length::Fill),
-    )
-    .on_press(crate::app::messages::PdfMsg::SetSidebarMode(PdfSidebarMode::Thumbnails).into())
-    .width(Length::Fill)
-    .style(move |iced_theme, status| {
-        sidebar_entry_style(
-            iced_theme,
-            status,
-            active_mode == PdfSidebarMode::Thumbnails,
-            theme,
-        )
-    })
-    .padding([6, 10]);
+    let thumbs_btn =
+        button(container(text("Thumbs").size(typography::CAPTION)).center_x(Length::Fill))
+            .on_press(
+                crate::app::messages::PdfMsg::SetSidebarMode(PdfSidebarMode::Thumbnails).into(),
+            )
+            .width(Length::Fill)
+            .style(move |iced_theme, status| {
+                sidebar_entry_style(
+                    iced_theme,
+                    status,
+                    active_mode == PdfSidebarMode::Thumbnails,
+                    theme,
+                )
+            })
+            .padding([6, 10]);
 
-    let toc_btn = button(
-        container(
-            row![
-                text("≡").size(typography::ICON_MD),
-                text("TOC").size(typography::CAPTION)
-            ]
-            .spacing(spacing::XS + 2.0)
-            .align_y(Alignment::Center),
-        )
-        .center_x(Length::Fill),
-    )
-    .on_press(crate::app::messages::PdfMsg::SetSidebarMode(PdfSidebarMode::Toc).into())
-    .width(Length::Fill)
-    .style(move |iced_theme, status| {
-        sidebar_entry_style(
-            iced_theme,
-            status,
-            active_mode == PdfSidebarMode::Toc,
-            theme,
-        )
-    })
-    .padding([6, 10]);
+    let toc_btn = button(container(text("TOC").size(typography::CAPTION)).center_x(Length::Fill))
+        .on_press(crate::app::messages::PdfMsg::SetSidebarMode(PdfSidebarMode::Toc).into())
+        .width(Length::Fill)
+        .style(move |iced_theme, status| {
+            sidebar_entry_style(
+                iced_theme,
+                status,
+                active_mode == PdfSidebarMode::Toc,
+                theme,
+            )
+        })
+        .padding([6, 10]);
 
     container(
         row![thumbs_btn, toc_btn]

@@ -165,7 +165,7 @@ fn toc_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Eleme
             iced::widget::button::secondary
         };
         Some(
-            button(text("📑 Outline").size(typography::CAPTION).font(font))
+            button(text("Outline").size(typography::CAPTION).font(font))
                 .on_press(crate::app::messages::MarkdownMsg::TocToggled.into())
                 .style(style)
                 .padding([2, 6])
@@ -180,7 +180,7 @@ fn toc_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Eleme
             iced::widget::button::secondary
         };
         Some(
-            button(text("📑 Chapters").size(typography::CAPTION).font(font))
+            button(text("Chapters").size(typography::CAPTION).font(font))
                 .on_press(crate::app::messages::EpubMsg::SidebarToggled.into())
                 .style(style)
                 .padding([2, 6])
@@ -197,7 +197,7 @@ fn toc_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Eleme
             iced::widget::button::secondary
         };
         Some(
-            button(text("📑 Outline").size(typography::CAPTION).font(font))
+            button(text("Outline").size(typography::CAPTION).font(font))
                 .on_press(crate::app::messages::PdfMsg::SidebarToggled.into())
                 .style(style)
                 .padding([2, 6])
@@ -210,7 +210,7 @@ fn toc_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Eleme
             iced::widget::button::secondary
         };
         Some(
-            button(text("📑 Outline").size(typography::CAPTION).font(font))
+            button(text("Outline").size(typography::CAPTION).font(font))
                 .on_press(crate::app::messages::TextMsg::ToggleOutline.into())
                 .style(style)
                 .padding([2, 6])
@@ -232,7 +232,7 @@ fn playlist_position_button<'a>(
                 state.current_index + 1,
                 state.playlist.len()
             ))
-            .size(11)
+            .size(typography::CAPTION)
             .font(font),
         )
         .on_press(crate::app::messages::NavigationMsg::ToggleViewMode.into())
@@ -267,7 +267,7 @@ fn page_indicator<'a>(state: &KglanceState, font: iced::Font) -> Option<Element<
 
     Some(
         text(format!("[ {page} / {total} ]"))
-            .size(11)
+            .size(typography::CAPTION)
             .font(font)
             .style(metadata_style)
             .into(),
@@ -292,7 +292,7 @@ fn epub_progress_indicator<'a>(
 
     Some(
         text(format!("[ {active} / {total} ] • {pct}%"))
-            .size(11)
+            .size(typography::CAPTION)
             .font(font)
             .style(metadata_style)
             .into(),
@@ -334,7 +334,7 @@ fn image_info_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Eleme
 fn typst_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Element<'a, Message>> {
     if state.file_name.to_lowercase().ends_with(".typ") {
         let label = if state.typst.show_source {
-            "👁 Rendered"
+            "Rendered"
         } else {
             "</> Source"
         };

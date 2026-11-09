@@ -13,6 +13,8 @@ static SVG_EXTERNAL_LINK: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" vi
 
 static SVG_FOLDER_OPEN: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><path d="M2 10h20"></path></svg>"#;
 
+static SVG_FILE_GENERIC: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>"#;
+
 pub fn view_unsupported<'a>(
     info: &'a UnsupportedFileInfo,
     app_theme: AppTheme,
@@ -38,7 +40,13 @@ pub fn view_unsupported<'a>(
             .height(Length::Fixed(48.0))
             .into()
     } else {
-        text("📦").size(36.0).font(main_font).into()
+        svg(svg::Handle::from_memory(SVG_FILE_GENERIC))
+            .width(Length::Fixed(48.0))
+            .height(Length::Fixed(48.0))
+            .style(move |_theme: &Theme, _status| svg::Style {
+                color: Some(base.text_dim),
+            })
+            .into()
     };
 
     let icon_container = container(icon_element)
@@ -54,11 +62,11 @@ pub fn view_unsupported<'a>(
         })
         .wrapping(text::Wrapping::None);
 
-    // Badge status: "No Preview Available (Binary Format)" or "(Unsupported Format)"
+    // Badge status: "No preview available (binary format)" or "(unsupported format)"
     let badge_label = if info.is_binary {
-        "No Preview Available (Binary Format)"
+        "No preview available (binary format)"
     } else {
-        "No Preview Available (Unsupported Format)"
+        "No preview available (unsupported format)"
     };
 
     let badge_color = roles.danger;

@@ -4,7 +4,7 @@ use iced::{Color, Element, Length};
 use crate::app::Message;
 use crate::core::FolderRowState;
 use crate::ui::theme::AppTheme;
-use crate::ui::theme::tokens::{radius, spacing};
+use crate::ui::theme::tokens::{radius, spacing, typography};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileCategory {
@@ -194,7 +194,7 @@ pub fn create_distribution_bar<'a>(
             });
 
         let label = text(format!("{} {:.0}%", cat.label(), pct))
-            .size(10.5)
+            .size(typography::BADGE)
             .color(if is_dark {
                 Color::from_rgba(1.0, 1.0, 1.0, 0.65)
             } else {

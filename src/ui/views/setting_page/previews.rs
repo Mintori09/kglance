@@ -6,7 +6,7 @@ use crate::app::messages::{CustomActionEditorMsg, Message, SettingsMsg};
 use crate::core::config::{EpubReadingMode, MermaidRenderer, RubyDisplayMode, UiConfig};
 use crate::core::selection_action::{CustomActionEditorState, SelectionMenuConfig};
 use crate::ui::theme::color::BaseColors;
-use crate::ui::theme::tokens::spacing;
+use crate::ui::theme::tokens::{spacing, typography};
 use crate::ui::theme::{
     default_button, default_card, default_inset, default_pick_list, default_text_input,
     default_toggler,
@@ -98,7 +98,7 @@ pub fn previews_tab<'a>(
     });
 
     let epub_row = build_setting_row(
-        "EPUB Reading Mode",
+        "EPUB reading mode",
         "Choose between continuous smooth scroll and single chapter pagination",
         epub_picker,
         main_font,
@@ -137,7 +137,7 @@ pub fn previews_tab<'a>(
     });
 
     let ruby_row = build_setting_row(
-        "Furigana / Ruby Text",
+        "Furigana / ruby text",
         "Display mode for Japanese readings and annotations (<ruby> tags)",
         ruby_picker,
         main_font,
@@ -179,7 +179,7 @@ pub fn previews_tab<'a>(
     });
 
     let mermaid_row = build_setting_row(
-        "Mermaid Renderer",
+        "Mermaid renderer",
         "Choose renderer engine for Mermaid diagrams (mmdr, mermaid-cli, pele)",
         mermaid_picker,
         main_font,
@@ -190,7 +190,7 @@ pub fn previews_tab<'a>(
     let doc_card = container(
         column![
             text("DOCUMENTS & E-BOOKS")
-                .size(11)
+                .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
                     color: Some(base_colors.text_dim)
@@ -213,7 +213,7 @@ pub fn previews_tab<'a>(
         });
 
     let selection_menu_row = build_setting_row(
-        "Selection Context Menu",
+        "Selection context menu",
         "Show floating quick actions (copy, search, translate, custom scripts) on text selection",
         selection_menu_cb,
         main_font,
@@ -223,7 +223,7 @@ pub fn previews_tab<'a>(
 
     let mut selection_card_items: Vec<Element<'a, Message>> = vec![
         text("SELECTION & QUICK ACTIONS")
-            .size(11)
+            .size(typography::CAPTION)
             .font(main_font)
             .style(move |_| iced::widget::text::Style {
                 color: Some(base_colors.text_dim),
@@ -238,7 +238,7 @@ pub fn previews_tab<'a>(
         if selection_menu_config.custom_actions.is_empty() {
             actions_column = actions_column.push(
                 text("No custom actions configured.")
-                    .size(12)
+                    .size(typography::BODY)
                     .font(main_font)
                     .style(move |_| iced::widget::text::Style {
                         color: Some(base_colors.text_dim),
@@ -275,22 +275,28 @@ pub fn previews_tab<'a>(
                 };
 
                 let name_label = row![
-                    text(&action.name).size(13).font(main_font).style(move |_| {
-                        iced::widget::text::Style {
-                            color: Some(base_colors.text),
-                        }
-                    }),
-                    text(badge_str).size(11).font(main_font).style(move |_| {
-                        iced::widget::text::Style {
-                            color: Some(base_colors.text_dim),
-                        }
-                    }),
+                    text(&action.name)
+                        .size(typography::BODY_MD)
+                        .font(main_font)
+                        .style(move |_| {
+                            iced::widget::text::Style {
+                                color: Some(base_colors.text),
+                            }
+                        }),
+                    text(badge_str)
+                        .size(typography::CAPTION)
+                        .font(main_font)
+                        .style(move |_| {
+                            iced::widget::text::Style {
+                                color: Some(base_colors.text_dim),
+                            }
+                        }),
                 ]
                 .spacing(spacing::XS)
                 .align_y(Alignment::Center);
 
                 let cmd_label = text(&action.command)
-                    .size(11)
+                    .size(typography::CAPTION)
                     .font(main_font)
                     .style(move |_| iced::widget::text::Style {
                         color: Some(base_colors.text_dim),
@@ -300,19 +306,19 @@ pub fn previews_tab<'a>(
                     .spacing(spacing::XXS)
                     .width(iced::Length::Fill);
 
-                let edit_btn = button(text("Edit").size(11).font(main_font))
+                let edit_btn = button(text("Edit").size(typography::CAPTION).font(main_font))
                     .on_press(Message::Settings(SettingsMsg::CustomAction(
                         CustomActionEditorMsg::OpenEdit(i),
                     )))
                     .style(default_button)
-                    .padding([spacing::XXS, spacing::S]);
+                    .padding([spacing::XS, spacing::S]);
 
-                let delete_btn = button(text("✕").size(11).font(main_font))
+                let delete_btn = button(text("✕").size(typography::CAPTION).font(main_font))
                     .on_press(Message::Settings(SettingsMsg::CustomAction(
                         CustomActionEditorMsg::Delete(i),
                     )))
                     .style(default_button)
-                    .padding([spacing::XXS, spacing::XS]);
+                    .padding([spacing::XS, spacing::S]);
 
                 let action_row = row![toggle_btn, info_col, edit_btn, delete_btn]
                     .spacing(spacing::S)
@@ -325,9 +331,9 @@ pub fn previews_tab<'a>(
         // Form editor if active
         if let Some(editor) = action_editor {
             let form_title = if editor.editing_index.is_some() {
-                "Edit Custom Action"
+                "Edit custom action"
             } else {
-                "New Custom Action"
+                "New custom action"
             };
 
             let theme_input_name = theme.clone();
@@ -364,11 +370,14 @@ pub fn previews_tab<'a>(
                 });
             let popup_opt = row![
                 popup_toggle,
-                text("Popup Card").size(11).font(main_font).style(move |_| {
-                    iced::widget::text::Style {
-                        color: Some(base_colors.text),
-                    }
-                })
+                text("Popup card")
+                    .size(typography::CAPTION)
+                    .font(main_font)
+                    .style(move |_| {
+                        iced::widget::text::Style {
+                            color: Some(base_colors.text),
+                        }
+                    })
             ]
             .spacing(spacing::XS)
             .align_y(Alignment::Center);
@@ -385,11 +394,14 @@ pub fn previews_tab<'a>(
                 });
             let stream_opt = row![
                 stream_toggle,
-                text("Streaming").size(11).font(main_font).style(move |_| {
-                    iced::widget::text::Style {
-                        color: Some(base_colors.text),
-                    }
-                })
+                text("Streaming")
+                    .size(typography::CAPTION)
+                    .font(main_font)
+                    .style(move |_| {
+                        iced::widget::text::Style {
+                            color: Some(base_colors.text),
+                        }
+                    })
             ]
             .spacing(spacing::XS)
             .align_y(Alignment::Center);
@@ -406,8 +418,8 @@ pub fn previews_tab<'a>(
                 });
             let toast_opt = row![
                 toast_toggle,
-                text("Toast Notification")
-                    .size(11)
+                text("Toast notification")
+                    .size(typography::CAPTION)
                     .font(main_font)
                     .style(move |_| iced::widget::text::Style {
                         color: Some(base_colors.text)
@@ -420,24 +432,28 @@ pub fn previews_tab<'a>(
                 .spacing(spacing::M)
                 .align_y(Alignment::Center);
 
-            let cancel_btn = button(text("Cancel").size(11).font(main_font))
+            let cancel_btn = button(text("Cancel").size(typography::CAPTION).font(main_font))
                 .on_press(Message::Settings(SettingsMsg::CustomAction(
                     CustomActionEditorMsg::Cancel,
                 )))
                 .style(default_button)
-                .padding([spacing::XXS, spacing::M]);
+                .padding([spacing::XS, spacing::M]);
 
-            let save_btn = button(text("Save Action").size(11).font(main_font))
-                .on_press(Message::Settings(SettingsMsg::CustomAction(
-                    CustomActionEditorMsg::Save,
-                )))
-                .style(default_button)
-                .padding([spacing::XXS, spacing::M]);
+            let save_btn = button(
+                text("Save action")
+                    .size(typography::CAPTION)
+                    .font(main_font),
+            )
+            .on_press(Message::Settings(SettingsMsg::CustomAction(
+                CustomActionEditorMsg::Save,
+            )))
+            .style(default_button)
+            .padding([spacing::XS, spacing::M]);
 
             let form_box = container(
                 column![
                     text(form_title)
-                        .size(12)
+                        .size(typography::BODY)
                         .font(main_font)
                         .style(move |_| iced::widget::text::Style {
                             color: Some(base_colors.text),
@@ -445,7 +461,7 @@ pub fn previews_tab<'a>(
                     name_input,
                     cmd_input,
                     text("Selected text is passed via stdin and $KGLANCE_TEXT. File path is in $KGLANCE_FILE.")
-                        .size(10)
+                        .size(typography::BADGE)
                         .font(main_font)
                         .style(move |_| iced::widget::text::Style {
                             color: Some(base_colors.text_dim),
@@ -466,12 +482,16 @@ pub fn previews_tab<'a>(
 
             actions_column = actions_column.push(form_box);
         } else {
-            let add_btn = button(text("+ Add Custom Action").size(11).font(main_font))
-                .on_press(Message::Settings(SettingsMsg::CustomAction(
-                    CustomActionEditorMsg::OpenAdd,
-                )))
-                .style(default_button)
-                .padding([spacing::XXS, spacing::M]);
+            let add_btn = button(
+                text("+ Add custom action")
+                    .size(typography::CAPTION)
+                    .font(main_font),
+            )
+            .on_press(Message::Settings(SettingsMsg::CustomAction(
+                CustomActionEditorMsg::OpenAdd,
+            )))
+            .style(default_button)
+            .padding([spacing::XS, spacing::M]);
 
             actions_column = actions_column.push(add_btn);
         }
@@ -492,7 +512,7 @@ pub fn previews_tab<'a>(
         });
 
     let wrap_row = build_setting_row(
-        "Code Word Wrap (Ctrl+W)",
+        "Code word wrap (Ctrl+W)",
         "Automatically soft-wrap long lines in source text and syntax viewers",
         wrap_cb,
         main_font,
@@ -506,7 +526,7 @@ pub fn previews_tab<'a>(
         .style(move |_, status| default_toggler(&theme_for_json, status));
 
     let json_row = build_setting_row(
-        "JSON Tree View by Default",
+        "JSON tree view by default",
         "Parse and display JSON documents in interactive collapsible tree mode",
         json_cb,
         main_font,
@@ -517,7 +537,7 @@ pub fn previews_tab<'a>(
     let code_card = container(
         column![
             text("SOURCE CODE & DATA")
-                .size(11)
+                .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
                     color: Some(base_colors.text_dim)
@@ -539,7 +559,7 @@ pub fn previews_tab<'a>(
         });
 
     let trash_enabled_row = build_setting_row(
-        "Enable Move to Trash",
+        "Enable move to trash",
         "Allow sending active preview file to Trash via shortcut or menu",
         trash_enabled_cb,
         main_font,
@@ -555,7 +575,7 @@ pub fn previews_tab<'a>(
         });
 
     let confirm_row = build_setting_row(
-        "Confirm Before Moving to Trash",
+        "Confirm before moving to trash",
         "Prompt with a confirmation dialog before trashing the file",
         confirm_cb,
         main_font,
@@ -569,7 +589,7 @@ pub fn previews_tab<'a>(
         keybinding_config.undo_trash,
         trash_config.undo_timeout_seconds
     ))
-    .size(11)
+    .size(typography::CAPTION)
     .font(main_font)
     .style(move |_| iced::widget::text::Style {
         color: Some(base_colors.text_dim),
@@ -578,7 +598,7 @@ pub fn previews_tab<'a>(
     let trash_card = container(
         column![
             text("TRASH & FILE MANAGEMENT")
-                .size(11)
+                .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
                     color: Some(base_colors.text_dim)

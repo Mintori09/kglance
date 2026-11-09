@@ -6,7 +6,7 @@ use iced::{Alignment, Border, Color, Element, Font, Shadow, Theme};
 use crate::app::Message;
 use crate::ui::theme::AppTheme;
 use crate::ui::theme::color::base::BaseColors;
-use crate::ui::theme::tokens::{radius, spacing};
+use crate::ui::theme::tokens::{radius, spacing, typography};
 
 pub fn create_breadcrumbs<'a>(
     folder_path: &'a str,
@@ -29,7 +29,10 @@ pub fn create_breadcrumbs<'a>(
     segments.reverse();
 
     if segments.is_empty() {
-        return text(folder_path).size(12.0).font(main_font).into();
+        return text(folder_path)
+            .size(typography::BODY)
+            .font(main_font)
+            .into();
     }
 
     let mut breadcrumbs_row = row![].spacing(spacing::XXS).align_y(Alignment::Center);
@@ -40,19 +43,27 @@ pub fn create_breadcrumbs<'a>(
 
         if is_last {
             let label = text(name)
-                .size(11.5)
+                .size(typography::CAPTION)
                 .font(main_font)
                 .color(theme.palette().base.text_dim);
             breadcrumbs_row = breadcrumbs_row.push(label);
         } else {
             let mut sub_dim = theme.palette().base.text_dim;
             sub_dim.a *= 0.75;
-            let btn = button(text(name).size(11.5).font(main_font).color(sub_dim))
-                .padding([2, 4])
-                .on_press(crate::app::messages::NavigationMsg::OpenPath(target_path).into())
-                .style(breadcrumb_button_style);
+            let btn = button(
+                text(name)
+                    .size(typography::CAPTION)
+                    .font(main_font)
+                    .color(sub_dim),
+            )
+            .padding([2, 4])
+            .on_press(crate::app::messages::NavigationMsg::OpenPath(target_path).into())
+            .style(breadcrumb_button_style);
 
-            let separator = text("›").size(11.5).font(main_font).color(sub_dim);
+            let separator = text("›")
+                .size(typography::CAPTION)
+                .font(main_font)
+                .color(sub_dim);
 
             breadcrumbs_row = breadcrumbs_row.push(btn).push(separator);
         }

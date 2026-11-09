@@ -5,7 +5,7 @@ use super::build_setting_row;
 use crate::app::messages::{Message, SettingsMsg};
 use crate::core::config::UiConfig;
 use crate::ui::theme::color::BaseColors;
-use crate::ui::theme::tokens::spacing;
+use crate::ui::theme::tokens::{spacing, typography};
 use crate::ui::theme::{
     default_button, default_card, default_row_button, default_text_input, default_toggler,
 };
@@ -25,7 +25,7 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
     );
 
     let default_row = build_setting_row(
-        "Default Window Size",
+        "Default window size",
         "Target dimensions when opening preview without saved geometry",
         default_size_inputs,
         main_font,
@@ -36,13 +36,13 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
     let preset_btn = |label: &'static str, w: u32, h: u32| {
         let is_active = config.default_width == w && config.default_height == h;
         let theme_clone = theme.clone();
-        button(text(label).size(11).font(main_font))
+        button(text(label).size(typography::CAPTION).font(main_font))
             .on_press(Message::Settings(SettingsMsg::SetWindowPreset {
                 width: w,
                 height: h,
             }))
             .style(move |_, status| default_row_button(&theme_clone, status, is_active))
-            .padding([spacing::XXS, spacing::S])
+            .padding([spacing::XS, spacing::S])
     };
 
     let presets_row = row![
@@ -53,15 +53,19 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
     ]
     .spacing(spacing::XS);
 
-    let use_current_btn = button(text("Use Current Window Size").size(11).font(main_font))
-        .on_press(Message::Settings(SettingsMsg::UseCurrentWindowSize))
-        .style(default_button)
-        .padding([spacing::XS, spacing::S]);
+    let use_current_btn = button(
+        text("Use current window size")
+            .size(typography::CAPTION)
+            .font(main_font),
+    )
+    .on_press(Message::Settings(SettingsMsg::UseCurrentWindowSize))
+    .style(default_button)
+    .padding([spacing::S, spacing::S]);
 
     let presets_control = column![presets_row, use_current_btn].spacing(spacing::XS);
 
     let presets_setting_row = build_setting_row(
-        "Quick Presets & Capture",
+        "Quick presets & capture",
         "Apply standard desktop aspect ratios or capture active window size",
         presets_control,
         main_font,
@@ -75,7 +79,7 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
         .style(move |_, status| default_toggler(&theme_toggle, status));
 
     let remember_size_row = build_setting_row(
-        "Remember Window Size",
+        "Remember window size",
         "Save active window dimensions when closing preview",
         remember_size_cb,
         main_font,
@@ -86,7 +90,7 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
     let launch_card = container(
         column![
             text("DEFAULT LAUNCH GEOMETRY")
-                .size(11)
+                .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
                     color: Some(base_colors.text_dim)
@@ -112,7 +116,7 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
     );
 
     let min_row = build_setting_row(
-        "Minimum Window Size",
+        "Minimum window size",
         "Hard floor boundaries preventing UI elements from being clipped",
         min_size_inputs,
         main_font,
@@ -123,7 +127,7 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
     let constraints_card = container(
         column![
             text("SIZE BOUNDARIES & CONSTRAINTS")
-                .size(11)
+                .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
                     color: Some(base_colors.text_dim)
@@ -179,14 +183,14 @@ where
     row![
         width_input,
         text("×")
-            .size(13)
+            .size(typography::BODY_MD)
             .font(main_font)
             .style(move |_| iced::widget::text::Style {
                 color: Some(dim_color)
             }),
         height_input,
         text("px")
-            .size(11)
+            .size(typography::CAPTION)
             .font(main_font)
             .style(move |_| iced::widget::text::Style {
                 color: Some(dim_color)

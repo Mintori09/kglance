@@ -8,7 +8,7 @@ use crate::core::SettingTab;
 use crate::core::config::{CacheConfig, ScrollConfigOptions, UiConfig};
 use crate::ui::theme::color::BaseColors;
 use crate::ui::theme::font::get_main_font;
-use crate::ui::theme::tokens::spacing;
+use crate::ui::theme::tokens::{spacing, typography};
 use crate::ui::theme::{default_button, default_card, default_inset, default_row_button};
 
 pub mod appearance;
@@ -29,13 +29,13 @@ pub(super) fn build_setting_row<'a>(
     row![
         column![
             text(title)
-                .size(13)
+                .size(typography::BODY_MD)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
                     color: Some(text_color)
                 }),
             text(desc)
-                .size(11)
+                .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
                     color: Some(dim_color)
@@ -52,7 +52,7 @@ pub(super) fn build_setting_row<'a>(
     .into()
 }
 
-const TITLE_FONT_SIZE: f32 = 16.0;
+const TITLE_FONT_SIZE: f32 = typography::TITLE;
 
 pub struct SettingsPageContext<'a, 'b> {
     pub theme: &'b Theme,
@@ -73,14 +73,14 @@ pub fn settings_page<'a>(ctx: SettingsPageContext<'a, '_>) -> Element<'a, Messag
 
     // Header: Title + Close (✕)
     let header_row = row![
-        text("Application Settings")
+        text("Application settings")
             .size(TITLE_FONT_SIZE)
             .font(main_font)
             .style(move |_| iced::widget::text::Style {
                 color: Some(base_colors.text)
             }),
         iced::widget::Space::new().width(iced::Length::Fill),
-        button(text("✕").size(13).font(main_font))
+        button(text("✕").size(typography::BODY_MD).font(main_font))
             .on_press(NavigationMsg::ToggleSettingsClicked.into())
             .style(default_button)
             .padding([spacing::XS, spacing::S])
@@ -92,7 +92,7 @@ pub fn settings_page<'a>(ctx: SettingsPageContext<'a, '_>) -> Element<'a, Messag
         let is_selected = ctx.active_tab == tab;
         button(
             text(label)
-                .size(12)
+                .size(typography::BODY)
                 .font(main_font)
                 .align_x(iced::alignment::Horizontal::Center),
         )
@@ -101,7 +101,7 @@ pub fn settings_page<'a>(ctx: SettingsPageContext<'a, '_>) -> Element<'a, Messag
             let theme_clone = ctx.theme.clone();
             move |_, status| default_row_button(&theme_clone, status, is_selected)
         })
-        .padding([spacing::XS, spacing::M])
+        .padding([spacing::S, spacing::M])
         .width(iced::Length::Fill)
     };
 
@@ -145,10 +145,14 @@ pub fn settings_page<'a>(ctx: SettingsPageContext<'a, '_>) -> Element<'a, Messag
 
     // Footer: Reset to Defaults
     let footer_row = row![
-        button(text("Reset to Defaults").size(11).font(main_font))
-            .on_press(Message::Settings(SettingsMsg::ResetToDefaults))
-            .style(default_button)
-            .padding([spacing::XS, spacing::M]),
+        button(
+            text("Reset to defaults")
+                .size(typography::CAPTION)
+                .font(main_font)
+        )
+        .on_press(Message::Settings(SettingsMsg::ResetToDefaults))
+        .style(default_button)
+        .padding([spacing::S, spacing::M]),
         iced::widget::Space::new().width(iced::Length::Fill),
     ]
     .align_y(Alignment::Center);
