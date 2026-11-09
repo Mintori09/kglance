@@ -51,11 +51,13 @@ impl KglanceApp {
                 self.state.folder.selected_index = Some(last);
                 Some(self.snap_to_bottom())
             }
-            iced::keyboard::Key::Named(Named::ArrowLeft) => self.navigate_to_parent_folder(),
-            iced::keyboard::Key::Character(c) if c == "h" => self.navigate_to_parent_folder(),
-            iced::keyboard::Key::Named(Named::ArrowRight)
-            | iced::keyboard::Key::Named(Named::Enter) => self.open_selected_row(),
-            iced::keyboard::Key::Character(c) if c == "l" => self.open_selected_row(),
+            iced::keyboard::Key::Named(Named::ArrowLeft) => self.handle_folder_collapse_or_parent(),
+            iced::keyboard::Key::Character(c) if c == "h" => {
+                self.handle_folder_collapse_or_parent()
+            }
+            iced::keyboard::Key::Named(Named::ArrowRight) => self.handle_folder_expand_or_open(),
+            iced::keyboard::Key::Character(c) if c == "l" => self.handle_folder_expand_or_open(),
+            iced::keyboard::Key::Named(Named::Enter) => self.open_selected_row(),
             iced::keyboard::Key::Named(Named::Home) => {
                 self.pending_home = false;
                 self.state.folder.selected_index = Some(0);
@@ -157,6 +159,32 @@ impl KglanceApp {
         }
     }
 
+    fn handle_folder_collapse_or_parent(&mut self) -> Option<Task<Message>> {
+        if let Some(selected_index) = self.state.folder.selected_index
+            && let Some(row) = self.state.folder.rows.get(selected_index)
+            && row.is_dir
+            && self.state.folder.expanded_paths.contains(&row.path)
+        {
+            self.state.folder.expanded_paths.remove(&row.path);
+            return Some(Task::none());
+        }
+        self.navigate_to_parent_folder()
+    }
+
+    fn handle_folder_expand_or_open(&mut self) -> Option<Task<Message>> {
+        if let Some(selected_index) = self.state.folder.selected_index
+            && let Some(row) = self.state.folder.rows.get(selected_index)
+            && row.is_dir
+        {
+            if !self.state.folder.expanded_paths.contains(&row.path) {
+                self.state.folder.expanded_paths.insert(row.path.clone());
+                return Some(Task::none());
+            }
+            return None;
+        }
+        self.open_selected_row()
+    }
+
     fn navigate_to_parent_folder(&self) -> Option<Task<Message>> {
         let parent_path = Path::new(&self.state.folder.folder_path).parent()?;
         let parent_path = parent_path.to_string_lossy().into_owned();
@@ -228,6 +256,7 @@ mod tests {
             rows: vec![
                 FolderRowState {
                     name: "file1.txt".to_string(),
+                    display_name: "file1.txt".to_string(),
                     kind: "File".to_string(),
                     size: "1 KB".to_string(),
                     raw_size: 1024,
@@ -236,9 +265,12 @@ mod tests {
                     path: "file1.txt".to_string(),
                     is_dir: false,
                     icon: "text-x-generic",
+                    depth: 0,
+                    parent_path: None,
                 },
                 FolderRowState {
                     name: "file2.txt".to_string(),
+                    display_name: "file2.txt".to_string(),
                     kind: "File".to_string(),
                     size: "2 KB".to_string(),
                     raw_size: 2048,
@@ -247,6 +279,8 @@ mod tests {
                     path: "file2.txt".to_string(),
                     is_dir: false,
                     icon: "text-x-generic",
+                    depth: 0,
+                    parent_path: None,
                 },
             ],
             total_size: 3072,

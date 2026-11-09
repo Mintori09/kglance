@@ -141,7 +141,7 @@ fn available_themes() -> Vec<String> {
     themes
 }
 
-fn resolve_icon_path(icon_name: &str) -> Option<PathBuf> {
+pub fn resolve_icon_path(icon_name: &str) -> Option<PathBuf> {
     let themes = available_themes();
     let base_dirs = icon_base_dirs();
 

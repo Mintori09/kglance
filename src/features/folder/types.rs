@@ -33,9 +33,12 @@ impl Default for SortState {
     }
 }
 
+use std::collections::HashSet;
+
 #[derive(Debug, Clone)]
 pub struct FolderRowState {
     pub name: String,
+    pub display_name: String,
     pub kind: String,
     pub size: String,
     pub raw_size: u64,
@@ -44,6 +47,8 @@ pub struct FolderRowState {
     pub path: String,
     pub is_dir: bool,
     pub icon: &'static str,
+    pub depth: usize,
+    pub parent_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -57,6 +62,7 @@ pub struct FolderState {
     pub viewport_height: f32,
     pub search_visible: bool,
     pub search_query: String,
+    pub expanded_paths: HashSet<String>,
 }
 
 pub fn sort_folder_rows(rows: &mut [FolderRowState], sort: &SortState) {
@@ -181,6 +187,7 @@ mod tests {
         let mut rows = vec![
             FolderRowState {
                 name: "beta".to_string(),
+                display_name: "beta".to_string(),
                 kind: "File".to_string(),
                 size: "10 B".to_string(),
                 raw_size: 10,
@@ -189,9 +196,12 @@ mod tests {
                 path: "/path/beta".to_string(),
                 is_dir: false,
                 icon: "file",
+                depth: 0,
+                parent_path: None,
             },
             FolderRowState {
                 name: "Alpha".to_string(),
+                display_name: "Alpha".to_string(),
                 kind: "File".to_string(),
                 size: "20 B".to_string(),
                 raw_size: 20,
@@ -200,9 +210,12 @@ mod tests {
                 path: "/path/Alpha".to_string(),
                 is_dir: false,
                 icon: "file",
+                depth: 0,
+                parent_path: None,
             },
             FolderRowState {
                 name: "gamma_dir".to_string(),
+                display_name: "gamma_dir".to_string(),
                 kind: "Folder".to_string(),
                 size: "—".to_string(),
                 raw_size: 0,
@@ -211,6 +224,8 @@ mod tests {
                 path: "/path/gamma_dir".to_string(),
                 is_dir: true,
                 icon: "folder",
+                depth: 0,
+                parent_path: None,
             },
         ];
 

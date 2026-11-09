@@ -34,6 +34,7 @@ pub enum NavigationMsg {
 pub enum FolderMsg {
     SearchQueryChanged(String),
     SearchClosed,
+    ToggleExpand(String),
 }
 
 #[derive(Debug, Clone)]

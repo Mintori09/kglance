@@ -651,6 +651,14 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 app.state.folder.search_query.clear();
                 Task::none()
             }
+            crate::app::messages::FolderMsg::ToggleExpand(path) => {
+                if app.state.folder.expanded_paths.contains(&path) {
+                    app.state.folder.expanded_paths.remove(&path);
+                } else {
+                    app.state.folder.expanded_paths.insert(path);
+                }
+                Task::none()
+            }
         },
         Message::Markdown(msg) => match msg {
             crate::app::messages::MarkdownMsg::TocToggled => {

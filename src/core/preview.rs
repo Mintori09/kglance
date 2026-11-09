@@ -254,6 +254,7 @@ impl PreviewData {
                 state.folder.total_size = *total_size;
                 state.folder.folder_path = state.file_name.clone();
                 state.folder.selected_index = None;
+                state.folder.expanded_paths.clear();
                 state.file_type_text = "Folder / Archive".to_string();
                 state.file_size_text.clear();
             }
