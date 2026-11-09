@@ -898,3 +898,59 @@ fn test_notebook_populate_state_clears_markdown_offsets() {
     assert!(!app.state.markdown.toc_visible);
     assert!(app.state.markdown.total_content_height >= 800.0);
 }
+
+#[test]
+fn test_pdf_ctrl_scroll_zoom_interrupts_active_kinetic_scroll() {
+    let mut app = test_app(Some(crate::core::PreviewData::Pdf {
+        page_count: 5,
+        current_page: 0,
+        data: Vec::new(),
+        width: 100,
+        height: 100,
+        outline: Vec::new(),
+        page_dimensions: vec![
+            crate::features::pdf::types::PageDimensions {
+                width_pts: 595.0,
+                height_pts: 842.0,
+            };
+            5
+        ],
+        first_page_text: None,
+    }));
+
+    app.state.current_window_size = iced::Size::new(1200.0, 900.0);
+    app.state.pdf.page_count = 5;
+    app.state.pdf.viewport_height = 900.0;
+    app.state.pdf.page_dimensions = vec![
+        crate::features::pdf::types::PageDimensions {
+            width_pts: 595.0,
+            height_pts: 842.0,
+        };
+        5
+    ];
+    crate::features::pdf::view::recalculate_pdf_offsets_for_width(&mut app.state.pdf, 800.0);
+
+    // 1. Start a kinetic fling on PDF
+    app.state
+        .pdf
+        .scroll_controller
+        .start_kinetic(150.0, 2000.0, 7200.0);
+    assert!(app.state.pdf.scroll_controller.is_animating());
+
+    // 2. Trigger Ctrl+Scroll zoom
+    app.ctrl_held = true;
+    let _ = app.handle_scroll_delta(0.0, 1.0);
+
+    // 3. Kinetic and smooth scroll should be stopped immediately
+    assert!(!app.state.pdf.scroll_controller.is_animating());
+    assert!(!app.state.pdf.smooth_scroll.is_animating);
+
+    // 4. Tick smooth scroll: should not restart fling or change anchored scroll position
+    let anchored_scroll_y = app.state.pdf.scroll_y;
+    let _ = crate::features::pdf::update::handle_smooth_scroll_tick(
+        &mut app,
+        std::time::Instant::now(),
+    );
+    assert!(!app.state.pdf.scroll_controller.is_animating());
+    assert_eq!(app.state.pdf.scroll_y, anchored_scroll_y);
+}

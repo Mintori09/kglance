@@ -108,6 +108,8 @@ pub fn rescale_pdf_and_anchor(
 
     let new_scroll_y = (new_page_y + fractional_progress * new_page_h).max(0.0);
     pdf_state.scroll_y = new_scroll_y;
+    pdf_state.scroll_controller.stop(new_scroll_y);
+    pdf_state.smooth_scroll.stop(new_scroll_y);
     new_scroll_y
 }
 
