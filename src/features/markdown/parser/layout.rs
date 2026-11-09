@@ -318,7 +318,24 @@ pub fn intrinsic_block_height(
             let n = latex.lines().count().max(1) as f32;
             let pad_v = (lc::MATH_PADDING * 2) as f32;
             let math_font_size = scale_size(font_size * lc::MATH_FONT_SCALE, font_size);
-            pad_v + n * math_font_size * 1.5
+            let mut extra_h = 0.0;
+            // Formulas with fractions, summations, integrals, matrices or cases need extra vertical clearance
+            if latex.contains(r"\frac") || latex.contains(r"\dfrac") {
+                extra_h += math_font_size * 0.8;
+            }
+            if latex.contains(r"\sum") || latex.contains(r"\int") || latex.contains(r"\prod") {
+                extra_h += math_font_size * 0.6;
+            }
+            if latex.contains(r"\begin{cases}")
+                || latex.contains(r"\begin{matrix}")
+                || latex.contains(r"\begin{pmatrix}")
+                || latex.contains(r"\begin{bmatrix}")
+                || latex.contains(r"\begin{aligned}")
+                || latex.contains(r"\begin{array}")
+            {
+                extra_h += math_font_size * 0.5;
+            }
+            pad_v + n * math_font_size * 1.5 + extra_h
         }
     }
 }
@@ -606,6 +623,41 @@ mod tests {
             "Narrow height ({}) should be greater than wide height ({})",
             h_narrow,
             h_wide
+        );
+    }
+
+    #[test]
+    fn test_math_block_height_estimation() {
+        let image_sizes = HashMap::new();
+        let font_size = 14.0;
+
+        let simple_math = Block::Math("E = mc^2".to_string());
+        let h_simple = estimated_block_height(&simple_math, font_size, 0, &image_sizes, 800.0);
+
+        let complex_fraction = Block::Math(r"\frac{a + b}{c + d}".to_string());
+        let h_frac = estimated_block_height(&complex_fraction, font_size, 0, &image_sizes, 800.0);
+
+        let complex_sum = Block::Math(r"\sum_{i=1}^{n} i = \frac{n(n+1)}{2}".to_string());
+        let h_sum = estimated_block_height(&complex_sum, font_size, 0, &image_sizes, 800.0);
+
+        let multiline_cases = Block::Math(
+            "\\begin{cases}\n0 & \\text{if even} \\\\\n1 & \\text{if odd}\n\\end{cases}"
+                .to_string(),
+        );
+        let h_cases = estimated_block_height(&multiline_cases, font_size, 0, &image_sizes, 800.0);
+
+        // Complex formulas with fractions or summations should have greater estimated height than simple flat formulas
+        assert!(
+            h_frac > h_simple,
+            "Fraction height ({h_frac}) should exceed simple height ({h_simple})"
+        );
+        assert!(
+            h_sum > h_frac,
+            "Summation + fraction height ({h_sum}) should exceed single fraction height ({h_frac})"
+        );
+        assert!(
+            h_cases > h_simple,
+            "Multiline cases height ({h_cases}) should exceed simple height ({h_simple})"
         );
     }
 }
