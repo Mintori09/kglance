@@ -11,40 +11,51 @@ pub fn handle_sidebar_toggled(app: &mut KglanceApp) -> Task<Message> {
         app.state.file_tree.visible = false;
     }
 
-    let content_width = app.state.epub_content_width();
-    let old_y = app.state.epub.markdown_state.scroll_y;
+    let is_continuous =
+        app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous;
+    let anchor = if is_continuous {
+        capture_continuous_anchor(&app.state.epub)
+    } else {
+        capture_single_chapter_anchor(&app.state.epub)
+    };
 
-    if app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
+    let content_width = app.state.epub_content_width();
+
+    if is_continuous {
         crate::features::markdown::recompute_markdown_layout(
             &mut app.state.epub.markdown_state,
             &app.state.epub.continuous_blocks,
             app.state.font_size,
             content_width,
         );
-        app.state.epub.markdown_state.scroll_y = old_y;
-        return operation::scroll_to(
-            "content_scroll",
-            operation::AbsoluteOffset { x: 0.0, y: old_y },
-        );
+    } else {
+        let idx = app.state.epub.active_chapter;
+        if let Some(active_ch) = app.state.epub.chapters.get(idx) {
+            crate::features::markdown::recompute_markdown_layout(
+                &mut app.state.epub.markdown_state,
+                &active_ch.blocks,
+                app.state.font_size,
+                content_width,
+            );
+        }
     }
 
-    let idx = app.state.epub.active_chapter;
-    if let Some(active_ch) = app.state.epub.chapters.get(idx) {
-        crate::features::markdown::recompute_markdown_layout(
-            &mut app.state.epub.markdown_state,
-            &active_ch.blocks,
-            app.state.font_size,
-            content_width,
-        );
-        app.state.epub.markdown_state.scroll_y = old_y;
-        return operation::scroll_to(
-            "content_scroll",
-            operation::AbsoluteOffset { x: 0.0, y: old_y },
-        );
-    }
+    let new_y = if is_continuous {
+        resolve_continuous_anchor_scroll_y(&app.state.epub, &anchor)
+    } else {
+        resolve_single_chapter_anchor_scroll_y(&app.state.epub, &anchor)
+    };
 
-    let y = app.state.epub.markdown_state.scroll_y;
-    operation::scroll_to("content_scroll", operation::AbsoluteOffset { x: 0.0, y })
+    app.state.epub.scroll_y = new_y;
+    app.state.epub.markdown_state.scroll_y = new_y;
+    app.state.epub.markdown_state.scroll_controller.stop(new_y);
+    app.state.epub.markdown_state.smooth_scroll.stop(new_y);
+    app.record_read_position();
+
+    operation::scroll_to(
+        "content_scroll",
+        operation::AbsoluteOffset { x: 0.0, y: new_y },
+    )
 }
 
 pub fn ensure_chapter_loaded(app: &mut KglanceApp, idx: usize) {

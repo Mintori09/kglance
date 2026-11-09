@@ -212,15 +212,27 @@ pub fn handle_markdown_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task
 }
 
 pub fn handle_epub_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task<Message> {
+    use crate::features::epub::anchor::{
+        capture_continuous_anchor, capture_single_chapter_anchor,
+        resolve_continuous_anchor_scroll_y, resolve_single_chapter_anchor_scroll_y,
+    };
     use crate::ui::components::sidebar::{DEFAULT_MAX_SIDEBAR_WIDTH, DEFAULT_MIN_SIDEBAR_WIDTH};
 
     let new_w = width.clamp(DEFAULT_MIN_SIDEBAR_WIDTH, DEFAULT_MAX_SIDEBAR_WIDTH);
     if (app.state.epub.sidebar_width - new_w).abs() > 1.0 {
         app.state.epub.sidebar_width = new_w;
         crate::features::epub::view::sidebar::rebuild_chapter_y_offsets(&mut app.state.epub);
+
+        let is_continuous =
+            app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous;
+        let anchor = if is_continuous {
+            capture_continuous_anchor(&app.state.epub)
+        } else {
+            capture_single_chapter_anchor(&app.state.epub)
+        };
+
         let content_width = app.state.epub_content_width();
-        let old_y = app.state.epub.markdown_state.scroll_y;
-        if app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous {
+        if is_continuous {
             crate::features::markdown::recompute_markdown_layout(
                 &mut app.state.epub.markdown_state,
                 &app.state.epub.continuous_blocks,
@@ -238,7 +250,23 @@ pub fn handle_epub_sidebar_resized(app: &mut KglanceApp, width: f32) -> Task<Mes
                 );
             }
         }
-        app.state.epub.markdown_state.scroll_y = old_y;
+
+        let new_y = if is_continuous {
+            resolve_continuous_anchor_scroll_y(&app.state.epub, &anchor)
+        } else {
+            resolve_single_chapter_anchor_scroll_y(&app.state.epub, &anchor)
+        };
+
+        app.state.epub.scroll_y = new_y;
+        app.state.epub.markdown_state.scroll_y = new_y;
+        app.state.epub.markdown_state.scroll_controller.stop(new_y);
+        app.state.epub.markdown_state.smooth_scroll.stop(new_y);
+        app.record_read_position();
+
+        return operation::scroll_to(
+            "content_scroll",
+            operation::AbsoluteOffset { x: 0.0, y: new_y },
+        );
     }
     Task::none()
 }

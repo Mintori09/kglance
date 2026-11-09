@@ -185,3 +185,72 @@ fn test_handle_open_link_epub_toc_chapter_jump() {
     assert_eq!(app.state.epub.active_chapter, 1);
     assert_eq!(app.state.epub.markdown_state.scroll_y, 500.0);
 }
+
+#[test]
+fn test_handle_epub_sidebar_resized_preserves_position() {
+    let ch1_blocks = vec![
+        crate::parsers::markdown::Block::Paragraph(vec![crate::parsers::markdown::Inline::Text(
+            "Short title".to_string(),
+        )]),
+        crate::parsers::markdown::Block::Paragraph(vec![crate::parsers::markdown::Inline::Text(
+            "A very long paragraph in chapter 1 that wraps across multiple lines depending on content width. Repeating words words words words words words words words words words words words words words words words words words words words words words words words words words words words.".to_string(),
+        )]),
+        crate::parsers::markdown::Block::Paragraph(vec![crate::parsers::markdown::Inline::Text(
+            "Third paragraph in chapter 1 reading target.".to_string(),
+        )]),
+    ];
+
+    let chapters = vec![crate::core::types::EpubChapterInfo {
+        title: "Chapter 1".to_string(),
+        level: 1,
+        anchor: None,
+        file_href: "ch1.xhtml".to_string(),
+        blocks: ch1_blocks,
+    }];
+
+    let mut app = test_app(Some(crate::core::PreviewData::Epub {
+        title: "Test Book".to_string(),
+        author: "Author".to_string(),
+        chapters: chapters.clone(),
+        active_chapter: 0,
+        images: std::collections::HashMap::new(),
+    }));
+    app.state.epub_reading_mode = crate::core::config::EpubReadingMode::SingleChapter;
+    app.state.max_text_width = None;
+    app.state.window_width = 1000.0;
+    app.state.epub.sidebar_visible = true;
+    app.state.epub.sidebar_width = 200.0;
+
+    crate::features::epub::state::populate_state(
+        &mut app.state,
+        "Test Book",
+        "Author",
+        &chapters,
+        0,
+        &std::collections::HashMap::new(),
+    );
+
+    let initial_block2_y = app.state.epub.markdown_state.block_y_offsets[2];
+    let initial_scroll_y = initial_block2_y + 15.0;
+    app.state.epub.scroll_y = initial_scroll_y;
+    app.state.epub.markdown_state.scroll_y = initial_scroll_y;
+
+    // Resize sidebar to 350.0 (sidebar wider -> content narrower)
+    let _ = handle_epub_sidebar_resized(&mut app, 350.0);
+    assert_eq!(app.state.epub.sidebar_width, 350.0);
+
+    let new_block2_y = app.state.epub.markdown_state.block_y_offsets[2];
+    assert!(new_block2_y > initial_block2_y);
+
+    let expected_new_y = new_block2_y + 15.0;
+    assert_eq!(app.state.epub.markdown_state.scroll_y, expected_new_y);
+    assert_eq!(app.state.epub.scroll_y, expected_new_y);
+    assert_eq!(
+        app.state.epub.markdown_state.scroll_controller.target_y,
+        expected_new_y
+    );
+    assert_eq!(
+        app.state.epub.markdown_state.smooth_scroll.target_y,
+        expected_new_y
+    );
+}
