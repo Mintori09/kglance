@@ -209,3 +209,109 @@ fn test_handle_toc_item_clicked_updates_page_and_scroll() {
     // Toggle outline node expansion
     let _ = handle_toggle_outline_node(&mut app, 0, "Chapter 1".to_string());
 }
+
+#[test]
+fn test_resize_pdf_preview_and_reset_toast() {
+    let mut app = test_app(None);
+    app.current_content = Some(crate::core::PreviewData::Pdf {
+        page_count: 3,
+        current_page: 0,
+        data: Vec::new(),
+        width: 100,
+        height: 100,
+        outline: Vec::new(),
+        page_dimensions: vec![
+            crate::features::pdf::types::PageDimensions {
+                width_pts: 600.0,
+                height_pts: 800.0,
+            };
+            3
+        ],
+        first_page_text: None,
+    });
+    app.state.current_window_size = iced::Size::new(1200.0, 900.0);
+    app.state.pdf.desired_width = 800.0;
+
+    // Trigger zoom in (+1.0)
+    let _ = resize_pdf_preview(&mut app, 1.0);
+    assert_eq!(app.state.pdf.desired_width, 850.0);
+    assert!(
+        app.state
+            .toasts
+            .iter()
+            .any(|t| t.message == "Page Width: 850px")
+    );
+
+    // Trigger zoom in again (+1.0) -> replaces previous Page Width toast
+    let _ = resize_pdf_preview(&mut app, 1.0);
+    assert_eq!(app.state.pdf.desired_width, 900.0);
+    let page_width_toasts: Vec<_> = app
+        .state
+        .toasts
+        .iter()
+        .filter(|t| t.message.starts_with("Page Width:"))
+        .collect();
+    assert_eq!(page_width_toasts.len(), 1);
+    assert_eq!(page_width_toasts[0].message, "Page Width: 900px");
+
+    // Reset pdf width
+    let _ = reset_pdf_width(&mut app);
+    assert_eq!(app.state.pdf.desired_width, 800.0);
+    let page_width_toasts_after_reset: Vec<_> = app
+        .state
+        .toasts
+        .iter()
+        .filter(|t| t.message.starts_with("Page Width:"))
+        .collect();
+    assert_eq!(page_width_toasts_after_reset.len(), 1);
+    assert_eq!(
+        page_width_toasts_after_reset[0].message,
+        "Page Width: 800px"
+    );
+}
+
+#[test]
+fn test_handle_scroll_delta_ctrl_resizes_pdf_and_replaces_toast() {
+    let mut app = test_app(None);
+    app.current_content = Some(crate::core::PreviewData::Pdf {
+        page_count: 3,
+        current_page: 0,
+        data: Vec::new(),
+        width: 100,
+        height: 100,
+        outline: Vec::new(),
+        page_dimensions: vec![
+            crate::features::pdf::types::PageDimensions {
+                width_pts: 600.0,
+                height_pts: 800.0,
+            };
+            3
+        ],
+        first_page_text: None,
+    });
+    app.state.current_window_size = iced::Size::new(1200.0, 900.0);
+    app.state.pdf.desired_width = 800.0;
+    app.ctrl_held = true;
+
+    // Scroll up with Ctrl: zoom in (+50px)
+    let _ = app.handle_scroll_delta(0.0, 1.0);
+    assert_eq!(app.state.pdf.desired_width, 850.0);
+    assert!(
+        app.state
+            .toasts
+            .iter()
+            .any(|t| t.message == "Page Width: 850px")
+    );
+
+    // Scroll down with Ctrl: zoom out (-50px) -> should replace previous toast
+    let _ = app.handle_scroll_delta(0.0, -1.0);
+    assert_eq!(app.state.pdf.desired_width, 800.0);
+    let page_width_toasts: Vec<_> = app
+        .state
+        .toasts
+        .iter()
+        .filter(|t| t.message.starts_with("Page Width:"))
+        .collect();
+    assert_eq!(page_width_toasts.len(), 1);
+    assert_eq!(page_width_toasts[0].message, "Page Width: 800px");
+}
