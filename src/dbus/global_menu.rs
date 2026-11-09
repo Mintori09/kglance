@@ -9,7 +9,8 @@ use tokio::sync::mpsc;
 
 pub const ID_FILE_ROOT: i32 = 100;
 pub const ID_FILE_OPEN: i32 = 101;
-pub const ID_FILE_OPEN_DOLPHIN: i32 = 102;
+pub const ID_FILE_REVEAL_FOLDER: i32 = 102;
+pub const ID_FILE_OPEN_DOLPHIN: i32 = ID_FILE_REVEAL_FOLDER;
 pub const ID_FILE_CLOSE: i32 = 104;
 
 pub const ID_EDIT_ROOT: i32 = 200;
@@ -48,8 +49,8 @@ pub fn build_root_menu(config: &AppConfig, active_theme: &AppTheme) -> MenuItem 
     let open_item = MenuItem::new(ID_FILE_OPEN, "Open in Default App")
         .with_action("file.open")
         .with_shortcut_str("Return");
-    let dolphin_item = MenuItem::new(ID_FILE_OPEN_DOLPHIN, "Open Containing Folder")
-        .with_action("file.open_dolphin");
+    let dolphin_item = MenuItem::new(ID_FILE_REVEAL_FOLDER, "Open Containing Folder")
+        .with_action("file.reveal_folder");
     let close_item = MenuItem::new(ID_FILE_CLOSE, "Close Preview")
         .with_action("file.close")
         .with_shortcut_str("Escape");

@@ -121,6 +121,66 @@ pub(crate) fn resolve_path(path: &str, file_path: &str) -> PathBuf {
     result
 }
 
+pub fn path_to_file_uri(path: &Path) -> String {
+    if let Ok(url) = url::Url::from_file_path(path) {
+        return url.to_string();
+    }
+
+    let mut uri = String::from("file://");
+    let path_str = path.to_string_lossy();
+    for byte in path_str.as_bytes() {
+        match *byte {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'/' => {
+                uri.push(*byte as char);
+            }
+            b => {
+                use std::fmt::Write;
+                let _ = write!(uri, "%{b:02X}");
+            }
+        }
+    }
+    uri
+}
+
+pub fn reveal_in_file_manager(path: &Path) -> std::io::Result<()> {
+    let abs_path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map(|cwd| cwd.join(path))
+            .unwrap_or_else(|_| path.to_path_buf())
+    };
+
+    let uri = path_to_file_uri(&abs_path);
+
+    let dbus_result = (|| -> Result<(), Box<dyn std::error::Error>> {
+        let conn = zbus::blocking::Connection::session()?;
+        conn.call_method(
+            Some("org.freedesktop.FileManager1"),
+            "/org/freedesktop/FileManager1",
+            Some("org.freedesktop.FileManager1"),
+            "ShowItems",
+            &(vec![uri.as_str()], ""),
+        )?;
+        Ok(())
+    })();
+
+    if dbus_result.is_ok() {
+        return Ok(());
+    }
+
+    let target_dir = if abs_path.is_file() {
+        abs_path.parent().unwrap_or(&abs_path)
+    } else {
+        &abs_path
+    };
+
+    std::process::Command::new("xdg-open")
+        .arg(target_dir)
+        .spawn()
+        .map(|_| ())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -200,5 +260,16 @@ mod tests {
             resolve("  ./image.png  "),
             PathBuf::from("/home/user/Documents/project/image.png")
         );
+    }
+
+    #[test]
+    fn file_uri_formatting() {
+        let path = Path::new("/home/user/my file.txt");
+        assert_eq!(path_to_file_uri(path), "file:///home/user/my%20file.txt");
+
+        let path_special = Path::new("/tmp/test#1&2?.png");
+        let uri = path_to_file_uri(path_special);
+        assert!(uri.starts_with("file:///tmp/test"));
+        assert!(uri.contains("%23") || uri.contains('#'));
     }
 }

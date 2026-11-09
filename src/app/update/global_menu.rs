@@ -22,13 +22,12 @@ fn handle_action_triggered(app: &mut KglanceApp, action: &str) -> Task<Message> 
     match action {
         // File actions
         "file.open" => app.handle_open_clicked(),
-        "file.open_dolphin" => {
+        "file.reveal_folder" | "file.open_dolphin" => {
             let path = app.state.file_name.clone();
             if !path.is_empty() {
-                let _ = std::process::Command::new("dolphin")
-                    .arg("--select")
-                    .arg(&path)
-                    .spawn();
+                std::thread::spawn(move || {
+                    let _ = crate::core::utils::reveal_in_file_manager(std::path::Path::new(&path));
+                });
             }
             Task::none()
         }
