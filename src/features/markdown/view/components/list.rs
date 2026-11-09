@@ -19,6 +19,7 @@ struct ListPrefixArgs<'a> {
     level: usize,
     has_stacked_ruby: bool,
     font_size: f32,
+    line_height: Option<f32>,
 }
 
 pub(crate) fn render_list<'a>(
@@ -85,6 +86,7 @@ fn render_list_level<'a>(
                 (weight, color)
             };
 
+            let line_height = block_style.and_then(|s| s.line_height);
             let opts = InlineStyleOptions {
                 base_weight,
                 base_style: style,
@@ -93,7 +95,7 @@ fn render_list_level<'a>(
                 prefix_text: None,
                 base_underline: underline,
                 base_strikethrough: strikethrough,
-                line_height: block_style.and_then(|s| s.line_height),
+                line_height,
                 font_family,
             };
 
@@ -110,6 +112,7 @@ fn render_list_level<'a>(
                     level,
                     has_stacked_ruby: has_ruby,
                     font_size,
+                    line_height,
                 };
                 let prefix = create_list_prefix(prefix_args, ctx);
                 children.push(
@@ -152,6 +155,7 @@ fn render_list_level<'a>(
                         level,
                         has_stacked_ruby: has_ruby,
                         font_size,
+                        line_height: block_style.and_then(|s| s.line_height),
                     };
                     let prefix = create_list_prefix(prefix_args, ctx);
                     children.push(
@@ -240,10 +244,16 @@ fn create_list_prefix<'a>(
                 ..Default::default()
             });
 
+        // Center checkbox vertically with the first line of text
+        let line_height_val = args.line_height.unwrap_or(1.55);
+        let top_offset = ((args.font_size * line_height_val - box_size) / 2.0)
+            .max(0.0)
+            .round();
+
         // Wrap with a tiny right padding to align naturally with the following text
         container(checkbox)
             .padding(Padding {
-                top: 2.0,
+                top: top_offset,
                 right: 4.0,
                 bottom: 0.0,
                 left: 0.0,

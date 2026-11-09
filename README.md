@@ -5,7 +5,7 @@
   <img src="data/images/Screenshot_20260920_141428.png" width="49%" />
 </p>
 
-A high-performance file preview application for **KDE Plasma 6** built in Rust and Iced. Inspired by macOS QuickLook, Kglance provides near-instantaneous file previews via a single keypress.
+A high-performance file preview application for **Linux** built in Rust and Iced. Inspired by macOS QuickLook, Kglance provides near-instantaneous file previews via a single keypress.
 
 It operates in two modes:
 
@@ -312,6 +312,7 @@ The config file is auto-created with defaults on first run. See `data/examples/c
 ```
 
 Custom actions receive selected text via `stdin` and the `$KGLANCE_TEXT` environment variable. In addition, file context is automatically exposed:
+
 - `$KGLANCE_FILE`: Absolute path to the previewed file.
 - `$KGLANCE_FILE_DIR`: Parent directory containing the previewed file.
 - `$KGLANCE_FILE_NAME`: File name with extension (e.g. `document.md`).

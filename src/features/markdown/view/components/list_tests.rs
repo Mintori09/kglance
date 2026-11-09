@@ -162,3 +162,27 @@ fn test_render_list_with_font_scale_synchronization() {
     let _element = render_list(false, 1, &items, Some(&style), &state, &ctx);
     assert!(next_idx.get() > 0, "Block index should be allocated");
 }
+
+#[test]
+fn test_render_task_list_item() {
+    let next_idx = std::cell::Cell::new(0);
+    let counter = std::cell::Cell::new(0);
+    let ctx = mock_render_context(&next_idx, &counter, false, false, 16.0);
+    let state = crate::core::MarkdownState::default();
+
+    let items = vec![
+        ListItem {
+            content: vec![Inline::Text("Task item completed".to_string())],
+            sub_blocks: Vec::new(),
+            is_task: Some(true),
+        },
+        ListItem {
+            content: vec![Inline::Text("Task item pending".to_string())],
+            sub_blocks: Vec::new(),
+            is_task: Some(false),
+        },
+    ];
+
+    let _element = render_list(false, 1, &items, None, &state, &ctx);
+    assert_eq!(next_idx.get(), 2, "Both task items should allocate blocks");
+}
