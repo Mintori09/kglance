@@ -1,5 +1,4 @@
 use iced::Task;
-use iced::widget::operation::{self, AbsoluteOffset};
 
 use super::Message;
 use crate::core::{PreviewData, ViewMode};
