@@ -280,22 +280,16 @@ impl KglanceApp {
                 crate::features::image::update::handle_image_zoom_step(self, direction)
             }
 
-            Some(PreviewData::Pdf { .. }) => crate::features::pdf::update::resize_pdf_preview(
-                &mut self.state.pdf,
-                self.state.current_window_size.width,
-                direction,
-            ),
+            Some(PreviewData::Pdf { .. }) => {
+                crate::features::pdf::update::resize_pdf_preview(self, direction)
+            }
 
             Some(PreviewData::Typst { .. }) => {
                 if self.state.typst.show_source {
                     let new_size = self.state.font_size + direction;
                     crate::features::text::update::rescale_typst_font(self, new_size)
                 } else {
-                    crate::features::pdf::update::resize_pdf_preview(
-                        &mut self.state.pdf,
-                        self.state.current_window_size.width,
-                        direction,
-                    )
+                    crate::features::pdf::update::resize_pdf_preview(self, direction)
                 }
             }
 
@@ -437,10 +431,7 @@ impl KglanceApp {
                 let default_size = self.state.default_font_size;
                 match self.current_content {
                     Some(PreviewData::Pdf { .. }) => {
-                        Some(crate::features::pdf::update::reset_pdf_width(
-                            &mut self.state.pdf,
-                            self.state.current_window_size.width,
-                        ))
+                        Some(crate::features::pdf::update::reset_pdf_width(self))
                     }
 
                     Some(PreviewData::Text { .. }) => {
@@ -463,10 +454,7 @@ impl KglanceApp {
                         if self.state.typst.show_source {
                             crate::features::text::update::rescale_typst_font(self, default_size)
                         } else {
-                            Some(crate::features::pdf::update::reset_pdf_width(
-                                &mut self.state.pdf,
-                                self.state.current_window_size.width,
-                            ))
+                            Some(crate::features::pdf::update::reset_pdf_width(self))
                         }
                     }
 
