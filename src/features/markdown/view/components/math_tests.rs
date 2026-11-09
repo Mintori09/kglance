@@ -10,6 +10,51 @@ fn test_sanitize_for_iced_math() {
     let non_ascii = r"\text{chào thế giới} + x";
     let sanitized_non_ascii = sanitize_for_iced_math(non_ascii);
     assert_eq!(sanitized_non_ascii, " + x");
+
+    // \tag{...} stripped in sanitize_for_iced_math
+    let with_tag = r"\begin{aligned} a &= b \end{aligned} \tag{3.1}";
+    let sanitized_tag = sanitize_for_iced_math(with_tag);
+    assert_eq!(
+        sanitized_tag.trim(),
+        r"\begin{aligned} a &= b \end{aligned}"
+    );
+}
+
+#[test]
+fn test_extract_tag_from_latex() {
+    let formula_with_tag = r"\begin{aligned} y &= f(k) \end{aligned} \tag{3.1}";
+    let (cleaned, tag) = extract_tag_from_latex(formula_with_tag);
+    assert_eq!(cleaned.trim(), r"\begin{aligned} y &= f(k) \end{aligned}");
+    assert_eq!(tag, Some("(3.1)".to_string()));
+
+    // Starred tag \tag*{3.1} should not add surrounding parentheses
+    let formula_with_starred_tag = r"k_{t+1} - k_t = s f(k_t) \tag*{[Eq. 1]}";
+    let (cleaned_star, tag_star) = extract_tag_from_latex(formula_with_starred_tag);
+    assert_eq!(cleaned_star.trim(), r"k_{t+1} - k_t = s f(k_t)");
+    assert_eq!(tag_star, Some("[Eq. 1]".to_string()));
+
+    // Formula without tag
+    let formula_no_tag = r"E = mc^2";
+    let (cleaned_no_tag, tag_none) = extract_tag_from_latex(formula_no_tag);
+    assert_eq!(cleaned_no_tag, "E = mc^2");
+    assert_eq!(tag_none, None);
+}
+
+#[test]
+fn test_aligned_with_tag_renders_successfully() {
+    let formula = r"\begin{aligned}
+y_t &= f(k_t) \\
+k_{t+1} &= (1 - \delta) k_t + s f(k_t)
+\end{aligned} \tag{3.1}";
+
+    let (cleaned, tag) = extract_tag_from_latex(formula);
+    assert_eq!(tag, Some("(3.1)".to_string()));
+
+    let res = get_or_render_math_svg(&cleaned, 16.0, (255, 255, 255));
+    assert!(
+        matches!(res, CachedMathResult::Success(_)),
+        "Formula with aligned and tag should render successfully to SVG without error"
+    );
 }
 
 #[test]

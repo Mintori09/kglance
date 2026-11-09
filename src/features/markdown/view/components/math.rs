@@ -2,8 +2,8 @@ use super::style::STYLE;
 use crate::app::Message;
 use crate::ui::theme::scale_size;
 use crate::ui::types::RenderContext;
-use iced::widget::{container, svg as svg_widget, text};
-use iced::{Element, Length};
+use iced::widget::{Space, container, row, svg as svg_widget, text};
+use iced::{Alignment, Element, Length};
 use lru::LruCache;
 use rustc_hash::FxHasher;
 use std::cell::RefCell;
@@ -56,9 +56,67 @@ pub(crate) fn reset_math_cache() {
     CACHE_MISSES.store(0, Ordering::Relaxed);
 }
 
-pub(crate) fn sanitize_for_iced_math(latex: &str) -> String {
-    let mut out = String::with_capacity(latex.len());
+/// Extracts equation tag from LaTeX string, e.g. `\tag{3.1}` or `\tag*{3.1}`.
+///
+/// Returns `(sanitized_latex_without_tag, Option<formatted_tag>)`.
+/// For example, `\tag{3.1}` yields tag `Some("(3.1)")`, while `\tag*{3.1}` yields `Some("3.1")`.
+pub(crate) fn extract_tag_from_latex(latex: &str) -> (String, Option<String>) {
     let mut rest = latex;
+    let mut cleaned = String::with_capacity(latex.len());
+    let mut extracted_tag: Option<String> = None;
+
+    while let Some(tag_pos) = rest.find("\\tag") {
+        let (before, after_tag) = rest.split_at(tag_pos);
+        cleaned.push_str(before);
+
+        let remainder = &after_tag["\\tag".len()..];
+        let (is_starred, body) = match remainder.strip_prefix('*') {
+            Some(stripped) => (true, stripped.trim_start()),
+            None => (false, remainder.trim_start()),
+        };
+
+        if let Some(inner) = body.strip_prefix('{') {
+            let mut depth = 1usize;
+            let mut end = 0usize;
+            for (i, ch) in inner.char_indices() {
+                match ch {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = i;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            let tag_content = &inner[..end];
+            if extracted_tag.is_none() {
+                let tag_str = if is_starred {
+                    tag_content.trim().to_string()
+                } else {
+                    format!("({})", tag_content.trim())
+                };
+                extracted_tag = Some(tag_str);
+            }
+            rest = &inner[end + 1..];
+        } else {
+            // Not followed by brace - keep literal \tag to preserve user text
+            cleaned.push_str("\\tag");
+            rest = remainder;
+        }
+    }
+
+    cleaned.push_str(rest);
+    (cleaned, extracted_tag)
+}
+
+pub(crate) fn sanitize_for_iced_math(latex: &str) -> String {
+    let (without_tag, _) = extract_tag_from_latex(latex);
+    let mut out = String::with_capacity(without_tag.len());
+    let mut rest = without_tag.as_str();
 
     while let Some(pos) = rest.find("\\text{") {
         let (before, after) = rest.split_at(pos);
@@ -173,8 +231,10 @@ pub(crate) fn render_math_block<'a>(
     let b = (text_color.b * 255.0).round() as u8;
     let math_font_size = scale_size(ctx.font_size * STYLE.math.font_scale, ctx.font_size);
 
+    let (cleaned_latex, tag) = extract_tag_from_latex(latex);
+
     let math_element: Element<'a, Message> =
-        match get_or_render_math_svg(latex, math_font_size, (r, g, b)) {
+        match get_or_render_math_svg(&cleaned_latex, math_font_size, (r, g, b)) {
             CachedMathResult::Success(handle) => svg_widget::Svg::new(handle)
                 .width(Length::Shrink)
                 .height(Length::Shrink)
@@ -185,10 +245,32 @@ pub(crate) fn render_math_block<'a>(
                 .into(),
         };
 
-    container(math_element)
-        .center_x(Length::Fill)
-        .padding(STYLE.math.padding)
-        .into()
+    if let Some(tag_text) = tag {
+        let tag_element = text::Text::new(tag_text)
+            .size(math_font_size)
+            .color(ctx.theme.palette().base.text_dim);
+
+        // Three-column row: Left spacer, centered formula container, right-aligned equation tag
+        let formula_container = container(math_element).center_x(Length::Fill);
+
+        let row_content = row![
+            Space::new().width(Length::Shrink),
+            formula_container,
+            container(tag_element).align_right(Length::Shrink)
+        ]
+        .width(Length::Fill)
+        .align_y(Alignment::Center);
+
+        container(row_content)
+            .width(Length::Fill)
+            .padding(STYLE.math.padding)
+            .into()
+    } else {
+        container(math_element)
+            .center_x(Length::Fill)
+            .padding(STYLE.math.padding)
+            .into()
+    }
 }
 
 #[cfg(test)]
