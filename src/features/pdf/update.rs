@@ -814,6 +814,8 @@ pub fn rescale_pdf_page_width(app: &mut KglanceApp, new_width: f32) -> Option<Ta
         return Some(Task::none());
     }
 
+    app.state.pdf.desired_width = clamped_width;
+
     let win_w = app.state.current_window_size.width;
     let sidebar_w = if app.state.pdf.sidebar_visible {
         app.state.pdf.sidebar_width + 1.0
