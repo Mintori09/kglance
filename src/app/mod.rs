@@ -407,6 +407,15 @@ impl KglanceApp {
                 chapter: self.state.epub.active_chapter,
                 reading_mode: Some(self.state.epub.reading_mode),
             },
+            Some(crate::core::PreviewData::Pdf { .. }) => crate::core::ReadPosition {
+                scroll_y: self.state.pdf.scroll_y,
+                chapter: self
+                    .state
+                    .pdf
+                    .visible_page
+                    .load(std::sync::atomic::Ordering::Relaxed),
+                reading_mode: None,
+            },
             _ => return,
         };
         self.state.read_positions.insert(path, pos);
@@ -458,6 +467,35 @@ impl KglanceApp {
                     let target_ch = chapter.min(max - 1);
                     crate::features::epub::update::ensure_chapter_loaded(self, target_ch);
                     self.state.epub.markdown_state.scroll_y = scroll_y;
+                }
+                true
+            }
+            Some(crate::core::PreviewData::Pdf { .. }) => {
+                self.state.pdf.scroll_y = scroll_y;
+                self.state.pdf.scroll_controller.stop(scroll_y);
+                self.state.pdf.smooth_scroll.stop(scroll_y);
+                let count = self.state.pdf.page_count;
+                if count > 0 && !self.state.pdf.page_y_offsets.is_empty() {
+                    let vh = if self.state.pdf.viewport_height > 0.0 {
+                        self.state.pdf.viewport_height
+                    } else {
+                        800.0
+                    };
+                    let page_index = crate::features::pdf::viewport::find_visible_page(
+                        &self.state.pdf.page_y_offsets,
+                        scroll_y,
+                        vh,
+                        0.3,
+                    );
+                    self.state
+                        .pdf
+                        .visible_page
+                        .store(page_index, std::sync::atomic::Ordering::Relaxed);
+                    self.state.pdf.current_page = page_index;
+                    crate::features::pdf::update::promote_window_pages(
+                        &mut self.state.pdf,
+                        page_index,
+                    );
                 }
                 true
             }
