@@ -6,10 +6,15 @@ fn test_sanitize_for_iced_math() {
     let sanitized = sanitize_for_iced_math(input);
     assert_eq!(sanitized, r"x \quad  y \text{hello world} z");
 
-    // Non-ascii in \text{...} stripped
+    // Vietnamese diacritics in \text{...} transliterated to ASCII
     let non_ascii = r"\text{chào thế giới} + x";
     let sanitized_non_ascii = sanitize_for_iced_math(non_ascii);
-    assert_eq!(sanitized_non_ascii, " + x");
+    assert_eq!(sanitized_non_ascii, r"\text{chao the gioi} + x");
+
+    // Non-Vietnamese unconvertible non-ascii (like CJK/emoji) stripped if not ASCII
+    let cjk = r"\text{你好世界} + y";
+    let sanitized_cjk = sanitize_for_iced_math(cjk);
+    assert_eq!(sanitized_cjk, " + y");
 
     // \tag{...} stripped in sanitize_for_iced_math
     let with_tag = r"\begin{aligned} a &= b \end{aligned} \tag{3.1}";
@@ -17,6 +22,49 @@ fn test_sanitize_for_iced_math() {
     assert_eq!(
         sanitized_tag.trim(),
         r"\begin{aligned} a &= b \end{aligned}"
+    );
+}
+
+#[test]
+fn test_desugar_substack() {
+    let input = r"V(k) = \max_{\substack{c, k' \\ c + k' \le f(k)}} \{ u(c) + \beta V(k') \}";
+    let desugared = desugar_substack(input);
+    assert_eq!(
+        desugared,
+        r"V(k) = \max_{\begin{matrix}c, k' \\ c + k' \le f(k)\end{matrix}} \{ u(c) + \beta V(k') \}"
+    );
+
+    // Literal \substack without brace should be preserved
+    assert_eq!(desugar_substack(r"\substack foo"), r"\substack foo");
+}
+
+#[test]
+fn test_complex_equation_bellman_with_aligned_and_substack() {
+    // User equation 1: Bellman equation
+    let equation = r"\begin{aligned}
+V(k_t) = \max_{\substack{c_t, k_{t+1} \\ c_t + k_{t+1} \le f(k_t) + (1-\delta)k_t}} \left\{ u(c_t) + \beta V(k_{t+1}) \right\}
+\end{aligned}";
+
+    let (cleaned, _) = extract_tag_from_latex(equation);
+    let res = get_or_render_math_svg(&cleaned, 16.0, (255, 255, 255));
+    assert!(
+        matches!(res, CachedMathResult::Success(_)),
+        "Bellman equation with aligned and substack should render successfully to SVG"
+    );
+}
+
+#[test]
+fn test_complex_equation_euler_with_vietnamese_substack_and_tag() {
+    // User equation 2: Euler equation with underbrace, substack, vietnamese text, and tag
+    let equation = r"u'(c_t) = \beta \mathbb{E}_t \left[ u'(c_{t+1}) (1 + r_{t+1} - \delta) \right] \underbrace{=}_{\substack{\text{Chi phí} \\ \text{thỏa dụng}}} 0 \tag{3.2}";
+
+    let (cleaned, tag) = extract_tag_from_latex(equation);
+    assert_eq!(tag, Some("(3.2)".to_string()));
+
+    let res = get_or_render_math_svg(&cleaned, 16.0, (255, 255, 255));
+    assert!(
+        matches!(res, CachedMathResult::Success(_)),
+        "Euler equation with underbrace, substack, vietnamese annotations, and tag should render successfully to SVG"
     );
 }
 

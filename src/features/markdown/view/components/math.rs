@@ -113,10 +113,100 @@ pub(crate) fn extract_tag_from_latex(latex: &str) -> (String, Option<String>) {
     (cleaned, extracted_tag)
 }
 
+/// Transliterates Vietnamese accented characters into unaccented ASCII equivalents.
+pub(crate) fn remove_vietnamese_diacritics(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        let replacement = match ch {
+            'à' | 'á' | 'ả' | 'ã' | 'ạ' | 'ă' | 'ằ' | 'ắ' | 'ẳ' | 'ẵ' | 'ặ' | 'â' | 'ầ' | 'ấ'
+            | 'ẩ' | 'ẫ' | 'ậ' => "a",
+            'À' | 'Á' | 'Ả' | 'Ã' | 'Ạ' | 'Ă' | 'Ằ' | 'Ắ' | 'Ẳ' | 'Ẵ' | 'Ặ' | 'Â' | 'Ầ' | 'Ấ'
+            | 'Ẩ' | 'Ẫ' | 'Ậ' => "A",
+            'è' | 'é' | 'ẻ' | 'ẽ' | 'ẹ' | 'ê' | 'ề' | 'ế' | 'ể' | 'ễ' | 'ệ' => {
+                "e"
+            }
+            'È' | 'É' | 'Ẻ' | 'Ẽ' | 'Ẹ' | 'Ê' | 'Ề' | 'Ế' | 'Ể' | 'Ễ' | 'Ệ' => {
+                "E"
+            }
+            'ì' | 'í' | 'ỉ' | 'ĩ' | 'ị' => "i",
+            'Ì' | 'Í' | 'Ỉ' | 'Ĩ' | 'Ị' => "I",
+            'ò' | 'ó' | 'ỏ' | 'õ' | 'ọ' | 'ô' | 'ồ' | 'ố' | 'ổ' | 'ỗ' | 'ộ' | 'ơ' | 'ờ' | 'ớ'
+            | 'ở' | 'ỡ' | 'ợ' => "o",
+            'Ò' | 'Ó' | 'Ỏ' | 'Õ' | 'Ọ' | 'Ô' | 'Ồ' | 'Ố' | 'Ổ' | 'Ỗ' | 'Ộ' | 'Ơ' | 'Ờ' | 'Ớ'
+            | 'Ở' | 'Ỡ' | 'Ợ' => "O",
+            'ù' | 'ú' | 'ủ' | 'ũ' | 'ụ' | 'ư' | 'ừ' | 'ứ' | 'ử' | 'ữ' | 'ự' => {
+                "u"
+            }
+            'Ù' | 'Ú' | 'Ủ' | 'Ũ' | 'Ụ' | 'Ư' | 'Ừ' | 'Ứ' | 'Ử' | 'Ữ' | 'Ự' => {
+                "U"
+            }
+            'ỳ' | 'ý' | 'ỷ' | 'ỹ' | 'ỵ' => "y",
+            'Ỳ' | 'Ý' | 'Ỷ' | 'Ỹ' | 'Ỵ' => "Y",
+            'đ' => "d",
+            'Đ' => "D",
+            _ => {
+                out.push(ch);
+                continue;
+            }
+        };
+        out.push_str(replacement);
+    }
+    out
+}
+
+/// Desugars AMS-LaTeX `\substack{...}` into `\begin{matrix} ... \end{matrix}`
+/// which is supported by `pulldown-latex`.
+pub(crate) fn desugar_substack(latex: &str) -> String {
+    let mut out = String::with_capacity(latex.len());
+    let mut rest = latex;
+
+    while let Some(pos) = rest.find("\\substack") {
+        let (before, after) = rest.split_at(pos);
+        out.push_str(before);
+
+        let remainder = &after["\\substack".len()..];
+        let trimmed = remainder.trim_start();
+        if let Some(inner) = trimmed.strip_prefix('{') {
+            let mut depth = 1usize;
+            let mut end = 0usize;
+            for (i, ch) in inner.char_indices() {
+                match ch {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = i;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            if depth == 0 {
+                let content = &inner[..end];
+                out.push_str(r"\begin{matrix}");
+                out.push_str(content);
+                out.push_str(r"\end{matrix}");
+                rest = &inner[end + 1..];
+                continue;
+            }
+        }
+
+        // If not followed by balanced '{', retain literal '\substack'
+        out.push_str("\\substack");
+        rest = remainder;
+    }
+
+    out.push_str(rest);
+    out
+}
+
 pub(crate) fn sanitize_for_iced_math(latex: &str) -> String {
     let (without_tag, _) = extract_tag_from_latex(latex);
-    let mut out = String::with_capacity(without_tag.len());
-    let mut rest = without_tag.as_str();
+    let desugared = desugar_substack(&without_tag);
+    let mut out = String::with_capacity(desugared.len());
+    let mut rest = desugared.as_str();
 
     while let Some(pos) = rest.find("\\text{") {
         let (before, after) = rest.split_at(pos);
@@ -140,9 +230,10 @@ pub(crate) fn sanitize_for_iced_math(latex: &str) -> String {
         }
 
         let text_content = &body[..end];
-        if text_content.is_ascii() {
+        let unaccented = remove_vietnamese_diacritics(text_content);
+        if unaccented.is_ascii() {
             out.push_str(r"\text{");
-            out.push_str(text_content);
+            out.push_str(&unaccented);
             out.push('}');
         }
         rest = &body[end + 1..];
