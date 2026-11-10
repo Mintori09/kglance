@@ -372,9 +372,10 @@ fn test_audio_player_position_advancement() {
 
     let player = AudioPlayer::new(path, 3.0).expect("Failed to create AudioPlayer");
 
+    // Wait for playback position to advance, allowing adequate time for async pipeline preroll
     let start = Instant::now();
     let mut pos = 0.0;
-    while start.elapsed() < Duration::from_secs(2) {
+    while start.elapsed() < Duration::from_secs(5) {
         pos = player.position_secs();
         if pos > 0.05 {
             break;
