@@ -245,24 +245,33 @@ fn build_scrollable_content<'a>(
                     left: 0.0,
                 })
                 .width(Length::Fill);
-            els.push(
-                Measured::new(
-                    block,
-                    i,
-                    state
-                        .block_layouts
-                        .get(i)
-                        .map_or(0.0, BlockLayout::effective_height),
-                    |block_index, height| {
-                        crate::app::messages::MarkdownMsg::BlockMeasured {
-                            block_index,
-                            height,
-                        }
-                        .into()
-                    },
-                )
-                .into(),
-            );
+            let is_measured = state
+                .block_layouts
+                .get(i)
+                .is_some_and(|l| l.measured_height.is_some());
+
+            if is_measured {
+                els.push(block.into());
+            } else {
+                els.push(
+                    Measured::new(
+                        block,
+                        i,
+                        state
+                            .block_layouts
+                            .get(i)
+                            .map_or(0.0, BlockLayout::effective_height),
+                        |block_index, height| {
+                            crate::app::messages::MarkdownMsg::BlockMeasured {
+                                block_index,
+                                height,
+                            }
+                            .into()
+                        },
+                    )
+                    .into(),
+                );
+            }
         }
 
         els.push(

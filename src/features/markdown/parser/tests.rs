@@ -291,6 +291,35 @@ fn parses_obsidian_japanese_vocabulary_file_images() {
 }
 
 #[test]
+fn extracts_math_formulas_from_blocks() {
+    let md = r#"
+# Heading
+
+Some text with inline formula $x + y = z$.
+
+$$
+E = mc^2
+$$
+
+> Quote with formula:
+> $$
+> a^2 + b^2 = c^2
+> $$
+
+- List item
+  $$
+  \int_0^\infty e^{-x} dx = 1
+  $$
+"#;
+    let blocks = parse_to_blocks(md);
+    let formulas = super::types::collect_all_math_formulas(&blocks);
+    assert_eq!(formulas.len(), 3);
+    assert!(formulas.iter().any(|f| f.contains("E = mc^2")));
+    assert!(formulas.iter().any(|f| f.contains("a^2 + b^2 = c^2")));
+    assert!(formulas.iter().any(|f| f.contains(r"\int_0^\infty")));
+}
+
+#[test]
 fn parses_list_item_with_html_image() {
     let md = "- **Thứ tự nét viết**:\n  <img src=\"https://cdn.jsdelivr.net/gh/mistval/kanji_images@master/gifs/98fe.gif\" width=\"90\" alt=\"飾\" />\n";
     let blocks = parse_to_blocks(md);

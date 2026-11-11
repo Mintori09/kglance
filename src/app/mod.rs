@@ -906,6 +906,22 @@ impl KglanceApp {
                     current_gen,
                 ));
             }
+
+            let math_formulas =
+                crate::features::markdown::parser::collect_all_math_formulas(blocks);
+            if !math_formulas.is_empty() {
+                let text_color = self.state.app_theme.palette().base.text;
+                let r = (text_color.r * 255.0).round() as u8;
+                let g = (text_color.g * 255.0).round() as u8;
+                let b = (text_color.b * 255.0).round() as u8;
+                tasks.push(crate::features::markdown::spawn_math_prewarm_task(
+                    math_formulas,
+                    self.state.font_size,
+                    (r, g, b),
+                    gen_arc,
+                    current_gen,
+                ));
+            }
         }
         tasks
     }
@@ -951,6 +967,30 @@ impl KglanceApp {
                         current_gen,
                     ));
                 }
+            }
+
+            let mut all_math_formulas = Vec::new();
+            for block in &blocks {
+                crate::features::markdown::parser::collect_math_formulas(
+                    block,
+                    &mut all_math_formulas,
+                );
+            }
+            all_math_formulas.sort();
+            all_math_formulas.dedup();
+
+            if !all_math_formulas.is_empty() {
+                let text_color = self.state.app_theme.palette().base.text;
+                let r = (text_color.r * 255.0).round() as u8;
+                let g = (text_color.g * 255.0).round() as u8;
+                let b = (text_color.b * 255.0).round() as u8;
+                tasks.push(crate::features::markdown::spawn_math_prewarm_task(
+                    all_math_formulas,
+                    self.state.font_size,
+                    (r, g, b),
+                    gen_arc,
+                    current_gen,
+                ));
             }
         }
         tasks

@@ -459,6 +459,7 @@ pub fn populate_state(state: &mut KglanceState, blocks: &[Block]) {
         block_styles: HashMap::new(),
         table_scroll_offsets: HashMap::new(),
         pending_measurements: Vec::new(),
+        last_active_toc_index: None,
     };
 
     for (i, block) in blocks.iter().enumerate() {

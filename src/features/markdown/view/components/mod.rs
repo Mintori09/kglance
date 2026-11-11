@@ -28,7 +28,7 @@ pub(crate) use html::render_html;
 pub(crate) use image::render_inline_image;
 pub(crate) use inline::render_inlines_aligned;
 pub(crate) use list::render_list;
-pub(crate) use math::render_math_block;
+pub(crate) use math::{prewarm_math_formulas, render_math_block};
 pub(crate) use mermaid::render_mermaid;
 pub(crate) use paragraph::render_paragraph;
 pub(crate) use quote::render_quote;

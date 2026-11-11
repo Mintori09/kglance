@@ -95,6 +95,8 @@ pub struct MarkdownState {
     pub table_scroll_offsets: HashMap<usize, f32>,
     /// Pending measured block heights batched for atomic update.
     pub pending_measurements: Vec<(usize, f32)>,
+    /// Last active TOC index to avoid redundant TOC scroll operations.
+    pub last_active_toc_index: Option<usize>,
 }
 
 impl Default for MarkdownState {
@@ -145,6 +147,7 @@ impl Default for MarkdownState {
             block_styles: HashMap::new(),
             table_scroll_offsets: HashMap::new(),
             pending_measurements: Vec::new(),
+            last_active_toc_index: None,
         }
     }
 }

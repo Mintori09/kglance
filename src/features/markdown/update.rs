@@ -135,15 +135,21 @@ pub(crate) fn find_active_toc_index(
 }
 
 fn scroll_toc_to_active(
-    state: &crate::core::MarkdownState,
+    state: &mut crate::core::MarkdownState,
     scroll_y: f32,
     detection_offset: f32,
 ) -> Task<Message> {
     if !state.toc_visible || state.toc.is_empty() {
         return Task::none();
     }
-    if let Some(active_pos) = find_active_toc_index(&state.toc, scroll_y, detection_offset) {
-        let target_y = calculate_toc_target_scroll_y(state, active_pos);
+    let active_pos = find_active_toc_index(&state.toc, scroll_y, detection_offset);
+    if active_pos == state.last_active_toc_index {
+        return Task::none();
+    }
+    state.last_active_toc_index = active_pos;
+
+    if let Some(pos) = active_pos {
+        let target_y = calculate_toc_target_scroll_y(state, pos);
         operation::scroll_to(
             "toc_scroll",
             operation::AbsoluteOffset {
@@ -286,8 +292,13 @@ pub fn handle_markdown_scrolled(
 
         let toc_y = if state.toc_visible && !state.toc.is_empty() {
             let detection_offset = heading_active_detection_offset_y(font_size);
-            find_active_toc_index(&state.toc, y, detection_offset)
-                .map(|pos| calculate_toc_target_scroll_y(state, pos))
+            let active_pos = find_active_toc_index(&state.toc, y, detection_offset);
+            if active_pos != state.last_active_toc_index {
+                state.last_active_toc_index = active_pos;
+                active_pos.map(|pos| calculate_toc_target_scroll_y(state, pos))
+            } else {
+                None
+            }
         } else {
             None
         };

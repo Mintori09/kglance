@@ -1,11 +1,11 @@
 use std::ops::Range;
 
 const CHUNK_SIZE: usize = 6;
-const OVERSCAN_CHUNKS: usize = 4;
+const OVERSCAN_CHUNKS: usize = 2;
 const MIN_VIEWPORT: f32 = 600.0;
 
 fn overscan_px(viewport_height: f32) -> f32 {
-    (viewport_height.max(MIN_VIEWPORT) * 2.0).clamp(1600.0, 3200.0)
+    (viewport_height.max(MIN_VIEWPORT) * 1.0).clamp(600.0, 1600.0)
 }
 
 /// Computes a fresh range of blocks to render for a virtualized document.

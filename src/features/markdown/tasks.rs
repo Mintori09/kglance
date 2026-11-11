@@ -139,6 +139,37 @@ pub fn spawn_image_load_task(
     }
 }
 
+/// Spawns a background task to prewarm LaTeX formulas into the shared SVG cache,
+/// avoiding UI stutters when scrolling into un-cached equations.
+pub fn spawn_math_prewarm_task(
+    formulas: Vec<String>,
+    font_size: f32,
+    color_rgb: (u8, u8, u8),
+    gen_arc: Arc<AtomicUsize>,
+    current_gen: usize,
+) -> Task<Message> {
+    Task::perform(
+        async move {
+            if gen_arc.load(Ordering::Relaxed) != current_gen {
+                return Message::None;
+            }
+
+            let _ = tokio::task::spawn_blocking(move || {
+                if gen_arc.load(Ordering::Relaxed) != current_gen {
+                    return;
+                }
+                crate::features::markdown::view::components::prewarm_math_formulas(
+                    &formulas, font_size, color_rgb,
+                );
+            })
+            .await;
+
+            Message::None
+        },
+        |msg| msg,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

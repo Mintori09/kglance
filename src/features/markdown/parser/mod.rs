@@ -28,7 +28,7 @@ pub use layout::{
 pub use mermaid::{is_mmdc_available, is_pele_available, render_mermaid_to_png};
 pub use types::{
     AlertKind, Block, BlockLayout, Inline, ListItem, TableBlock, TableCell,
-    collect_all_image_paths, collect_image_paths,
+    collect_all_image_paths, collect_all_math_formulas, collect_image_paths, collect_math_formulas,
 };
 
 use std::path::Path;

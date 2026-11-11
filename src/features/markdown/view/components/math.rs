@@ -6,11 +6,11 @@ use iced::widget::{Space, container, row, svg as svg_widget, text};
 use iced::{Alignment, Element, Length};
 use lru::LruCache;
 use rustc_hash::FxHasher;
-use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct MathCacheKey {
@@ -30,9 +30,9 @@ const MATH_CACHE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(512) {
     None => unreachable!(),
 };
 
-thread_local! {
-    static MATH_SVG_CACHE: RefCell<LruCache<MathCacheKey, CachedMathResult>> =
-        RefCell::new(LruCache::new(MATH_CACHE_CAPACITY));
+fn math_svg_cache() -> &'static Mutex<LruCache<MathCacheKey, CachedMathResult>> {
+    static CACHE: OnceLock<Mutex<LruCache<MathCacheKey, CachedMathResult>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(LruCache::new(MATH_CACHE_CAPACITY)))
 }
 
 #[cfg(test)]
@@ -51,7 +51,9 @@ pub(crate) fn math_cache_stats() -> (usize, usize) {
 
 #[cfg(test)]
 pub(crate) fn reset_math_cache() {
-    MATH_SVG_CACHE.with(|cache| cache.borrow_mut().clear());
+    if let Ok(mut cache) = math_svg_cache().lock() {
+        cache.clear();
+    }
     CACHE_HITS.store(0, Ordering::Relaxed);
     CACHE_MISSES.store(0, Ordering::Relaxed);
 }
@@ -276,7 +278,10 @@ pub(crate) fn get_or_render_math_svg(
         color_rgb,
     };
 
-    let cached = MATH_SVG_CACHE.with(|cache| cache.borrow_mut().get(&key).cloned());
+    let cached = math_svg_cache()
+        .lock()
+        .ok()
+        .and_then(|mut cache| cache.get(&key).cloned());
     if let Some(res) = cached {
         #[cfg(test)]
         CACHE_HITS.fetch_add(1, Ordering::Relaxed);
@@ -304,11 +309,19 @@ pub(crate) fn get_or_render_math_svg(
         Err(_) => CachedMathResult::Error(sanitized),
     };
 
-    MATH_SVG_CACHE.with(|cache| {
-        cache.borrow_mut().put(key, result.clone());
-    });
+    if let Ok(mut cache) = math_svg_cache().lock() {
+        cache.put(key, result.clone());
+    }
 
     result
+}
+
+pub(crate) fn prewarm_math_formulas(formulas: &[String], font_size: f32, color_rgb: (u8, u8, u8)) {
+    let math_font_size = scale_size(font_size * STYLE.math.font_scale, font_size);
+    for latex in formulas {
+        let (cleaned_latex, _) = extract_tag_from_latex(latex);
+        let _ = get_or_render_math_svg(&cleaned_latex, math_font_size, color_rgb);
+    }
 }
 
 pub(crate) fn render_math_block<'a>(

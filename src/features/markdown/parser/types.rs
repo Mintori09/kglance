@@ -186,3 +186,48 @@ pub fn collect_all_image_paths(blocks: &[Block]) -> Vec<String> {
     paths.dedup();
     paths
 }
+
+pub fn collect_math_formulas(block: &Block, out: &mut Vec<String>) {
+    match block {
+        Block::Math(latex) => {
+            out.push(latex.clone());
+        }
+        Block::List { items, .. } => {
+            for item in items {
+                for sub in &item.sub_blocks {
+                    collect_math_formulas(sub, out);
+                }
+            }
+        }
+        Block::Quote(blocks)
+        | Block::Alert {
+            content: blocks, ..
+        }
+        | Block::FootnoteDefinition {
+            content: blocks, ..
+        } => {
+            for b in blocks {
+                collect_math_formulas(b, out);
+            }
+        }
+        Block::Frontmatter(_)
+        | Block::Heading { .. }
+        | Block::Paragraph(_)
+        | Block::CodeBlock { .. }
+        | Block::Table(_)
+        | Block::Mermaid { .. }
+        | Block::Image { .. }
+        | Block::HorizontalRule
+        | Block::Html(_) => {}
+    }
+}
+
+pub fn collect_all_math_formulas(blocks: &[Block]) -> Vec<String> {
+    let mut formulas = Vec::new();
+    for block in blocks {
+        collect_math_formulas(block, &mut formulas);
+    }
+    formulas.sort();
+    formulas.dedup();
+    formulas
+}

@@ -1,4 +1,7 @@
 use super::*;
+use std::sync::Mutex;
+
+static TEST_MATH_MUTEX: Mutex<()> = Mutex::new(());
 
 #[test]
 fn test_sanitize_for_iced_math() {
@@ -117,6 +120,7 @@ fn test_enhance_svg_stroke() {
 
 #[test]
 fn test_math_cache_hit_and_miss() {
+    let _lock = TEST_MATH_MUTEX.lock().unwrap();
     reset_math_cache();
 
     let formula = r"E = mc^2";
@@ -161,6 +165,7 @@ fn test_math_cache_hit_and_miss() {
 
 #[test]
 fn test_math_cache_error_handling() {
+    let _lock = TEST_MATH_MUTEX.lock().unwrap();
     reset_math_cache();
 
     // Invalid LaTeX formula that fails to render in iced_math
