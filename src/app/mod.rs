@@ -1428,6 +1428,7 @@ impl KglanceApp {
                     self.state.font_family.as_deref(),
                     self.state.font_family_mono.as_deref(),
                     self.state.max_text_width,
+                    self.state.window_width,
                 ),
                 PreviewData::Unsupported(info) => crate::ui::views::view_unsupported(
                     info,

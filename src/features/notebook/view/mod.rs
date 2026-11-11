@@ -2,9 +2,11 @@ pub mod cell;
 pub mod output;
 
 use crate::app::Message;
+use crate::features::markdown::view::toc::render_toc_sidebar;
 use crate::features::notebook::types::NotebookData;
 use crate::features::notebook::view::cell::render_cell;
 use crate::ui::components::content_layout::scrollable_content;
+use crate::ui::components::sidebar::with_sidebar_layout;
 use crate::ui::theme::AppTheme;
 use iced::widget::{container, text};
 use iced::{Element, Length, Padding};
@@ -13,6 +15,7 @@ pub const NOTEBOOK_SCROLL_ID: &str = "content_scroll";
 const CONTENT_PADDING: f32 = 24.0;
 const CELL_SPACING: f32 = 16.0;
 
+#[allow(clippy::too_many_arguments)]
 pub fn view_notebook<'a>(
     data: &'a NotebookData,
     md_state: &'a crate::core::MarkdownState,
@@ -21,6 +24,7 @@ pub fn view_notebook<'a>(
     font_family: Option<&'a str>,
     font_family_mono: Option<&'a str>,
     max_text_width: Option<f32>,
+    window_width: f32,
 ) -> Element<'a, Message> {
     if data.cells.is_empty() {
         let base = theme.palette().base;
@@ -62,7 +66,7 @@ pub fn view_notebook<'a>(
         })
         .collect();
 
-    scrollable_content(
+    let scroll = scrollable_content(
         elements,
         max_text_width,
         CONTENT_PADDING,
@@ -78,5 +82,24 @@ pub fn view_notebook<'a>(
         }
         .into()
     })
-    .build()
+    .build();
+
+    let _ = window_width;
+
+    with_sidebar_layout(
+        md_state.toc_visible && !md_state.toc.is_empty(),
+        md_state.sidebar_resizing,
+        theme,
+        || {
+            render_toc_sidebar(
+                &md_state.toc,
+                md_state,
+                md_state.scroll_y,
+                theme,
+                font_family,
+            )
+        },
+        scroll,
+        Message::SidebarDragStarted,
+    )
 }

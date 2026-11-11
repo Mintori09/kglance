@@ -900,6 +900,47 @@ fn test_notebook_populate_state_clears_markdown_offsets() {
 }
 
 #[test]
+fn test_notebook_toggle_sidebar_via_shortcut() {
+    let notebook_data = crate::features::notebook::types::NotebookData {
+        cells: vec![
+            crate::features::notebook::types::NotebookCell::Markdown {
+                source: "# Section A".into(),
+                blocks: vec![crate::parsers::markdown::Block::Heading {
+                    level: 1,
+                    content: vec![crate::parsers::markdown::Inline::Text("Section A".into())],
+                }],
+            },
+            crate::features::notebook::types::NotebookCell::Code {
+                source: "x = 1".into(),
+                execution_count: Some(1),
+                outputs: vec![],
+                language: Some("python".into()),
+            },
+        ],
+        kernel_language: "python".to_string(),
+        total_cells: 2,
+        fallback_notice: None,
+    };
+    let mut app = test_app(Some(crate::core::PreviewData::Notebook(notebook_data)));
+    assert_eq!(app.state.markdown.toc.len(), 1);
+    assert!(!app.state.markdown.toc_visible);
+
+    let t_key: iced::keyboard::Key = iced::keyboard::Key::Character("t".into());
+    let modifiers = iced::keyboard::Modifiers::default();
+
+    let task = app.handle_scroll_shortcuts(&t_key, modifiers);
+    assert!(task.is_some());
+
+    let _ = app.update(crate::app::messages::MarkdownMsg::TocToggled.into());
+    assert!(app.state.markdown.toc_visible);
+
+    let task = app.handle_scroll_shortcuts(&t_key, modifiers);
+    assert!(task.is_some());
+    let _ = app.update(crate::app::messages::MarkdownMsg::TocToggled.into());
+    assert!(!app.state.markdown.toc_visible);
+}
+
+#[test]
 fn test_pdf_ctrl_scroll_zoom_interrupts_active_kinetic_scroll() {
     let mut app = test_app(Some(crate::core::PreviewData::Pdf {
         page_count: 5,
