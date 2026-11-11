@@ -69,6 +69,16 @@ pub fn sort_folder_rows(rows: &mut [FolderRowState], sort: &SortState) {
     if !sort.active {
         return;
     }
+
+    let has_hierarchy = rows.iter().any(|r| r.depth > 0 || r.parent_path.is_some());
+    if has_hierarchy {
+        sort_hierarchical_folder_rows(rows, sort);
+    } else {
+        sort_flat_folder_rows(rows, sort);
+    }
+}
+
+fn sort_flat_folder_rows(rows: &mut [FolderRowState], sort: &SortState) {
     rows.sort_by(|a, b| {
         // Folders always come first regardless of field or ascending order
         match (a.is_dir, b.is_dir) {
@@ -85,6 +95,84 @@ pub fn sort_folder_rows(rows: &mut [FolderRowState], sort: &SortState) {
             }
         }
     });
+}
+
+fn sort_hierarchical_folder_rows(rows: &mut [FolderRowState], sort: &SortState) {
+    use std::collections::HashMap;
+
+    // Build children mapping keyed by parent_path: Option<String>
+    let mut children_map: HashMap<Option<String>, Vec<FolderRowState>> = HashMap::new();
+    let old_rows = rows.to_vec();
+
+    for row in old_rows {
+        children_map
+            .entry(row.parent_path.clone())
+            .or_default()
+            .push(row);
+    }
+
+    // Helper to sort a sibling group and recursively collect in DFS pre-order
+    fn collect_sorted(
+        parent_key: Option<String>,
+        children_map: &mut HashMap<Option<String>, Vec<FolderRowState>>,
+        sort: &SortState,
+        out: &mut Vec<FolderRowState>,
+    ) {
+        if let Some(mut siblings) = children_map.remove(&parent_key) {
+            sort_flat_folder_rows(&mut siblings, sort);
+            for item in siblings {
+                let item_path = item.path.clone();
+                let is_dir = item.is_dir;
+                out.push(item);
+                if is_dir {
+                    collect_sorted(Some(item_path), children_map, sort, out);
+                }
+            }
+        }
+    }
+
+    let mut sorted_rows = Vec::with_capacity(rows.len());
+
+    // Root items can have parent_path == None or parent_path not present in children_map as a child of someone else.
+    // Determine the root parent keys: keys that are not equal to any row's path.
+    let all_paths: HashSet<String> = children_map
+        .values()
+        .flat_map(|v| v.iter().map(|r| r.path.clone()))
+        .collect();
+
+    let mut root_keys: Vec<Option<String>> = children_map
+        .keys()
+        .filter(|k| match k {
+            None => true,
+            Some(p) => !all_paths.contains(p),
+        })
+        .cloned()
+        .collect();
+
+    root_keys.sort_by(|a, b| match (a, b) {
+        (None, None) => std::cmp::Ordering::Equal,
+        (None, Some(_)) => std::cmp::Ordering::Less,
+        (Some(_), None) => std::cmp::Ordering::Greater,
+        (Some(sa), Some(sb)) => sa.cmp(sb),
+    });
+
+    for root_key in root_keys {
+        collect_sorted(root_key, &mut children_map, sort, &mut sorted_rows);
+    }
+
+    // If any orphaned entries remain, sort and push them
+    let mut remaining_keys: Vec<Option<String>> = children_map.keys().cloned().collect();
+    remaining_keys.sort_by(|a, b| match (a, b) {
+        (None, None) => std::cmp::Ordering::Equal,
+        (None, Some(_)) => std::cmp::Ordering::Less,
+        (Some(_), None) => std::cmp::Ordering::Greater,
+        (Some(sa), Some(sb)) => sa.cmp(sb),
+    });
+    for rem_key in remaining_keys {
+        collect_sorted(rem_key, &mut children_map, sort, &mut sorted_rows);
+    }
+
+    rows.clone_from_slice(&sorted_rows);
 }
 
 fn compare_case_insensitive(a: &str, b: &str) -> std::cmp::Ordering {
@@ -242,6 +330,100 @@ mod tests {
         // Alpha < beta case-insensitively
         assert_eq!(rows[1].name, "Alpha");
         assert_eq!(rows[2].name, "beta");
+    }
+
+    #[test]
+    fn test_sort_hierarchical_preserves_tree_structure() {
+        let mut rows = vec![
+            FolderRowState {
+                name: "src".to_string(),
+                display_name: "src".to_string(),
+                kind: "Folder".to_string(),
+                size: "—".to_string(),
+                raw_size: 0,
+                modified: "today".to_string(),
+                raw_modified: 10,
+                path: "src".to_string(),
+                is_dir: true,
+                icon: "folder",
+                depth: 0,
+                parent_path: None,
+            },
+            FolderRowState {
+                name: "main.rs".to_string(),
+                display_name: "main.rs".to_string(),
+                kind: "Rust Source".to_string(),
+                size: "100 B".to_string(),
+                raw_size: 100,
+                modified: "today".to_string(),
+                raw_modified: 20,
+                path: "src/main.rs".to_string(),
+                is_dir: false,
+                icon: "file",
+                depth: 1,
+                parent_path: Some("src".to_string()),
+            },
+            FolderRowState {
+                name: "app".to_string(),
+                display_name: "app".to_string(),
+                kind: "Folder".to_string(),
+                size: "—".to_string(),
+                raw_size: 0,
+                modified: "today".to_string(),
+                raw_modified: 15,
+                path: "src/app".to_string(),
+                is_dir: true,
+                icon: "folder",
+                depth: 1,
+                parent_path: Some("src".to_string()),
+            },
+            FolderRowState {
+                name: "view.rs".to_string(),
+                display_name: "view.rs".to_string(),
+                kind: "Rust Source".to_string(),
+                size: "50 B".to_string(),
+                raw_size: 50,
+                modified: "today".to_string(),
+                raw_modified: 25,
+                path: "src/app/view.rs".to_string(),
+                is_dir: false,
+                icon: "file",
+                depth: 2,
+                parent_path: Some("src/app".to_string()),
+            },
+            FolderRowState {
+                name: "Cargo.toml".to_string(),
+                display_name: "Cargo.toml".to_string(),
+                kind: "TOML Config".to_string(),
+                size: "30 B".to_string(),
+                raw_size: 30,
+                modified: "today".to_string(),
+                raw_modified: 5,
+                path: "Cargo.toml".to_string(),
+                is_dir: false,
+                icon: "file",
+                depth: 0,
+                parent_path: None,
+            },
+        ];
+
+        let sort = SortState {
+            field: SortField::Name,
+            ascending: true,
+            active: true,
+        };
+
+        sort_folder_rows(&mut rows, &sort);
+
+        // Hierarchical structure:
+        // Root: "src" (dir), "Cargo.toml" (file)
+        // Under "src": "app" (dir), "main.rs" (file)
+        // Under "src/app": "view.rs" (file)
+        let names: Vec<&str> = rows.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["src", "app", "view.rs", "main.rs", "Cargo.toml"]
+        );
     }
 
     #[test]

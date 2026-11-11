@@ -156,6 +156,68 @@ pub fn build_folder_tree_rows(entries: Vec<DirEntry>) -> Vec<FolderRowState> {
         .collect()
 }
 
+pub fn read_child_folder_rows(
+    parent_path: &str,
+    parent_depth: usize,
+) -> Result<Vec<FolderRowState>, std::io::Error> {
+    use crate::core::utils::human_time;
+
+    let dir = std::fs::read_dir(parent_path)?;
+    let mut child_rows = Vec::new();
+
+    for entry in dir {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        let metadata = match entry.metadata() {
+            Ok(meta) => meta,
+            Err(_) => match entry.path().symlink_metadata() {
+                Ok(symlink_meta) => symlink_meta,
+                Err(_) => continue,
+            },
+        };
+
+        let modified_time = metadata
+            .modified()
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+        let raw_modified = modified_time
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+
+        let name = entry.file_name().to_string_lossy().to_string();
+        let path = entry.path().to_string_lossy().to_string();
+        let is_dir = metadata.is_dir();
+        let icon = icon_for_entry(&name, is_dir);
+        let kind = human_file_kind(&name, is_dir).to_string();
+        let size = if is_dir {
+            "—".to_string()
+        } else {
+            human_size(metadata.len())
+        };
+        let raw_size = if is_dir { 0 } else { metadata.len() };
+
+        child_rows.push(FolderRowState {
+            name: name.clone(),
+            display_name: name,
+            kind,
+            size,
+            raw_size,
+            modified: human_time(modified_time),
+            raw_modified,
+            path,
+            is_dir,
+            icon,
+            depth: parent_depth + 1,
+            parent_path: Some(parent_path.to_string()),
+        });
+    }
+
+    Ok(child_rows)
+}
+
 pub fn filter_visible_folder_rows<'a>(
     rows: &'a [FolderRowState],
     expanded_paths: &HashSet<String>,
@@ -284,5 +346,24 @@ mod tests {
             visible_names,
             vec!["src", "app", "view.rs", "main.rs", "README.md"]
         );
+    }
+
+    #[test]
+    fn test_read_child_folder_rows() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let sub_dir = temp_dir.path().join("sub");
+        std::fs::create_dir(&sub_dir).expect("create sub dir");
+        let child_file = sub_dir.join("child.txt");
+        std::fs::write(&child_file, b"content").expect("write child file");
+
+        let parent_str = sub_dir.to_string_lossy().to_string();
+        let child_rows = read_child_folder_rows(&parent_str, 0).expect("read child rows");
+
+        assert_eq!(child_rows.len(), 1);
+        let child = &child_rows[0];
+        assert_eq!(child.name, "child.txt");
+        assert_eq!(child.depth, 1);
+        assert_eq!(child.parent_path.as_deref(), Some(parent_str.as_str()));
+        assert!(!child.is_dir);
     }
 }
