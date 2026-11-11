@@ -177,7 +177,31 @@ impl KglanceApp {
             && row.is_dir
         {
             if !self.state.folder.expanded_paths.contains(&row.path) {
-                self.state.folder.expanded_paths.insert(row.path.clone());
+                let path = row.path.clone();
+                let depth = row.depth;
+                self.state.folder.expanded_paths.insert(path.clone());
+
+                let has_children = self
+                    .state
+                    .folder
+                    .rows
+                    .iter()
+                    .any(|r| r.parent_path.as_deref() == Some(&path));
+
+                if !has_children
+                    && let Ok(mut children) =
+                        crate::features::folder::tree::read_child_folder_rows(&path, depth)
+                    && !children.is_empty()
+                {
+                    if self.state.folder.sort_state.active {
+                        crate::core::sort_folder_rows(&mut children, &self.state.folder.sort_state);
+                    }
+                    let insert_pos = selected_index + 1;
+                    self.state
+                        .folder
+                        .rows
+                        .splice(insert_pos..insert_pos, children);
+                }
                 return Some(Task::none());
             }
             return None;

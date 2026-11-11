@@ -167,10 +167,35 @@ pub fn handle_file_clicked(app: &mut KglanceApp, idx: usize) -> Task<Message> {
         let row = &app.state.folder.rows[idx];
         if row.is_dir {
             let path = row.path.clone();
+            let depth = row.depth;
             if app.state.folder.expanded_paths.contains(&path) {
                 app.state.folder.expanded_paths.remove(&path);
             } else {
-                app.state.folder.expanded_paths.insert(path);
+                app.state.folder.expanded_paths.insert(path.clone());
+
+                // Check if child rows already exist in app.state.folder.rows
+                let has_children = app
+                    .state
+                    .folder
+                    .rows
+                    .iter()
+                    .any(|r| r.parent_path.as_deref() == Some(&path));
+
+                if !has_children
+                    && let Ok(mut children) =
+                        crate::features::folder::tree::read_child_folder_rows(&path, depth)
+                    && !children.is_empty()
+                {
+                    if app.state.folder.sort_state.active {
+                        crate::core::sort_folder_rows(&mut children, &app.state.folder.sort_state);
+                    }
+                    // Insert children immediately following parent row
+                    let insert_pos = idx + 1;
+                    app.state
+                        .folder
+                        .rows
+                        .splice(insert_pos..insert_pos, children);
+                }
             }
         }
     }
@@ -360,5 +385,50 @@ mod tests {
         app.state.last_navigated_at = Some(std::time::Instant::now());
         let _ = handle_next_file(&mut app);
         assert!(app.state.is_rapid_navigating);
+    }
+
+    #[test]
+    fn test_handle_file_clicked_expand_subfolder() {
+        let temp_dir = tempfile::tempdir().expect("tempdir failed");
+        let sub_dir = temp_dir.path().join("sub");
+        std::fs::create_dir(&sub_dir).expect("create sub dir");
+        let child_file = sub_dir.join("child.txt");
+        std::fs::write(&child_file, b"content").expect("write child");
+
+        let mut app = create_test_app(vec![], 0, vec![]);
+        let sub_str = sub_dir.to_string_lossy().to_string();
+
+        app.state.folder.rows = vec![crate::core::FolderRowState {
+            name: "sub".to_string(),
+            display_name: "sub".to_string(),
+            kind: "Folder".to_string(),
+            size: "—".to_string(),
+            raw_size: 0,
+            modified: "today".to_string(),
+            raw_modified: 0,
+            path: sub_str.clone(),
+            is_dir: true,
+            icon: "folder",
+            depth: 0,
+            parent_path: None,
+        }];
+
+        // Click to expand
+        let _ = handle_file_clicked(&mut app, 0);
+
+        assert!(app.state.folder.expanded_paths.contains(&sub_str));
+        assert_eq!(app.state.folder.rows.len(), 2);
+        assert_eq!(app.state.folder.rows[1].name, "child.txt");
+        assert_eq!(app.state.folder.rows[1].depth, 1);
+        assert_eq!(
+            app.state.folder.rows[1].parent_path.as_deref(),
+            Some(sub_str.as_str())
+        );
+
+        // Click again to collapse
+        let _ = handle_file_clicked(&mut app, 0);
+        assert!(!app.state.folder.expanded_paths.contains(&sub_str));
+        // Rows still remain in state, just no longer in expanded_paths
+        assert_eq!(app.state.folder.rows.len(), 2);
     }
 }
