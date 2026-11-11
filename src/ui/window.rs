@@ -157,7 +157,9 @@ fn file_tree_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Elemen
 }
 
 fn toc_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Element<'a, Message>> {
-    let is_markdown = file_has_extension(state, "md") || file_has_extension(state, "markdown");
+    let is_markdown = file_has_extension(state, "md")
+        || file_has_extension(state, "markdown")
+        || file_has_extension(state, "ipynb");
     if is_markdown && !state.markdown.toc.is_empty() {
         let style = if state.markdown.toc_visible {
             iced::widget::button::primary
@@ -750,5 +752,26 @@ mod tests {
         let font = iced::Font::DEFAULT;
         let indicator = epub_progress_indicator(&state, font);
         assert!(indicator.is_some());
+    }
+
+    #[test]
+    fn test_ipynb_toc_toggle_button() {
+        let mut state = KglanceState {
+            file_name: "test.ipynb".to_string(),
+            ..Default::default()
+        };
+        let font = iced::Font::DEFAULT;
+
+        // Empty TOC: no button
+        assert!(toc_toggle_button(&state, font).is_none());
+
+        // Has TOC: button present
+        state.markdown.toc.push(crate::core::types::TocEntry {
+            level: 1,
+            text: "Heading".to_string(),
+            block_index: 0,
+            y_offset: 24.0,
+        });
+        assert!(toc_toggle_button(&state, font).is_some());
     }
 }

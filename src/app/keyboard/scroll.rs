@@ -488,7 +488,7 @@ impl KglanceApp {
         self.state.file_tree.visible = false;
 
         match self.current_content.as_ref()? {
-            PreviewData::Markdown { .. } => Some(Task::done(
+            PreviewData::Markdown { .. } | PreviewData::Notebook { .. } => Some(Task::done(
                 crate::app::messages::MarkdownMsg::TocToggled.into(),
             )),
             PreviewData::Epub { .. } => Some(Task::done(
@@ -508,7 +508,6 @@ impl KglanceApp {
             | PreviewData::Json { .. }
             | PreviewData::Font { .. }
             | PreviewData::Model3d(_)
-            | PreviewData::Notebook(_)
             | PreviewData::Unsupported(_)
             | PreviewData::Error(_) => None,
         }
