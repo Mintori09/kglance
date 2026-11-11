@@ -100,20 +100,11 @@ pub async fn process_page_loading<F>(
         let current_page = visible_page.load(Ordering::Relaxed);
         let window_range = WindowRange::new(current_page, total_pages, PRELOAD_RADIUS);
 
-        let mut unrendered_pages =
+        let unrendered_pages =
             find_unrendered_window_pages(&rendered_pages, &window_range, current_page);
 
         if unrendered_pages.is_empty() {
-            let mut remaining: Vec<usize> = (0..total_pages)
-                .filter(|&idx| !rendered_pages[idx])
-                .collect();
-
-            if remaining.is_empty() {
-                break;
-            }
-
-            remaining.sort_by_key(|&idx| idx.abs_diff(current_page));
-            unrendered_pages = remaining;
+            break;
         }
 
         let batch: Vec<usize> = unrendered_pages.into_iter().take(BATCH_SIZE).collect();

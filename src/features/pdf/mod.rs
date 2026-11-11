@@ -18,7 +18,7 @@ pub mod update;
 pub mod view;
 pub mod viewport;
 
-pub use cache::PdfDiskCache;
+pub use cache::{PdfDiskCache, clean_stale_pdf_caches};
 pub use goto_dialog::{GotoPageState, view_goto_dialog};
 pub use handler::lazy_load_thumbnails;
 pub use lazy_handler::lazy_load_pages;

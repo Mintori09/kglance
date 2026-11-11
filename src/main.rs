@@ -140,6 +140,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     log_info!("Initializing daemon...");
+    kglance::features::pdf::clean_stale_pdf_caches();
     let registry = Arc::new(build_registry());
     let (tx, rx) = tokio::sync::mpsc::channel::<dbus::DaemonCommand>(100);
     let (perf_tx, perf_rx) = tokio::sync::mpsc::channel::<kglance::dbus::PreviewDisplayedEvent>(32);
@@ -217,6 +218,7 @@ fn run_standalone_internal(
     bench_start_time: Option<std::time::Instant>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     log_info!("Running standalone preview for: {:?}", paths);
+    kglance::features::pdf::clean_stale_pdf_caches();
     let start_time = bench_start_time.unwrap_or_else(std::time::Instant::now);
     let is_bench = bench_start_time.is_some();
     let registry = std::sync::Arc::new(build_registry());

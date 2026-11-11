@@ -118,6 +118,75 @@ impl PdfDiskCache {
     }
 }
 
+/// Checks if a process with `pid` is currently alive.
+#[cfg(unix)]
+fn is_process_alive(pid: i32) -> bool {
+    if pid <= 0 {
+        return false;
+    }
+    // kill(pid, 0) checks if process exists without sending a signal.
+    // If it returns 0, process exists. If ESRCH, process does not exist.
+    // If EPERM, process exists but belongs to another user.
+    let ret = unsafe { libc::kill(pid, 0) };
+    if ret == 0 {
+        true
+    } else {
+        std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+    }
+}
+
+#[cfg(not(unix))]
+fn is_process_alive(_pid: i32) -> bool {
+    true
+}
+
+/// Scans the system temporary directory for orphaned PDF session cache directories
+/// (`kglance-pdf-{pid}-{timestamp}`) left behind by previous crashes or unclean exits.
+/// If the owner process is no longer alive, the directory is safely removed.
+pub fn clean_stale_pdf_caches() {
+    let temp_dir = std::env::temp_dir();
+    let entries = match fs::read_dir(&temp_dir) {
+        Ok(entries) => entries,
+        Err(e) => {
+            crate::log_debug!("[PDF_CACHE] Failed to read temp directory: {e}");
+            return;
+        }
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        let file_name = match path.file_name().and_then(|f| f.to_str()) {
+            Some(name) => name,
+            None => continue,
+        };
+
+        if let Some(rest) = file_name.strip_prefix("kglance-pdf-") {
+            let mut parts = rest.split('-');
+            let pid_str = match parts.next() {
+                Some(p) => p,
+                None => continue,
+            };
+
+            let pid: i32 = match pid_str.parse() {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+
+            if !is_process_alive(pid) {
+                crate::log_info!(
+                    "[PDF_CACHE] Cleaning stale cache dir for dead pid {pid}: {}",
+                    path.display()
+                );
+                let _ = fs::remove_dir_all(&path);
+            }
+        }
+    }
+}
+
 impl Drop for PdfDiskCache {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.dir);
@@ -176,5 +245,38 @@ mod tests {
             cache.dir.clone()
         };
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn test_clean_stale_pdf_caches_removes_dead_pid_and_preserves_alive() {
+        let temp_dir = std::env::temp_dir();
+        // A pid unlikely to exist (999999)
+        let dead_pid = 999_999;
+        let dead_dir = temp_dir.join(format!("kglance-pdf-{dead_pid}-123456"));
+        fs::create_dir_all(&dead_dir).unwrap();
+        fs::write(dead_dir.join("dummy.png"), b"test").unwrap();
+
+        // Current process is alive
+        let alive_pid = std::process::id();
+        let alive_dir = temp_dir.join(format!("kglance-pdf-{alive_pid}-654321"));
+        fs::create_dir_all(&alive_dir).unwrap();
+        fs::write(alive_dir.join("dummy.png"), b"test").unwrap();
+
+        // Unrelated folder in temp
+        let unrelated_dir = temp_dir.join("kglance-other-test-folder");
+        fs::create_dir_all(&unrelated_dir).unwrap();
+
+        clean_stale_pdf_caches();
+
+        assert!(!dead_dir.exists(), "Stale dead pid cache must be removed");
+        assert!(alive_dir.exists(), "Active pid cache must be preserved");
+        assert!(
+            unrelated_dir.exists(),
+            "Unrelated temp dir must be preserved"
+        );
+
+        // Cleanup test fixtures
+        let _ = fs::remove_dir_all(&alive_dir);
+        let _ = fs::remove_dir_all(&unrelated_dir);
     }
 }
