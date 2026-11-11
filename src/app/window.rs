@@ -180,9 +180,16 @@ impl KglanceApp {
     }
 
     pub(crate) fn create_new_window(&self) -> Task<Message> {
-        let default_size = self.state.window_default_size;
+        let initial_size = self
+            .current_content
+            .as_ref()
+            .filter(|c| c.supports_custom_initial_size())
+            .map(|c| c.initial_window_size(&self.state))
+            .filter(|size| size.width > 0.0 && size.height > 0.0)
+            .unwrap_or(self.state.window_default_size);
+
         let settings = WindowSettings {
-            size: default_size,
+            size: initial_size,
             min_size: Some(self.state.window_min_size),
             icon: crate::load_app_icon(),
             exit_on_close_request: false,

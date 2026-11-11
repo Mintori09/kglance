@@ -10,7 +10,7 @@ use iced::widget::{container, text};
 
 const EMPTY_LABEL: &str = "No image loaded";
 const EMPTY_LABEL_FONT_SIZE: f32 = typography::DISPLAY;
-const HEADER_HEIGHT: f32 = 50.0;
+pub const FOOTER_HEIGHT: f32 = 30.0;
 
 pub fn is_loaded(state: &ImageState) -> bool {
     state.handle.is_some() || state.preview_handle.is_some() || state.display_handle.is_some()
@@ -134,7 +134,7 @@ pub fn calculate_window_size(
     let scale = (win_w / img_w).min(win_h / img_h).min(1.0);
 
     let calculated_w = (img_w * scale).max(200.0);
-    let calculated_h = (img_h * scale + HEADER_HEIGHT).max(150.0);
+    let calculated_h = (img_h * scale + FOOTER_HEIGHT).max(150.0);
 
     Size::new(calculated_w, calculated_h)
 }
@@ -177,7 +177,7 @@ mod tests {
     fn test_calculate_window_size_scaling() {
         let size = calculate_window_size(1000.0, 800.0, 500, 400);
         assert_eq!(size.width, 500.0);
-        assert_eq!(size.height, 400.0 + HEADER_HEIGHT);
+        assert_eq!(size.height, 400.0 + FOOTER_HEIGHT);
     }
 
     #[test]
