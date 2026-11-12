@@ -25,8 +25,8 @@ pub fn preview_size_limit(ext: &str) -> u64 {
         // 3D Models: 100 MB (prevents high VRAM/RAM inflation during mesh expansion)
         "stl" | "obj" => 100 * MB,
 
-        // Default (text, code, structured data, other): 20 MB
-        _ => 20 * MB,
+        // Default (text, code, structured data, other): 10 GB
+        _ => 10 * GB,
     }
 }
 
