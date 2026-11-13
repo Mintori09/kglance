@@ -810,9 +810,12 @@ impl KglanceApp {
 
         let mut tasks = self.prepare_file_tasks(&path, &content);
         if let Some(id) = self.window_id
-            && matches!(content, PreviewData::Unsupported(_))
+            && content.supports_custom_initial_size()
         {
-            tasks.push(iced::window::resize(id, iced::Size::new(450.0, 380.0)));
+            let target_size = content.initial_window_size(&self.state);
+            if target_size.width > 0.0 && target_size.height > 0.0 {
+                tasks.push(iced::window::resize(id, target_size));
+            }
         }
         tasks.push(self.restore_read_position_for(&path));
         tasks.push(self.trigger_preload());

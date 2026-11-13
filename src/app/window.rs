@@ -363,7 +363,7 @@ impl KglanceApp {
 }
 
 impl PreviewData {
-    fn supports_custom_initial_size(&self) -> bool {
+    pub(crate) fn supports_custom_initial_size(&self) -> bool {
         matches!(
             self,
             PreviewData::Image { .. }
@@ -447,5 +447,29 @@ mod tests {
         assert_eq!(app.window_id, Some(window_id));
         assert!(app.is_gui_open.load(std::sync::atomic::Ordering::Acquire));
         let _ = duplicate_task;
+    }
+
+    #[test]
+    fn test_handle_file_loaded_resizes_window_for_custom_sized_content() {
+        let mut app = test_app(None);
+        let window_id = iced::window::Id::unique();
+        app.window_id = Some(window_id);
+        app.state.window_default_size = iced::Size::new(1024.0, 768.0);
+
+        let media_content = crate::core::PreviewData::Media {
+            url: "/tmp/sample.mp4".to_string(),
+            metadata: "Video Duration: 10.0s".to_string(),
+            thumbnail_or_waveform: Vec::new(),
+            width: 1920,
+            height: 1080,
+        };
+
+        let target_size = media_content.initial_window_size(&app.state);
+        assert_eq!(target_size.width, 1024.0);
+        assert_eq!(target_size.height, 606.0);
+
+        let _task = app.handle_file_loaded("/tmp/sample.mp4".to_string(), media_content);
+        assert_eq!(app.state.file_name, "/tmp/sample.mp4");
+        assert!(app.current_content.is_some());
     }
 }
