@@ -13,8 +13,15 @@ fn collect_image_entries<'a>(block: &'a Block, out: &mut Vec<(&'a str, Option<u3
         } => {
             out.push((path.as_str(), *width, *height));
         }
+        Block::Paragraph(inlines)
+        | Block::Heading {
+            content: inlines, ..
+        } => {
+            collect_image_entries_from_inlines(inlines, out);
+        }
         Block::List { items, .. } => {
             for item in items {
+                collect_image_entries_from_inlines(&item.content, out);
                 for sb in &item.sub_blocks {
                     collect_image_entries(sb, out);
                 }
@@ -31,8 +38,67 @@ fn collect_image_entries<'a>(block: &'a Block, out: &mut Vec<(&'a str, Option<u3
                 collect_image_entries(b, out);
             }
         }
+        Block::Table(table) => {
+            for header in &table.headers {
+                collect_image_entries_from_inlines(&header.content, out);
+            }
+            for row in &table.rows {
+                for cell in row {
+                    collect_image_entries_from_inlines(&cell.content, out);
+                }
+            }
+        }
         _ => {}
     }
+}
+
+fn collect_image_entries_from_inlines<'a>(
+    inlines: &'a [crate::parsers::markdown::Inline],
+    out: &mut Vec<(&'a str, Option<u32>, Option<u32>)>,
+) {
+    for inline in inlines {
+        match inline {
+            crate::parsers::markdown::Inline::Image {
+                url, width, height, ..
+            } => {
+                out.push((url.as_str(), *width, *height));
+            }
+            crate::parsers::markdown::Inline::Bold(sub)
+            | crate::parsers::markdown::Inline::Italic(sub)
+            | crate::parsers::markdown::Inline::Strikethrough(sub)
+            | crate::parsers::markdown::Inline::Underline(sub)
+            | crate::parsers::markdown::Inline::Link { text: sub, .. } => {
+                collect_image_entries_from_inlines(sub, out);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn is_svg_data(path: &str, bytes: &[u8]) -> bool {
+    if path.ends_with(".svg") {
+        return true;
+    }
+    let trimmed = bytes
+        .iter()
+        .position(|&b| !b.is_ascii_whitespace())
+        .map(|i| &bytes[i..])
+        .unwrap_or(bytes);
+    trimmed.starts_with(b"<?xml") || trimmed.starts_with(b"<svg")
+}
+
+pub fn rasterize_svg_to_png(svg_bytes: &[u8]) -> Option<(Vec<u8>, (u32, u32))> {
+    let opt = resvg::usvg::Options::default();
+    let rtree = resvg::usvg::Tree::from_data(svg_bytes, &opt).ok()?;
+    let pixmap_size = rtree.size().to_int_size();
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height())?;
+    resvg::render(
+        &rtree,
+        resvg::usvg::Transform::default(),
+        &mut pixmap.as_mut(),
+    );
+    let png_data = pixmap.encode_png().ok()?;
+    Some((png_data, (pixmap_size.width(), pixmap_size.height())))
 }
 
 pub fn ensure_blocks_images(
@@ -55,6 +121,20 @@ pub fn ensure_blocks_images(
                 .and_then(|n| n.to_str())
                 .unwrap_or(img_path);
             if let Some(bytes) = images.get(img_path).or_else(|| images.get(filename)) {
+                if is_svg_data(img_path, bytes)
+                    && let Some((png_bytes, (w, h))) = rasterize_svg_to_png(bytes)
+                {
+                    let handle = iced::widget::image::Handle::from_bytes(png_bytes);
+                    markdown_state
+                        .cached_image_handles
+                        .insert(img_path.to_string(), handle);
+                    let final_dims = (explicit_w.unwrap_or(w), explicit_h.unwrap_or(h));
+                    markdown_state
+                        .cached_image_sizes
+                        .insert(img_path.to_string(), final_dims);
+                    continue;
+                }
+
                 let handle = iced::widget::image::Handle::from_bytes(bytes.clone());
                 markdown_state
                     .cached_image_handles

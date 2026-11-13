@@ -567,7 +567,21 @@ impl<'a> EventStream<'a> {
                 Some(Event::Start(Tag::Paragraph)) => {
                     let inlines = self.parse_inlines();
                     let _ = self.iter.next();
-                    let item_blocks = split_inlines(inlines);
+                    let has_non_image = inlines.iter().any(|i| match i {
+                        Inline::Image { .. } => false,
+                        Inline::Text(t) => !t.trim().is_empty(),
+                        Inline::Link { text, .. }
+                            if text.len() == 1 && matches!(&text[0], Inline::Image { .. }) =>
+                        {
+                            false
+                        }
+                        _ => true,
+                    });
+                    let item_blocks = if has_non_image {
+                        split_inlines_by_display_math(inlines)
+                    } else {
+                        split_inlines(inlines)
+                    };
                     for b in item_blocks {
                         match b {
                             Block::Paragraph(p_inlines) => {

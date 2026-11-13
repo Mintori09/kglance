@@ -93,7 +93,7 @@ mod tests {
     #[test]
     fn test_default_limits() {
         for ext in ["txt", "rs", "py", "json", "md", "csv", "unknown", ""] {
-            assert_eq!(preview_size_limit(ext), 20 * MB);
+            assert_eq!(preview_size_limit(ext), 10 * GB);
         }
     }
 }

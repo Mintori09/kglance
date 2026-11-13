@@ -3528,3 +3528,100 @@ fn test_load_chapter_content_and_images_cached_roundtrip() {
 
     let _ = std::fs::remove_file(test_epub_path);
 }
+
+#[test]
+fn test_epub_html_list_item_with_inline_math_images() {
+    let html = r#"<li class="calibre7"><p class="calibre2"><img src="../Images/math_cab98031.svg" alt="" class="math-image"/>: the random variable <img src="../Images/math_557cf9a4.svg" alt="" class="math-image"/> follows distribution <img src="../Images/math_767a3c46.svg" alt="" class="math-image"/></p></li>"#;
+
+    let mut math_map = std::collections::HashMap::new();
+    math_map.insert("../Images/math_cab98031.svg".to_string(), "$X$".to_string());
+    math_map.insert("../Images/math_557cf9a4.svg".to_string(), "$Y$".to_string());
+    math_map.insert("../Images/math_767a3c46.svg".to_string(), "$P$".to_string());
+
+    let processed_html =
+        super::math::replace_math_images_in_html(html, |src| math_map.get(src).cloned());
+    let md = convert_html_to_markdown(&processed_html);
+    let blocks = parse_to_blocks(&md);
+
+    assert_eq!(blocks.len(), 1, "Must produce a single list block");
+    match &blocks[0] {
+        Block::List { items, .. } => {
+            assert_eq!(items.len(), 1, "Must contain exactly 1 list item");
+            let item = &items[0];
+            assert!(
+                item.sub_blocks.is_empty(),
+                "Sub blocks must be empty (not broken into sub-paragraphs)"
+            );
+
+            let has_math = item
+                .content
+                .iter()
+                .any(|inline| matches!(inline, Inline::InlineMath(_)));
+            let has_text = item
+                .content
+                .iter()
+                .any(|inline| matches!(inline, Inline::Text(_)));
+            assert!(has_math, "Item content must contain InlineMath");
+            assert!(has_text, "Item content must contain Text");
+
+            let math_count = item
+                .content
+                .iter()
+                .filter(|i| matches!(i, Inline::InlineMath(_)))
+                .count();
+            assert_eq!(math_count, 3, "Must have exactly 3 inline math elements");
+        }
+        _ => panic!("Expected Block::List, found {:?}", blocks[0]),
+    }
+}
+
+#[test]
+fn test_epub_extract_latex_from_svg() {
+    let svg_inline = r#"<?xml version="1.0" encoding="utf-8"?>
+<!-- $X \sim P$ -->
+<svg width="20" height="15" viewBox="0 0 20 15" xmlns="http://www.w3.org/2000/svg">
+</svg>"#;
+    let latex1 = super::math::extract_latex_from_svg(svg_inline);
+    assert_eq!(latex1, Some("$X \\sim P$".to_string()));
+
+    let svg_display = r#"<?xml version="1.0" encoding="utf-8"?>
+<!-- \[
+\frac{a}{b} + \sqrt{c}
+\] -->
+<svg width="100" height="50" xmlns="http://www.w3.org/2000/svg"></svg>"#;
+    let latex2 = super::math::extract_latex_from_svg(svg_display);
+    assert_eq!(latex2, Some("$$\\frac{a}{b} + \\sqrt{c}$$".to_string()));
+
+    let svg_aligned = r#"<!-- \begin{aligned}
+x &= 1 \\
+y &= 2
+\end{aligned} -->
+<svg></svg>"#;
+    let latex3 = super::math::extract_latex_from_svg(svg_aligned);
+    assert_eq!(
+        latex3,
+        Some("$$\\begin{aligned}\nx &= 1 \\\\\ny &= 2\n\\end{aligned}$$".to_string())
+    );
+
+    let svg_no_comment = r#"<svg width="10" height="10"></svg>"#;
+    assert_eq!(super::math::extract_latex_from_svg(svg_no_comment), None);
+}
+
+#[test]
+fn test_epub_svg_rasterization_to_png() {
+    use crate::features::epub::state::rasterize_svg_to_png;
+
+    let svg_bytes = br#"<svg width="120" height="80" xmlns="http://www.w3.org/2000/svg">
+        <rect width="120" height="80" fill="blue" />
+    </svg>"#;
+
+    let result = rasterize_svg_to_png(svg_bytes);
+    assert!(result.is_some(), "SVG rasterization must succeed");
+    let (png_bytes, (w, h)) = result.unwrap();
+    assert_eq!(w, 120);
+    assert_eq!(h, 80);
+    assert!(
+        png_bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]),
+        "Output must be valid PNG format"
+    );
+}

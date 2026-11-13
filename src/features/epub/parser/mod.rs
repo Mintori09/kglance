@@ -1,6 +1,7 @@
 pub mod css;
 mod html;
 mod image;
+pub mod math;
 mod ncx;
 mod opf;
 
@@ -8,6 +9,7 @@ pub use image::{
     extract_filename, extract_images_from_blocks, extract_selective_images, is_image_extension,
     is_potential_cover_image,
 };
+pub use math::{extract_latex_from_svg, process_chapter_math_in_html, replace_math_images_in_html};
 
 #[cfg(test)]
 mod tests;
@@ -49,6 +51,7 @@ pub fn parse_chapter_content<R: Read + Seek>(
 ) -> Result<Vec<Block>, ParseError> {
     let resolved_path = resolve_relative_path(opf_path, file_href);
     let html = read_archive_entry_string(archive, &resolved_path)?;
+    let html = process_chapter_math_in_html(&html, archive, &resolved_path);
     let md = convert_html_to_markdown(&html);
     let blocks = parse_to_blocks(&md);
     Ok(blocks)
@@ -88,6 +91,7 @@ pub fn load_chapter_content_and_images_cached(
 
     let resolved_path = resolve_relative_path(&opf_path, file_href);
     let html = read_archive_entry_string(&mut archive, &resolved_path)?;
+    let html = process_chapter_math_in_html(&html, &mut archive, &resolved_path);
     let md = convert_html_to_markdown_with_stylesheet(&html, stylesheet_map);
     let blocks = parse_to_blocks(&md);
     let styles = extract_blocks_styles(&html, &blocks, stylesheet_map);
@@ -357,7 +361,8 @@ pub fn load_all_chapters_and_images_from_epub(
     for href in needed_hrefs {
         let resolved = resolve_relative_path(&opf_path, &href);
         if let Ok(content) = read_archive_entry_string(&mut archive, &resolved) {
-            raw_files.push((href, content));
+            let processed_content = process_chapter_math_in_html(&content, &mut archive, &resolved);
+            raw_files.push((href, processed_content));
         }
     }
 

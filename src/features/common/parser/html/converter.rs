@@ -87,6 +87,8 @@ pub struct HtmlToMarkdownConverter<'a> {
     in_figure_caption: bool,
     in_callout_heading: bool,
     in_heading: bool,
+    in_p: bool,
+    implicit_list: bool,
     li_just_started: bool,
     p_just_started: bool,
     in_dl: bool,
@@ -154,6 +156,8 @@ impl<'a> HtmlToMarkdownConverter<'a> {
             in_figure_caption: false,
             in_callout_heading: false,
             in_heading: false,
+            in_p: false,
+            implicit_list: false,
             li_just_started: false,
             p_just_started: false,
             in_dl: false,
@@ -484,10 +488,13 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                 self.li_just_started = true;
             }
             "p" | "section" | "article" | "header" | "footer" | "figcaption" | "main" | "body" => {
+                if name == "p" {
+                    self.in_p = true;
+                }
                 if let Some(id) = extract_id_or_name(e) {
                     self.append_str(&format!("\n\n<a id=\"{id}\"></a>\n\n"));
                 }
-                if self.in_dd || !self.list_stack.is_empty() {
+                if self.in_dd || !self.list_stack.is_empty() || self.li_just_started {
                     self.li_just_started = true;
                 } else {
                     self.ensure_newline();
@@ -731,6 +738,13 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                 });
             }
             "li" => {
+                if self.list_stack.is_empty() {
+                    self.list_stack.push(ListContext {
+                        ordered: false,
+                        index: 1,
+                    });
+                    self.implicit_list = true;
+                }
                 if let Some(id) = extract_id_or_name(e) {
                     self.append_str(&format!("<a id=\"{id}\"></a> "));
                 }
@@ -962,6 +976,12 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                 self.list_stack.pop();
                 self.ensure_newline();
             }
+            "li" => {
+                if self.implicit_list && self.list_stack.len() == 1 {
+                    self.list_stack.pop();
+                    self.implicit_list = false;
+                }
+            }
             "b" | "strong" => self.append_closing_format(InlineFormat::Delim("**")),
             "i" | "em" => self.append_closing_format(InlineFormat::Delim("*")),
             "u" | "ins" => self.append_closing_format(InlineFormat::Underline),
@@ -1123,6 +1143,9 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                 self.ensure_newline();
             }
             "p" | "section" | "article" => {
+                if name == "p" {
+                    self.in_p = false;
+                }
                 self.flush_pending_formats();
                 self.p_just_started = false;
                 if self.in_ruby {
@@ -1242,6 +1265,16 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                 return;
             }
 
+            self.li_just_started = false;
+
+            let is_inline = self.in_p
+                || !self.list_stack.is_empty()
+                || self.in_cell
+                || self.in_heading
+                || self.in_dt
+                || self.in_dd
+                || !self.link_stack.is_empty();
+
             if width.is_some() || height.is_some() {
                 let w_attr = width.map(|w| format!(" width=\"{w}\"")).unwrap_or_default();
                 let h_attr = height
@@ -1252,12 +1285,20 @@ impl<'a> HtmlToMarkdownConverter<'a> {
                 } else {
                     format!(" alt=\"{alt}\"")
                 };
-                self.append_str(&format!(
-                    "\n\n<img src=\"{src}\"{alt_attr}{w_attr}{h_attr} />\n\n"
-                ));
+                if is_inline {
+                    self.append_str(&format!("<img src=\"{src}\"{alt_attr}{w_attr}{h_attr} />"));
+                } else {
+                    self.append_str(&format!(
+                        "\n\n<img src=\"{src}\"{alt_attr}{w_attr}{h_attr} />\n\n"
+                    ));
+                }
             } else {
                 let alt_text = if alt.is_empty() { "image" } else { &alt };
-                self.append_str(&format!("\n\n![{alt_text}]({src})\n\n"));
+                if is_inline {
+                    self.append_str(&format!("![{alt_text}]({src})"));
+                } else {
+                    self.append_str(&format!("\n\n![{alt_text}]({src})\n\n"));
+                }
             }
         }
     }
@@ -1943,13 +1984,20 @@ fn clean_markdown_output(text: &str) -> String {
 
             let line_to_push = normalized_line.as_deref().unwrap_or(trimmed);
 
-            if !result.is_empty() {
-                result.push_str("\n\n");
+            let is_list_continuation =
+                in_list && (line.starts_with("  ") || line.starts_with('\t'));
+            if is_list_continuation {
+                result.push('\n');
+                result.push_str(line);
+            } else {
+                if !result.is_empty() {
+                    result.push_str("\n\n");
+                }
+                result.push_str(line_to_push);
+                in_table = false;
+                in_list = false;
+                in_quote = false;
             }
-            result.push_str(line_to_push);
-            in_table = false;
-            in_list = false;
-            in_quote = false;
         }
     }
 
