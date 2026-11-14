@@ -196,22 +196,84 @@ pub fn decode_to_rgba_full(bytes: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
         }
     }
 
-    // Fallback path: image crate (PNG, WebP, GIF, BMP, or JPEG fallback)
-    let img = image::load_from_memory(bytes).ok()?;
-    let (orig_w, orig_h) = (img.width(), img.height());
-    let raw = img.to_rgba8().into_raw();
-    if orig_w > MAX_HARDWARE_TEXTURE_SIZE || orig_h > MAX_HARDWARE_TEXTURE_SIZE {
-        let (target_w, target_h) = calculate_fit_dimensions(
-            orig_w,
-            orig_h,
-            MAX_HARDWARE_TEXTURE_SIZE,
-            MAX_HARDWARE_TEXTURE_SIZE,
-        );
-        let downsampled = fast_downsample_rgba(&raw, orig_w, orig_h, target_w, target_h);
-        Some((target_w, target_h, downsampled))
+    // Fallback path 1: image crate (PNG, WebP, GIF, BMP, or JPEG fallback)
+    if let Ok(img) = image::load_from_memory(bytes) {
+        let (orig_w, orig_h) = (img.width(), img.height());
+        let raw = img.to_rgba8().into_raw();
+        if orig_w > MAX_HARDWARE_TEXTURE_SIZE || orig_h > MAX_HARDWARE_TEXTURE_SIZE {
+            let (target_w, target_h) = calculate_fit_dimensions(
+                orig_w,
+                orig_h,
+                MAX_HARDWARE_TEXTURE_SIZE,
+                MAX_HARDWARE_TEXTURE_SIZE,
+            );
+            let downsampled = fast_downsample_rgba(&raw, orig_w, orig_h, target_w, target_h);
+            Some((target_w, target_h, downsampled))
+        } else {
+            Some((orig_w, orig_h, raw))
+        }
     } else {
-        Some((orig_w, orig_h, raw))
+        // Fallback path 2: SVG rendering via resvg
+        decode_svg_to_rgba(bytes)
     }
+}
+
+pub fn decode_svg_to_rgba(bytes: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
+    let trimmed = bytes
+        .iter()
+        .position(|&b| !b.is_ascii_whitespace())
+        .map(|i| &bytes[i..])
+        .unwrap_or(bytes);
+    let is_svg = trimmed.starts_with(b"<svg")
+        || trimmed.starts_with(b"<?xml")
+        || trimmed.starts_with(b"<!DOCTYPE svg");
+    if !is_svg {
+        return None;
+    }
+
+    let opt = resvg::usvg::Options::default();
+    let rtree = resvg::usvg::Tree::from_data(bytes, &opt).ok()?;
+    let pixmap_size = rtree.size().to_int_size();
+    let (orig_w, orig_h) = (pixmap_size.width(), pixmap_size.height());
+    if orig_w == 0 || orig_h == 0 {
+        return None;
+    }
+
+    let (target_w, target_h, transform) =
+        if orig_w > MAX_HARDWARE_TEXTURE_SIZE || orig_h > MAX_HARDWARE_TEXTURE_SIZE {
+            let (w, h) = calculate_fit_dimensions(
+                orig_w,
+                orig_h,
+                MAX_HARDWARE_TEXTURE_SIZE,
+                MAX_HARDWARE_TEXTURE_SIZE,
+            );
+            let sx = w as f32 / orig_w as f32;
+            let sy = h as f32 / orig_h as f32;
+            (w, h, resvg::usvg::Transform::from_scale(sx, sy))
+        } else {
+            (orig_w, orig_h, resvg::usvg::Transform::default())
+        };
+
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(target_w, target_h)?;
+    resvg::render(&rtree, transform, &mut pixmap.as_mut());
+    let mut raw = pixmap.take();
+
+    // Convert tiny_skia premultiplied RGBA to straight RGBA
+    for chunk in raw.as_chunks_mut::<4>().0 {
+        let a = chunk[3];
+        if a == 0 {
+            chunk[0] = 0;
+            chunk[1] = 0;
+            chunk[2] = 0;
+        } else if a < 255 {
+            let a_u32 = a as u32;
+            chunk[0] = ((chunk[0] as u32 * 255 + a_u32 / 2) / a_u32).min(255) as u8;
+            chunk[1] = ((chunk[1] as u32 * 255 + a_u32 / 2) / a_u32).min(255) as u8;
+            chunk[2] = ((chunk[2] as u32 * 255 + a_u32 / 2) / a_u32).min(255) as u8;
+        }
+    }
+
+    Some((target_w, target_h, raw))
 }
 
 pub fn decode_to_rgba_downsampled(
@@ -657,5 +719,45 @@ mod tests {
             assert_eq!(chunk[2], 0);
             assert_eq!(chunk[3], 255);
         }
+    }
+
+    #[test]
+    fn test_decode_svg_to_rgba() {
+        let svg_data = br##"<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32">
+            <rect width="64" height="32" fill="#ff0000"/>
+        </svg>"##;
+
+        let result = decode_svg_to_rgba(svg_data);
+        assert!(
+            result.is_some(),
+            "SVG should be successfully decoded to RGBA"
+        );
+        let (w, h, pixels) = result.unwrap();
+        assert_eq!(w, 64);
+        assert_eq!(h, 32);
+        assert_eq!(pixels.len(), 64 * 32 * 4);
+
+        // First pixel should be pure red
+        assert_eq!(&pixels[0..4], &[255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn test_decode_to_rgba_handle_svg() {
+        let svg_data = br##"<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">
+            <circle cx="25" cy="25" r="20" fill="blue"/>
+        </svg>"##;
+
+        let res = decode_to_rgba_handle(svg_data);
+        assert!(res.is_some(), "decode_to_rgba_handle should succeed on SVG");
+        let (_handle, w, h) = res.unwrap();
+        assert_eq!(w, 50);
+        assert_eq!(h, 50);
+    }
+
+    #[test]
+    fn test_decode_svg_to_rgba_non_svg() {
+        assert!(decode_svg_to_rgba(b"").is_none());
+        assert!(decode_svg_to_rgba(b"not an svg string").is_none());
+        assert!(decode_svg_to_rgba(&[137, 80, 78, 71, 13, 10, 26, 10]).is_none());
     }
 }

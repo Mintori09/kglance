@@ -1224,6 +1224,48 @@ fn test_epub_image_lightbox_open_close_and_navigate() {
 }
 
 #[test]
+fn test_epub_image_lightbox_svg_display_dimensions() {
+    let svg_content = br##"<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80">
+        <rect width="120" height="80" fill="#336699"/>
+    </svg>"##
+        .to_vec();
+
+    let mut images = std::collections::HashMap::new();
+    images.insert("images/0001_book-org.svg".to_string(), svg_content);
+
+    let chapters = vec![crate::core::types::EpubChapterInfo {
+        title: "Chapter 1".into(),
+        level: 1,
+        anchor: None,
+        file_href: "ch1.xhtml".into(),
+        blocks: vec![crate::features::markdown::Block::Image {
+            path: "images/0001_book-org.svg".into(),
+            link_url: None,
+            width: None,
+            height: None,
+            alt: "Book org".into(),
+        }],
+    }];
+
+    let mut app = test_app(Some(crate::core::PreviewData::Epub {
+        title: "Test SVG Lightbox".into(),
+        author: "Author".into(),
+        chapters: chapters.clone(),
+        active_chapter: 0,
+        images,
+    }));
+    app.state.epub.chapters = chapters;
+
+    let _ = handle_open_image_lightbox(&mut app, "images/0001_book-org.svg".to_string());
+    assert!(app.state.epub.lightbox.is_some());
+    let lb = app.state.epub.lightbox.as_ref().unwrap();
+    assert_eq!(lb.active_path, "images/0001_book-org.svg");
+    assert_eq!(lb.image_state.display_width, 120);
+    assert_eq!(lb.image_state.display_height, 80);
+    assert!(lb.image_state.display_handle.is_some());
+}
+
+#[test]
 fn test_epub_sidebar_tab_changed() {
     let mut app = test_app(Some(epub_content(&["Ch 1"])));
     assert_eq!(
