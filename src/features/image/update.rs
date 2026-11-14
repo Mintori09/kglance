@@ -255,6 +255,7 @@ pub fn decode_svg_to_rgba(bytes: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
         };
 
     let mut pixmap = resvg::tiny_skia::Pixmap::new(target_w, target_h)?;
+    pixmap.fill(resvg::tiny_skia::Color::WHITE);
     resvg::render(&rtree, transform, &mut pixmap.as_mut());
     let mut raw = pixmap.take();
 
@@ -739,6 +740,21 @@ mod tests {
 
         // First pixel should be pure red
         assert_eq!(&pixels[0..4], &[255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn test_decode_svg_to_rgba_transparent_fills_white() {
+        let svg_data = br##"<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30">
+            <!-- No background rect, transparent canvas -->
+        </svg>"##;
+
+        let result = decode_svg_to_rgba(svg_data);
+        assert!(result.is_some());
+        let (w, h, pixels) = result.unwrap();
+        assert_eq!(w, 30);
+        assert_eq!(h, 30);
+        // Canvas should be filled with opaque white for document/diagram readability
+        assert_eq!(&pixels[0..4], &[255, 255, 255, 255]);
     }
 
     #[test]

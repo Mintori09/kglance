@@ -165,7 +165,7 @@ pub fn render_lightbox<'a>(lightbox: &'a LightboxState) -> Element<'a, Message> 
         .width(Length::Fill)
         .height(Length::Fill)
         .style(|_| container::Style {
-            background: Some(Color::from_rgba(0.04, 0.05, 0.07, 0.92).into()),
+            background: Some(Color::from_rgb(0.04, 0.05, 0.07).into()),
             ..Default::default()
         })
         .into()

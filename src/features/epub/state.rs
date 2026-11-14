@@ -152,6 +152,7 @@ pub fn rasterize_svg_to_png(svg_bytes: &[u8]) -> Option<(Vec<u8>, (u32, u32))> {
     let rtree = resvg::usvg::Tree::from_data(svg_bytes, &opt).ok()?;
     let pixmap_size = rtree.size().to_int_size();
     let mut pixmap = resvg::tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height())?;
+    pixmap.fill(resvg::tiny_skia::Color::WHITE);
     resvg::render(
         &rtree,
         resvg::usvg::Transform::default(),
