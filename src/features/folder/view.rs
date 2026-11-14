@@ -554,6 +554,7 @@ fn create_folder_row<'a>(
             .width(Length::Fixed(COLUMN_WIDTH_MODIFIED)),
     ]
     .align_y(Alignment::Center)
+    .height(Length::Fill)
     .padding(ROW_CONTENT_PADDING)
     .spacing(ROW_CONTENT_SPACING);
 
