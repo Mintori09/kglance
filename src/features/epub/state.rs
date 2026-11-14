@@ -87,6 +87,66 @@ fn is_svg_data(path: &str, bytes: &[u8]) -> bool {
     trimmed.starts_with(b"<?xml") || trimmed.starts_with(b"<svg")
 }
 
+pub fn parse_svg_dimensions(svg_bytes: &[u8]) -> Option<(u32, u32)> {
+    let header_len = svg_bytes.len().min(4096);
+    let header = std::str::from_utf8(&svg_bytes[..header_len]).ok()?;
+    let svg_tag_start = header.find("<svg")?;
+    let rest = &header[svg_tag_start..];
+    let tag_end = rest.find('>')?;
+    let tag = &rest[..tag_end];
+
+    fn extract_attr<'a>(tag: &'a str, attr: &str) -> Option<&'a str> {
+        let mut search = 0;
+        while let Some(pos) = tag[search..].find(attr) {
+            let abs_pos = search + pos;
+            let is_boundary = abs_pos == 0
+                || tag.as_bytes()[abs_pos - 1].is_ascii_whitespace()
+                || tag.as_bytes()[abs_pos - 1] == b':';
+            let after = &tag[abs_pos + attr.len()..].trim_start();
+            if is_boundary && after.starts_with('=') {
+                let val_part = after[1..].trim_start();
+                let quote = val_part.chars().next()?;
+                if quote == '"' || quote == '\'' {
+                    let rest_val = &val_part[1..];
+                    let end = rest_val.find(quote)?;
+                    return Some(&rest_val[..end]);
+                }
+            }
+            search = abs_pos + attr.len();
+        }
+        None
+    }
+
+    fn parse_num(s: &str) -> Option<f32> {
+        let trimmed = s.trim();
+        let end_idx = trimmed
+            .find(|c: char| !c.is_ascii_digit() && c != '.')
+            .unwrap_or(trimmed.len());
+        trimmed[..end_idx].parse::<f32>().ok()
+    }
+
+    if let (Some(w_str), Some(h_str)) = (extract_attr(tag, "width"), extract_attr(tag, "height"))
+        && let (Some(w), Some(h)) = (parse_num(w_str), parse_num(h_str))
+        && w > 0.0
+        && h > 0.0
+    {
+        return Some((w.round() as u32, h.round() as u32));
+    }
+
+    if let Some(vb) = extract_attr(tag, "viewBox") {
+        let parts: Vec<f32> = vb
+            .split(|c: char| c.is_ascii_whitespace() || c == ',')
+            .filter(|s| !s.is_empty())
+            .filter_map(|p| p.parse().ok())
+            .collect();
+        if parts.len() == 4 && parts[2] > 0.0 && parts[3] > 0.0 {
+            return Some((parts[2].round() as u32, parts[3].round() as u32));
+        }
+    }
+
+    None
+}
+
 pub fn rasterize_svg_to_png(svg_bytes: &[u8]) -> Option<(Vec<u8>, (u32, u32))> {
     let opt = resvg::usvg::Options::default();
     let rtree = resvg::usvg::Tree::from_data(svg_bytes, &opt).ok()?;
@@ -101,64 +161,140 @@ pub fn rasterize_svg_to_png(svg_bytes: &[u8]) -> Option<(Vec<u8>, (u32, u32))> {
     Some((png_data, (pixmap_size.width(), pixmap_size.height())))
 }
 
-pub fn ensure_blocks_images(
+type RasterizedBlockImage = (String, Option<Vec<u8>>, Option<(u32, u32)>);
+
+pub fn ensure_blocks_images_parallel(
     markdown_state: &mut MarkdownState,
     blocks: &[Block],
     images: &HashMap<String, Vec<u8>>,
 ) {
-    let mut dims_cache: HashMap<&[u8], (u32, u32)> = HashMap::new();
+    use rayon::prelude::*;
 
+    let mut entries = Vec::new();
     for block in blocks {
-        let mut entries = Vec::new();
         collect_image_entries(block, &mut entries);
-        for (img_path, explicit_w, explicit_h) in entries {
-            if markdown_state.cached_image_handles.contains_key(img_path) {
-                continue;
+    }
+
+    let mut needed: Vec<(&str, Option<u32>, Option<u32>)> = Vec::new();
+    let mut seen = HashSet::new();
+    for (img_path, exp_w, exp_h) in entries {
+        if seen.insert(img_path) && !markdown_state.cached_image_handles.contains_key(img_path) {
+            needed.push((img_path, exp_w, exp_h));
+        }
+    }
+
+    let results: Vec<RasterizedBlockImage> = needed
+        .into_par_iter()
+        .map(|(img_path, explicit_w, explicit_h)| {
+            let filename = std::path::Path::new(img_path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(img_path);
+
+            if let Some(bytes) = images.get(img_path).or_else(|| images.get(filename)) {
+                if is_svg_data(img_path, bytes) {
+                    if let Some((png_bytes, (w, h))) = rasterize_svg_to_png(bytes) {
+                        let final_dims = (explicit_w.unwrap_or(w), explicit_h.unwrap_or(h));
+                        (img_path.to_string(), Some(png_bytes), Some(final_dims))
+                    } else {
+                        (img_path.to_string(), None, None)
+                    }
+                } else {
+                    let dims = if let (Some(w), Some(h)) = (explicit_w, explicit_h) {
+                        Some((w, h))
+                    } else if let Ok(reader) =
+                        image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()
+                        && let Ok(d) = reader.into_dimensions()
+                    {
+                        Some(d)
+                    } else {
+                        None
+                    };
+                    (img_path.to_string(), Some(bytes.clone()), dims)
+                }
+            } else {
+                (img_path.to_string(), None, None)
+            }
+        })
+        .collect();
+
+    for (path, img_bytes, dims) in results {
+        if let Some(bytes) = img_bytes {
+            let handle = iced::widget::image::Handle::from_bytes(bytes);
+            markdown_state
+                .cached_image_handles
+                .insert(path.clone(), handle);
+        }
+        if let Some(d) = dims {
+            markdown_state.cached_image_sizes.insert(path, d);
+        }
+    }
+}
+
+pub fn ensure_blocks_image_sizes_fast(
+    markdown_state: &mut MarkdownState,
+    blocks: &[Block],
+    images: &HashMap<String, Vec<u8>>,
+) {
+    use rayon::prelude::*;
+
+    let mut entries = Vec::new();
+    for block in blocks {
+        collect_image_entries(block, &mut entries);
+    }
+
+    let mut needed: Vec<(&str, Option<u32>, Option<u32>)> = Vec::new();
+    let mut seen = HashSet::new();
+    for (img_path, exp_w, exp_h) in entries {
+        if seen.insert(img_path) && !markdown_state.cached_image_sizes.contains_key(img_path) {
+            needed.push((img_path, exp_w, exp_h));
+        }
+    }
+
+    let results: Vec<(String, Option<(u32, u32)>)> = needed
+        .into_par_iter()
+        .map(|(img_path, explicit_w, explicit_h)| {
+            if let (Some(w), Some(h)) = (explicit_w, explicit_h) {
+                return (img_path.to_string(), Some((w, h)));
             }
 
             let filename = std::path::Path::new(img_path)
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or(img_path);
-            if let Some(bytes) = images.get(img_path).or_else(|| images.get(filename)) {
-                if is_svg_data(img_path, bytes)
-                    && let Some((png_bytes, (w, h))) = rasterize_svg_to_png(bytes)
-                {
-                    let handle = iced::widget::image::Handle::from_bytes(png_bytes);
-                    markdown_state
-                        .cached_image_handles
-                        .insert(img_path.to_string(), handle);
-                    let final_dims = (explicit_w.unwrap_or(w), explicit_h.unwrap_or(h));
-                    markdown_state
-                        .cached_image_sizes
-                        .insert(img_path.to_string(), final_dims);
-                    continue;
-                }
 
-                let handle = iced::widget::image::Handle::from_bytes(bytes.clone());
-                markdown_state
-                    .cached_image_handles
-                    .insert(img_path.to_string(), handle);
-                if let (Some(w), Some(h)) = (explicit_w, explicit_h) {
-                    markdown_state
-                        .cached_image_sizes
-                        .insert(img_path.to_string(), (w, h));
-                } else if let Some(&dims) = dims_cache.get(bytes.as_slice()) {
-                    markdown_state
-                        .cached_image_sizes
-                        .insert(img_path.to_string(), dims);
+            if let Some(bytes) = images.get(img_path).or_else(|| images.get(filename)) {
+                if is_svg_data(img_path, bytes) {
+                    let dims = parse_svg_dimensions(bytes)
+                        .map(|(w, h)| (explicit_w.unwrap_or(w), explicit_h.unwrap_or(h)));
+                    (img_path.to_string(), dims)
                 } else if let Ok(reader) =
                     image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()
-                    && let Ok(dims) = reader.into_dimensions()
+                    && let Ok(d) = reader.into_dimensions()
                 {
-                    dims_cache.insert(bytes.as_slice(), dims);
-                    markdown_state
-                        .cached_image_sizes
-                        .insert(img_path.to_string(), dims);
+                    (img_path.to_string(), Some(d))
+                } else {
+                    (img_path.to_string(), None)
                 }
+            } else {
+                (img_path.to_string(), None)
             }
+        })
+        .collect();
+
+    for (path, dims) in results {
+        if let Some(d) = dims {
+            markdown_state.cached_image_sizes.insert(path, d);
         }
     }
+}
+
+pub fn ensure_blocks_images(
+    markdown_state: &mut MarkdownState,
+    blocks: &[Block],
+    images: &HashMap<String, Vec<u8>>,
+) {
+    ensure_blocks_images_parallel(markdown_state, blocks, images);
 }
 
 pub fn ensure_chapter_images(
@@ -260,7 +396,16 @@ pub fn populate_state(
             }
 
             let (all_blocks, offsets) = build_continuous_blocks(&chs);
-            ensure_blocks_images(&mut markdown_state, &all_blocks, &imgs);
+            ensure_blocks_image_sizes_fast(&mut markdown_state, &all_blocks, &imgs);
+
+            // Pre-rasterize images for initial viewport (up to VIRTUAL_THRESHOLD * 2 blocks)
+            let initial_block_count = all_blocks.len().min(120);
+            ensure_blocks_images(
+                &mut markdown_state,
+                &all_blocks[..initial_block_count],
+                &imgs,
+            );
+
             let content_width = state.epub_content_width();
             crate::features::markdown::recompute_markdown_layout(
                 &mut markdown_state,

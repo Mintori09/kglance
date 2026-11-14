@@ -47,6 +47,19 @@ fn sync_virtual_windows(app: &mut KglanceApp) {
             crate::features::markdown::view::VIRTUAL_THRESHOLD,
         );
     }
+
+    if let Some(crate::core::PreviewData::Epub { images, .. }) = &app.current_content
+        && app.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous
+    {
+        let window = app.state.epub.markdown_state.virtual_window.clone();
+        if window.end > window.start && window.end <= app.state.epub.continuous_blocks.len() {
+            crate::features::epub::state::ensure_blocks_images(
+                &mut app.state.epub.markdown_state,
+                &app.state.epub.continuous_blocks[window],
+                images,
+            );
+        }
+    }
 }
 
 fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
