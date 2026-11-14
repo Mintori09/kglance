@@ -82,6 +82,8 @@ fn supports_archive_extensions() {
     assert!(parser.is_supported(Path::new("a.7z")));
     assert!(parser.is_supported(Path::new("a.gz")));
     assert!(parser.is_supported(Path::new("a.tgz")));
+    assert!(parser.is_supported(Path::new("a.xz")));
+    assert!(parser.is_supported(Path::new("a.txz")));
     assert!(!parser.is_supported(Path::new("a.pdf")));
     assert!(!parser.is_supported(Path::new("a.txt")));
 }
@@ -189,4 +191,89 @@ fn extract_entry_succeeds_for_valid_entry() {
     assert!(extracted.path.exists());
     let content = std::fs::read_to_string(&extracted.path).unwrap();
     assert_eq!(content, "readme content");
+}
+
+#[test]
+fn parses_and_extracts_tar_gz_archive() {
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let tar_gz_path = tmp_dir.path().join("test.tar.gz");
+    {
+        let file = File::create(&tar_gz_path).unwrap();
+        let enc = flate2::write::GzEncoder::new(file, flate2::Compression::default());
+        let mut builder = ::tar::Builder::new(enc);
+
+        let mut file_header = ::tar::Header::new_gnu();
+        file_header.set_path("hello.txt").unwrap();
+        file_header.set_size(12);
+        file_header.set_entry_type(::tar::EntryType::Regular);
+        file_header.set_cksum();
+        builder
+            .append(&file_header, b"hello tar gz" as &[u8])
+            .unwrap();
+
+        let enc = builder.into_inner().unwrap();
+        enc.finish().unwrap();
+    }
+
+    let parser = ArchiveParser;
+    let result = parser.parse(&tar_gz_path).unwrap();
+    match result {
+        ParsedContent::Archive {
+            entries,
+            total_files,
+        } => {
+            assert_eq!(total_files, 1);
+            assert_eq!(entries[0].path, "hello.txt");
+            assert_eq!(entries[0].size, 12);
+        }
+        _ => panic!("expected Archive variant"),
+    }
+
+    let extracted = extract_entry(&tar_gz_path, "hello.txt").expect("should extract tar.gz");
+    assert!(extracted.path.exists());
+    let content = std::fs::read_to_string(&extracted.path).unwrap();
+    assert_eq!(content, "hello tar gz");
+}
+
+#[test]
+fn parses_and_extracts_tar_xz_archive() {
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let tar_xz_path = tmp_dir.path().join("test.tar.xz");
+    {
+        let file = File::create(&tar_xz_path).unwrap();
+        let mut xz_writer =
+            lzma_rust2::XzWriter::new(file, lzma_rust2::XzOptions::default()).unwrap();
+        {
+            let mut builder = ::tar::Builder::new(&mut xz_writer);
+            let mut file_header = ::tar::Header::new_gnu();
+            file_header.set_path("nested/world.txt").unwrap();
+            file_header.set_size(12);
+            file_header.set_entry_type(::tar::EntryType::Regular);
+            file_header.set_cksum();
+            builder
+                .append(&file_header, b"hello tar xz" as &[u8])
+                .unwrap();
+            builder.finish().unwrap();
+        }
+        xz_writer.finish().unwrap();
+    }
+
+    let parser = ArchiveParser;
+    let result = parser.parse(&tar_xz_path).unwrap();
+    match result {
+        ParsedContent::Archive {
+            entries,
+            total_files,
+        } => {
+            assert_eq!(total_files, 1);
+            assert_eq!(entries[0].path, "nested/world.txt");
+            assert_eq!(entries[0].size, 12);
+        }
+        _ => panic!("expected Archive variant"),
+    }
+
+    let extracted = extract_entry(&tar_xz_path, "nested/world.txt").expect("should extract tar.xz");
+    assert!(extracted.path.exists());
+    let content = std::fs::read_to_string(&extracted.path).unwrap();
+    assert_eq!(content, "hello tar xz");
 }

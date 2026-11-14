@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::Read;
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use super::MAX_EXTRACT_BYTES;
@@ -7,9 +7,28 @@ use crate::{
     core::utils::format_timestamp,
     features::{archive::types::ArchiveEntry, common::parser::traits::ParseError},
 };
+
+fn open_tar_reader(archive_path: &Path) -> Result<Box<dyn Read>, ParseError> {
+    let mut file = File::open(archive_path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+    let mut magic = [0u8; 6];
+    let bytes_read = file.read(&mut magic).unwrap_or(0);
+    file.seek(SeekFrom::Start(0))
+        .map_err(|e| ParseError::ParseFailed(e.to_string()))?;
+
+    let reader: Box<dyn Read> = if bytes_read >= 2 && magic[0..2] == [0x1F, 0x8B] {
+        Box::new(flate2::read::MultiGzDecoder::new(BufReader::new(file)))
+    } else if bytes_read >= 6 && magic[0..6] == [0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00] {
+        Box::new(lzma_rust2::XzReader::new(BufReader::new(file), true))
+    } else {
+        Box::new(BufReader::new(file))
+    };
+
+    Ok(reader)
+}
+
 pub fn list_tar_entries(archive_path: &Path) -> Result<Vec<ArchiveEntry>, ParseError> {
-    let file = File::open(archive_path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-    let mut archive = tar::Archive::new(file);
+    let reader = open_tar_reader(archive_path)?;
+    let mut archive = tar::Archive::new(reader);
     let archive_path_str = archive_path.to_string_lossy().to_string();
 
     let tar_entries = archive
@@ -44,8 +63,8 @@ pub fn extract_from_tar(
     entry_path: &str,
     output_path: &Path,
 ) -> Result<(), ParseError> {
-    let file = File::open(archive_path).map_err(|e| ParseError::ParseFailed(e.to_string()))?;
-    let mut archive = tar::Archive::new(file);
+    let reader = open_tar_reader(archive_path)?;
+    let mut archive = tar::Archive::new(reader);
 
     let entries = archive
         .entries()
