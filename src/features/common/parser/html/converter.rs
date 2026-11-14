@@ -1197,11 +1197,7 @@ impl<'a> HtmlToMarkdownConverter<'a> {
 
         match name {
             "br" => {
-                if self.in_heading || self.in_cell {
-                    self.append_str("<br>");
-                } else {
-                    self.append_str("\n");
-                }
+                self.append_str("<br>");
             }
             "hr" => self.append_str("\n\n---\n\n"),
             "img" | "image" => self.handle_img_tag(e),

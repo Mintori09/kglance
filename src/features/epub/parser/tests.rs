@@ -3625,3 +3625,78 @@ fn test_epub_svg_rasterization_to_png() {
         "Output must be valid PNG format"
     );
 }
+
+#[test]
+fn test_epub_paragraph_with_consecutive_br_tags_preserves_single_block_and_styles() {
+    let css = r#"
+.calibre_ {
+    display: block;
+    text-align: left;
+    margin: 1em 0 0;
+}
+.calibre_5 {
+    display: block;
+    text-align: justify;
+    margin: 1em 0 0;
+}
+.calibre_6 {
+    display: block;
+    text-align: center;
+    margin: 1em 0 0;
+}
+.calibre_7 {
+    display: block;
+    text-align: right;
+    margin: 1em 0 0;
+}
+.calibre2 {
+    display: block;
+}
+.calibre3 {
+    color: gray;
+    display: block;
+    height: 2px;
+}
+"#;
+    let html = r#"
+<p id="filepos9882" class="calibre_"><span><span>The Hundred-Page Machine Learning Book</span></span></p>
+<p class="calibre_5">Copyright © 2019 Andriy Burkov <br class="calibre2"/>
+<br class="calibre2"/> All rights reserved. This book is distributed on the read first, buy later principle.</p>
+<hr class="calibre3"/>
+<p class="calibre_6"> To my parents: <br class="calibre2"/> Tatiana and Valeriy <br class="calibre2"/>
+<br class="calibre2"/> and to my family: <br class="calibre2"/> daughters Catherine and Eva, <br class="calibre2"/> and brother Dmitriy </p>
+<hr class="calibre3"/>
+<p class="calibre_7">
+<span>“All models are wrong, but some are useful.”</span>
+<br class="calibre2"/> — <span>George Box</span>
+<br class="calibre2"/>
+<br class="calibre2"/>
+<span>“If I had more time, I would have written a shorter letter.”</span>
+<br class="calibre2"/> — <span>Blaise Pascal</span>
+</p>
+<hr class="calibre3"/>
+<p class="calibre_6"> The book is distributed on the “read first, buy later” principle. </p>
+"#;
+
+    let stylesheet_map = super::css::parse_stylesheet(css);
+    let md = super::html::convert_html_to_markdown_with_stylesheet(html, &stylesheet_map);
+    let blocks = crate::features::markdown::parser::parse_to_blocks(&md);
+    assert_eq!(blocks.len(), 9);
+
+    let styles = super::extract_blocks_styles(html, &blocks, &stylesheet_map);
+    // Block 4: Dedication paragraph should be centered
+    assert_eq!(
+        styles.get(&4).map(|s| s.align),
+        Some(super::css::TextAlign::Center)
+    );
+    // Block 6: Quotes paragraph should be right-aligned
+    assert_eq!(
+        styles.get(&6).map(|s| s.align),
+        Some(super::css::TextAlign::Right)
+    );
+    // Block 8: Principle note paragraph should be centered
+    assert_eq!(
+        styles.get(&8).map(|s| s.align),
+        Some(super::css::TextAlign::Center)
+    );
+}
