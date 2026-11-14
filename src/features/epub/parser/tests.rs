@@ -3700,3 +3700,35 @@ fn test_epub_paragraph_with_consecutive_br_tags_preserves_single_block_and_style
         Some(super::css::TextAlign::Center)
     );
 }
+
+#[test]
+fn test_svg_desc_and_metadata_skipped() {
+    let html = r#"
+    <div class="svg_outer">
+        <svg xmlns="http://www.w3.org/2000/svg" width="1392" height="690">
+            <image xlink:href="../Images/0999_aws.png" width="1392" height="690"/>
+            <desc>https://www.d2l.ai/_images/aws.png</desc>
+            <metadata>Some metadata not to show</metadata>
+        </svg>
+    </div>
+    <p>Open the EC2 console.</p>
+    "#;
+
+    let md = convert_html_to_markdown(html);
+    assert!(
+        !md.contains("https://www.d2l.ai/_images/aws.png"),
+        "SVG <desc> text must be skipped: {md}"
+    );
+    assert!(
+        !md.contains("Some metadata not to show"),
+        "SVG <metadata> text must be skipped: {md}"
+    );
+    assert!(
+        md.contains("Open the EC2 console."),
+        "Visible text must be retained: {md}"
+    );
+    assert!(
+        md.contains("../Images/0999_aws.png"),
+        "Image tag must be converted: {md}"
+    );
+}

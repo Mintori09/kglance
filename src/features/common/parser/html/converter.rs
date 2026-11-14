@@ -254,7 +254,10 @@ impl<'a> HtmlToMarkdownConverter<'a> {
         };
         let name = name_lower.as_ref();
 
-        if matches!(name, "style" | "script" | "head" | "title") {
+        if matches!(
+            name,
+            "style" | "script" | "head" | "title" | "desc" | "defs" | "metadata"
+        ) {
             self.skip_depth += 1;
             return;
         }
@@ -843,7 +846,10 @@ impl<'a> HtmlToMarkdownConverter<'a> {
         };
         let name = name_lower.as_ref();
 
-        if matches!(name, "style" | "script" | "head" | "title") {
+        if matches!(
+            name,
+            "style" | "script" | "head" | "title" | "desc" | "defs" | "metadata"
+        ) {
             if self.skip_depth > 0 {
                 self.skip_depth -= 1;
             }
