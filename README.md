@@ -1,4 +1,4 @@
-# Kglance (Oxiview)
+# Kglance
 
 <p align="center">
   <img src="data/images/Screenshot_20260920_141409.png" width="49%" />
