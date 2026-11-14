@@ -221,11 +221,27 @@ pub fn ensure_blocks_images_parallel(
     for (path, img_bytes, dims) in results {
         if let Some(bytes) = img_bytes {
             let handle = iced::widget::image::Handle::from_bytes(bytes);
+            if let Some(filename) = std::path::Path::new(&path)
+                .file_name()
+                .and_then(|n| n.to_str())
+            {
+                markdown_state
+                    .cached_image_handles
+                    .insert(filename.to_string(), handle.clone());
+            }
             markdown_state
                 .cached_image_handles
                 .insert(path.clone(), handle);
         }
         if let Some(d) = dims {
+            if let Some(filename) = std::path::Path::new(&path)
+                .file_name()
+                .and_then(|n| n.to_str())
+            {
+                markdown_state
+                    .cached_image_sizes
+                    .insert(filename.to_string(), d);
+            }
             markdown_state.cached_image_sizes.insert(path, d);
         }
     }

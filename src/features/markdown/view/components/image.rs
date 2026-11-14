@@ -15,11 +15,22 @@ pub(crate) fn render_inline_image<'a>(
     state: &'a crate::core::MarkdownState,
     is_epub: bool,
 ) -> Element<'a, Message> {
-    let Some(handle) = state.cached_image_handles.get(path) else {
+    let filename = std::path::Path::new(path)
+        .file_name()
+        .and_then(|n| n.to_str());
+    let handle = state
+        .cached_image_handles
+        .get(path)
+        .or_else(|| filename.and_then(|f| state.cached_image_handles.get(f)));
+    let Some(handle) = handle else {
         return container(column![]).into();
     };
 
-    let cached_size = state.cached_image_sizes.get(path).copied();
+    let cached_size = state
+        .cached_image_sizes
+        .get(path)
+        .copied()
+        .or_else(|| filename.and_then(|f| state.cached_image_sizes.get(f).copied()));
     let (display_w, display_h) =
         crate::parsers::markdown::layout_constants::compute_image_display_size(
             cached_size,
