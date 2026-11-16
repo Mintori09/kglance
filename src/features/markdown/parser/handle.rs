@@ -12,6 +12,7 @@ struct EventStream<'a> {
     iter: std::iter::Peekable<Parser<'a>>,
     parent: Option<&'a Path>,
     images: Vec<ImageRef>,
+    html_depth: usize,
 }
 
 use super::html::{decode_entity_if_present, handle_inline_html};
@@ -22,6 +23,7 @@ impl<'a> EventStream<'a> {
             iter: Parser::new_ext(content, pulldown_cmark::Options::all()).peekable(),
             parent: None,
             images: Vec::new(),
+            html_depth: 0,
         }
     }
 
@@ -30,6 +32,7 @@ impl<'a> EventStream<'a> {
             iter: Parser::new_ext(content, pulldown_cmark::Options::all()).peekable(),
             parent: Some(parent),
             images: Vec::new(),
+            html_depth: 0,
         }
     }
 
@@ -55,7 +58,11 @@ impl<'a> EventStream<'a> {
             let Some(event) = self.iter.next() else { break };
             match event {
                 Event::Text(t) => {
-                    result.push(Inline::Text(decode_entity_if_present(&t)));
+                    result.extend(crate::features::markdown::vault::parse_text_inlines(
+                        &t,
+                        self.parent,
+                        &mut self.images,
+                    ));
                 }
                 Event::Code(t) => result.push(Inline::Code(t.to_string())),
                 Event::SoftBreak => {
@@ -98,25 +105,21 @@ impl<'a> EventStream<'a> {
                     }
                     let _ = self.iter.next();
 
-                    let is_remote = crate::core::net::is_remote_url(&url);
-                    let resolved = if is_remote || url.starts_with('/') {
-                        url.clone()
-                    } else if let Some(parent) = self.parent {
-                        parent.join(&url).to_string_lossy().to_string()
-                    } else {
-                        url.clone()
-                    };
+                    let resolved =
+                        crate::features::markdown::vault::resolve_image_path(&url, self.parent);
                     log_debug!("{}", resolved.to_string());
+                    let (final_alt, width, height) =
+                        crate::features::markdown::vault::extract_image_dimensions(&alt, &url);
                     self.images.push(ImageRef {
-                        alt_text: alt.clone(),
+                        alt_text: final_alt.clone(),
                         path: resolved.clone(),
                     });
 
                     result.push(Inline::Image {
-                        alt,
+                        alt: final_alt,
                         url: resolved,
-                        width: None,
-                        height: None,
+                        width,
+                        height,
                     });
                 }
                 Event::InlineMath(t) => result.push(Inline::InlineMath(t.to_string())),
@@ -212,7 +215,11 @@ impl<'a> EventStream<'a> {
                             raw_html.push_str(&t);
                         }
                     }
-                    blocks.extend(self.parse_html_block(&raw_html));
+                    if self.html_depth > 0 {
+                        blocks.push(Block::Html(raw_html));
+                    } else {
+                        blocks.extend(self.parse_html_block(&raw_html));
+                    }
                 }
                 Some(event) => {
                     blocks.extend(self.parse_event_blocks(event));
@@ -243,6 +250,13 @@ impl<'a> EventStream<'a> {
             return vec![Block::HorizontalRule];
         }
 
+        if trimmed.eq_ignore_ascii_case("<br>")
+            || trimmed.eq_ignore_ascii_case("<br/>")
+            || trimmed.eq_ignore_ascii_case("<br />")
+        {
+            return Vec::new();
+        }
+
         let lower = trimmed.to_ascii_lowercase();
         if lower.starts_with("<img") {
             let src = super::html::extract_html_attribute(trimmed, "src").unwrap_or_default();
@@ -269,14 +283,8 @@ impl<'a> EventStream<'a> {
                 });
 
             if !src.is_empty() {
-                let is_remote = crate::core::net::is_remote_url(&src);
-                let resolved = if is_remote || src.starts_with('/') {
-                    src.clone()
-                } else if let Some(parent) = self.parent {
-                    parent.join(&src).to_string_lossy().to_string()
-                } else {
-                    src.clone()
-                };
+                let resolved =
+                    crate::features::markdown::vault::resolve_image_path(&src, self.parent);
 
                 self.images.push(ImageRef {
                     alt_text: alt.clone(),
@@ -299,11 +307,16 @@ impl<'a> EventStream<'a> {
             return Vec::new();
         }
 
+        if md_trimmed == trimmed {
+            return vec![Block::Html(raw.to_string())];
+        }
+
         let mut sub_stream = if let Some(parent) = self.parent {
             EventStream::new_with_parent(md_trimmed, parent)
         } else {
             EventStream::new(md_trimmed)
         };
+        sub_stream.html_depth = self.html_depth + 1;
         let sub_blocks = sub_stream.parse_blocks();
         self.images.extend(sub_stream.images);
 
@@ -650,23 +663,19 @@ impl<'a> EventStream<'a> {
                         self.iter.next();
                     }
                     let _ = self.iter.next();
-                    let is_remote = crate::core::net::is_remote_url(&url);
-                    let resolved = if is_remote || url.starts_with('/') {
-                        url.clone()
-                    } else if let Some(parent) = self.parent {
-                        parent.join(&url).to_string_lossy().to_string()
-                    } else {
-                        url.clone()
-                    };
+                    let resolved =
+                        crate::features::markdown::vault::resolve_image_path(&url, self.parent);
+                    let (final_alt, width, height) =
+                        crate::features::markdown::vault::extract_image_dimensions(&alt, &url);
                     self.images.push(ImageRef {
-                        alt_text: alt.clone(),
+                        alt_text: final_alt.clone(),
                         path: resolved.clone(),
                     });
                     content.push(Inline::Image {
-                        alt,
+                        alt: final_alt,
                         url: resolved,
-                        width: None,
-                        height: None,
+                        width,
+                        height,
                     });
                 }
                 Some(Event::Start(Tag::CodeBlock(kind))) => {

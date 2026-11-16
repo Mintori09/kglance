@@ -1,7 +1,7 @@
 mod flatten;
 mod frontmatter;
 mod handle;
-mod html;
+pub(crate) mod html;
 mod layout;
 pub mod layout_constants;
 mod mermaid;

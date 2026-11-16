@@ -300,7 +300,12 @@ pub fn intrinsic_block_height(
             ..
         } => {
             let pad_v = (lc::IMAGE_PADDING_V * 2) as f32;
-            let cached_size = image_sizes.get(path).copied();
+            let cached_size = image_sizes.get(path).copied().or_else(|| {
+                std::path::Path::new(path)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .and_then(|f| image_sizes.get(f).copied())
+            });
             let (_dw, dh) =
                 lc::compute_image_display_size(cached_size, *width, *height, lc::IMAGE_MAX_WIDTH);
             dh.unwrap_or(0.0) + pad_v
@@ -658,6 +663,27 @@ mod tests {
         assert!(
             h_cases > h_simple,
             "Multiline cases height ({h_cases}) should exceed simple height ({h_simple})"
+        );
+    }
+
+    #[test]
+    fn test_image_block_height_filename_fallback() {
+        let mut image_sizes = HashMap::new();
+        image_sizes.insert("sample_photo.jpg".to_string(), (800, 600));
+
+        let block = Block::Image {
+            alt: "photo".into(),
+            path: "/path/to/nested/vault/sample_photo.jpg".into(),
+            width: None,
+            height: None,
+            link_url: None,
+        };
+
+        let h = estimated_block_height(&block, 14.0, 0, &image_sizes, 800.0);
+        // Display height with 800x600 scaled to max_width 600 is 450 + padding (16) + margin (8) = 474
+        assert_eq!(
+            h, 474.0,
+            "Image block height should resolve through filename fallback"
         );
     }
 }

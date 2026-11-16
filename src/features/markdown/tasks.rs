@@ -103,7 +103,11 @@ pub fn spawn_image_load_task(
     } else {
         log_debug!("Spawning async load for local image: {}", path_str);
         let resolved = if let Some(ref base_file) = file_context_path {
-            crate::core::utils::resolve_path(&path_str, base_file)
+            crate::features::markdown::vault::resolve_vault_path(
+                &path_str,
+                std::path::Path::new(base_file),
+            )
+            .unwrap_or_else(|| crate::core::utils::resolve_path(&path_str, base_file))
         } else {
             std::path::PathBuf::from(&path_str)
         };

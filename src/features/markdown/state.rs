@@ -237,18 +237,62 @@ pub fn recompute_markdown_layout(
     font_size: f32,
     content_width: f32,
 ) {
+    recompute_markdown_layout_internal(state, blocks, font_size, content_width, false);
+}
+
+pub fn force_recompute_markdown_layout(
+    state: &mut MarkdownState,
+    blocks: &[Block],
+    font_size: f32,
+    content_width: f32,
+) {
+    recompute_markdown_layout_internal(state, blocks, font_size, content_width, true);
+}
+
+fn recompute_markdown_layout_internal(
+    state: &mut MarkdownState,
+    blocks: &[Block],
+    font_size: f32,
+    content_width: f32,
+    force: bool,
+) {
     const WIDTH_EPSILON: f32 = 1.0;
     const FONT_EPSILON: f32 = 0.1;
 
-    if state.block_layouts.len() == blocks.len()
+    if !force
+        && state.block_layouts.len() == blocks.len()
         && (state.layout_content_width - content_width).abs() < WIDTH_EPSILON
         && (state.layout_font_size - font_size).abs() < FONT_EPSILON
     {
         return;
     }
 
-    let (layouts, offsets, total_h) =
+    let (mut layouts, offsets, total_h) =
         compute_block_layouts(blocks, font_size, &state.cached_image_sizes, content_width);
+
+    // When forced (e.g. image size updated in cache), preserve accurate measured_height
+    // for non-image blocks that haven't changed size.
+    if force && layouts.len() == state.block_layouts.len() {
+        for (i, block) in blocks.iter().enumerate() {
+            let has_image = match block {
+                Block::Image { .. } => true,
+                Block::Paragraph(inlines) => inlines
+                    .iter()
+                    .any(|inl| matches!(inl, crate::parsers::markdown::Inline::Image { .. })),
+                _ => false,
+            };
+            if !has_image {
+                layouts[i].measured_height = state.block_layouts[i].measured_height;
+            }
+        }
+    }
+
+    let (offsets, total_h) = if force {
+        rebuild_block_offsets(&layouts, font_size)
+    } else {
+        (offsets, total_h)
+    };
+
     if state.toc.is_empty() {
         state.toc = crate::parsers::markdown::extract_toc_from_offsets(blocks, &offsets);
     } else {
@@ -654,5 +698,62 @@ mod tests {
         recompute_markdown_layout(&mut state, &blocks, 14.0, 810.0);
         assert_eq!(state.block_layouts[0].measured_height, None);
         assert_eq!(state.layout_content_width, 810.0);
+    }
+
+    #[test]
+    fn test_force_recompute_markdown_layout_on_image_load() {
+        let img_path = "/home/user/notes/images/figure1.png".to_string();
+        let blocks = vec![
+            Block::Paragraph(vec![crate::parsers::markdown::Inline::Text(
+                "Paragraph 1".into(),
+            )]),
+            Block::Image {
+                alt: "Test image".into(),
+                path: img_path.clone(),
+                width: None,
+                height: None,
+                link_url: None,
+            },
+            Block::Paragraph(vec![crate::parsers::markdown::Inline::Text(
+                "Paragraph 2".into(),
+            )]),
+        ];
+
+        let mut state = MarkdownState::default();
+        recompute_markdown_layout(&mut state, &blocks, 14.0, 800.0);
+        let initial_total_h = state.total_content_height;
+        let initial_p2_offset = state.block_y_offsets[2];
+
+        // Giả lập block 0 đã được đo đạc chính xác
+        state.block_layouts[0].measured_height = Some(45.0);
+
+        // Ảnh load xong: kích thước 800x600 được lưu vào cached_image_sizes
+        state.cached_image_sizes.insert(img_path, (800, 600));
+
+        // recompute thường bị fast-path chặn vì width/font_size không đổi
+        recompute_markdown_layout(&mut state, &blocks, 14.0, 800.0);
+        assert_eq!(state.total_content_height, initial_total_h);
+
+        // force_recompute_markdown_layout vượt qua guard và cập nhật đúng kích thước
+        force_recompute_markdown_layout(&mut state, &blocks, 14.0, 800.0);
+        assert!(
+            state.total_content_height > initial_total_h,
+            "total_content_height must expand after image decoded: was {initial_total_h}, now {}",
+            state.total_content_height
+        );
+        assert_eq!(
+            state.block_layouts[0].measured_height,
+            Some(45.0),
+            "Non-image block measured_height must be preserved"
+        );
+        assert_eq!(
+            state.block_layouts[1].measured_height, None,
+            "Image block measured_height should be cleared for fresh layout"
+        );
+        assert!(
+            state.block_y_offsets[2] > initial_p2_offset,
+            "Block 2 offset must shift down: was {initial_p2_offset}, now {}",
+            state.block_y_offsets[2]
+        );
     }
 }

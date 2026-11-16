@@ -6,6 +6,7 @@ pub mod state;
 pub mod tasks;
 pub mod types;
 pub mod update;
+pub mod vault;
 pub mod view;
 
 pub use lightbox::*;
@@ -14,4 +15,5 @@ pub use state::*;
 pub use tasks::*;
 pub use types::*;
 pub use update::*;
+pub use vault::*;
 pub use view::view_markdown;

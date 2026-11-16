@@ -291,6 +291,135 @@ fn parses_obsidian_japanese_vocabulary_file_images() {
 }
 
 #[test]
+fn parses_obsidian_wikilink_image_embeds() {
+    let content = r#"# Obsidian Note
+
+![[single_image.png]]
+
+![[sized_image.png|500]]
+
+![[rect_image.jpg|600x400]]
+
+Some text with inline ![[inline.png|Alt text]] and a note link [[My Other Note|Click Here]].
+"#;
+    let blocks = parse_to_blocks(content);
+
+    // Block 0: Heading
+    assert!(matches!(&blocks[0], Block::Heading { .. }));
+
+    // Block 1: Standalone image
+    match &blocks[1] {
+        Block::Image {
+            alt,
+            path,
+            width,
+            height,
+            ..
+        } => {
+            assert_eq!(alt, "single_image.png");
+            assert_eq!(path, "single_image.png");
+            assert_eq!(*width, None);
+            assert_eq!(*height, None);
+        }
+        _ => panic!(
+            "expected Block::Image for single_image, got {:?}",
+            blocks[1]
+        ),
+    }
+
+    // Block 2: Sized image
+    match &blocks[2] {
+        Block::Image {
+            alt,
+            path,
+            width,
+            height,
+            ..
+        } => {
+            assert_eq!(alt, "sized_image.png");
+            assert_eq!(path, "sized_image.png");
+            assert_eq!(*width, Some(500));
+            assert_eq!(*height, None);
+        }
+        _ => panic!("expected Block::Image for sized_image, got {:?}", blocks[2]),
+    }
+
+    // Block 3: Dimensions width x height
+    match &blocks[3] {
+        Block::Image {
+            alt,
+            path,
+            width,
+            height,
+            ..
+        } => {
+            assert_eq!(alt, "rect_image.jpg");
+            assert_eq!(path, "rect_image.jpg");
+            assert_eq!(*width, Some(600));
+            assert_eq!(*height, Some(400));
+        }
+        _ => panic!("expected Block::Image for rect_image, got {:?}", blocks[3]),
+    }
+
+    // Block 4: Mixed paragraph with inline image and internal link
+    match &blocks[4] {
+        Block::Paragraph(inlines) => {
+            assert!(
+                inlines
+                    .iter()
+                    .any(|i| matches!(i, Inline::Image { alt, .. } if alt == "Alt text"))
+            );
+            assert!(inlines.iter().any(|i| matches!(i, Inline::Link { url, text } if url == "My Other Note" && text == &[Inline::Text("Click Here".into())])));
+        }
+        _ => panic!(
+            "expected Block::Paragraph for mixed line, got {:?}",
+            blocks[4]
+        ),
+    }
+}
+
+#[test]
+fn test_markdown_parser_resolves_obsidian_vault_images() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let vault_root = temp_dir.path().join("ObsidianVault");
+    std::fs::create_dir_all(vault_root.join(".obsidian")).unwrap();
+    std::fs::create_dir_all(vault_root.join("notes/deep")).unwrap();
+    std::fs::create_dir_all(vault_root.join("_image/archive")).unwrap();
+
+    let img_path = vault_root.join("_image/archive/sample.png");
+    std::fs::File::create(&img_path)
+        .unwrap()
+        .write_all(b"fake-image")
+        .unwrap();
+
+    let note_path = vault_root.join("notes/deep/my_note.md");
+    let content = "# Note\n\n![[sample.png]]\n\n![standard](_image/archive/sample.png)\n";
+    std::fs::File::create(&note_path)
+        .unwrap()
+        .write_all(content.as_bytes())
+        .unwrap();
+
+    let parser = MarkdownParser::new();
+    let parsed = parser.parse(&note_path).unwrap();
+
+    match parsed {
+        ParsedContent::Markdown { images, blocks, .. } => {
+            assert_eq!(images.len(), 2);
+            assert_eq!(images[0].path, img_path.to_string_lossy());
+            assert_eq!(images[1].path, img_path.to_string_lossy());
+            assert_eq!(blocks.len(), 3);
+            assert!(
+                matches!(&blocks[1], Block::Image { path, .. } if path == &img_path.to_string_lossy())
+            );
+            assert!(
+                matches!(&blocks[2], Block::Image { path, .. } if path == &img_path.to_string_lossy())
+            );
+        }
+        _ => panic!("Expected ParsedContent::Markdown"),
+    }
+}
+
+#[test]
 fn extracts_math_formulas_from_blocks() {
     let md = r#"
 # Heading

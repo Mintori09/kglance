@@ -74,7 +74,7 @@ pub(crate) fn extract_css_property(style: &str, prop: &str) -> Option<String> {
     None
 }
 
-pub(super) fn decode_entity_if_present(s: &str) -> String {
+pub(crate) fn decode_entity_if_present(s: &str) -> String {
     if s.contains('&') {
         decode_html_entities(s)
     } else {
@@ -188,14 +188,7 @@ pub(super) fn handle_inline_html<F>(
             });
 
         if !src.is_empty() {
-            let is_remote = crate::core::net::is_remote_url(&src);
-            let resolved = if is_remote || src.starts_with('/') {
-                src.clone()
-            } else if let Some(parent) = parent {
-                parent.join(&src).to_string_lossy().to_string()
-            } else {
-                src.clone()
-            };
+            let resolved = crate::features::markdown::vault::resolve_image_path(&src, parent);
 
             images.push(ImageRef {
                 alt_text: alt.clone(),
