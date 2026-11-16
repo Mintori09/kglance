@@ -4,7 +4,7 @@ use std::path::Path;
 use crate::core::types::human_file_kind;
 use crate::core::utils::human_size;
 use crate::features::archive::types::ArchiveEntry;
-use crate::features::folder::types::{DirEntry, FolderRowState};
+use crate::features::folder::types::{DirEntry, FolderRowState, FolderState};
 use crate::ui::theme::icon_theme::icon_for_entry;
 
 pub const CHEVRON_RIGHT_SVG: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>"#;
@@ -245,6 +245,38 @@ pub fn filter_visible_folder_rows<'a>(
     visible
 }
 
+pub fn visible_folder_row_indices(state: &FolderState) -> Vec<usize> {
+    let query = state.search_query.trim().to_lowercase();
+    let mut visible = Vec::new();
+    let mut visible_parent_paths = HashSet::new();
+
+    for (row_index, row) in state.rows.iter().enumerate() {
+        let is_visible = if row.depth == 0 {
+            true
+        } else if let Some(ref parent) = row.parent_path {
+            visible_parent_paths.contains(parent) && state.expanded_paths.contains(parent)
+        } else {
+            false
+        };
+
+        if !is_visible {
+            continue;
+        }
+
+        if row.is_dir && state.expanded_paths.contains(&row.path) {
+            visible_parent_paths.insert(row.path.clone());
+        }
+
+        if !query.is_empty() && !row.name.to_lowercase().contains(&query) {
+            continue;
+        }
+
+        visible.push(row_index);
+    }
+
+    visible
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,5 +397,69 @@ mod tests {
         assert_eq!(child.depth, 1);
         assert_eq!(child.parent_path.as_deref(), Some(parent_str.as_str()));
         assert!(!child.is_dir);
+    }
+
+    #[test]
+    fn test_visible_folder_row_indices_with_expansion_and_search() {
+        let entries = vec![
+            ArchiveEntry {
+                path: "src/main.rs".to_string(),
+                size: 100,
+                is_dir: false,
+                modified: "2026-01-01".to_string(),
+                archive_path: "test.zip".to_string(),
+            },
+            ArchiveEntry {
+                path: "src/app/view.rs".to_string(),
+                size: 200,
+                is_dir: false,
+                modified: "2026-01-01".to_string(),
+                archive_path: "test.zip".to_string(),
+            },
+            ArchiveEntry {
+                path: "README.md".to_string(),
+                size: 50,
+                is_dir: false,
+                modified: "2026-01-01".to_string(),
+                archive_path: "test.zip".to_string(),
+            },
+        ];
+
+        let rows = build_archive_tree_rows(entries);
+        let mut state = FolderState {
+            rows,
+            ..Default::default()
+        };
+
+        // Initially: only depth 0 visible -> "src" (index 0) and "README.md" (index 4)
+        let indices = visible_folder_row_indices(&state);
+        let names: Vec<&str> = indices
+            .iter()
+            .map(|&i| state.rows[i].name.as_str())
+            .collect();
+        assert_eq!(names, vec!["src", "README.md"]);
+
+        // Expand "src"
+        state.expanded_paths.insert("src".to_string());
+        let indices = visible_folder_row_indices(&state);
+        let names: Vec<&str> = indices
+            .iter()
+            .map(|&i| state.rows[i].name.as_str())
+            .collect();
+        assert_eq!(names, vec!["src", "app", "main.rs", "README.md"]);
+
+        // Search query "main"
+        state.search_query = "main".to_string();
+        let indices = visible_folder_row_indices(&state);
+        let names: Vec<&str> = indices
+            .iter()
+            .map(|&i| state.rows[i].name.as_str())
+            .collect();
+        assert_eq!(names, vec!["main.rs"]);
+
+        // Search query with no match
+        state.search_query = "nonexistent".to_string();
+        let indices = visible_folder_row_indices(&state);
+        assert!(indices.is_empty());
     }
 }

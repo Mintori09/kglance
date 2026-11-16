@@ -44,6 +44,8 @@ const ROW_NAME_SPACING: f32 = spacing::S;
 const ROWS_LIST_SPACING: f32 = spacing::XXS;
 
 const ROW_BUTTON_HEIGHT: f32 = tables::ROW_HEIGHT;
+pub const FOLDER_ROW_TOTAL_HEIGHT: f32 = ROW_BUTTON_HEIGHT + ROWS_LIST_SPACING;
+const OVERSCAN_ROWS: usize = 20;
 
 const SUMMARY_PADDING: [u16; 2] = [spacing::M as u16, spacing::L as u16];
 const HEADER_CONTAINER_PADDING: [u16; 2] = [spacing::XS as u16, spacing::S as u16];
@@ -92,6 +94,7 @@ pub fn view_folder<'a>(
             .id("content_scroll")
             .style(default_scrollable)
             .on_scroll(|vp| crate::app::messages::NavigationMsg::FolderScrolled(vp).into())
+            .width(Length::Fill)
             .height(Length::Fill),
     );
 
@@ -435,44 +438,54 @@ fn create_folder_rows<'a>(
     state: &'a FolderState,
     ctx: &FolderStyleContext,
 ) -> Element<'a, Message> {
+    let visible_indices = super::tree::visible_folder_row_indices(state);
+    let total_visible = visible_indices.len();
+
+    let scroll_y = state.scroll_y.max(0.0);
+    let raw_first = (scroll_y / FOLDER_ROW_TOTAL_HEIGHT).floor() as usize;
+    let first_idx = raw_first.saturating_sub(OVERSCAN_ROWS).min(total_visible);
+
+    let vh = if state.viewport_height > 0.0 {
+        state.viewport_height
+    } else {
+        800.0
+    };
+    let visible_rows = (vh / FOLDER_ROW_TOTAL_HEIGHT).ceil() as usize;
+    let visible_count = visible_rows + OVERSCAN_ROWS * 2;
+    let last_idx = (first_idx + visible_count).min(total_visible);
+
+    let window_indices = if first_idx < total_visible {
+        &visible_indices[first_idx..last_idx]
+    } else {
+        &[]
+    };
+
     let mut rows_list = column![]
         .spacing(ROWS_LIST_SPACING)
-        .padding(ROWS_LIST_PADDING);
+        .padding(ROWS_LIST_PADDING)
+        .width(Length::Fill);
 
-    let query = state.search_query.trim().to_lowercase();
-    let mut visible_index = 0usize;
+    if first_idx > 0 {
+        let top_spacer = (first_idx as f32 * FOLDER_ROW_TOTAL_HEIGHT - ROWS_LIST_SPACING).max(0.0);
+        rows_list = rows_list.push(Space::new().height(top_spacer));
+    }
 
-    let mut visible_parent_paths = std::collections::HashSet::new();
-
-    for (row_index, row_data) in state.rows.iter().enumerate() {
-        let is_tree_visible = if row_data.depth == 0 {
-            true
-        } else if let Some(ref parent) = row_data.parent_path {
-            visible_parent_paths.contains(parent) && state.expanded_paths.contains(parent)
-        } else {
-            false
-        };
-
-        if !is_tree_visible {
-            continue;
-        }
-
-        if row_data.is_dir && state.expanded_paths.contains(&row_data.path) {
-            visible_parent_paths.insert(row_data.path.clone());
-        }
-
-        if !query.is_empty() && !row_data.name.to_lowercase().contains(&query) {
-            continue;
-        }
-
+    for (loop_i, &row_index) in window_indices.iter().enumerate() {
+        let vis_idx = first_idx + loop_i;
+        let row_data = &state.rows[row_index];
         let is_selected = state.selected_index == Some(row_index);
-        let is_odd = visible_index % 2 == 1;
-        visible_index += 1;
-
+        let is_odd = vis_idx % 2 == 1;
         let is_expanded = row_data.is_dir && state.expanded_paths.contains(&row_data.path);
         let row_button =
             create_folder_row(row_index, row_data, is_selected, is_odd, is_expanded, ctx);
         rows_list = rows_list.push(row_button);
+    }
+
+    if last_idx < total_visible {
+        let remaining = total_visible - last_idx;
+        let bottom_spacer =
+            (remaining as f32 * FOLDER_ROW_TOTAL_HEIGHT - ROWS_LIST_SPACING).max(0.0);
+        rows_list = rows_list.push(Space::new().height(bottom_spacer));
     }
 
     rows_list.into()
@@ -525,44 +538,56 @@ fn create_folder_row<'a>(
             },
             chevron_element,
             icon_element,
-            text(&row_data.display_name)
-                .size(ROW_NAME_SIZE)
-                .font(name_font)
-                .color(ctx.text_color)
-                .wrapping(iced::widget::text::Wrapping::None)
+            container(
+                text(&row_data.display_name)
+                    .size(ROW_NAME_SIZE)
+                    .font(name_font)
+                    .color(ctx.text_color)
+                    .wrapping(iced::widget::text::Wrapping::None),
+            )
+            .width(Length::Fill)
+            .clip(true),
         ]
         .spacing(ROW_NAME_SPACING)
         .align_y(Alignment::Center)
         .width(Length::Fill),
-        text(&row_data.kind)
-            .size(ROW_TEXT_SIZE)
-            .font(ctx.main_font)
-            .color(ctx.dim_color)
-            .wrapping(iced::widget::text::Wrapping::None)
-            .width(Length::Fixed(COLUMN_WIDTH_KIND)),
+        container(
+            text(&row_data.kind)
+                .size(ROW_TEXT_SIZE)
+                .font(ctx.main_font)
+                .color(ctx.dim_color)
+                .wrapping(iced::widget::text::Wrapping::None),
+        )
+        .width(Length::Fixed(COLUMN_WIDTH_KIND))
+        .clip(true),
         text(&row_data.size)
             .size(ROW_TEXT_SIZE)
             .font(ctx.main_font)
             .color(size_color)
             .width(Length::Fixed(COLUMN_WIDTH_SIZE))
             .align_x(alignment::Horizontal::Right),
-        text(&row_data.modified)
-            .size(ROW_TEXT_SIZE)
-            .font(ctx.main_font)
-            .color(ctx.sub_dim_color)
-            .wrapping(iced::widget::text::Wrapping::None)
-            .width(Length::Fixed(COLUMN_WIDTH_MODIFIED)),
+        container(
+            text(&row_data.modified)
+                .size(ROW_TEXT_SIZE)
+                .font(ctx.main_font)
+                .color(ctx.sub_dim_color)
+                .wrapping(iced::widget::text::Wrapping::None),
+        )
+        .width(Length::Fixed(COLUMN_WIDTH_MODIFIED))
+        .clip(true),
     ]
     .align_y(Alignment::Center)
     .height(Length::Fill)
     .padding(ROW_CONTENT_PADDING)
-    .spacing(ROW_CONTENT_SPACING);
+    .spacing(ROW_CONTENT_SPACING)
+    .width(Length::Fill);
 
     button(row_content)
         .on_press(crate::app::messages::NavigationMsg::FileClicked(row_index).into())
         .style(move |theme, status| folder_row_style(theme, status, is_selected, is_odd))
         .padding(0)
         .height(ROW_BUTTON_HEIGHT)
+        .width(Length::Fill)
 }
 
 fn folder_row_style(
@@ -661,5 +686,71 @@ fn render_row_icon<'a>(icon_name: &str, is_dir: bool, is_expanded: bool) -> Elem
             "📄"
         };
         text(fallback).size(ROW_ICON_SIZE).into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::FolderRowState;
+
+    #[test]
+    fn test_view_folder_with_long_file_name_constructs_without_panic() {
+        let long_name = "a".repeat(300) + ".tar.gz";
+        let long_kind = "A".repeat(150);
+        let long_modified = "2026-11-14 15:30:00.123456789 UTC+07:00 (Indochina Time)";
+
+        let row_data = FolderRowState {
+            name: long_name.clone(),
+            display_name: long_name,
+            kind: long_kind,
+            size: "1.2 GB".to_string(),
+            raw_size: 1_200_000_000,
+            modified: long_modified.to_string(),
+            raw_modified: 1731580000,
+            path: "/tmp/long_file".to_string(),
+            is_dir: false,
+            icon: "application-x-tar",
+            depth: 0,
+            parent_path: None,
+        };
+
+        let state = FolderState {
+            rows: vec![row_data],
+            folder_path: "/tmp".to_string(),
+            ..Default::default()
+        };
+
+        let _element = view_folder(&state, AppTheme::Dark, None);
+    }
+
+    #[test]
+    fn test_view_folder_virtual_loading_windowing() {
+        let rows: Vec<FolderRowState> = (0..500)
+            .map(|i| FolderRowState {
+                name: format!("file_{i}.txt"),
+                display_name: format!("file_{i}.txt"),
+                kind: "Text Document".to_string(),
+                size: "10 KB".to_string(),
+                raw_size: 10240,
+                modified: "2026-11-14".to_string(),
+                raw_modified: 1731580000,
+                path: format!("/tmp/file_{i}.txt"),
+                is_dir: false,
+                icon: "text-x-generic",
+                depth: 0,
+                parent_path: None,
+            })
+            .collect();
+
+        let state = FolderState {
+            rows,
+            folder_path: "/tmp".to_string(),
+            scroll_y: 1900.0, // Scrolled down into the list
+            viewport_height: 800.0,
+            ..Default::default()
+        };
+
+        let _element = view_folder(&state, AppTheme::Dark, None);
     }
 }

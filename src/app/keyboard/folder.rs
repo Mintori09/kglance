@@ -38,7 +38,9 @@ impl KglanceApp {
             iced::keyboard::Key::Character(c) if c == "g" => {
                 if self.pending_g {
                     self.pending_g = false;
-                    self.state.folder.selected_index = Some(0);
+                    let visible_indices =
+                        crate::features::folder::visible_folder_row_indices(&self.state.folder);
+                    self.state.folder.selected_index = visible_indices.first().copied();
                     Some(self.snap_to_top())
                 } else {
                     self.pending_g = true;
@@ -47,8 +49,9 @@ impl KglanceApp {
             }
             iced::keyboard::Key::Character(c) if c == "G" => {
                 self.pending_g = false;
-                let last = self.folder_row_count().saturating_sub(1);
-                self.state.folder.selected_index = Some(last);
+                let visible_indices =
+                    crate::features::folder::visible_folder_row_indices(&self.state.folder);
+                self.state.folder.selected_index = visible_indices.last().copied();
                 Some(self.snap_to_bottom())
             }
             iced::keyboard::Key::Named(Named::ArrowLeft) => self.handle_folder_collapse_or_parent(),
@@ -60,13 +63,16 @@ impl KglanceApp {
             iced::keyboard::Key::Named(Named::Enter) => self.open_selected_row(),
             iced::keyboard::Key::Named(Named::Home) => {
                 self.pending_home = false;
-                self.state.folder.selected_index = Some(0);
+                let visible_indices =
+                    crate::features::folder::visible_folder_row_indices(&self.state.folder);
+                self.state.folder.selected_index = visible_indices.first().copied();
                 Some(self.snap_to_top())
             }
             iced::keyboard::Key::Named(Named::End) => {
                 self.pending_home = false;
-                let last = self.folder_row_count().saturating_sub(1);
-                self.state.folder.selected_index = Some(last);
+                let visible_indices =
+                    crate::features::folder::visible_folder_row_indices(&self.state.folder);
+                self.state.folder.selected_index = visible_indices.last().copied();
                 Some(self.snap_to_bottom())
             }
             iced::keyboard::Key::Named(Named::PageUp) => {
@@ -86,51 +92,79 @@ impl KglanceApp {
             && matches!(self.current_content, Some(PreviewData::Folder { .. }))
     }
 
-    fn folder_row_count(&self) -> usize {
-        self.state.folder.rows.len()
-    }
-
     fn move_selection_down(&mut self) {
-        let last_index = self.folder_row_count().saturating_sub(1);
-        let next_index = self
+        let visible_indices =
+            crate::features::folder::visible_folder_row_indices(&self.state.folder);
+        if visible_indices.is_empty() {
+            return;
+        }
+        let current_pos = self
             .state
             .folder
             .selected_index
-            .map_or(0, |index| (index + 1).min(last_index));
+            .and_then(|idx| visible_indices.iter().position(|&i| i == idx));
 
-        self.state.folder.selected_index = Some(next_index);
+        let next_pos = match current_pos {
+            Some(pos) => (pos + 1).min(visible_indices.len().saturating_sub(1)),
+            None => 0,
+        };
+
+        self.state.folder.selected_index = Some(visible_indices[next_pos]);
     }
 
     fn move_selection_up(&mut self) {
-        let previous_index = self
+        let visible_indices =
+            crate::features::folder::visible_folder_row_indices(&self.state.folder);
+        if visible_indices.is_empty() {
+            return;
+        }
+        let current_pos = self
             .state
             .folder
             .selected_index
-            .map_or(0, |index| index.saturating_sub(1));
+            .and_then(|idx| visible_indices.iter().position(|&i| i == idx));
 
-        self.state.folder.selected_index = Some(previous_index);
+        let previous_pos = match current_pos {
+            Some(pos) => pos.saturating_sub(1),
+            None => 0,
+        };
+
+        self.state.folder.selected_index = Some(visible_indices[previous_pos]);
     }
 
     fn move_selection_by(&mut self, offset: isize) {
-        let last_index = self.folder_row_count().saturating_sub(1);
-        let current_index = self.state.folder.selected_index.unwrap_or(0);
+        let visible_indices =
+            crate::features::folder::visible_folder_row_indices(&self.state.folder);
+        if visible_indices.is_empty() {
+            return;
+        }
+        let last_pos = visible_indices.len().saturating_sub(1);
+        let current_pos = self
+            .state
+            .folder
+            .selected_index
+            .and_then(|idx| visible_indices.iter().position(|&i| i == idx))
+            .unwrap_or(0);
 
-        let new_index = if offset < 0 {
-            current_index.saturating_sub(offset.unsigned_abs())
+        let new_pos = if offset < 0 {
+            current_pos.saturating_sub(offset.unsigned_abs())
         } else {
-            current_index
-                .saturating_add(offset as usize)
-                .min(last_index)
+            current_pos.saturating_add(offset as usize).min(last_pos)
         };
 
-        self.state.folder.selected_index = Some(new_index);
+        self.state.folder.selected_index = Some(visible_indices[new_pos]);
     }
 
     fn scroll_folder_to_selected(&self) -> Task<Message> {
         if let Some(index) = self.state.folder.selected_index {
-            let row_height = crate::ui::theme::tokens::tables::ROW_HEIGHT
-                + crate::ui::theme::tokens::spacing::XXS;
-            let row_top = index as f32 * row_height;
+            let visible_indices =
+                crate::features::folder::visible_folder_row_indices(&self.state.folder);
+            let vis_idx = match visible_indices.iter().position(|&i| i == index) {
+                Some(pos) => pos,
+                None => return Task::none(),
+            };
+            let row_height = crate::features::folder::view::FOLDER_ROW_TOTAL_HEIGHT;
+            let row_top = vis_idx as f32 * row_height;
             let row_bottom = row_top + row_height;
             let current_y = self.state.folder.scroll_y;
             let vh = if self.state.folder.viewport_height > 0.0 {
@@ -335,5 +369,78 @@ mod tests {
         // Move up again -> clamped to 0
         app.move_selection_up();
         assert_eq!(app.state.folder.selected_index, Some(0));
+    }
+
+    #[test]
+    fn test_folder_navigation_skips_collapsed_children() {
+        let mut app = test_app(None);
+        app.current_content = Some(PreviewData::Folder {
+            rows: vec![
+                FolderRowState {
+                    name: "folder".to_string(),
+                    display_name: "folder".to_string(),
+                    kind: "Folder".to_string(),
+                    size: "—".to_string(),
+                    raw_size: 0,
+                    modified: "2026-09-30".to_string(),
+                    raw_modified: 0,
+                    path: "folder".to_string(),
+                    is_dir: true,
+                    icon: "folder",
+                    depth: 0,
+                    parent_path: None,
+                },
+                FolderRowState {
+                    name: "hidden_child.txt".to_string(),
+                    display_name: "hidden_child.txt".to_string(),
+                    kind: "File".to_string(),
+                    size: "1 KB".to_string(),
+                    raw_size: 1024,
+                    modified: "2026-09-30".to_string(),
+                    raw_modified: 0,
+                    path: "folder/hidden_child.txt".to_string(),
+                    is_dir: false,
+                    icon: "text-x-generic",
+                    depth: 1,
+                    parent_path: Some("folder".to_string()),
+                },
+                FolderRowState {
+                    name: "sibling.txt".to_string(),
+                    display_name: "sibling.txt".to_string(),
+                    kind: "File".to_string(),
+                    size: "2 KB".to_string(),
+                    raw_size: 2048,
+                    modified: "2026-09-30".to_string(),
+                    raw_modified: 0,
+                    path: "sibling.txt".to_string(),
+                    is_dir: false,
+                    icon: "text-x-generic",
+                    depth: 0,
+                    parent_path: None,
+                },
+            ],
+            total_size: 3072,
+        });
+        app.state.folder.rows = match app.current_content.as_ref().unwrap() {
+            PreviewData::Folder { rows, .. } => rows.clone(),
+            _ => Vec::new(),
+        };
+
+        // When "folder" is collapsed: visible are index 0 ("folder") and index 2 ("sibling.txt")
+        app.move_selection_down();
+        assert_eq!(app.state.folder.selected_index, Some(0));
+
+        // Moving down skips index 1 (hidden child) and selects index 2 (sibling.txt)!
+        app.move_selection_down();
+        assert_eq!(app.state.folder.selected_index, Some(2));
+
+        // Moving up selects index 0
+        app.move_selection_up();
+        assert_eq!(app.state.folder.selected_index, Some(0));
+
+        // When "folder" is expanded: index 1 is also visible
+        app.state.folder.expanded_paths.insert("folder".to_string());
+        app.move_selection_down();
+        assert_eq!(app.state.folder.selected_index, Some(1));
     }
 }
