@@ -366,11 +366,7 @@ impl PreviewData {
     pub(crate) fn supports_custom_initial_size(&self) -> bool {
         matches!(
             self,
-            PreviewData::Image { .. }
-                | PreviewData::Font { .. }
-                | PreviewData::Audio { .. }
-                | PreviewData::Media { .. }
-                | PreviewData::Unsupported(_)
+            PreviewData::Font { .. } | PreviewData::Audio { .. } | PreviewData::Unsupported(_)
         )
     }
 }
@@ -456,6 +452,21 @@ mod tests {
         app.window_id = Some(window_id);
         app.state.window_default_size = iced::Size::new(1024.0, 768.0);
 
+        let audio_content = crate::core::PreviewData::Audio {
+            path: "/tmp/sample.mp3".to_string(),
+            title: "Sample Title".to_string(),
+            artist: "Artist".to_string(),
+            album: "Album".to_string(),
+            duration_secs: 120,
+            metadata: "Bitrate: 320kbps".to_string(),
+            cover_art: None,
+        };
+
+        assert!(audio_content.supports_custom_initial_size());
+        let audio_target_size = audio_content.initial_window_size(&app.state);
+        assert_eq!(audio_target_size.width, 680.0);
+        assert_eq!(audio_target_size.height, 280.0);
+
         let media_content = crate::core::PreviewData::Media {
             url: "/tmp/sample.mp4".to_string(),
             metadata: "Video Duration: 10.0s".to_string(),
@@ -463,13 +474,27 @@ mod tests {
             width: 1920,
             height: 1080,
         };
+        assert!(!media_content.supports_custom_initial_size());
+        assert_eq!(
+            media_content.initial_window_size(&app.state),
+            app.state.window_default_size
+        );
 
-        let target_size = media_content.initial_window_size(&app.state);
-        assert_eq!(target_size.width, 1024.0);
-        assert_eq!(target_size.height, 606.0);
+        let image_content = crate::core::PreviewData::Image {
+            data: Vec::new(),
+            width: 500,
+            height: 400,
+            format_info: "PNG".to_string(),
+            exif_content: None,
+        };
+        assert!(!image_content.supports_custom_initial_size());
+        assert_eq!(
+            image_content.initial_window_size(&app.state),
+            app.state.window_default_size
+        );
 
-        let _task = app.handle_file_loaded("/tmp/sample.mp4".to_string(), media_content);
-        assert_eq!(app.state.file_name, "/tmp/sample.mp4");
+        let _task = app.handle_file_loaded("/tmp/sample.mp3".to_string(), audio_content);
+        assert_eq!(app.state.file_name, "/tmp/sample.mp3");
         assert!(app.current_content.is_some());
     }
 }

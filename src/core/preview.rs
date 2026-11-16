@@ -406,36 +406,10 @@ impl PreviewData {
     pub fn initial_window_size(&self, state: &KglanceState) -> iced::Size {
         match self {
             PreviewData::Unsupported(_) => iced::Size::new(450.0, 380.0),
-            PreviewData::Image { width, height, .. } => {
-                let max_w = if state.window_width > 0.0 {
-                    state.window_width
-                } else {
-                    state.window_default_size.width
-                };
-                let max_h = if state.window_height > 0.0 {
-                    state.window_height
-                } else {
-                    state.window_default_size.height
-                };
-                crate::features::image::view::calculate_window_size(max_w, max_h, *width, *height)
-            }
             PreviewData::Audio { .. } => iced::Size::new(
                 680.0f32.min(state.window_default_size.width),
                 280.0f32.min(state.window_default_size.height),
             ),
-            PreviewData::Media { width, height, .. } => {
-                let max_w = if state.window_width > 0.0 {
-                    state.window_width
-                } else {
-                    state.window_default_size.width
-                };
-                let max_h = if state.window_height > 0.0 {
-                    state.window_height
-                } else {
-                    state.window_default_size.height
-                };
-                crate::features::image::view::calculate_window_size(max_w, max_h, *width, *height)
-            }
             _ => state.window_default_size,
         }
     }

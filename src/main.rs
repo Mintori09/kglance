@@ -233,36 +233,8 @@ fn run_standalone_internal(
         config.ui.default_height as f32,
     );
 
-    let ext = resolved
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase())
-        .unwrap_or_default();
-
     let mut is_unsupported = false;
-    if matches!(
-        ext.as_str(),
-        "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp"
-    ) && let Ok((width, height)) = image::image_dimensions(resolved)
-    {
-        initial_size = kglance::features::image::view::calculate_window_size(
-            config.ui.default_width as f32,
-            config.ui.default_height as f32,
-            width,
-            height,
-        );
-    } else if matches!(
-        ext.as_str(),
-        "mp4" | "mkv" | "avi" | "mov" | "wmv" | "webm" | "flv" | "m4v"
-    ) {
-        let (_, width, height) = kglance::features::video::probe_video_info(resolved);
-        initial_size = kglance::features::image::view::calculate_window_size(
-            config.ui.default_width as f32,
-            config.ui.default_height as f32,
-            width,
-            height,
-        );
-    } else if let Ok(kglance::core::preview::PreviewData::Unsupported(_)) =
+    if let Ok(kglance::core::preview::PreviewData::Unsupported(_)) =
         kglance::core::preview::FilePreviewer::parse(&*registry, resolved)
     {
         initial_size = Size::new(450.0, 340.0);
