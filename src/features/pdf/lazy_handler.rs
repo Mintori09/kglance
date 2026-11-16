@@ -104,7 +104,18 @@ pub async fn process_page_loading<F>(
             find_unrendered_window_pages(&rendered_pages, &window_range, current_page);
 
         if unrendered_pages.is_empty() {
-            break;
+            if rendered_pages.iter().all(|&r| r) {
+                break;
+            }
+            if disk_cache.is_none() {
+                for (idx, is_rendered) in rendered_pages.iter_mut().enumerate() {
+                    if idx > 0 && !window_range.contains(idx) {
+                        *is_rendered = false;
+                    }
+                }
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+            continue;
         }
 
         let batch: Vec<usize> = unrendered_pages.into_iter().take(BATCH_SIZE).collect();
@@ -358,11 +369,6 @@ async fn render_and_send_thumbnail_batch<F>(
     }
 }
 
-#[test]
-fn test_window_range_filtering() {
-    let range = WindowRange::new(10, 100, 2); // 8..=12
-    assert!(range.contains(8));
-    assert!(range.contains(12));
-    assert!(!range.contains(7));
-    assert!(!range.contains(13));
-}
+#[cfg(test)]
+#[path = "lazy_handler_tests.rs"]
+mod tests;
