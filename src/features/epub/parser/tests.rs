@@ -3732,3 +3732,20 @@ fn test_svg_desc_and_metadata_skipped() {
         "Image tag must be converted: {md}"
     );
 }
+
+#[test]
+fn test_epub_parse_tu_tien_overflow_repro() {
+    let path = std::path::Path::new(
+        "/home/mintori/Downloads/Tu Tiên Ba Trăm Năm Đột Nhiên Phát Hiện Là Võ Hiệp - Cô Vân Phi Tụ.epub",
+    );
+    if !path.exists() {
+        return;
+    }
+
+    let parser = super::EpubParser;
+    let res = parser.parse(path).expect("Failed to parse EPUB");
+    let crate::features::common::parser::types::ParsedContent::Epub { chapters, .. } = res else {
+        panic!("Expected ParsedContent::Epub variant");
+    };
+    assert!(!chapters.is_empty());
+}
