@@ -110,7 +110,8 @@ pub fn resolve_column_plan(
     let cell_char_w = cell_size * 0.52;
     let pad_h = (style.table.cell_padding[1] * 2) as f32; // 24px padding per cell
     let min_col_w = crate::ui::theme::scale_size(64.0, font_size).max(64.0);
-    let max_col_w = (font_size * 28.0).max(380.0);
+    let max_col_w = (font_size * 22.0).max(300.0);
+    let prose_cap = (font_size * 16.0).clamp(180.0, 260.0);
 
     // Track desired width and unbreakable minimum width in pixels per column,
     // using header_char_w for headers and cell_char_w for body rows.
@@ -196,10 +197,15 @@ pub fn resolve_column_plan(
         }
     } else {
         // Table has too many columns, unbreakable tokens exceed available width, or window is narrow: enable horizontal scroll!
+        // Cap wrappable prose columns at prose_cap so they wrap cleanly instead of stretching on one line,
+        // while still allowing genuinely long unbreakable tokens up to max_col_w.
         let col_widths: Vec<f32> = desired_widths
             .iter()
             .zip(col_min_widths.iter())
-            .map(|(&dw, &min_w)| dw.clamp(min_w, max_col_w))
+            .map(|(&dw, &min_w)| {
+                let cap = prose_cap.max(min_w).min(max_col_w);
+                dw.clamp(min_w, cap)
+            })
             .collect();
         let total_width = col_widths.iter().sum();
 

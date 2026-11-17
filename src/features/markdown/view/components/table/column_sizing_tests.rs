@@ -116,6 +116,16 @@ fn test_six_columns_with_long_unbreakable_code_overflows_without_excess_gap() {
             "Method column too wide (excess gap): {}",
             plan.col_widths[1]
         );
+        assert!(
+            plan.col_widths[2] <= 230.0,
+            "Wrappable prose column should wrap near prose_cap instead of stretching: {}",
+            plan.col_widths[2]
+        );
+        assert!(
+            plan.col_widths[5] <= 230.0,
+            "Wrappable prose column should wrap near prose_cap instead of stretching: {}",
+            plan.col_widths[5]
+        );
     }
 }
 
