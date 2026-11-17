@@ -1,11 +1,11 @@
-use super::style::{STYLE, code_block_style, copy_button_style, language_label_style};
+use super::style::{STYLE, code_block_style, copy_button, language_label_style};
 use crate::app::Message;
 use crate::features::markdown::view::build_selectable;
 use crate::features::markdown::view::highlight::highlight_code;
 use crate::ui::theme::font::{get_code_font, get_main_font};
 use crate::ui::theme::{AppTheme, scale_size};
 use crate::ui::types::RenderContext;
-use iced::widget::{button, column, container, row, text};
+use iced::widget::{column, container, row, text};
 use iced::{Element, Length};
 
 fn is_circled_number(c: char) -> bool {
@@ -193,16 +193,13 @@ fn copy_button_inline<'a>(
     font_size: f32,
     theme: AppTheme,
 ) -> Element<'a, Message> {
-    container(
-        button(
-            text("⎘")
-                .font(code_font)
-                .size(scale_size(STYLE.code.label_button_font_size, font_size)),
-        )
-        .on_press(crate::app::messages::ActionMsg::CopyText(copy_content).into())
-        .style(move |_: &iced::Theme, status| copy_button_style(theme, status))
-        .padding(STYLE.code.button_padding),
-    )
+    container(copy_button(
+        code_font,
+        copy_content,
+        font_size,
+        "Copy code",
+        theme,
+    ))
     .padding(0)
     .width(Length::Fill)
     .align_x(iced::alignment::Horizontal::Right)

@@ -72,9 +72,14 @@ pub fn breeze_tool(theme: &Theme, status: Status) -> Style {
         _ => None,
     };
 
+    let text_color = match status {
+        Status::Disabled => p.text_dim,
+        _ => p.text,
+    };
+
     Style {
         background: bg,
-        text_color: p.text,
+        text_color,
         border: Border {
             radius: radius::XS.into(),
             width: 0.0,

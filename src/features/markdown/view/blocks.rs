@@ -42,6 +42,7 @@ pub(crate) fn render_block<'a>(
             *height,
             state,
             ctx.is_epub,
+            ctx.theme,
         ),
         Block::List {
             ordered,

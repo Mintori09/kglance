@@ -129,7 +129,7 @@ pub fn collect_markdown_lightbox_items(
                         items.push(LightboxItem {
                             id: format!("mermaid:{block_id}"),
                             title: None,
-                            subtitle: format!("Mermaid Diagram #{counter}"),
+                            subtitle: format!("Mermaid diagram #{counter}"),
                             link_url: None,
                             in_memory_bytes: Some(png.clone()),
                         });

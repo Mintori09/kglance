@@ -1,10 +1,10 @@
-use super::style::{STYLE, code_block_style, mermaid_badge_style};
+use super::style::{STYLE, code_block_style, lightbox_button_style, mermaid_badge_style};
 use crate::app::Message;
 use crate::ui::theme::font::get_code_font;
 use crate::ui::theme::scale_size;
 use crate::ui::types::RenderContext;
 use iced::widget::{button, column, container, image, text};
-use iced::{Border, Color, Element, Length, Shadow};
+use iced::{Element, Length};
 
 pub(crate) fn render_mermaid<'a>(
     index: usize,
@@ -20,7 +20,7 @@ pub(crate) fn render_mermaid<'a>(
 
     let theme = ctx.theme;
     let badge = container(
-        text("Mermaid Diagram").size(scale_size(STYLE.mermaid.badge_font_size, ctx.font_size)),
+        text("Mermaid diagram").size(scale_size(STYLE.mermaid.badge_font_size, ctx.font_size)),
     )
     .padding(STYLE.mermaid.badge_padding)
     .style(move |_: &iced::Theme| mermaid_badge_style(theme));
@@ -39,23 +39,8 @@ pub(crate) fn render_mermaid<'a>(
         let mermaid_id = format!("mermaid:{index}");
         let image_btn = button(image_container)
             .on_press(crate::app::messages::MarkdownMsg::OpenImageLightbox(mermaid_id).into())
-            .style(|_theme: &iced::Theme, status: button::Status| {
-                let border_color = match status {
-                    button::Status::Hovered => Color::from_rgba(0.4, 0.7, 1.0, 0.4),
-                    button::Status::Pressed => Color::from_rgba(0.4, 0.7, 1.0, 0.7),
-                    _ => Color::TRANSPARENT,
-                };
-                button::Style {
-                    background: None,
-                    text_color: Color::TRANSPARENT,
-                    border: Border {
-                        width: 1.0,
-                        color: border_color,
-                        radius: STYLE.image.border_radius.into(),
-                    },
-                    shadow: Shadow::default(),
-                    snap: false,
-                }
+            .style(move |_theme: &iced::Theme, status: button::Status| {
+                lightbox_button_style(theme, status, STYLE.code.border_radius)
             })
             .padding(0);
 
@@ -85,6 +70,8 @@ pub(crate) fn render_mermaid<'a>(
             .width(Length::Fill)
             .style(move |_: &iced::Theme| code_block_style(theme));
 
-        column![badge, content].spacing(0).into()
+        column![badge, content]
+            .spacing(STYLE.general.section_spacing)
+            .into()
     }
 }

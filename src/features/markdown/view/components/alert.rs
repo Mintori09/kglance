@@ -4,6 +4,7 @@ use crate::features::markdown::parser::AlertKind;
 use crate::features::markdown::view::blocks::render_block;
 use crate::parsers::markdown::Block;
 use crate::ui::theme::AppTheme;
+use crate::ui::theme::tokens::spacing;
 use crate::ui::types::RenderContext;
 use iced::font::Weight;
 use iced::widget::{column, container, row, text};
@@ -57,14 +58,14 @@ pub(crate) fn render_alert<'a>(
     .spacing(STYLE.general.section_spacing)
     .into();
 
-    let content_col = column![header, inner].spacing(6.0);
+    let content_col = column![header, inner].spacing(STYLE.general.section_spacing);
 
     let content = container(content_col)
         .padding(Padding {
-            top: 10.0,
-            right: 14.0,
-            bottom: 10.0,
-            left: 14.0,
+            top: spacing::M,
+            right: spacing::L,
+            bottom: spacing::M,
+            left: spacing::L,
         })
         .style(move |_: &iced::Theme| container::Style {
             background: Some(bg_color.into()),
@@ -73,7 +74,7 @@ pub(crate) fn render_alert<'a>(
         .width(Length::Fill);
 
     let bar = container(text(""))
-        .width(4.0)
+        .width(spacing::XS)
         .height(Length::Fill)
         .style(move |_: &iced::Theme| container::Style {
             background: Some(accent_color.into()),

@@ -1,11 +1,13 @@
-use super::style::STYLE;
+use super::style::{STYLE, lightbox_button_style};
 use crate::app::{KglanceApp, Message};
 use crate::core::PreviewData;
 use crate::features::image::png_to_rgba_handle;
 use crate::features::markdown::Block;
 use crate::log_debug;
+use crate::ui::theme::AppTheme;
+use crate::ui::theme::tokens::border;
 use iced::widget::{button, column, container, image};
-use iced::{Border, Color, Element, Length, Shadow, Task};
+use iced::{Border, Element, Length, Task};
 
 pub(crate) fn render_inline_image<'a>(
     path: &'a str,
@@ -14,6 +16,7 @@ pub(crate) fn render_inline_image<'a>(
     explicit_height: Option<u32>,
     state: &'a crate::core::MarkdownState,
     is_epub: bool,
+    theme: AppTheme,
 ) -> Element<'a, Message> {
     let filename = std::path::Path::new(path)
         .file_name()
@@ -49,10 +52,11 @@ pub(crate) fn render_inline_image<'a>(
         None => img.width(Length::Shrink),
     };
 
+    let border_color = theme.palette().base.border;
     let image_card = container(img).style(move |_theme: &iced::Theme| container::Style {
         border: Border {
-            color: Color::from_rgba(1.0, 1.0, 1.0, 0.08),
-            width: 1.0,
+            color: border_color,
+            width: border::THIN,
             radius: STYLE.image.border_radius.into(),
         },
         ..Default::default()
@@ -67,23 +71,8 @@ pub(crate) fn render_inline_image<'a>(
 
     let content: Element<'a, Message> = button(image_card)
         .on_press(on_press_msg)
-        .style(|_theme: &iced::Theme, status: button::Status| {
-            let border_color = match status {
-                button::Status::Hovered => Color::from_rgba(0.4, 0.7, 1.0, 0.4),
-                button::Status::Pressed => Color::from_rgba(0.4, 0.7, 1.0, 0.7),
-                _ => Color::TRANSPARENT,
-            };
-            button::Style {
-                background: None,
-                text_color: Color::TRANSPARENT,
-                border: Border {
-                    width: 1.0,
-                    color: border_color,
-                    radius: STYLE.image.border_radius.into(),
-                },
-                shadow: Shadow::default(),
-                snap: false,
-            }
+        .style(move |_theme: &iced::Theme, status: button::Status| {
+            lightbox_button_style(theme, status, STYLE.image.border_radius)
         })
         .padding(0)
         .into();

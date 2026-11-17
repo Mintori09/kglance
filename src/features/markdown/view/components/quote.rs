@@ -2,6 +2,7 @@ use super::style::STYLE;
 use crate::app::Message;
 use crate::features::markdown::view::blocks::render_block;
 use crate::parsers::markdown::Block;
+use crate::ui::theme::tokens::radius;
 use crate::ui::types::RenderContext;
 use iced::widget::{Space, column, container, row};
 use iced::{Border, Element, Length};
@@ -29,8 +30,8 @@ pub(crate) fn render_quote<'a>(
             border: Border {
                 radius: iced::border::Radius {
                     top_left: 0.0,
-                    top_right: 4.0,
-                    bottom_right: 4.0,
+                    top_right: radius::SM,
+                    bottom_right: radius::SM,
                     bottom_left: 0.0,
                 },
                 ..Default::default()
@@ -49,7 +50,7 @@ pub(crate) fn render_quote<'a>(
     .style(move |_: &iced::Theme| container::Style {
         background: Some(mp.quote_accent.into()),
         border: Border {
-            radius: 1.5.into(),
+            radius: radius::XS.into(),
             ..Default::default()
         },
         ..Default::default()

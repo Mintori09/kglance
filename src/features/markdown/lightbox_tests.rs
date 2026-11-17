@@ -66,7 +66,7 @@ fn test_collect_markdown_lightbox_items_includes_rendered_mermaid() {
         LightboxItem {
             id: "mermaid:0".into(),
             title: None,
-            subtitle: "Mermaid Diagram #1".into(),
+            subtitle: "Mermaid diagram #1".into(),
             link_url: None,
             in_memory_bytes: Some(mermaid_png),
         }
@@ -183,5 +183,5 @@ fn test_handle_open_markdown_image_lightbox() {
     let _ = handle_open_markdown_image_lightbox(&mut app, "mermaid:1");
     let lb = app.state.lightbox.as_ref().unwrap();
     assert_eq!(lb.current_index, 1);
-    assert_eq!(lb.items[1].subtitle, "Mermaid Diagram #1");
+    assert_eq!(lb.items[1].subtitle, "Mermaid diagram #1");
 }

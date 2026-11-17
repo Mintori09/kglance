@@ -1,7 +1,9 @@
+use crate::app::Message;
 use crate::ui::theme::color::primitive;
-use crate::ui::theme::tokens::{border, radius, spacing, tables};
-use iced::widget::{button, container};
-use iced::{Border, Color, Shadow};
+use crate::ui::theme::scale_size;
+use crate::ui::theme::tokens::{border, radius, spacing, tables, typography};
+use iced::widget::{button, container, text, tooltip};
+use iced::{Border, Color, Element, Shadow};
 
 pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
     general: GeneralStyle {
@@ -45,9 +47,9 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
         border_radius: radius::MD,
     },
     mermaid: MermaidStyle {
-        image_padding: 14,
-        badge_font_size: 11.0,
-        badge_padding: [4, 10],
+        image_padding: spacing::M as u16,
+        badge_font_size: typography::CAPTION,
+        badge_padding: [spacing::XS as u16, spacing::S as u16],
     },
     hr: HrStyle { padding: [4, 0] },
     math: MathStyle {
@@ -60,7 +62,7 @@ pub(crate) const STYLE: MarkdownStyle = MarkdownStyle {
         entry_font_size: crate::ui::components::sidebar::SIDEBAR_ENTRY_FONT_SIZE,
         entry_padding: [
             crate::ui::components::sidebar::SIDEBAR_ENTRY_PADDING_V as u16,
-            4,
+            spacing::XS as u16,
         ],
         container_padding: spacing::S,
         item_spacing: crate::ui::components::sidebar::SIDEBAR_ITEM_SPACING,
@@ -190,22 +192,64 @@ pub(super) fn code_block_style(theme: AppTheme) -> container::Style {
 
 pub(super) fn copy_button_style(theme: AppTheme, status: button::Status) -> button::Style {
     let p = theme.palette().base;
-    let bg = p.bg;
     button::Style {
-        background: Some(match status {
+        background: match status {
             button::Status::Hovered | button::Status::Pressed => {
-                iced::Background::Color(Color { a: 0.3, ..bg })
+                Some(iced::Background::Color(p.surface_raised))
             }
-            _ => iced::Background::Color(Color { a: 0.0, ..bg }),
-        }),
+            _ => None,
+        },
         text_color: match status {
-            button::Status::Hovered => p.text,
+            button::Status::Hovered | button::Status::Pressed => p.text,
             _ => p.text_dim,
         },
         border: Border {
             radius: STYLE.general.button_border_radius.into(),
             width: 0.0,
             color: Color::TRANSPARENT,
+        },
+        shadow: Shadow::default(),
+        snap: false,
+    }
+}
+
+pub(super) fn copy_button<'a>(
+    code_font: iced::Font,
+    copy_content: String,
+    font_size: f32,
+    tooltip_label: &'a str,
+    theme: AppTheme,
+) -> Element<'a, Message> {
+    let btn = button(
+        text("⎘")
+            .font(code_font)
+            .size(scale_size(STYLE.code.label_button_font_size, font_size)),
+    )
+    .on_press(crate::app::messages::ActionMsg::CopyText(copy_content).into())
+    .style(move |_: &iced::Theme, status| copy_button_style(theme, status))
+    .padding(STYLE.code.button_padding);
+
+    tooltip(btn, tooltip_label, tooltip::Position::Left).into()
+}
+
+pub(super) fn lightbox_button_style(
+    theme: AppTheme,
+    status: button::Status,
+    corner_radius: f32,
+) -> button::Style {
+    let accent = theme.palette().roles.accent;
+    let border_color = match status {
+        button::Status::Hovered => Color { a: 0.45, ..accent },
+        button::Status::Pressed => Color { a: 0.75, ..accent },
+        _ => Color::TRANSPARENT,
+    };
+    button::Style {
+        background: None,
+        text_color: Color::TRANSPARENT,
+        border: Border {
+            width: border::THIN,
+            color: border_color,
+            radius: corner_radius.into(),
         },
         shadow: Shadow::default(),
         snap: false,

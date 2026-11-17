@@ -2,10 +2,12 @@ use crate::app::Message;
 use crate::core::{MarkdownState, TocEntry};
 use crate::features::markdown::types::MarkdownSidebarTab;
 use crate::features::markdown::view::components::style::STYLE;
+use crate::ui::components::button::breeze_tool;
 use crate::ui::components::scroll_pane::scroll_pane;
 use crate::ui::components::sidebar::{collapse_arrow, sidebar_entry_style};
+use crate::ui::theme::tokens::{border, radius, spacing, typography};
 use crate::ui::theme::{AppTheme, default_text_input};
-use iced::widget::{Space, button, column, container, row, text, text_input};
+use iced::widget::{Space, button, column, container, row, text, text_input, tooltip};
 use iced::{Alignment, Border, Color, Element, Font, Length, Padding, Shadow};
 
 pub fn render_toc_sidebar<'a>(
@@ -17,9 +19,8 @@ pub fn render_toc_sidebar<'a>(
 ) -> Element<'a, Message> {
     let main_font = crate::ui::theme::font::get_main_font(font_family);
     let main_font_bold = crate::ui::theme::font::get_main_font_bold(font_family);
-    let palette = theme.palette().base;
 
-    let header = build_sidebar_header(state, palette.text, main_font, main_font_bold);
+    let header = build_sidebar_header(state, theme, main_font, main_font_bold);
     let search_bar = build_sidebar_search_bar(state, main_font, theme);
 
     let body: Element<'a, Message> = if state.sidebar_tab == MarkdownSidebarTab::Search {
@@ -50,49 +51,62 @@ pub fn render_toc_sidebar<'a>(
     )
 }
 
-fn build_sidebar_header<'a>(
-    state: &'a MarkdownState,
-    text_color: Color,
+fn sidebar_tab_style(theme: AppTheme, status: button::Status, is_active: bool) -> button::Style {
+    let p = theme.palette().base;
+    let bg = if is_active {
+        Some(p.surface_raised.into())
+    } else if matches!(status, button::Status::Hovered | button::Status::Pressed) {
+        Some(p.surface.into())
+    } else {
+        None
+    };
+
+    button::Style {
+        background: bg,
+        text_color: if is_active { p.text } else { p.text_dim },
+        border: Border {
+            radius: radius::SM.into(),
+            width: 0.0,
+            color: Color::TRANSPARENT,
+        },
+        shadow: Shadow::default(),
+        snap: false,
+    }
+}
+
+fn sidebar_tab_button<'a>(
+    label: String,
+    tab: MarkdownSidebarTab,
+    is_active: bool,
+    theme: AppTheme,
     main_font: Font,
     main_font_bold: Font,
 ) -> Element<'a, Message> {
-    let is_toc = state.sidebar_tab == MarkdownSidebarTab::Toc;
-    let is_search = state.sidebar_tab == MarkdownSidebarTab::Search;
+    button(text(label).size(typography::CAPTION).font(if is_active {
+        main_font_bold
+    } else {
+        main_font
+    }))
+    .on_press(crate::app::messages::MarkdownMsg::SidebarTabChanged(tab).into())
+    .padding([spacing::XS as u16, spacing::S as u16])
+    .style(move |_, status| sidebar_tab_style(theme, status, is_active))
+    .into()
+}
 
-    let toc_btn =
-        button(
-            text("Contents")
-                .size(11)
-                .font(if is_toc { main_font_bold } else { main_font }),
-        )
-        .on_press(
-            crate::app::messages::MarkdownMsg::SidebarTabChanged(MarkdownSidebarTab::Toc).into(),
-        )
-        .padding([3, 8])
-        .style(move |_, status| {
-            let bg = if is_toc {
-                Some(Color::from_rgba(1.0, 1.0, 1.0, 0.1).into())
-            } else if matches!(status, button::Status::Hovered) {
-                Some(Color::from_rgba(1.0, 1.0, 1.0, 0.05).into())
-            } else {
-                None
-            };
-            button::Style {
-                background: bg,
-                text_color: if is_toc {
-                    text_color
-                } else {
-                    Color::from_rgba(0.7, 0.75, 0.8, 0.7)
-                },
-                border: Border {
-                    radius: 4.0.into(),
-                    width: 0.0,
-                    color: Color::TRANSPARENT,
-                },
-                shadow: Shadow::default(),
-                snap: false,
-            }
-        });
+fn build_sidebar_header<'a>(
+    state: &'a MarkdownState,
+    theme: AppTheme,
+    main_font: Font,
+    main_font_bold: Font,
+) -> Element<'a, Message> {
+    let toc_btn = sidebar_tab_button(
+        "Contents".to_string(),
+        MarkdownSidebarTab::Toc,
+        state.sidebar_tab == MarkdownSidebarTab::Toc,
+        theme,
+        main_font,
+        main_font_bold,
+    );
 
     let search_title = if state.search_match_count > 0 {
         format!("Search ({})", state.search_match_count)
@@ -100,46 +114,21 @@ fn build_sidebar_header<'a>(
         "Search".to_string()
     };
 
-    let search_btn = button(text(search_title).size(11).font(if is_search {
-        main_font_bold
-    } else {
-        main_font
-    }))
-    .on_press(
-        crate::app::messages::MarkdownMsg::SidebarTabChanged(MarkdownSidebarTab::Search).into(),
-    )
-    .padding([3, 8])
-    .style(move |_, status| {
-        let bg = if is_search {
-            Some(Color::from_rgba(1.0, 1.0, 1.0, 0.1).into())
-        } else if matches!(status, button::Status::Hovered) {
-            Some(Color::from_rgba(1.0, 1.0, 1.0, 0.05).into())
-        } else {
-            None
-        };
-        button::Style {
-            background: bg,
-            text_color: if is_search {
-                text_color
-            } else {
-                Color::from_rgba(0.7, 0.75, 0.8, 0.7)
-            },
-            border: Border {
-                radius: 4.0.into(),
-                width: 0.0,
-                color: Color::TRANSPARENT,
-            },
-            shadow: Shadow::default(),
-            snap: false,
-        }
-    });
+    let search_btn = sidebar_tab_button(
+        search_title,
+        MarkdownSidebarTab::Search,
+        state.sidebar_tab == MarkdownSidebarTab::Search,
+        theme,
+        main_font,
+        main_font_bold,
+    );
 
-    container(row![toc_btn, search_btn].spacing(4))
+    container(row![toc_btn, search_btn].spacing(spacing::XS))
         .padding(Padding {
-            top: 8.0,
-            right: 8.0,
-            bottom: 4.0,
-            left: 8.0,
+            top: spacing::S,
+            right: spacing::S,
+            bottom: spacing::XS,
+            left: spacing::S,
         })
         .width(Length::Fill)
         .into()
@@ -157,12 +146,14 @@ fn build_sidebar_search_bar<'a>(
         .id("md_sidebar_search_input")
         .on_input(|q| crate::app::messages::MarkdownMsg::SearchQueryChanged(q).into())
         .on_submit(crate::app::messages::MarkdownMsg::SearchNext.into())
-        .size(12)
+        .size(typography::BODY)
         .font(main_font)
-        .padding([5, 8])
+        .padding([spacing::XS as u16, spacing::S as u16])
         .style(default_text_input);
 
-    let mut row_items = row![input].spacing(4).align_y(iced::Alignment::Center);
+    let mut row_items = row![input]
+        .spacing(spacing::XS)
+        .align_y(iced::Alignment::Center);
 
     if is_searching {
         let total = state.search_matches.len();
@@ -174,51 +165,34 @@ fn build_sidebar_search_bar<'a>(
             format!("{}/{}", state.search_match_index + 1, total)
         };
         let count_badge = text(count_str)
-            .size(11)
+            .size(typography::CAPTION)
             .font(main_font)
             .color(palette.text_dim);
 
-        let text_color = palette.text;
-        let text_dim_color = palette.text_dim;
-
-        let mut prev_btn = button(text("▲").size(10).font(main_font))
-            .padding([2, 5])
-            .style(move |_, _| button::Style {
-                background: None,
-                text_color: if total > 0 {
-                    text_color
-                } else {
-                    text_dim_color
-                },
-                ..Default::default()
-            });
+        let mut prev_btn = button(text("▲").size(typography::BADGE).font(main_font))
+            .padding([spacing::XXS as u16, spacing::XS as u16])
+            .style(breeze_tool);
         if total > 0 {
             prev_btn = prev_btn.on_press(crate::app::messages::MarkdownMsg::SearchPrev.into());
         }
+        let prev_btn = tooltip(prev_btn, "Previous match", tooltip::Position::Bottom);
 
-        let mut next_btn = button(text("▼").size(10).font(main_font))
-            .padding([2, 5])
-            .style(move |_, _| button::Style {
-                background: None,
-                text_color: if total > 0 {
-                    text_color
-                } else {
-                    text_dim_color
-                },
-                ..Default::default()
-            });
+        let mut next_btn = button(text("▼").size(typography::BADGE).font(main_font))
+            .padding([spacing::XXS as u16, spacing::XS as u16])
+            .style(breeze_tool);
         if total > 0 {
             next_btn = next_btn.on_press(crate::app::messages::MarkdownMsg::SearchNext.into());
         }
+        let next_btn = tooltip(next_btn, "Next match", tooltip::Position::Bottom);
 
-        let clear_btn = button(text("✕").size(11).font(main_font))
-            .on_press(crate::app::messages::MarkdownMsg::SearchClosed.into())
-            .padding([2, 5])
-            .style(move |_, _| button::Style {
-                background: None,
-                text_color: text_dim_color,
-                ..Default::default()
-            });
+        let clear_btn = tooltip(
+            button(text("✕").size(typography::CAPTION).font(main_font))
+                .on_press(crate::app::messages::MarkdownMsg::SearchClosed.into())
+                .padding([spacing::XXS as u16, spacing::XS as u16])
+                .style(breeze_tool),
+            "Close search",
+            tooltip::Position::Bottom,
+        );
 
         row_items = row_items
             .push(count_badge)
@@ -229,10 +203,10 @@ fn build_sidebar_search_bar<'a>(
 
     container(row_items)
         .padding(Padding {
-            top: 4.0,
-            right: 8.0,
-            bottom: 8.0,
-            left: 8.0,
+            top: spacing::XS,
+            right: spacing::S,
+            bottom: spacing::S,
+            left: spacing::S,
         })
         .width(Length::Fill)
         .into()
@@ -244,6 +218,7 @@ fn build_sidebar_search_results<'a>(
     main_font: Font,
 ) -> Element<'a, Message> {
     let palette = theme.palette().base;
+    let accent = theme.palette().roles.accent;
     let mut elements: Vec<Element<'a, Message>> = Vec::new();
 
     if state.search_matches.is_empty() {
@@ -253,22 +228,27 @@ fn build_sidebar_search_results<'a>(
             "No matches found"
         };
         elements.push(
-            container(text(msg).size(12).font(main_font).color(palette.text_dim))
-                .padding(16)
-                .into(),
+            container(
+                text(msg)
+                    .size(typography::BODY)
+                    .font(main_font)
+                    .color(palette.text_dim),
+            )
+            .padding(spacing::L as u16)
+            .into(),
         );
     } else {
         for (match_idx, m) in state.search_matches.iter().enumerate() {
             let is_active = match_idx == state.search_match_index;
             let card_bg = if is_active {
-                Color::from_rgba(0.23, 0.51, 0.96, 0.2)
+                Color { a: 0.18, ..accent }
             } else {
-                Color::from_rgba(palette.surface.r, palette.surface.g, palette.surface.b, 0.4)
+                palette.surface
             };
 
             let card = button(
                 text(&m.snippet)
-                    .size(11)
+                    .size(typography::CAPTION)
                     .font(main_font)
                     .color(if is_active {
                         palette.text
@@ -277,11 +257,11 @@ fn build_sidebar_search_results<'a>(
                     }),
             )
             .on_press(crate::app::messages::MarkdownMsg::SearchResultClicked(match_idx).into())
-            .padding([6, 8])
+            .padding([spacing::XS as u16 + 2, spacing::S as u16])
             .width(Length::Fill)
             .style(move |_, status| button::Style {
                 background: Some(match status {
-                    button::Status::Hovered => Color::from_rgba(0.23, 0.51, 0.96, 0.15).into(),
+                    button::Status::Hovered => Color { a: 0.12, ..accent }.into(),
                     _ => card_bg.into(),
                 }),
                 text_color: if is_active {
@@ -290,13 +270,9 @@ fn build_sidebar_search_results<'a>(
                     palette.text_dim
                 },
                 border: Border {
-                    width: if is_active { 1.0 } else { 0.5 },
-                    color: if is_active {
-                        Color::from_rgb(0.23, 0.51, 0.96)
-                    } else {
-                        palette.border
-                    },
-                    radius: 4.0.into(),
+                    width: border::THIN,
+                    color: if is_active { accent } else { palette.border },
+                    radius: radius::SM.into(),
                 },
                 shadow: Shadow::default(),
                 snap: false,
@@ -308,11 +284,11 @@ fn build_sidebar_search_results<'a>(
 
     scroll_pane(
         "md_search_results_scroll",
-        column(elements).spacing(4).padding(Padding {
-            top: 4.0,
-            right: 8.0,
-            bottom: 8.0,
-            left: 8.0,
+        column(elements).spacing(spacing::XS).padding(Padding {
+            top: spacing::XS,
+            right: spacing::S,
+            bottom: spacing::S,
+            left: spacing::S,
         }),
     )
     .build()
@@ -325,6 +301,17 @@ fn build_sidebar_toc_list<'a>(
     theme: AppTheme,
     main_font: Font,
 ) -> Element<'a, Message> {
+    if toc.is_empty() {
+        let palette = theme.palette().base;
+        return container(
+            text("No headings in document")
+                .size(typography::BODY)
+                .font(main_font)
+                .color(palette.text_dim),
+        )
+        .padding(spacing::L as u16)
+        .into();
+    }
     let active_block_index = find_active_block_index(toc, scroll_y);
     let visible_entries = filter_visible_entries(toc, state);
     let has_hierarchy = toc.iter().any(|entry| entry_has_children(toc, entry));

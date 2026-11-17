@@ -1,7 +1,7 @@
 mod column_sizing;
 
 use super::style::{
-    STYLE, copy_button_style, table_border_style, table_header_style, table_row_background_style,
+    STYLE, copy_button, table_border_style, table_header_style, table_row_background_style,
     table_separator_style, table_toolbar_badge_style,
 };
 use crate::app::Message;
@@ -9,9 +9,10 @@ use crate::features::markdown::view::components::render_inlines_aligned;
 use crate::parsers::markdown::TableBlock;
 use crate::ui::theme::font::get_code_font;
 use crate::ui::theme::scale_size;
+use crate::ui::theme::tokens::typography;
 use crate::ui::types::RenderContext;
 use iced::alignment::Horizontal;
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::{column, container, row, scrollable, text};
 use iced::{Element, Length};
 
 pub const MAX_VISIBLE_ROWS: usize = 100;
@@ -187,10 +188,11 @@ pub(crate) fn render_table<'a>(
         let truncated_msg = format!(
             "Showing {MAX_VISIBLE_ROWS} of {total_rows} rows ({remaining} more rows - copy table to view all)"
         );
+        let dim_color = theme.palette().base.text_dim;
         let footer_label = text(truncated_msg)
-            .size(scale_size(11.0, ctx.font_size))
+            .size(scale_size(typography::CAPTION, ctx.font_size))
             .style(move |_: &iced::Theme| text::Style {
-                color: Some(STYLE.inline.image_alt_color),
+                color: Some(dim_color),
             });
         let footer = container(footer_label)
             .padding(STYLE.table.cell_padding)
@@ -248,14 +250,13 @@ pub(crate) fn render_table<'a>(
     .padding(STYLE.code.top_bar_padding)
     .style(move |_: &iced::Theme| table_toolbar_badge_style(theme));
 
-    let copy_btn = button(
-        text("⎘")
-            .font(code_font)
-            .size(scale_size(STYLE.code.label_button_font_size, ctx.font_size)),
-    )
-    .on_press(crate::app::messages::ActionMsg::CopyText(copy_content).into())
-    .style(move |_: &iced::Theme, status| copy_button_style(theme, status))
-    .padding(STYLE.code.button_padding);
+    let copy_btn = copy_button(
+        code_font,
+        copy_content,
+        ctx.font_size,
+        "Copy table as Markdown",
+        theme,
+    );
 
     let top_bar = row![
         badge_label,
