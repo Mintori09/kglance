@@ -518,7 +518,20 @@ pub fn handle_zoom(app: &mut KglanceApp, factor: f32, cursor: iced::Point) -> Ta
 
 pub fn handle_pan(app: &mut KglanceApp, dx: f32, dy: f32) -> Task<Message> {
     use crate::features::image::ViewerController;
-    ViewerController::pan(&mut app.state.image.camera, dx, dy);
+
+    let camera = &mut app.state.image.camera;
+    let win = app.state.current_window_size;
+    let canvas_height = (win.height - FOOTER_HEIGHT).max(1.0);
+    let viewport = iced::Size::new(win.width, canvas_height);
+
+    ViewerController::prepare_camera_for_zoom(
+        camera,
+        app.state.image.display_width,
+        app.state.image.display_height,
+        viewport,
+    );
+
+    ViewerController::pan(camera, dx, dy);
     Task::none()
 }
 

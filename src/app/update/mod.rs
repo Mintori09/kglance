@@ -256,7 +256,16 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 }
             }
             crate::app::messages::ImageMsg::PanDelta(dx, dy) => {
+                let win = app.state.current_window_size;
                 if let Some(image_state) = get_active_lightbox_image_state(app) {
+                    let canvas_height = (win.height - 40.0).max(1.0);
+                    let viewport = iced::Size::new(win.width, canvas_height);
+                    crate::features::image::ViewerController::prepare_camera_for_zoom(
+                        &mut image_state.camera,
+                        image_state.display_width,
+                        image_state.display_height,
+                        viewport,
+                    );
                     crate::features::image::ViewerController::pan(&mut image_state.camera, dx, dy);
                     Task::none()
                 } else {
