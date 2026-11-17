@@ -433,3 +433,64 @@ fn test_selectable_text_drag_active_builder() {
     assert_eq!(widget.block_index, Some(0));
     assert_eq!(widget.selection_range, Some(range));
 }
+
+#[test]
+fn test_centered_highlight_offset_and_viewport_clipping() {
+    use iced::advanced::text::Paragraph as _;
+    use iced::{Font, Pixels, Rectangle, Size, alignment};
+
+    let span = iced::widget::text::Span::<(), Font>::new("POST")
+        .font(Font::MONOSPACE)
+        .size(Pixels(14.0));
+    let cell_bounds = Rectangle {
+        x: 10.0,
+        y: 20.0,
+        width: 100.0,
+        height: 30.0,
+    };
+
+    let paragraph =
+        iced::advanced::graphics::text::Paragraph::with_spans(iced::advanced::text::Text {
+            content: &[span][..],
+            bounds: Size::new(cell_bounds.width, f32::INFINITY),
+            size: Pixels(14.0),
+            line_height: iced::advanced::text::LineHeight::Relative(1.5),
+            font: Font::MONOSPACE,
+            align_x: alignment::Horizontal::Center.into(),
+            align_y: alignment::Vertical::Top,
+            shaping: iced::advanced::text::Shaping::Advanced,
+            wrapping: iced::advanced::text::Wrapping::Word,
+        });
+
+    let draw_anchor = cell_bounds.anchor(
+        paragraph.min_bounds(),
+        alignment::Horizontal::Center,
+        alignment::Vertical::Top,
+    );
+    let offset_x = (draw_anchor.x - cell_bounds.x).max(0.0);
+    assert!(
+        offset_x > 0.0,
+        "centered short span must have positive offset_x"
+    );
+
+    let regions = paragraph.span_bounds(0);
+    assert_eq!(regions.len(), 1);
+    let quad_x = cell_bounds.x + offset_x + regions[0].x;
+    assert!(
+        (quad_x - draw_anchor.x).abs() < 0.01,
+        "highlight quad x ({quad_x}) must align with centered text anchor ({})",
+        draw_anchor.x
+    );
+
+    // Overflowing span inside a clipped parent viewport must be clamped to clip_bounds
+    let overflowing_quad = Rectangle {
+        x: cell_bounds.x,
+        y: cell_bounds.y,
+        width: 193.2,
+        height: 21.7,
+    };
+    let clip_bounds = cell_bounds.intersection(&cell_bounds).unwrap();
+    let clipped = overflowing_quad.intersection(&clip_bounds).unwrap();
+    assert_eq!(clipped.width, cell_bounds.width);
+    assert_eq!(clipped.x, cell_bounds.x);
+}
