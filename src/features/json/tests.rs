@@ -128,3 +128,17 @@ fn test_json_wheel_scrolled_when_smooth_scroll_disabled() {
     assert!(!app.state.json.smooth_scroll.is_animating());
     assert_eq!(app.state.json.smooth_scroll.position_y(), 0.0);
 }
+
+#[test]
+fn test_json_toggle_mode_applies_scroll_config_to_raw_text() {
+    let mut app = create_json_test_app();
+    app.state.json.pretty_content = "{\n  \"key\": \"value\"\n}".to_string();
+    app.state.scroll_config.smooth_scroll_enabled = false;
+    app.state.apply_scroll_controllers();
+
+    let _ = crate::features::json::update::handle_toggle_mode(&mut app);
+
+    assert!(!app.state.json.tree_mode);
+    assert!(!app.state.json.raw_text.scroll_controller.smooth_enabled);
+    assert!(!app.state.json.raw_text.smooth_scroll.smooth_enabled);
+}

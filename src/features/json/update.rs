@@ -27,6 +27,16 @@ pub fn handle_toggle_mode(app: &mut KglanceApp) -> Task<Message> {
             app.state.app_theme,
             win_w,
         );
+        app.state
+            .json
+            .raw_text
+            .scroll_controller
+            .apply_config(&app.state.scroll_config);
+        app.state
+            .json
+            .raw_text
+            .smooth_scroll
+            .apply_config(&app.state.scroll_config);
     }
 
     app.sync_global_menu_context();
