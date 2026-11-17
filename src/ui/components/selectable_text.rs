@@ -938,6 +938,9 @@ where
     ) {
         let state = tree.state.downcast_ref::<State>();
         let bounds = layout.bounds();
+        let Some(clip_bounds) = bounds.intersection(viewport) else {
+            return;
+        };
 
         let Some(paragraph) = &state.paragraph else {
             return;
@@ -956,20 +959,22 @@ where
                 let regions = paragraph.span_bounds(index);
                 for region in regions {
                     let quad_bounds = Rectangle {
-                        x: bounds.x + region.x,
+                        x: bounds.x + offset_x + region.x,
                         y: bounds.y + top_pad + region.y,
                         width: region.width,
                         height: region.height,
                     };
-                    renderer.fill_quad(
-                        renderer::Quad {
-                            bounds: quad_bounds,
-                            border: highlight.border,
-                            shadow: Shadow::default(),
-                            snap: true,
-                        },
-                        highlight.background,
-                    );
+                    if let Some(clipped_quad) = quad_bounds.intersection(&clip_bounds) {
+                        renderer.fill_quad(
+                            renderer::Quad {
+                                bounds: clipped_quad,
+                                border: highlight.border,
+                                shadow: Shadow::default(),
+                                snap: true,
+                            },
+                            highlight.background,
+                        );
+                    }
                 }
             }
         }
@@ -1032,20 +1037,23 @@ where
 
                 if line_start >= end || line_end <= start {
                     if line_text_len == 0 && start <= line_start && end > line_start {
-                        renderer.fill_quad(
-                            renderer::Quad {
-                                bounds: Rectangle {
-                                    x: bounds.x,
-                                    y: line_top,
-                                    width: (self.font_size * 0.4).max(6.0),
-                                    height: line_height,
+                        let empty_rect = Rectangle {
+                            x: bounds.x + offset_x,
+                            y: line_top,
+                            width: (self.font_size * 0.4).max(6.0),
+                            height: line_height,
+                        };
+                        if let Some(clipped_quad) = empty_rect.intersection(&clip_bounds) {
+                            renderer.fill_quad(
+                                renderer::Quad {
+                                    bounds: clipped_quad,
+                                    border: Border::default(),
+                                    shadow: Shadow::default(),
+                                    snap: false,
                                 },
-                                border: Border::default(),
-                                shadow: Shadow::default(),
-                                snap: false,
-                            },
-                            Background::Color(self.selection_color),
-                        );
+                                Background::Color(self.selection_color),
+                            );
+                        }
                     }
                     continue;
                 }
@@ -1070,20 +1078,23 @@ where
                 }
 
                 if let (Some(x1), Some(x2)) = (text_min_x, text_max_x) {
-                    renderer.fill_quad(
-                        renderer::Quad {
-                            bounds: Rectangle {
-                                x: x1,
-                                y: line_top,
-                                width: (x2 - x1).max(0.0),
-                                height: line_height,
+                    let sel_rect = Rectangle {
+                        x: x1,
+                        y: line_top,
+                        width: (x2 - x1).max(0.0),
+                        height: line_height,
+                    };
+                    if let Some(clipped_quad) = sel_rect.intersection(&clip_bounds) {
+                        renderer.fill_quad(
+                            renderer::Quad {
+                                bounds: clipped_quad,
+                                border: Border::default(),
+                                shadow: Shadow::default(),
+                                snap: true,
                             },
-                            border: Border::default(),
-                            shadow: Shadow::default(),
-                            snap: true,
-                        },
-                        Background::Color(self.selection_color),
-                    );
+                            Background::Color(self.selection_color),
+                        );
+                    }
                 }
             }
         }
@@ -1092,7 +1103,7 @@ where
             paragraph,
             Point::new(bounds.x + offset_x, bounds.y + top_pad),
             self.default_text_color,
-            bounds,
+            clip_bounds,
         );
 
         if !self.rubies.is_empty() {
