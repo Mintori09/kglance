@@ -32,21 +32,87 @@ pub fn handle_toggle_view_mode(app: &mut KglanceApp) -> Task<Message> {
 }
 
 fn enter_grid_view(app: &mut KglanceApp) -> Task<Message> {
-    let mut thumbnail_tasks = Vec::with_capacity(app.state.playlist.len());
     let thumbnails = app
         .state
         .playlist
         .iter()
-        .map(|path| {
-            let thumbnail = create_grid_thumbnail(path);
-            thumbnail_tasks.push(create_thumbnail_task(path.clone()));
-            thumbnail
-        })
+        .map(|path| create_grid_thumbnail(path))
         .collect();
 
+    app.state.grid_scroll_y = 0.0;
     app.state.view_mode = crate::core::ViewMode::Grid(thumbnails);
 
-    Task::batch(thumbnail_tasks)
+    load_visible_grid_thumbnails(app)
+}
+
+pub fn handle_grid_scrolled(
+    app: &mut KglanceApp,
+    viewport: iced::widget::scrollable::Viewport,
+) -> Task<Message> {
+    app.state.grid_scroll_y = viewport.absolute_offset().y;
+    let bounds = viewport.bounds();
+    app.state.grid_viewport_width = bounds.width;
+    app.state.grid_viewport_height = bounds.height;
+
+    load_visible_grid_thumbnails(app)
+}
+
+pub(crate) fn load_visible_grid_thumbnails(app: &mut KglanceApp) -> Task<Message> {
+    let crate::core::ViewMode::Grid(thumbnails) = &mut app.state.view_mode else {
+        return Task::none();
+    };
+
+    let dimensions = crate::features::grid::constants::ScaledDimensions::new(app.state.grid_scale);
+    let viewport_width = if app.state.grid_viewport_width > 0.0 {
+        app.state.grid_viewport_width
+    } else if app.state.window_width > 0.0 {
+        app.state.window_width
+    } else {
+        800.0
+    };
+    let viewport_height = if app.state.grid_viewport_height > 0.0 {
+        app.state.grid_viewport_height
+    } else if app.state.window_height > 0.0 {
+        app.state.window_height
+    } else {
+        600.0
+    };
+
+    let columns_count = crate::features::grid::calculate::calculate_column_count(
+        viewport_width,
+        dimensions.item_width,
+        dimensions.gap,
+    );
+    let matching_indices: Vec<usize> = crate::features::grid::thumbnails::filter_thumbnails(
+        thumbnails,
+        &app.state.grid_search_query,
+    )
+    .into_iter()
+    .map(|(idx, _)| idx)
+    .collect();
+
+    let total_rows = matching_indices.len().div_ceil(columns_count);
+    let (start_row, end_row) = crate::features::grid::calculate::calculate_visible_row_range(
+        total_rows,
+        dimensions.row_step(),
+        app.state.grid_scroll_y,
+        viewport_height,
+        2,
+    );
+
+    let start_item = start_row * columns_count;
+    let end_item = (end_row * columns_count).min(matching_indices.len());
+    let mut tasks = Vec::new();
+
+    for &orig_idx in &matching_indices[start_item..end_item] {
+        let thumb = &mut thumbnails[orig_idx];
+        if thumb.thumbnail_handle.is_none() && !thumb.is_loading {
+            thumb.is_loading = true;
+            tasks.push(create_thumbnail_task(thumb.path.clone()));
+        }
+    }
+
+    Task::batch(tasks)
 }
 
 pub(crate) fn create_grid_thumbnail(path: &str) -> crate::core::GridThumbnail {
@@ -59,7 +125,7 @@ pub(crate) fn create_grid_thumbnail(path: &str) -> crate::core::GridThumbnail {
         path: path.to_string(),
         name,
         thumbnail_handle: None,
-        is_loading: true,
+        is_loading: false,
     }
 }
 
@@ -155,13 +221,15 @@ fn load_video_thumbnail(path: &str) -> Option<iced::widget::image::Handle> {
 
 pub fn handle_grid_search_query_changed(app: &mut KglanceApp, query: String) -> Task<Message> {
     app.state.grid_search_query = query;
+    app.state.grid_scroll_y = 0.0;
     Task::none()
 }
 
 pub fn handle_grid_search_closed(app: &mut KglanceApp) -> Task<Message> {
     app.state.grid_search_visible = false;
     app.state.grid_search_query.clear();
-    Task::none()
+    app.state.grid_scroll_y = 0.0;
+    load_visible_grid_thumbnails(app)
 }
 
 #[cfg(test)]

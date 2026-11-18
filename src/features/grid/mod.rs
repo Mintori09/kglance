@@ -21,11 +21,19 @@ pub fn view_grid<'a>(
     thumbnails: &'a [GridThumbnail],
     active_index: usize,
     scale: f32,
+    scroll_y: f32,
+    viewport_height: f32,
     search_visible: bool,
     search_query: &'a str,
 ) -> Element<'a, Message> {
     let filtered_thumbnails = filter_thumbnails(thumbnails, search_query);
-    let grid_layout = render_grid_layout(filtered_thumbnails, active_index, scale);
+    let grid_layout = render_grid_layout(
+        filtered_thumbnails,
+        active_index,
+        scale,
+        scroll_y,
+        viewport_height,
+    );
 
     if search_visible {
         column![

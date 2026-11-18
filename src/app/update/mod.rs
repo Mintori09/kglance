@@ -659,9 +659,14 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
         },
         Message::Grid(msg) => match msg {
             crate::app::messages::GridMsg::SearchQueryChanged(q) => {
-                grid::handle_grid_search_query_changed(app, q)
+                let task = grid::handle_grid_search_query_changed(app, q);
+                let load_task = grid::load_visible_grid_thumbnails(app);
+                Task::batch([task, load_task])
             }
             crate::app::messages::GridMsg::SearchClosed => grid::handle_grid_search_closed(app),
+            crate::app::messages::GridMsg::Scrolled(viewport) => {
+                grid::handle_grid_scrolled(app, viewport)
+            }
         },
         Message::Folder(msg) => match msg {
             crate::app::messages::FolderMsg::SearchQueryChanged(q) => {

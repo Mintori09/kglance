@@ -447,6 +447,8 @@ pub fn view_window_with_options<'a>(
             thumbnails,
             state.current_index,
             state.grid_scale,
+            state.grid_scroll_y,
+            state.grid_viewport_height,
             state.grid_search_visible,
             &state.grid_search_query,
         ),

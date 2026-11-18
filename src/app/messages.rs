@@ -205,6 +205,7 @@ pub enum SpreadsheetMsg {
 pub enum GridMsg {
     SearchQueryChanged(String),
     SearchClosed,
+    Scrolled(iced::widget::scrollable::Viewport),
 }
 
 #[derive(Debug, Clone)]

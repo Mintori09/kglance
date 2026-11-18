@@ -745,6 +745,13 @@ pub fn update_current_window_size(app: &mut KglanceApp, width: f32, height: f32)
             ));
         }
 
+        if ((old_w - width).abs() > 1.0 || (old_h - height).abs() > 1.0)
+            && matches!(app.state.view_mode, crate::core::ViewMode::Grid(_))
+        {
+            let grid_task = crate::app::update::grid::load_visible_grid_thumbnails(app);
+            toast_task = Task::batch([toast_task, grid_task]);
+        }
+
         if (old_w - width).abs() > 1.0 {
             if let Some(crate::core::PreviewData::Markdown { blocks, .. }) = &app.current_content {
                 let content_width = app.state.markdown_content_width();

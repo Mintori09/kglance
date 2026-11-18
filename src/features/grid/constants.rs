@@ -49,4 +49,9 @@ impl ScaledDimensions {
                 .clamp(MIN_FONT_SIZE, MAX_FONT_SIZE),
         }
     }
+
+    pub fn row_step(&self) -> f32 {
+        let label_height = (self.font_size * 1.4).ceil();
+        self.container_height + CARD_INNER_SPACING + label_height + CARD_PADDING * 2.0 + self.gap
+    }
 }

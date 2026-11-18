@@ -16,7 +16,21 @@ impl KglanceApp {
             return None;
         }
 
-        let column_count = self.state.grid_cols.max(MIN_GRID_COLUMNS);
+        let dimensions =
+            crate::features::grid::constants::ScaledDimensions::new(self.state.grid_scale);
+        let effective_width = if self.state.grid_viewport_width > 0.0 {
+            self.state.grid_viewport_width
+        } else if self.state.window_width > 0.0 {
+            self.state.window_width
+        } else {
+            800.0
+        };
+        let column_count = crate::features::grid::calculate::calculate_column_count(
+            effective_width,
+            dimensions.item_width,
+            dimensions.gap,
+        )
+        .max(MIN_GRID_COLUMNS);
         let current_index = self.state.current_index;
 
         match key {
@@ -34,6 +48,24 @@ impl KglanceApp {
             }
             Key::Named(Named::ArrowUp) => {
                 self.select_item_above(current_index, column_count);
+                Some(self.scroll_grid_to_current(column_count))
+            }
+            Key::Named(Named::Home) => {
+                self.state.current_index = 0;
+                Some(self.scroll_grid_to_current(column_count))
+            }
+            Key::Named(Named::End) => {
+                self.state.current_index = total_items - 1;
+                Some(self.scroll_grid_to_current(column_count))
+            }
+            Key::Named(Named::PageDown) => {
+                let page_items = self.grid_page_rows(dimensions.row_step()) * column_count;
+                self.state.current_index = (current_index + page_items).min(total_items - 1);
+                Some(self.scroll_grid_to_current(column_count))
+            }
+            Key::Named(Named::PageUp) => {
+                let page_items = self.grid_page_rows(dimensions.row_step()) * column_count;
+                self.state.current_index = current_index.saturating_sub(page_items);
                 Some(self.scroll_grid_to_current(column_count))
             }
             Key::Named(Named::Enter) => Some(self.update(
@@ -69,17 +101,52 @@ impl KglanceApp {
         self.state.current_index = current_index.saturating_sub(column_count);
     }
 
-    fn scroll_grid_to_current(&self, column_count: usize) -> Task<Message> {
-        let row_height = crate::core::types::GRID_ROW_HEIGHT * self.state.grid_scale;
-        let current_row = self.state.current_index / column_count;
-        let scroll_offset_y = current_row as f32 * row_height;
+    fn grid_page_rows(&self, row_step: f32) -> usize {
+        let vh = if self.state.grid_viewport_height > 0.0 {
+            self.state.grid_viewport_height
+        } else {
+            self.state.window_height
+        };
+        if vh <= 0.0 || row_step <= 0.0 {
+            return 3;
+        }
+        (vh / row_step).floor().max(1.0) as usize
+    }
 
-        iced::widget::operation::scroll_to(
+    fn scroll_grid_to_current(&mut self, column_count: usize) -> Task<Message> {
+        let dimensions =
+            crate::features::grid::constants::ScaledDimensions::new(self.state.grid_scale);
+        let row_step = dimensions.row_step();
+        let current_row = self.state.current_index / column_count;
+        let row_top = current_row as f32 * row_step;
+        let row_bottom = row_top + row_step;
+        let viewport_height = if self.state.grid_viewport_height > 0.0 {
+            self.state.grid_viewport_height
+        } else {
+            self.state.window_height
+        };
+
+        let new_scroll_y = if row_top < self.state.grid_scroll_y {
+            Some(row_top)
+        } else if viewport_height > 0.0 && row_bottom > self.state.grid_scroll_y + viewport_height {
+            Some((row_bottom - viewport_height).max(0.0))
+        } else {
+            None
+        };
+
+        let Some(target_y) = new_scroll_y else {
+            return Task::none();
+        };
+
+        self.state.grid_scroll_y = target_y;
+        let scroll_task = iced::widget::operation::scroll_to(
             GRID_SCROLL_ID,
             AbsoluteOffset {
                 x: 0.0,
-                y: scroll_offset_y,
+                y: target_y,
             },
-        )
+        );
+        let load_task = crate::app::update::grid::load_visible_grid_thumbnails(self);
+        Task::batch([scroll_task, load_task])
     }
 }

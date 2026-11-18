@@ -3293,6 +3293,7 @@ dependencies = [
  "wl-clipboard-rs",
  "zbus",
  "zip 9.0.5",
+ "zstd 0.14.3",
  "zune-jpeg 0.5.15",
 ]
 
