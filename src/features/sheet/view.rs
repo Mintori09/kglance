@@ -22,7 +22,7 @@ const SORT_NONE_INDICATOR: &str = "";
 
 pub const CELL_TEXT_SIZE: f32 = typography::BODY;
 pub const ROW_NUM_TEXT_SIZE: f32 = typography::CAPTION;
-pub const HEADER_TEXT_SIZE: f32 = 11.5;
+pub const HEADER_TEXT_SIZE: f32 = typography::CAPTION;
 pub const TAB_TEXT_SIZE: f32 = typography::BODY;
 pub const EMPTY_STATE_TEXT_SIZE: f32 = typography::BODY_LG;
 
@@ -140,7 +140,7 @@ fn render_bottom_sheet_bar<'a>(
         )
         .on_press(crate::app::messages::SpreadsheetMsg::SheetTabClicked(index).into())
         .style(sheet_tab_button_style(theme, is_active))
-        .padding([0, 12])
+        .padding([spacing::NONE, spacing::M])
         .height(Length::Fill);
 
         tabs_row = tabs_row.push(tab_button);
@@ -159,10 +159,10 @@ fn render_bottom_sheet_bar<'a>(
     .width(Length::Fill)
     .height(Length::Fixed(bottom_bar_height(font_size)))
     .padding(iced::Padding {
-        top: 2.0,
-        right: 4.0,
-        bottom: 0.0,
-        left: 4.0,
+        top: spacing::XXS,
+        right: spacing::XS,
+        bottom: spacing::NONE,
+        left: spacing::XS,
     })
     .align_y(alignment::Vertical::Bottom)
     .style(move |_: &Theme| bottom_bar_style(theme))
@@ -189,7 +189,7 @@ fn render_spreadsheet_body<'a>(
                 &state.search_query,
                 None,
             ))
-            .padding([3, 6]),
+            .padding([spacing::XS, spacing::S]),
         );
     }
 
@@ -211,8 +211,7 @@ fn render_spreadsheet_body<'a>(
         return layout.into();
     }
 
-    let rows_effective_scroll_y =
-        (state.scroll_y - (header_height(font_size) + ROWS_LIST_SPACING)).max(0.0);
+    let rows_effective_scroll_y = state.scroll_y.max(0.0);
     let rows_list = render_table_rows(
         state,
         sheet,
@@ -222,9 +221,16 @@ fn render_spreadsheet_body<'a>(
         font_size,
     );
 
-    let table_content = column![header, rows_list].spacing(ROWS_LIST_SPACING);
+    let header_scroll = scroll_pane("header_scroll", header)
+        .direction(iced::widget::scrollable::Direction::Horizontal(
+            iced::widget::scrollable::Scrollbar::new()
+                .width(0)
+                .scroller_width(0),
+        ))
+        .height(Length::Fixed(header_height(font_size)))
+        .build();
 
-    let scrollable_area = scroll_pane("content_scroll", table_content)
+    let scrollable_area = scroll_pane("content_scroll", rows_list)
         .direction(iced::widget::scrollable::Direction::Both {
             vertical: iced::widget::scrollable::Scrollbar::new()
                 .width(4)
@@ -240,6 +246,7 @@ fn render_spreadsheet_body<'a>(
         .on_wheel(|delta| crate::app::messages::SpreadsheetMsg::WheelScrolled(delta).into())
         .build();
 
+    layout = layout.push(header_scroll);
     layout = layout.push(scrollable_area);
     container(layout)
         .width(Length::Fill)
@@ -300,19 +307,15 @@ fn render_table_header<'a>(
         let is_sorted = sort_column == Some(column_index);
         let col_w = scale_col_width(col_meta.width, font_size);
 
-        let text_align = match col_meta.col_type {
-            ColumnType::Integer | ColumnType::Float => alignment::Horizontal::Right,
-            ColumnType::Date => alignment::Horizontal::Center,
-            ColumnType::Text | ColumnType::Empty => alignment::Horizontal::Left,
-        };
-
         let header_button = button(
             text(button_label)
                 .size(header_text_sz)
                 .font(main_font)
-                .align_x(text_align)
+                .align_x(alignment::Horizontal::Center)
+                .align_y(alignment::Vertical::Center)
                 .wrapping(text::Wrapping::None)
-                .width(Length::Fill),
+                .width(Length::Fill)
+                .height(Length::Fill),
         )
         .on_press(crate::app::messages::SpreadsheetMsg::ColumnClicked(column_index).into())
         .style(grid_header_button_style(theme, is_sorted))
@@ -676,7 +679,7 @@ fn grid_header_cell_style(theme: AppTheme) -> container::Style {
         border: Border {
             color: theme.palette().base.border,
             width: 1.0,
-            radius: 0.0.into(),
+            radius: radius::NONE.into(),
         },
         ..container::Style::default()
     }
