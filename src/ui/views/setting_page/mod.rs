@@ -110,7 +110,7 @@ pub fn settings_page<'a>(ctx: SettingsPageContext<'a, '_>) -> Element<'a, Messag
             tab_button("Appearance", SettingTab::Appearance),
             tab_button("Window", SettingTab::Window),
             tab_button("Previews", SettingTab::Previews),
-            tab_button("Cache & Scroll", SettingTab::CacheScroll),
+            tab_button("Cache & scroll", SettingTab::CacheScroll),
         ]
         .spacing(spacing::XXS)
         .padding(spacing::XXS)

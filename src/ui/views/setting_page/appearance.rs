@@ -92,7 +92,7 @@ pub fn appearance_tab<'a>(
     let main_font_picker = pick_list(available_fonts, config.font_family.clone(), |font| {
         Message::Settings(SettingsMsg::FontFamilySelected(font))
     })
-    .placeholder("Default System Font")
+    .placeholder("Default system font")
     .font(main_font)
     .width(PICKER_WIDTH)
     .style({
@@ -112,7 +112,7 @@ pub fn appearance_tab<'a>(
     let mono_picker = pick_list(available_fonts, config.font_family_mono.clone(), |font| {
         Message::Settings(SettingsMsg::FontFamilyMonoSelected(font))
     })
-    .placeholder("Default Monospace Font")
+    .placeholder("Default monospace font")
     .font(main_font)
     .width(PICKER_WIDTH)
     .style({
@@ -132,7 +132,7 @@ pub fn appearance_tab<'a>(
     let epub_picker = pick_list(available_fonts, config.epub_font_family.clone(), |font| {
         Message::Settings(SettingsMsg::EpubFontFamilySelected(font))
     })
-    .placeholder("Default Reader Font")
+    .placeholder("Default reader font")
     .font(main_font)
     .width(PICKER_WIDTH)
     .style({
@@ -199,7 +199,7 @@ pub fn appearance_tab<'a>(
 
     let typo_card = container(
         column![
-            text("TYPOGRAPHY & READING COMFORT")
+            text("Typography & reading comfort")
                 .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
@@ -228,7 +228,7 @@ fn build_theme_card<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> El
         app_theme.display_name()
     });
 
-    let header = text("VISUAL THEME")
+    let header = text("Visual theme")
         .size(typography::CAPTION)
         .font(main_font)
         .style(move |_| iced::widget::text::Style {

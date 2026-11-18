@@ -121,7 +121,7 @@ pub fn view_unsupported<'a>(
 
     let grid_content = column![
         info_row(
-            "File Type",
+            "File type",
             info.file_type.clone(),
             false,
             main_font,
@@ -130,7 +130,7 @@ pub fn view_unsupported<'a>(
             base.text
         ),
         info_row(
-            "File Size",
+            "File size",
             formatted_size,
             true, // use mono for technical/bytes display
             main_font,
@@ -139,7 +139,7 @@ pub fn view_unsupported<'a>(
             base.text
         ),
         info_row(
-            "Last Modified",
+            "Last modified",
             modified_str,
             false,
             main_font,
@@ -184,7 +184,7 @@ pub fn view_unsupported<'a>(
     let open_btn = button(
         row![
             open_icon,
-            text("Open with App")
+            text("Open with app")
                 .size(typography::BODY_MD)
                 .font(main_font),
         ]
@@ -211,7 +211,7 @@ pub fn view_unsupported<'a>(
     let show_folder_btn = button(
         row![
             folder_icon,
-            text("Show in Folder")
+            text("Show in folder")
                 .size(typography::BODY_MD)
                 .font(main_font),
         ]

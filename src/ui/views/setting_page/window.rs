@@ -89,7 +89,7 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
 
     let launch_card = container(
         column![
-            text("DEFAULT LAUNCH GEOMETRY")
+            text("Default launch geometry")
                 .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
@@ -126,7 +126,7 @@ pub fn window_tab<'a>(theme: &Theme, config: &UiConfig, main_font: Font) -> Elem
 
     let constraints_card = container(
         column![
-            text("SIZE BOUNDARIES & CONSTRAINTS")
+            text("Size boundaries & constraints")
                 .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {

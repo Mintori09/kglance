@@ -1,6 +1,6 @@
 use iced::{
     Alignment, Element, Length, Padding,
-    widget::{Space, Stack, button, column, container, row, text},
+    widget::{Space, Stack, button, column, container, row, text, tooltip},
 };
 
 use crate::app::Message;
@@ -9,7 +9,8 @@ use crate::ui::theme::AppTheme;
 use crate::ui::theme::color::primitive::OVERLAY_SHADOW;
 use crate::ui::theme::tokens::{elevation, radius, spacing, typography};
 use crate::ui::theme::{
-    default_button, default_button_danger, default_dialog, default_raised, default_root,
+    default_button, default_button_danger, default_button_primary, default_button_secondary,
+    default_dialog, default_raised, default_root, default_tooltip,
 };
 use std::path::Path;
 
@@ -131,29 +132,49 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     .into()
 }
 
-fn file_tree_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Element<'a, Message> {
-    let style = if state.file_tree.visible {
-        iced::widget::button::primary
+fn footer_toggle_button<'a>(
+    content: Element<'a, Message>,
+    is_active: bool,
+    on_press: Message,
+) -> Element<'a, Message> {
+    let style = if is_active {
+        default_button_primary
     } else {
-        iced::widget::button::secondary
+        default_button_secondary
     };
+    button(content)
+        .on_press(on_press)
+        .style(style)
+        .padding([spacing::XXS, spacing::S])
+        .into()
+}
+
+fn file_tree_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Element<'a, Message> {
     let content: Element<'a, Message> = if let Some(svg_handle) =
         crate::ui::theme::icon_theme::get_icon_handle("view-sidetree")
             .or_else(|| crate::ui::theme::icon_theme::get_icon_handle("view-list-tree"))
             .or_else(|| crate::ui::theme::icon_theme::get_icon_handle("folder"))
     {
         iced::widget::svg(svg_handle)
-            .width(13.0)
-            .height(13.0)
+            .width(typography::ICON_MD + 1.0)
+            .height(typography::ICON_MD + 1.0)
             .into()
     } else {
         text("Files").size(typography::CAPTION).font(font).into()
     };
-    button(content)
-        .on_press(crate::app::messages::FileTreeMsg::Toggle.into())
-        .style(style)
-        .padding([2, 6])
-        .into()
+    tooltip(
+        footer_toggle_button(
+            content,
+            state.file_tree.visible,
+            crate::app::messages::FileTreeMsg::Toggle.into(),
+        ),
+        text("Toggle file tree")
+            .size(typography::CAPTION)
+            .font(font),
+        tooltip::Position::Top,
+    )
+    .style(default_tooltip)
+    .into()
 }
 
 fn toc_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Element<'a, Message>> {
@@ -161,63 +182,35 @@ fn toc_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Eleme
         || file_has_extension(state, "markdown")
         || file_has_extension(state, "ipynb");
     if is_markdown && !state.markdown.toc.is_empty() {
-        let style = if state.markdown.toc_visible {
-            iced::widget::button::primary
-        } else {
-            iced::widget::button::secondary
-        };
-        Some(
-            button(text("Outline").size(typography::CAPTION).font(font))
-                .on_press(crate::app::messages::MarkdownMsg::TocToggled.into())
-                .style(style)
-                .padding([2, 6])
-                .into(),
-        )
+        Some(footer_toggle_button(
+            text("Outline").size(typography::CAPTION).font(font).into(),
+            state.markdown.toc_visible,
+            crate::app::messages::MarkdownMsg::TocToggled.into(),
+        ))
     } else if (file_has_extension(state, "epub") || state.file_type_text.contains("EPUB"))
         && !state.epub.markdown_state.toc.is_empty()
     {
-        let style = if state.epub.sidebar_visible {
-            iced::widget::button::primary
-        } else {
-            iced::widget::button::secondary
-        };
-        Some(
-            button(text("Chapters").size(typography::CAPTION).font(font))
-                .on_press(crate::app::messages::EpubMsg::SidebarToggled.into())
-                .style(style)
-                .padding([2, 6])
-                .into(),
-        )
+        Some(footer_toggle_button(
+            text("Chapters").size(typography::CAPTION).font(font).into(),
+            state.epub.sidebar_visible,
+            crate::app::messages::EpubMsg::SidebarToggled.into(),
+        ))
     } else if (file_has_extension(state, "pdf") || state.file_type_text.contains("PDF"))
         && !state.pdf.outline.is_empty()
     {
         let is_active =
             state.pdf.sidebar_visible && state.pdf.sidebar_mode == crate::core::PdfSidebarMode::Toc;
-        let style = if is_active {
-            iced::widget::button::primary
-        } else {
-            iced::widget::button::secondary
-        };
-        Some(
-            button(text("Outline").size(typography::CAPTION).font(font))
-                .on_press(crate::app::messages::PdfMsg::SidebarToggled.into())
-                .style(style)
-                .padding([2, 6])
-                .into(),
-        )
+        Some(footer_toggle_button(
+            text("Outline").size(typography::CAPTION).font(font).into(),
+            is_active,
+            crate::app::messages::PdfMsg::SidebarToggled.into(),
+        ))
     } else if !state.text.symbols.is_empty() {
-        let style = if state.text.outline_visible {
-            iced::widget::button::primary
-        } else {
-            iced::widget::button::secondary
-        };
-        Some(
-            button(text("Outline").size(typography::CAPTION).font(font))
-                .on_press(crate::app::messages::TextMsg::ToggleOutline.into())
-                .style(style)
-                .padding([2, 6])
-                .into(),
-        )
+        Some(footer_toggle_button(
+            text("Outline").size(typography::CAPTION).font(font).into(),
+            state.text.outline_visible,
+            crate::app::messages::TextMsg::ToggleOutline.into(),
+        ))
     } else {
         None
     }
@@ -302,31 +295,37 @@ fn epub_progress_indicator<'a>(
 }
 
 fn setting_button<'a>(font: iced::Font) -> Element<'a, Message> {
-    iced::widget::button(
-        text("⚙")
-            .size(typography::ICON_MD)
-            .font(font)
-            .style(metadata_style),
+    tooltip(
+        iced::widget::button(
+            text("⚙")
+                .size(typography::ICON_MD)
+                .font(font)
+                .style(metadata_style),
+        )
+        .on_press(crate::app::messages::NavigationMsg::ToggleSettingsClicked.into())
+        .style(default_button_secondary)
+        .padding([spacing::XXS, spacing::S]),
+        text("Settings").size(typography::CAPTION).font(font),
+        tooltip::Position::Top,
     )
-    .on_press(crate::app::messages::NavigationMsg::ToggleSettingsClicked.into())
-    .style(iced::widget::button::secondary)
-    .padding([2, 6])
+    .style(default_tooltip)
     .into()
 }
 
 fn image_info_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Element<'a, Message>> {
     if !state.image.exif_content.is_empty() {
-        let style = if state.image.show_info {
-            iced::widget::button::primary
-        } else {
-            iced::widget::button::secondary
-        };
         Some(
-            iced::widget::button(text("ℹ").size(typography::ICON_MD).font(font))
-                .on_press(crate::app::messages::ImageMsg::ToggleInfo.into())
-                .style(style)
-                .padding([2, 6])
-                .into(),
+            tooltip(
+                footer_toggle_button(
+                    text("ℹ").size(typography::ICON_MD).font(font).into(),
+                    state.image.show_info,
+                    crate::app::messages::ImageMsg::ToggleInfo.into(),
+                ),
+                text("Image info").size(typography::CAPTION).font(font),
+                tooltip::Position::Top,
+            )
+            .style(default_tooltip)
+            .into(),
         )
     } else {
         None

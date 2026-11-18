@@ -21,8 +21,8 @@ pub enum EpubModeDisplay {
 impl std::fmt::Display for EpubModeDisplay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            EpubModeDisplay::SingleChapter => write!(f, "Single Chapter (Paged)"),
-            EpubModeDisplay::Continuous => write!(f, "Continuous Scroll"),
+            EpubModeDisplay::SingleChapter => write!(f, "Single chapter (paged)"),
+            EpubModeDisplay::Continuous => write!(f, "Continuous scroll"),
         }
     }
 }
@@ -39,9 +39,9 @@ impl std::fmt::Display for RubyModeDisplay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RubyModeDisplay::Stacked => write!(f, "Stacked (Furigana on top)"),
-            RubyModeDisplay::Tooltip => write!(f, "Tooltip (Hover over text)"),
-            RubyModeDisplay::Parentheses => write!(f, "Parentheses (Text(Ruby))"),
-            RubyModeDisplay::Hidden => write!(f, "Hidden (Base text only)"),
+            RubyModeDisplay::Tooltip => write!(f, "Tooltip (hover over text)"),
+            RubyModeDisplay::Parentheses => write!(f, "Parentheses (text(ruby))"),
+            RubyModeDisplay::Hidden => write!(f, "Hidden (base text only)"),
         }
     }
 }
@@ -189,7 +189,7 @@ pub fn previews_tab<'a>(
 
     let doc_card = container(
         column![
-            text("DOCUMENTS & E-BOOKS")
+            text("Documents & e-books")
                 .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
@@ -222,7 +222,7 @@ pub fn previews_tab<'a>(
     );
 
     let mut selection_card_items: Vec<Element<'a, Message>> = vec![
-        text("SELECTION & QUICK ACTIONS")
+        text("Selection & quick actions")
             .size(typography::CAPTION)
             .font(main_font)
             .style(move |_| iced::widget::text::Style {
@@ -337,7 +337,7 @@ pub fn previews_tab<'a>(
             };
 
             let theme_input_name = theme.clone();
-            let name_input = text_input("Action Name (e.g. Translate VI)", &editor.name)
+            let name_input = text_input("Action name (e.g. Translate VI)", &editor.name)
                 .font(main_font)
                 .padding([spacing::XXS, spacing::XS])
                 .on_input(|s| {
@@ -348,7 +348,7 @@ pub fn previews_tab<'a>(
                 .style(move |_, status| default_text_input(&theme_input_name, status));
 
             let theme_input_cmd = theme.clone();
-            let cmd_input = text_input("Shell Command (e.g. trans -b :vi)", &editor.command)
+            let cmd_input = text_input("Shell command (e.g. trans -b :vi)", &editor.command)
                 .font(main_font)
                 .padding([spacing::XXS, spacing::XS])
                 .on_input(|s| {
@@ -536,7 +536,7 @@ pub fn previews_tab<'a>(
 
     let code_card = container(
         column![
-            text("SOURCE CODE & DATA")
+            text("Source code & data")
                 .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
@@ -597,7 +597,7 @@ pub fn previews_tab<'a>(
 
     let trash_card = container(
         column![
-            text("TRASH & FILE MANAGEMENT")
+            text("Trash & file management")
                 .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {

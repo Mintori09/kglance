@@ -107,7 +107,7 @@ pub fn cache_scroll_tab<'a>(
 
     let cache_card = container(
         column![
-            text("STORAGE & MEMORY LIMITS")
+            text("Storage & memory limits")
                 .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {
@@ -201,7 +201,7 @@ pub fn cache_scroll_tab<'a>(
 
     let scroll_card = container(
         column![
-            text("SMOOTH SCROLLING PHYSICS")
+            text("Smooth scrolling physics")
                 .size(typography::CAPTION)
                 .font(main_font)
                 .style(move |_| iced::widget::text::Style {

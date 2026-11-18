@@ -1,7 +1,7 @@
 use iced::advanced::graphics::text::cosmic_text;
 use iced::advanced::renderer;
 use iced::advanced::text::Text;
-use iced::{Background, Border, Color, Font, Pixels, Point, Rectangle, Shadow, Size, Vector};
+use iced::{Background, Border, Font, Pixels, Point, Rectangle, Size};
 
 use crate::ui::theme::AppTheme;
 
@@ -95,40 +95,27 @@ where
         _cursor: iced::mouse::Cursor,
     ) {
         let bounds = layout.bounds();
-        let (bg, border_color, text_color) = if self.theme.is_dark() {
-            (
-                Color::from_rgb8(28, 30, 36),
-                Color::from_rgba(1.0, 1.0, 1.0, 0.15),
-                Color::from_rgb8(235, 238, 245),
-            )
-        } else {
-            (
-                Color::from_rgb8(250, 250, 252),
-                Color::from_rgba(0.0, 0.0, 0.0, 0.15),
-                Color::from_rgb8(30, 32, 40),
-            )
-        };
+        let palette = self.theme.palette();
+        let bg = palette.overlay.floating_bg;
+        let border_color = palette.overlay.floating_border;
+        let text_color = palette.overlay.floating_fg;
 
         renderer.fill_quad(
             renderer::Quad {
                 bounds,
                 border: Border {
                     color: border_color,
-                    width: 1.0,
-                    radius: 6.0.into(),
+                    width: crate::ui::theme::tokens::border::THIN,
+                    radius: crate::ui::theme::tokens::radius::MD.into(),
                 },
-                shadow: Shadow {
-                    color: Color::from_rgba(0.0, 0.0, 0.0, 0.25),
-                    offset: Vector::new(0.0, 3.0),
-                    blur_radius: 8.0,
-                },
+                shadow: crate::ui::theme::tokens::elevation::medium(palette.base.shadow),
                 snap: false,
             },
             Background::Color(bg),
         );
 
-        let padding_h = 8.0;
-        let padding_v = 5.0;
+        let padding_h = crate::ui::theme::tokens::spacing::S;
+        let padding_v = crate::ui::theme::tokens::spacing::XS + 1.0;
         let text_pos = Point::new(bounds.x + padding_h, bounds.y + padding_v);
         let text_bounds = Size::new(
             (bounds.width - padding_h * 2.0).max(0.0),
