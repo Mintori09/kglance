@@ -497,8 +497,13 @@ pub enum SelectionMenuMsg {
 pub enum FileTreeMsg {
     Toggle,
     ToggleFolder(std::path::PathBuf),
+    FolderLoaded {
+        path: std::path::PathBuf,
+        children: Vec<crate::features::file_tree::FileTreeNode>,
+    },
     SelectFile(std::path::PathBuf),
     CollapseAll,
+    Scrolled(iced::widget::scrollable::Viewport),
 }
 
 #[derive(Debug, Clone)]

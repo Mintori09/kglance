@@ -22,6 +22,46 @@ const ENTRY_PADDING: Padding = Padding {
     left: 4.0,
 };
 
+const ROW_HEIGHT: f32 = 24.0;
+const ROW_SPACING: f32 = 1.0;
+const ROW_STRIDE: f32 = ROW_HEIGHT + ROW_SPACING;
+const OVERSCAN_ROWS: usize = 8;
+const DEFAULT_VIEWPORT_HEIGHT: f32 = 600.0;
+
+fn compute_virtual_window(
+    total: usize,
+    scroll_y: f32,
+    viewport_height: f32,
+) -> (usize, usize, f32, f32) {
+    if total == 0 {
+        return (0, 0, 0.0, 0.0);
+    }
+    let effective_height = if viewport_height > 0.0 {
+        viewport_height
+    } else {
+        DEFAULT_VIEWPORT_HEIGHT
+    };
+    let y = scroll_y.max(0.0);
+    let raw_first = (y / ROW_STRIDE).floor() as usize;
+    let visible_count = (effective_height / ROW_STRIDE).ceil() as usize + 1;
+
+    let start = raw_first.saturating_sub(OVERSCAN_ROWS).min(total);
+    let end = (raw_first + visible_count + OVERSCAN_ROWS).min(total);
+
+    let top_spacer = if start > 0 {
+        (start as f32 * ROW_STRIDE - ROW_SPACING).max(0.0)
+    } else {
+        0.0
+    };
+    let bottom_spacer = if end < total {
+        ((total - end) as f32 * ROW_STRIDE - ROW_SPACING).max(0.0)
+    } else {
+        0.0
+    };
+
+    (start, end, top_spacer, bottom_spacer)
+}
+
 pub fn view_file_tree<'a>(
     state: &'a FileTreeState,
     current_file_path: &'a std::path::Path,
@@ -35,17 +75,27 @@ pub fn view_file_tree<'a>(
     let mut visible_nodes = Vec::new();
     collect_visible_nodes(&state.nodes, &mut visible_nodes);
 
-    let entries: Vec<Element<'a, Message>> = visible_nodes
-        .into_iter()
-        .map(|node| render_node_row(node, current_file_path, theme, main_font))
-        .collect();
+    let (start, end, top_spacer, bottom_spacer) =
+        compute_virtual_window(visible_nodes.len(), state.scroll_y, state.viewport_height);
 
-    let content_scroll = scrollable(column(entries).spacing(1.0).padding(Padding {
+    let mut entries: Vec<Element<'a, Message>> = Vec::with_capacity(end - start + 2);
+    if top_spacer > 0.0 {
+        entries.push(Space::new().height(top_spacer).into());
+    }
+    for node in &visible_nodes[start..end] {
+        entries.push(render_node_row(node, current_file_path, theme, main_font));
+    }
+    if bottom_spacer > 0.0 {
+        entries.push(Space::new().height(bottom_spacer).into());
+    }
+
+    let content_scroll = scrollable(column(entries).spacing(ROW_SPACING).padding(Padding {
         top: 2.0,
         right: 4.0,
         bottom: 8.0,
         left: 4.0,
     }))
+    .on_scroll(|vp| FileTreeMsg::Scrolled(vp).into())
     .height(Length::Fill);
 
     let bg_color = theme.palette().base.bg;
@@ -179,7 +229,10 @@ fn render_node_row<'a>(
         Space::new().width(Length::Fixed(indent)),
         arrow_element,
         icon_element,
-        text(&node.name).size(typography::CAPTION).font(font),
+        text(&node.name)
+            .size(typography::CAPTION)
+            .font(font)
+            .wrapping(iced::widget::text::Wrapping::None),
     ]
     .spacing(4.0)
     .align_y(Alignment::Center);
@@ -194,6 +247,7 @@ fn render_node_row<'a>(
         .on_press(on_press)
         .padding(ENTRY_PADDING)
         .width(Length::Fill)
+        .height(Length::Fixed(ROW_HEIGHT))
         .style(move |iced_theme, status| sidebar_entry_style(iced_theme, status, is_active, theme))
         .into()
 }

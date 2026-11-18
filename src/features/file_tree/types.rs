@@ -21,6 +21,8 @@ pub struct FileTreeState {
     pub sidebar_resizing: bool,
     pub sidebar_drag_start_x: Option<f32>,
     pub sidebar_drag_start_width: f32,
+    pub scroll_y: f32,
+    pub viewport_height: f32,
 }
 
 impl Default for FileTreeState {
@@ -35,6 +37,8 @@ impl Default for FileTreeState {
             sidebar_resizing: false,
             sidebar_drag_start_x: None,
             sidebar_drag_start_width: 240.0,
+            scroll_y: 0.0,
+            viewport_height: 0.0,
         }
     }
 }
@@ -52,6 +56,7 @@ impl FileTreeState {
         };
         self.nodes = super::scanner::scan_directory(&root, 0);
         self.root_dir = Some(root);
+        self.scroll_y = 0.0;
     }
 
     pub fn update_external_path(&mut self, target_path: &Path) {
@@ -81,12 +86,20 @@ impl FileTreeState {
         expand_ancestors_of_path(&mut self.nodes, target_path);
     }
 
-    pub fn toggle_folder(&mut self, path: &Path) {
-        toggle_folder_in_nodes(&mut self.nodes, path);
+    /// Toggles a folder's expanded state.
+    /// Returns `Some(child_depth)` when the folder was expanded and its children
+    /// have not been loaded yet, so the caller can scan asynchronously.
+    pub fn toggle_folder(&mut self, path: &Path) -> Option<usize> {
+        toggle_folder_in_nodes(&mut self.nodes, path)
+    }
+
+    pub fn set_folder_children(&mut self, path: &Path, children: Vec<FileTreeNode>) {
+        set_folder_children_in_nodes(&mut self.nodes, path, children);
     }
 
     pub fn collapse_all(&mut self) {
         collapse_all_nodes(&mut self.nodes);
+        self.scroll_y = 0.0;
     }
 }
 
@@ -107,18 +120,36 @@ fn expand_ancestors_of_path(nodes: &mut [FileTreeNode], target_path: &Path) {
     }
 }
 
-fn toggle_folder_in_nodes(nodes: &mut [FileTreeNode], target: &Path) -> bool {
+fn toggle_folder_in_nodes(nodes: &mut [FileTreeNode], target: &Path) -> Option<usize> {
     for node in nodes.iter_mut() {
         if node.is_dir && node.path == target {
             node.is_expanded = !node.is_expanded;
             if node.is_expanded && node.children.is_none() {
-                // TODO: same UI-thread blocking concern as expand_ancestors_of_path.
-                node.children = Some(super::scanner::scan_directory(&node.path, node.depth + 1));
+                return Some(node.depth + 1);
             }
+            return None;
+        }
+        if let Some(ref mut children) = node.children
+            && let Some(depth) = toggle_folder_in_nodes(children, target)
+        {
+            return Some(depth);
+        }
+    }
+    None
+}
+
+fn set_folder_children_in_nodes(
+    nodes: &mut [FileTreeNode],
+    target: &Path,
+    new_children: Vec<FileTreeNode>,
+) -> bool {
+    for node in nodes.iter_mut() {
+        if node.is_dir && node.path == target {
+            node.children = Some(new_children);
             return true;
         }
         if let Some(ref mut children) = node.children
-            && toggle_folder_in_nodes(children, target)
+            && set_folder_children_in_nodes(children, target, new_children.clone())
         {
             return true;
         }

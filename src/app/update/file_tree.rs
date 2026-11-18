@@ -8,7 +8,23 @@ pub fn handle_file_tree_msg(app: &mut KglanceApp, msg: FileTreeMsg) -> Task<Mess
     match msg {
         FileTreeMsg::Toggle => handle_toggle_file_tree(app),
         FileTreeMsg::ToggleFolder(path) => {
-            app.state.file_tree.toggle_folder(&path);
+            if let Some(depth) = app.state.file_tree.toggle_folder(&path) {
+                let scan_path = path.clone();
+                return Task::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || {
+                            crate::features::file_tree::scanner::scan_directory(&scan_path, depth)
+                        })
+                        .await
+                        .unwrap_or_default()
+                    },
+                    move |children| FileTreeMsg::FolderLoaded { path, children }.into(),
+                );
+            }
+            Task::none()
+        }
+        FileTreeMsg::FolderLoaded { path, children } => {
+            app.state.file_tree.set_folder_children(&path, children);
             Task::none()
         }
         FileTreeMsg::CollapseAll => {
@@ -16,6 +32,11 @@ pub fn handle_file_tree_msg(app: &mut KglanceApp, msg: FileTreeMsg) -> Task<Mess
             Task::none()
         }
         FileTreeMsg::SelectFile(path) => handle_select_file(app, path),
+        FileTreeMsg::Scrolled(viewport) => {
+            app.state.file_tree.scroll_y = viewport.absolute_offset().y;
+            app.state.file_tree.viewport_height = viewport.bounds().height;
+            Task::none()
+        }
     }
 }
 
@@ -154,9 +175,19 @@ mod tests {
         assert!(!app.state.file_tree.nodes[0].is_expanded);
         assert!(app.state.file_tree.nodes[0].children.is_none());
 
-        // Toggle folder open -> lazy loads inner.txt
+        // Toggle folder open -> schedules async load, then FolderLoaded populates children
         let _ = handle_file_tree_msg(&mut app, FileTreeMsg::ToggleFolder(sub_dir.clone()));
         assert!(app.state.file_tree.nodes[0].is_expanded);
+        assert!(app.state.file_tree.nodes[0].children.is_none());
+
+        let loaded = crate::features::file_tree::scanner::scan_directory(&sub_dir, 1);
+        let _ = handle_file_tree_msg(
+            &mut app,
+            FileTreeMsg::FolderLoaded {
+                path: sub_dir,
+                children: loaded,
+            },
+        );
         assert_eq!(
             app.state.file_tree.nodes[0]
                 .children
