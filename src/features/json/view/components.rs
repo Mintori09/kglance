@@ -100,14 +100,12 @@ pub fn render_breadcrumbs<'a>(
 
     let path_str = build_json_path(&state.nodes, active);
 
-    let copy_path_btn = button(
-        text("Copy Path")
-            .size(font_size * 0.7)
-            .color(dim_color(theme)),
-    )
-    .on_press(crate::app::messages::JsonMsg::CopyPath(active).into())
-    .padding([2, 6])
-    .style(crate::ui::components::button::breeze_tool);
+    let copy_path_btn = breadcrumb_action_button(
+        "Copy path",
+        crate::app::messages::JsonMsg::CopyPath(active),
+        font_size,
+        theme,
+    );
 
     let active_node = state.nodes.get(active);
     let is_container = active_node.is_some_and(|n| n.children_count > 0);
@@ -115,45 +113,30 @@ pub fn render_breadcrumbs<'a>(
 
     let mut actions: Vec<Element<'a, Message>> = Vec::new();
     if has_key {
-        actions.push(
-            button(
-                text("Copy Key")
-                    .size(font_size * 0.7)
-                    .color(dim_color(theme)),
-            )
-            .on_press(crate::app::messages::JsonMsg::CopyKey(active).into())
-            .padding([2, 6])
-            .style(crate::ui::components::button::breeze_tool)
-            .into(),
-        );
+        actions.push(breadcrumb_action_button(
+            "Copy key",
+            crate::app::messages::JsonMsg::CopyKey(active),
+            font_size,
+            theme,
+        ));
     }
 
     if is_container {
-        actions.push(
-            button(
-                text("Copy JSON")
-                    .size(font_size * 0.7)
-                    .color(dim_color(theme)),
-            )
-            .on_press(crate::app::messages::JsonMsg::CopySubtree(active).into())
-            .padding([2, 6])
-            .style(crate::ui::components::button::breeze_tool)
-            .into(),
-        );
+        actions.push(breadcrumb_action_button(
+            "Copy JSON",
+            crate::app::messages::JsonMsg::CopySubtree(active),
+            font_size,
+            theme,
+        ));
     } else {
-        actions.push(
-            button(
-                text("Copy Value")
-                    .size(font_size * 0.7)
-                    .color(dim_color(theme)),
-            )
-            .on_press(crate::app::messages::JsonMsg::CopyValue(active).into())
-            .padding([2, 6])
-            .style(crate::ui::components::button::breeze_tool)
-            .into(),
-        );
+        actions.push(breadcrumb_action_button(
+            "Copy value",
+            crate::app::messages::JsonMsg::CopyValue(active),
+            font_size,
+            theme,
+        ));
     }
-    actions.push(copy_path_btn.into());
+    actions.push(copy_path_btn);
 
     let breadcrumbs_row = row(parts).align_y(iced::Alignment::Center).spacing(0);
 
@@ -183,6 +166,19 @@ pub fn render_breadcrumbs<'a>(
             .width(Length::Fill)
             .into(),
     )
+}
+
+fn breadcrumb_action_button<'a>(
+    label: &'a str,
+    msg: crate::app::messages::JsonMsg,
+    font_size: f32,
+    theme: AppTheme,
+) -> Element<'a, Message> {
+    button(text(label).size(font_size * 0.7).color(dim_color(theme)))
+        .on_press(msg.into())
+        .padding(Padding::from([spacing::XXS, spacing::XS]))
+        .style(crate::ui::components::button::breeze_tool)
+        .into()
 }
 
 pub fn render_raw<'a>(

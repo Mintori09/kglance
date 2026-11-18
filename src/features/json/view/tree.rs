@@ -286,6 +286,18 @@ pub fn render_tree<'a>(
 ) -> Element<'a, Message> {
     let indices = visible_node_indices(state);
     let total_visible_nodes = indices.len();
+    if total_visible_nodes == 0 {
+        let empty_label = if state.search_visible && !state.search_query.trim().is_empty() {
+            "No matching nodes"
+        } else {
+            "Empty JSON document"
+        };
+        return container(text(empty_label).size(font_size).color(dim_color(theme)))
+            .width(Length::Fill)
+            .padding(Padding::from([spacing::L, spacing::M]))
+            .center_x(Length::Fill)
+            .into();
+    }
     let mono_font = crate::ui::theme::font::get_code_font(font_family_mono);
 
     let search_q = if state.search_visible {

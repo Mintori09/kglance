@@ -63,7 +63,7 @@ fn build_header<'a>(
 ) -> Element<'a, Message> {
     let main_font = crate::ui::theme::font::get_main_font(font_family);
     let status_text = if state.has_parse_error {
-        "⚠ JSON Parse Error — showing raw"
+        "JSON parse error — showing raw"
     } else {
         ""
     };
@@ -127,7 +127,7 @@ fn build_expand_button<'a>() -> Element<'a, Message> {
         .padding(ACTION_BUTTON_PADDING)
         .style(small_btn_style());
 
-    tooltip(button, "Expand All (Ctrl+E)", tooltip::Position::Bottom).into()
+    tooltip(button, "Expand all (Ctrl+E)", tooltip::Position::Bottom).into()
 }
 
 fn build_collapse_button<'a>() -> Element<'a, Message> {
@@ -138,7 +138,7 @@ fn build_collapse_button<'a>() -> Element<'a, Message> {
 
     tooltip(
         button,
-        "Collapse All (Ctrl+Shift+E)",
+        "Collapse all (Ctrl+Shift+E)",
         tooltip::Position::Bottom,
     )
     .into()
@@ -154,7 +154,7 @@ fn build_format_button<'a>(is_pretty: bool) -> Element<'a, Message> {
 
     tooltip(
         button,
-        "Toggle Format (Ctrl+Shift+P)",
+        "Toggle format (Ctrl+Shift+P)",
         tooltip::Position::Bottom,
     )
     .into()
