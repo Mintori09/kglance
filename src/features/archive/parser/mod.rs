@@ -24,7 +24,7 @@ pub struct ExtractedFile {
 
 impl PreviewParser for ArchiveParser {
     fn supported_extensions(&self) -> &[&str] {
-        &["zip", "tar", "gz", "tgz", "xz", "txz", "7z"]
+        &["zip", "tar", "gz", "tgz", "xz", "txz", "zst", "tzst", "7z"]
     }
 
     fn parse(&self, path: &Path) -> Result<ParsedContent, ParseError> {
@@ -33,7 +33,7 @@ impl PreviewParser for ArchiveParser {
         let entries = match extension {
             "zip" => zip::list_zip_entries(path)?,
             "7z" => seven_zip::list_7z_entries(path)?,
-            "tar" | "gz" | "tgz" | "xz" | "txz" => tar::list_tar_entries(path)?,
+            "tar" | "gz" | "tgz" | "xz" | "txz" | "zst" | "tzst" => tar::list_tar_entries(path)?,
             _ => return Err(ParseError::UnsupportedFormat),
         };
 
@@ -81,7 +81,7 @@ pub fn extract_entry(archive_path: &Path, entry_path: &str) -> Result<ExtractedF
     match extension {
         "zip" => zip::extract_from_zip(archive_path, entry_path, &output_path)?,
         "7z" => seven_zip::extract_from_7z(archive_path, entry_path, &output_path)?,
-        "tar" | "gz" | "tgz" | "xz" | "txz" => {
+        "tar" | "gz" | "tgz" | "xz" | "txz" | "zst" | "tzst" => {
             tar::extract_from_tar(archive_path, entry_path, &output_path)?
         }
         _ => return Err(ParseError::UnsupportedFormat),

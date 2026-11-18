@@ -84,6 +84,9 @@ fn supports_archive_extensions() {
     assert!(parser.is_supported(Path::new("a.tgz")));
     assert!(parser.is_supported(Path::new("a.xz")));
     assert!(parser.is_supported(Path::new("a.txz")));
+    assert!(parser.is_supported(Path::new("a.zst")));
+    assert!(parser.is_supported(Path::new("a.tzst")));
+    assert!(parser.is_supported(Path::new("a.tar.zst")));
     assert!(!parser.is_supported(Path::new("a.pdf")));
     assert!(!parser.is_supported(Path::new("a.txt")));
 }
@@ -276,4 +279,47 @@ fn parses_and_extracts_tar_xz_archive() {
     assert!(extracted.path.exists());
     let content = std::fs::read_to_string(&extracted.path).unwrap();
     assert_eq!(content, "hello tar xz");
+}
+
+#[test]
+fn parses_and_extracts_tar_zst_archive() {
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let tar_zst_path = tmp_dir.path().join("test.tar.zst");
+    {
+        let file = File::create(&tar_zst_path).unwrap();
+        let mut zst_encoder = zstd::stream::write::Encoder::new(file, 0).unwrap();
+        {
+            let mut builder = ::tar::Builder::new(&mut zst_encoder);
+            let mut file_header = ::tar::Header::new_gnu();
+            file_header.set_path("nested/zstd.txt").unwrap();
+            file_header.set_size(13);
+            file_header.set_entry_type(::tar::EntryType::Regular);
+            file_header.set_cksum();
+            builder
+                .append(&file_header, b"hello tar zst" as &[u8])
+                .unwrap();
+            builder.finish().unwrap();
+        }
+        zst_encoder.finish().unwrap();
+    }
+
+    let parser = ArchiveParser;
+    let result = parser.parse(&tar_zst_path).unwrap();
+    match result {
+        ParsedContent::Archive {
+            entries,
+            total_files,
+        } => {
+            assert_eq!(total_files, 1);
+            assert_eq!(entries[0].path, "nested/zstd.txt");
+            assert_eq!(entries[0].size, 13);
+        }
+        _ => panic!("expected Archive variant"),
+    }
+
+    let extracted =
+        extract_entry(&tar_zst_path, "nested/zstd.txt").expect("should extract tar.zst");
+    assert!(extracted.path.exists());
+    let content = std::fs::read_to_string(&extracted.path).unwrap();
+    assert_eq!(content, "hello tar zst");
 }

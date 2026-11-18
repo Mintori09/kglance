@@ -19,6 +19,11 @@ fn open_tar_reader(archive_path: &Path) -> Result<Box<dyn Read>, ParseError> {
         Box::new(flate2::read::MultiGzDecoder::new(BufReader::new(file)))
     } else if bytes_read >= 6 && magic[0..6] == [0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00] {
         Box::new(lzma_rust2::XzReader::new(BufReader::new(file), true))
+    } else if bytes_read >= 4 && magic[0..4] == [0x28, 0xB5, 0x2F, 0xFD] {
+        Box::new(
+            zstd::stream::read::Decoder::new(file)
+                .map_err(|e| ParseError::ParseFailed(e.to_string()))?,
+        )
     } else {
         Box::new(BufReader::new(file))
     };
