@@ -1,11 +1,12 @@
 use std::path::Path;
 
 use iced::widget::{button, row, text};
-use iced::{Alignment, Border, Color, Element, Font, Shadow, Theme};
+use iced::{Alignment, Border, Element, Font, Shadow, Theme};
 
 use crate::app::Message;
 use crate::ui::theme::AppTheme;
 use crate::ui::theme::color::base::BaseColors;
+use crate::ui::theme::color::primitive;
 use crate::ui::theme::tokens::{radius, spacing, typography};
 
 pub fn create_breadcrumbs<'a>(
@@ -56,7 +57,7 @@ pub fn create_breadcrumbs<'a>(
                     .font(main_font)
                     .color(sub_dim),
             )
-            .padding([2, 4])
+            .padding([spacing::XXS as u16, spacing::XS as u16])
             .on_press(crate::app::messages::NavigationMsg::OpenPath(target_path).into())
             .style(breadcrumb_button_style);
 
@@ -75,15 +76,19 @@ pub fn create_breadcrumbs<'a>(
 fn breadcrumb_button_style(theme: &Theme, status: button::Status) -> button::Style {
     let p = BaseColors::palette(theme);
     let role = crate::ui::theme::color::roles::palette(theme);
+    let is_dark = AppTheme::from(theme).is_dark();
     let mut sub_dim = p.text_dim;
     sub_dim.a *= 0.75;
 
+    let hover_bg = if is_dark {
+        primitive::WHITE_008
+    } else {
+        primitive::BLACK_008
+    };
+
     let (bg, text_color) = match status {
-        button::Status::Hovered => (Some(Color { a: 0.10, ..p.text }.into()), role.accent_hover),
-        button::Status::Pressed => (
-            Some(Color { a: 0.18, ..p.text }.into()),
-            role.accent_pressed,
-        ),
+        button::Status::Hovered => (Some(hover_bg.into()), role.accent_hover),
+        button::Status::Pressed => (Some(hover_bg.into()), role.accent_pressed),
         _ => (None, sub_dim),
     };
 

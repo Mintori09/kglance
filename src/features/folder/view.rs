@@ -23,16 +23,17 @@ const SORT_ASCENDING_INDICATOR: &str = "▲";
 const SORT_DESCENDING_INDICATOR: &str = "▼";
 
 const DEFAULT_FOLDER_NAME: &str = "Folder";
-const DEFAULT_FOLDER_EMOJI: &str = "📁";
+const DEFAULT_FOLDER_FALLBACK: &str = "[DIR]";
+const DEFAULT_FILE_FALLBACK: &str = "[FILE]";
 const FOLDER_ICON_NAME: &str = "inode-directory";
 
-const SUMMARY_FOLDER_NAME_SIZE: f32 = 16.0;
-const SUMMARY_STATS_SIZE: f32 = 11.5;
+const SUMMARY_FOLDER_NAME_SIZE: f32 = typography::TITLE;
+const SUMMARY_STATS_SIZE: f32 = typography::CAPTION;
 const SUMMARY_ICON_SIZE: f32 = 26.0;
 
 const HEADER_TEXT_SIZE: f32 = typography::BODY;
 const ROW_TEXT_SIZE: f32 = typography::BODY;
-const ROW_NAME_SIZE: f32 = 13.0;
+const ROW_NAME_SIZE: f32 = typography::BODY_MD;
 const ROW_ICON_SIZE: f32 = spacing::L;
 
 const VIEW_CONTAINER_PADDING: [u16; 2] = [spacing::S as u16, spacing::M as u16];
@@ -157,9 +158,9 @@ fn create_summary_block<'a>(
                 .height(SUMMARY_ICON_SIZE)
                 .into()
         } else {
-            text(DEFAULT_FOLDER_EMOJI)
-                .size(SUMMARY_ICON_SIZE)
-                .font(ctx.main_font)
+            text(DEFAULT_FOLDER_FALLBACK)
+                .size(typography::CAPTION)
+                .font(ctx.main_font_medium)
                 .into()
         };
 
@@ -183,37 +184,16 @@ fn create_summary_block<'a>(
 
     let mut badges = row![].spacing(spacing::XS).align_y(Alignment::Center);
 
-    let files_badge = container(
-        text(format!("{total_files} files"))
-            .size(SUMMARY_STATS_SIZE)
-            .font(ctx.main_font_medium)
-            .color(ctx.dim_color),
-    )
-    .padding([spacing::XS as u16, spacing::S as u16])
-    .style(summary_badge_style);
-    badges = badges.push(files_badge);
+    badges = badges.push(create_summary_badge(format!("{total_files} files"), ctx));
 
     if total_dirs > 0 {
-        let dirs_badge = container(
-            text(format!("{total_dirs} folders"))
-                .size(SUMMARY_STATS_SIZE)
-                .font(ctx.main_font_medium)
-                .color(ctx.dim_color),
-        )
-        .padding([spacing::XS as u16, spacing::S as u16])
-        .style(summary_badge_style);
-        badges = badges.push(dirs_badge);
+        badges = badges.push(create_summary_badge(format!("{total_dirs} folders"), ctx));
     }
 
-    let size_badge = container(
-        text(format!("{human_total_size} total"))
-            .size(SUMMARY_STATS_SIZE)
-            .font(ctx.main_font_medium)
-            .color(ctx.dim_color),
-    )
-    .padding([spacing::XS as u16, spacing::S as u16])
-    .style(summary_badge_style);
-    badges = badges.push(size_badge);
+    badges = badges.push(create_summary_badge(
+        format!("{human_total_size} total"),
+        ctx,
+    ));
 
     let top_row = row![left_side, badges]
         .spacing(spacing::M)
@@ -231,6 +211,18 @@ fn create_summary_block<'a>(
         .style(summary_card_style)
         .width(Length::Fill)
         .into()
+}
+
+fn create_summary_badge<'a>(label: String, ctx: &FolderStyleContext) -> Element<'a, Message> {
+    container(
+        text(label)
+            .size(SUMMARY_STATS_SIZE)
+            .font(ctx.main_font_medium)
+            .color(ctx.dim_color),
+    )
+    .padding([spacing::XS as u16, spacing::S as u16])
+    .style(summary_badge_style)
+    .into()
 }
 
 fn create_folder_header<'a>(
@@ -439,6 +431,24 @@ fn create_folder_rows<'a>(
     ctx: &FolderStyleContext,
 ) -> Element<'a, Message> {
     let visible_indices = super::tree::visible_folder_row_indices(state);
+    if visible_indices.is_empty() {
+        let empty_message = if state.search_query.is_empty() {
+            "This folder is empty"
+        } else {
+            "No matching items"
+        };
+        return container(
+            text(empty_message)
+                .size(typography::BODY)
+                .font(ctx.main_font)
+                .color(ctx.sub_dim_color),
+        )
+        .padding(spacing::XL as u16)
+        .width(Length::Fill)
+        .align_x(alignment::Horizontal::Center)
+        .into();
+    }
+
     let total_visible = visible_indices.len();
 
     let scroll_y = state.scroll_y.max(0.0);
@@ -681,11 +691,11 @@ fn render_row_icon<'a>(icon_name: &str, is_dir: bool, is_expanded: bool) -> Elem
             .into()
     } else {
         let fallback = if is_dir {
-            if is_expanded { "📂" } else { "📁" }
+            DEFAULT_FOLDER_FALLBACK
         } else {
-            "📄"
+            DEFAULT_FILE_FALLBACK
         };
-        text(fallback).size(ROW_ICON_SIZE).into()
+        text(fallback).size(typography::CAPTION).into()
     }
 }
 

@@ -156,7 +156,7 @@ pub fn create_distribution_bar<'a>(
         (FileCategory::Other, other_bytes),
     ];
 
-    let mut segments = row![].spacing(2.0).width(Length::Fill).height(6.0);
+    let mut segments = row![].spacing(spacing::XXS).width(Length::Fill).height(6.0);
     let mut legend_items = row![].spacing(spacing::M);
 
     for (cat, bytes) in categories {
@@ -195,11 +195,7 @@ pub fn create_distribution_bar<'a>(
 
         let label = text(format!("{} {:.0}%", cat.label(), pct))
             .size(typography::BADGE)
-            .color(if is_dark {
-                Color::from_rgba(1.0, 1.0, 1.0, 0.65)
-            } else {
-                Color::from_rgba(0.0, 0.0, 0.0, 0.65)
-            });
+            .color(theme.palette().base.text_dim);
 
         let item = row![dot, label]
             .spacing(spacing::XXS)
