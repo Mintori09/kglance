@@ -3,33 +3,35 @@ use iced::Task;
 
 /// Copies clean formatted plain text and optional Rich Text (HTML) to the system clipboard.
 pub fn copy_to_clipboard(plain_text: String, html_text: Option<String>) -> Task<Message> {
-    let plain_bytes = plain_text.clone().into_bytes().into_boxed_slice();
+    if !cfg!(test) {
+        let plain_bytes = plain_text.clone().into_bytes().into_boxed_slice();
 
-    if let Some(html) = html_text {
-        let html_bytes = html.into_bytes().into_boxed_slice();
+        if let Some(html) = html_text {
+            let html_bytes = html.into_bytes().into_boxed_slice();
 
-        let sources = vec![
-            wl_clipboard_rs::copy::MimeSource {
-                source: wl_clipboard_rs::copy::Source::Bytes(plain_bytes),
-                mime_type: wl_clipboard_rs::copy::MimeType::Text,
-            },
-            wl_clipboard_rs::copy::MimeSource {
-                source: wl_clipboard_rs::copy::Source::Bytes(html_bytes),
-                mime_type: wl_clipboard_rs::copy::MimeType::Specific("text/html".to_string()),
-            },
-        ];
+            let sources = vec![
+                wl_clipboard_rs::copy::MimeSource {
+                    source: wl_clipboard_rs::copy::Source::Bytes(plain_bytes),
+                    mime_type: wl_clipboard_rs::copy::MimeType::Text,
+                },
+                wl_clipboard_rs::copy::MimeSource {
+                    source: wl_clipboard_rs::copy::Source::Bytes(html_bytes),
+                    mime_type: wl_clipboard_rs::copy::MimeType::Specific("text/html".to_string()),
+                },
+            ];
 
-        let opts = wl_clipboard_rs::copy::Options::new();
-        if let Err(err) = opts.copy_multi(sources) {
-            crate::log_info!("[ERROR]: {err}, wl_clipboard_rs copy_multi failed");
-        }
-    } else {
-        let opts = wl_clipboard_rs::copy::Options::new();
-        if let Err(err) = opts.copy(
-            wl_clipboard_rs::copy::Source::Bytes(plain_bytes),
-            wl_clipboard_rs::copy::MimeType::Text,
-        ) {
-            crate::log_info!("[ERROR]: {err}, wl_clipboard_rs copy failed");
+            let opts = wl_clipboard_rs::copy::Options::new();
+            if let Err(err) = opts.copy_multi(sources) {
+                crate::log_info!("[ERROR]: {err}, wl_clipboard_rs copy_multi failed");
+            }
+        } else {
+            let opts = wl_clipboard_rs::copy::Options::new();
+            if let Err(err) = opts.copy(
+                wl_clipboard_rs::copy::Source::Bytes(plain_bytes),
+                wl_clipboard_rs::copy::MimeType::Text,
+            ) {
+                crate::log_info!("[ERROR]: {err}, wl_clipboard_rs copy failed");
+            }
         }
     }
 
@@ -58,16 +60,20 @@ pub fn copy_image_to_clipboard(bytes: &[u8]) -> Task<Message> {
         }
     };
 
-    let opts = wl_clipboard_rs::copy::Options::new();
-    match opts.copy(
-        wl_clipboard_rs::copy::Source::Bytes(png_bytes.into_boxed_slice()),
-        wl_clipboard_rs::copy::MimeType::Specific("image/png".to_string()),
-    ) {
-        Ok(()) => Task::none(),
-        Err(err) => {
-            crate::log_info!("[ERROR]: {err}, failed to copy image to clipboard");
-            Task::none()
+    if !cfg!(test) {
+        let opts = wl_clipboard_rs::copy::Options::new();
+        match opts.copy(
+            wl_clipboard_rs::copy::Source::Bytes(png_bytes.into_boxed_slice()),
+            wl_clipboard_rs::copy::MimeType::Specific("image/png".to_string()),
+        ) {
+            Ok(()) => Task::none(),
+            Err(err) => {
+                crate::log_info!("[ERROR]: {err}, failed to copy image to clipboard");
+                Task::none()
+            }
         }
+    } else {
+        Task::none()
     }
 }
 
