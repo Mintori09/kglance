@@ -107,6 +107,7 @@ pub const SUPPORTED_EXTS: &[&str] = &[
     "txt",
     "txz",
     "typ",
+    "tzst",
     "vim",
     "wav",
     "webm",
@@ -122,6 +123,7 @@ pub const SUPPORTED_EXTS: &[&str] = &[
     "yml",
     "zip",
     "zsh",
+    "zst",
 ];
 
 pub fn is_supported_path(path: &Path) -> bool {
