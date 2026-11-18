@@ -368,7 +368,7 @@ fn render_sidebar_tabs<'a>(
     theme: crate::ui::theme::AppTheme,
 ) -> Element<'a, Message> {
     let thumbs_btn =
-        button(container(text("Thumbs").size(typography::CAPTION)).center_x(Length::Fill))
+        button(container(text("Thumbnails").size(typography::CAPTION)).center_x(Length::Fill))
             .on_press(
                 crate::app::messages::PdfMsg::SetSidebarMode(PdfSidebarMode::Thumbnails).into(),
             )
@@ -381,25 +381,26 @@ fn render_sidebar_tabs<'a>(
                     theme,
                 )
             })
-            .padding([6, 10]);
+            .padding([spacing::XS, spacing::S]);
 
-    let toc_btn = button(container(text("TOC").size(typography::CAPTION)).center_x(Length::Fill))
-        .on_press(crate::app::messages::PdfMsg::SetSidebarMode(PdfSidebarMode::Toc).into())
-        .width(Length::Fill)
-        .style(move |iced_theme, status| {
-            sidebar_entry_style(
-                iced_theme,
-                status,
-                active_mode == PdfSidebarMode::Toc,
-                theme,
-            )
-        })
-        .padding([6, 10]);
+    let toc_btn =
+        button(container(text("Contents").size(typography::CAPTION)).center_x(Length::Fill))
+            .on_press(crate::app::messages::PdfMsg::SetSidebarMode(PdfSidebarMode::Toc).into())
+            .width(Length::Fill)
+            .style(move |iced_theme, status| {
+                sidebar_entry_style(
+                    iced_theme,
+                    status,
+                    active_mode == PdfSidebarMode::Toc,
+                    theme,
+                )
+            })
+            .padding([spacing::XS, spacing::S]);
 
     container(
         row![thumbs_btn, toc_btn]
             .spacing(spacing::XS)
-            .padding(spacing::XS + 2.0)
+            .padding(spacing::XS)
             .align_y(Alignment::Center),
     )
     .width(Length::Fill)
@@ -435,7 +436,7 @@ fn render_thumbnails_list<'a>(
         .build();
 
     container(scroll)
-        .padding(8)
+        .padding(spacing::S)
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
@@ -478,7 +479,7 @@ fn render_thumb_item<'a>(
                         color: Some(p.text_dim),
                     }),
             )
-            .padding([3, 8])
+            .padding([spacing::XXS, spacing::S])
             .style(move |_| container::Style {
                 background: Some(p.surface.into()),
                 border: Border {
@@ -515,7 +516,7 @@ fn render_thumb_item<'a>(
                 color: Some(badge_text_color),
             }),
     )
-    .padding([2, 6])
+    .padding([spacing::XXS, spacing::XS])
     .style(move |_| container::Style {
         background: Some(badge_bg.into()),
         border: Border {

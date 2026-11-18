@@ -207,6 +207,13 @@ pub fn collect_visible_outline_nodes<'a>(
     }
 }
 
+fn render_empty_outline<'a>() -> Element<'a, Message> {
+    container(text("No table of contents").size(typography::BODY))
+        .padding(spacing::M)
+        .center_x(Length::Fill)
+        .into()
+}
+
 /// Render the PDF Outline TOC list sidebar element.
 pub fn render_pdf_outline<'a>(
     outline_state: &'a PdfOutlineState,
@@ -214,20 +221,14 @@ pub fn render_pdf_outline<'a>(
     theme: AppTheme,
 ) -> Element<'a, Message> {
     if outline_state.nodes.is_empty() {
-        return container(text("No TOC available").size(typography::BODY))
-            .padding(spacing::M)
-            .center_x(Length::Fill)
-            .into();
+        return render_empty_outline();
     }
 
     let mut visible_nodes = Vec::new();
     collect_visible_outline_nodes(&outline_state.nodes, &mut visible_nodes);
 
     if visible_nodes.is_empty() {
-        return container(text("No TOC available").size(typography::BODY))
-            .padding(spacing::M)
-            .center_x(Length::Fill)
-            .into();
+        return render_empty_outline();
     }
 
     // Determine active item based on highest page <= current_page
@@ -235,7 +236,7 @@ pub fn render_pdf_outline<'a>(
         .iter()
         .rposition(|node| node.page <= current_page);
 
-    let mut toc_col = column![].spacing(spacing::XXS).padding(spacing::XS + 2.0);
+    let mut toc_col = column![].spacing(spacing::XXS).padding(spacing::XS);
 
     for (idx, node) in visible_nodes.into_iter().enumerate() {
         let is_active = active_node_idx == Some(idx);
@@ -260,9 +261,13 @@ fn render_outline_entry<'a>(
         let arrow_char = if node.is_expanded { "▾" } else { "▸" };
         let arrow_color = theme.palette().sidebar.arrow_text;
         button(
-            container(text(arrow_char).size(10).color(arrow_color))
-                .width(Length::Fixed(14.0))
-                .align_x(Alignment::Center),
+            container(
+                text(arrow_char)
+                    .size(typography::CAPTION)
+                    .color(arrow_color),
+            )
+            .width(Length::Fixed(14.0))
+            .align_x(Alignment::Center),
         )
         .on_press(
             PdfMsg::ToggleOutlineNode {
@@ -306,7 +311,7 @@ fn render_outline_entry<'a>(
         .on_press(PdfMsg::TocItemClicked(node.page).into())
         .width(Length::Fill)
         .style(move |iced_theme, status| sidebar_entry_style(iced_theme, status, is_active, theme))
-        .padding([4, 6]);
+        .padding([spacing::XXS, spacing::XS]);
 
     container(btn).width(Length::Fill).into()
 }
