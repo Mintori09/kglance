@@ -691,9 +691,14 @@ fn grid_header_button_style(
 ) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |_: &Theme, status: button::Status| {
         let p = theme.palette().base;
+        let (hover_bg, press_bg) = if theme.is_dark() {
+            (primitive::WHITE_010, primitive::WHITE_015)
+        } else {
+            (primitive::BLACK_006, primitive::BLACK_015)
+        };
         let (bg, text_color) = match status {
-            button::Status::Hovered => (Some(primitive::WHITE_010.into()), p.text),
-            button::Status::Pressed => (Some(primitive::WHITE_015.into()), p.text),
+            button::Status::Hovered => (Some(hover_bg.into()), p.text),
+            button::Status::Pressed => (Some(press_bg.into()), p.text),
             _ => (
                 Some(p.surface_raised.into()),
                 if is_sorted { p.text } else { p.text_dim },
@@ -816,9 +821,14 @@ fn sheet_tab_button_style(
                 snap: false,
             }
         } else {
+            let (hover_bg, press_bg) = if theme.is_dark() {
+                (primitive::WHITE_008, primitive::WHITE_015)
+            } else {
+                (primitive::BLACK_006, primitive::BLACK_015)
+            };
             let (bg, text_color) = match status {
-                button::Status::Hovered => (Some(primitive::WHITE_008.into()), p.text),
-                button::Status::Pressed => (Some(primitive::WHITE_015.into()), p.text),
+                button::Status::Hovered => (Some(hover_bg.into()), p.text),
+                button::Status::Pressed => (Some(press_bg.into()), p.text),
                 _ => (None, p.text_dim),
             };
 

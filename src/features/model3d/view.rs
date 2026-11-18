@@ -145,9 +145,9 @@ pub fn view_model3d<'a>(state: &'a KglanceState, mesh: &'a Model3dMesh) -> Eleme
 
     // 3. Grid toggle button
     let grid_label = if state.model3d.show_grid {
-        "Grid: ON"
+        "Grid: On"
     } else {
-        "Grid: OFF"
+        "Grid: Off"
     };
     let grid_btn = button(text(grid_label).size(12))
         .padding([4, 10])
@@ -156,9 +156,9 @@ pub fn view_model3d<'a>(state: &'a KglanceState, mesh: &'a Model3dMesh) -> Eleme
 
     // 4. Auto-rotate button (Accent when ON, ghost/dark when OFF)
     let auto_rotate_label = if state.model3d.auto_rotate {
-        "Auto-Rotate: ON"
+        "Auto-rotate: On"
     } else {
-        "Auto-Rotate: OFF"
+        "Auto-rotate: Off"
     };
     let auto_rotate_btn = button(text(auto_rotate_label).size(12))
         .padding([4, 10])
@@ -176,7 +176,7 @@ pub fn view_model3d<'a>(state: &'a KglanceState, mesh: &'a Model3dMesh) -> Eleme
 
     // 5. Bounding box dimension information with explicit units
     let size = mesh.bounds.size();
-    let dim_label = format!("📐 {:.1} × {:.1} × {:.1} units", size[0], size[1], size[2]);
+    let dim_label = format!("{:.1} × {:.1} × {:.1} units", size[0], size[1], size[2]);
     let info_text = text(dim_label)
         .size(12)
         .color(iced::Color::from_rgba(0.75, 0.75, 0.75, 0.9));

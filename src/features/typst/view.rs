@@ -39,7 +39,7 @@ pub fn view_typst<'a>(
             let base = theme.palette().base;
             let banner = iced::widget::container(
                 iced::widget::column![
-                    iced::widget::text("Typst Compilation Warning / Error:")
+                    iced::widget::text("Typst compilation warning / error:")
                         .size(crate::ui::theme::tokens::typography::BODY_MD)
                         .style(move |_: &iced::Theme| iced::widget::text::Style {
                             color: Some(roles.danger),

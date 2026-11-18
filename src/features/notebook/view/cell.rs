@@ -87,34 +87,44 @@ pub fn render_cell<'a>(
                 .size((font_size * 0.8).max(11.0))
                 .color(base.text_dim);
 
-            let copy_btn = button(
-                text("⎘")
-                    .font(code_font)
-                    .size((font_size * 0.9).max(12.0))
-                    .color(base.text),
-            )
-            .on_press(ActionMsg::CopyText(source.clone()).into())
-            .padding(Padding::from([2, 6]))
-            .style(move |_: &iced::Theme, status| {
-                let is_hovered = matches!(status, iced::widget::button::Status::Hovered);
-                button::Style {
-                    background: if is_hovered {
-                        Some(base.surface_raised.into())
-                    } else {
-                        None
-                    },
-                    border: iced::Border {
-                        color: if is_hovered {
-                            base.border
+            let copy_btn = iced::widget::tooltip(
+                button(
+                    text("⎘")
+                        .font(code_font)
+                        .size((font_size * 0.9).max(crate::ui::theme::tokens::typography::BODY))
+                        .color(base.text),
+                )
+                .on_press(ActionMsg::CopyText(source.clone()).into())
+                .padding(Padding::from([
+                    crate::ui::theme::tokens::spacing::XXS,
+                    crate::ui::theme::tokens::spacing::XS + 2.0,
+                ]))
+                .style(move |_: &iced::Theme, status| {
+                    let is_hovered = matches!(status, iced::widget::button::Status::Hovered);
+                    button::Style {
+                        background: if is_hovered {
+                            Some(base.surface_raised.into())
                         } else {
-                            iced::Color::TRANSPARENT
+                            None
                         },
-                        width: 1.0,
-                        radius: 4.0.into(),
-                    },
-                    ..Default::default()
-                }
-            });
+                        border: iced::Border {
+                            color: if is_hovered {
+                                base.border
+                            } else {
+                                iced::Color::TRANSPARENT
+                            },
+                            width: crate::ui::theme::tokens::border::THIN,
+                            radius: crate::ui::theme::tokens::radius::SM.into(),
+                        },
+                        ..Default::default()
+                    }
+                }),
+                text("Copy cell code")
+                    .font(main_font)
+                    .size(crate::ui::theme::tokens::typography::CAPTION),
+                iced::widget::tooltip::Position::Left,
+            )
+            .style(crate::ui::theme::default_tooltip);
 
             let top_bar = row![
                 prompt_badge,

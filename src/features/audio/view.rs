@@ -73,7 +73,7 @@ pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
     let title_text = if !state.title.is_empty() {
         state.title.as_str()
     } else {
-        "Audio Track"
+        "Audio track"
     };
 
     let title_widget = text(title_text)

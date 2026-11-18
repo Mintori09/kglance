@@ -44,7 +44,7 @@ fn render_info_card<'a>(state: &'a ImageState, font_family: Option<&str>) -> Ele
     let font = crate::ui::theme::font::get_main_font(font_family);
 
     let title_row = row![
-        text("Image Info")
+        text("Image info")
             .size(typography::BODY_MD)
             .font(font)
             .style(|theme: &iced::Theme| {
@@ -54,10 +54,15 @@ fn render_info_card<'a>(state: &'a ImageState, font_family: Option<&str>) -> Ele
                 }
             }),
         iced::widget::Space::new().width(Length::Fill),
-        button(text("✕").size(typography::CAPTION).font(font))
-            .on_press(crate::app::messages::ImageMsg::CloseInfo.into())
-            .style(iced::widget::button::text)
-            .padding([0, 4]),
+        iced::widget::tooltip(
+            button(text("✕").size(typography::CAPTION).font(font))
+                .on_press(crate::app::messages::ImageMsg::CloseInfo.into())
+                .style(crate::ui::components::button::breeze_close)
+                .padding([spacing::NONE, spacing::XS]),
+            text("Close info").size(typography::CAPTION).font(font),
+            iced::widget::tooltip::Position::Left,
+        )
+        .style(crate::ui::theme::default_tooltip),
     ]
     .align_y(iced::Alignment::Center);
 

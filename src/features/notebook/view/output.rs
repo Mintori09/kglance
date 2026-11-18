@@ -108,26 +108,43 @@ pub fn render_cell_output<'a>(
             let img_btn = button(img_container)
                 .on_press(crate::app::messages::NotebookMsg::OpenImageLightbox(image_id).into())
                 .padding(0)
-                .style(|_: &iced::Theme, status: button::Status| {
+                .style(move |t: &iced::Theme, status: button::Status| {
+                    let mut hover_color =
+                        crate::ui::theme::AppTheme::from(t).palette().roles.accent;
                     let border_color = match status {
-                        button::Status::Hovered => iced::Color::from_rgba(0.4, 0.7, 1.0, 0.5),
-                        button::Status::Pressed => iced::Color::from_rgba(0.4, 0.7, 1.0, 0.8),
+                        button::Status::Hovered => {
+                            hover_color.a = 0.5;
+                            hover_color
+                        }
+                        button::Status::Pressed => {
+                            hover_color.a = 0.8;
+                            hover_color
+                        }
                         _ => iced::Color::TRANSPARENT,
                     };
                     button::Style {
                         background: None,
                         text_color: iced::Color::TRANSPARENT,
                         border: iced::Border {
-                            width: 1.0,
+                            width: crate::ui::theme::tokens::border::THIN,
                             color: border_color,
-                            radius: 6.0.into(),
+                            radius: crate::ui::theme::tokens::radius::MD.into(),
                         },
                         shadow: iced::Shadow::default(),
                         snap: false,
                     }
                 });
 
-            column![prompt_badge, img_btn].spacing(4).into()
+            let img_with_tooltip = iced::widget::tooltip(
+                img_btn,
+                text("Open image in lightbox").size(crate::ui::theme::tokens::typography::CAPTION),
+                iced::widget::tooltip::Position::FollowCursor,
+            )
+            .style(crate::ui::theme::default_tooltip);
+
+            column![prompt_badge, img_with_tooltip]
+                .spacing(crate::ui::theme::tokens::spacing::XS)
+                .into()
         }
     }
 }

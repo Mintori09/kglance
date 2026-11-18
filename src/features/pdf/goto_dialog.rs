@@ -102,14 +102,19 @@ pub fn view_goto_dialog<'a>(
     .style(default_button)
     .padding([spacing::XS, spacing::M]);
 
-    let close_btn = button(
-        text("✕")
-            .size(typography::BODY_MD)
-            .align_y(Alignment::Center),
+    let close_btn = iced::widget::tooltip(
+        button(
+            text("✕")
+                .size(typography::BODY_MD)
+                .align_y(Alignment::Center),
+        )
+        .on_press(Message::Pdf(PdfMsg::GotoPageClose))
+        .style(crate::ui::components::button::breeze_close)
+        .padding([spacing::XS, spacing::S]),
+        text("Close").size(typography::CAPTION),
+        iced::widget::tooltip::Position::Top,
     )
-    .on_press(Message::Pdf(PdfMsg::GotoPageClose))
-    .style(default_button)
-    .padding([spacing::XS, spacing::S]);
+    .style(crate::ui::theme::default_tooltip);
 
     let mut row_content = row![label, input_field, total_label, go_btn, close_btn]
         .spacing(spacing::S)

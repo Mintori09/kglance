@@ -186,6 +186,26 @@ fn build_scrollable_content<'a>(
     ctx: &RenderContext<'_>,
     max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
+    if blocks.is_empty() {
+        return container(
+            iced::widget::text("Document is empty")
+                .size(crate::ui::theme::tokens::typography::BODY_LG)
+                .style(|theme: &iced::Theme| iced::widget::text::Style {
+                    color: Some(
+                        crate::ui::theme::AppTheme::from(theme)
+                            .palette()
+                            .base
+                            .text_dim,
+                    ),
+                }),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .into();
+    }
+
     let offsets = &state.block_y_offsets;
     let use_virtual = blocks.len() > VIRTUAL_THRESHOLD && offsets.len() == blocks.len();
 
