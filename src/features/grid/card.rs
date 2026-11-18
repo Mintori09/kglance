@@ -59,9 +59,13 @@ pub fn render_card_media<'a>(
 
 fn render_fallback_icon<'a>(item_name: &str, icon_size: f32) -> Element<'a, Message> {
     let icon_name = icon_for_entry(item_name, false);
-    if let Some(svg_handle) = icon_theme::get_icon_handle(icon_name) {
+    if let Some(svg_handle) = icon_theme::get_icon_handle(icon_name)
+        .or_else(|| icon_theme::get_icon_handle("text-x-generic"))
+    {
         svg(svg_handle).width(icon_size).height(icon_size).into()
     } else {
-        text(DEFAULT_FILE_ICON_EMOJI).size(icon_size * 0.75).into()
+        text(DEFAULT_FILE_FALLBACK_LABEL)
+            .size(crate::ui::theme::tokens::typography::CAPTION)
+            .into()
     }
 }

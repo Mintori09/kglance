@@ -19,6 +19,26 @@ pub fn render_grid_layout<'a>(
     scroll_y: f32,
     viewport_height: f32,
 ) -> Element<'a, Message> {
+    if filtered_thumbnails.is_empty() {
+        return iced::widget::container(
+            iced::widget::text("No items to display")
+                .size(crate::ui::theme::tokens::typography::BODY_LG)
+                .style(|theme: &iced::Theme| iced::widget::text::Style {
+                    color: Some(
+                        crate::ui::theme::AppTheme::from(theme)
+                            .palette()
+                            .base
+                            .text_dim,
+                    ),
+                }),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .into();
+    }
+
     responsive(move |bounds| {
         let dimensions = ScaledDimensions::new(scale);
         let columns_count =
@@ -78,6 +98,7 @@ pub fn render_grid_layout<'a>(
             .id("grid_scroll")
             .height(Length::Fill)
             .width(Length::Fill)
+            .style(crate::ui::theme::default_scrollable)
             .on_scroll(|vp| Message::from(GridMsg::Scrolled(vp)))
             .into()
     })
