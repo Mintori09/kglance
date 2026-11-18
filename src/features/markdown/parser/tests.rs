@@ -1908,3 +1908,120 @@ fn test_compute_image_display_size_proportional_aspect_ratio() {
     // 267.01 + IMAGE_PADDING_V * 2 (8.0) = ~275.01
     assert!((est_h - 275.01).abs() < 1e-2);
 }
+
+#[test]
+fn parses_table_with_multiline_fenced_code_block_in_cell() {
+    let md = concat!(
+        "| STT | Endpoint | Response | Errors |\n",
+        "| :-: | :--- | :--- | :--- |\n",
+        "| **1** | `PATCH /users/me` | ```json\n",
+        "{\n",
+        "  \"user\": {\n",
+        "    \"id\": \"0193\"\n",
+        "  }\n",
+        "}\n",
+        "```<br>*(Optional note)* | - `400`: Bad request |\n",
+        "| **2** | `GET /profiles/:username` | ```json\n",
+        "{\n",
+        "  \"profile\": {}\n",
+        "}\n",
+        "``` | - `404`: Not found |\n",
+    );
+
+    let blocks = parse_to_blocks(md);
+    assert_eq!(blocks.len(), 1);
+    let Block::Table(table) = &blocks[0] else {
+        panic!("expected Table block");
+    };
+    assert_eq!(table.headers.len(), 4);
+    assert_eq!(table.rows.len(), 2);
+    assert_eq!(table.rows[0].len(), 4);
+    assert_eq!(table.rows[1].len(), 4);
+
+    assert_eq!(flatten_inlines(&table.rows[0][0].content), "**1**");
+    assert_eq!(
+        flatten_inlines(&table.rows[0][1].content),
+        "`PATCH /users/me`"
+    );
+    assert_eq!(
+        flatten_inlines(&table.rows[0][3].content),
+        "- `400`: Bad request"
+    );
+    assert_eq!(flatten_inlines(&table.rows[1][0].content), "**2**");
+    assert_eq!(
+        flatten_inlines(&table.rows[1][3].content),
+        "- `404`: Not found"
+    );
+
+    let has_code_and_break = table.rows[0][2]
+        .content
+        .iter()
+        .any(|i| matches!(i, Inline::Code(s) if s.contains("\"id\": \"0193\"")))
+        && table.rows[0][2]
+            .content
+            .iter()
+            .any(|i| matches!(i, Inline::SoftBreak));
+    assert!(
+        has_code_and_break,
+        "expected inline code spans separated by SoftBreak in cell: {:?}",
+        table.rows[0][2].content
+    );
+}
+
+#[test]
+fn parses_table_with_pipes_and_backticks_in_multiline_cell_fence() {
+    let md = concat!(
+        "| Col1 | Code | Col3 |\n",
+        "| --- | --- | --- |\n",
+        "| A | ```ts\n",
+        "type X = 'a' | 'b';\n",
+        "const s = `hi`;\n",
+        "``` | B |\n",
+    );
+
+    let blocks = parse_to_blocks(md);
+    assert_eq!(blocks.len(), 1);
+    let Block::Table(table) = &blocks[0] else {
+        panic!("expected Table block");
+    };
+    assert_eq!(table.rows.len(), 1);
+    assert_eq!(table.rows[0].len(), 3);
+    assert_eq!(flatten_inlines(&table.rows[0][0].content), "A");
+    assert_eq!(flatten_inlines(&table.rows[0][2].content), "B");
+    assert!(
+        table.rows[0][1]
+            .content
+            .iter()
+            .any(|i| matches!(i, Inline::Code(s) if s == "type X = 'a' | 'b';")),
+        "pipe inside code line must be preserved: {:?}",
+        table.rows[0][1].content
+    );
+    assert!(
+        table.rows[0][1]
+            .content
+            .iter()
+            .any(|i| matches!(i, Inline::Code(s) if s == "const s = `hi`;")),
+        "backticks inside code line must be preserved: {:?}",
+        table.rows[0][1].content
+    );
+}
+
+#[test]
+fn table_preprocess_skips_top_level_code_blocks_and_unclosed_eof_fences() {
+    let md_top_code = concat!(
+        "```markdown\n",
+        "| A | B |\n",
+        "| --- | --- |\n",
+        "| 1 | ```json\n",
+        "{}\n",
+        "``` |\n",
+        "```\n",
+    );
+    let blocks = parse_to_blocks(md_top_code);
+    assert_eq!(blocks.len(), 1);
+    assert!(matches!(blocks[0], Block::CodeBlock { .. }));
+
+    let md_unclosed = "| A | B |\n| --- | --- |\n| 1 | ```json\n{}\n";
+    let blocks_unclosed = parse_to_blocks(md_unclosed);
+    assert!(!blocks_unclosed.is_empty());
+}

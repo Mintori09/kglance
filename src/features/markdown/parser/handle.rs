@@ -778,7 +778,8 @@ impl<'a> EventStream<'a> {
 
 pub fn parse_to_blocks(content: &str) -> Vec<Block> {
     let (frontmatter, rest) = extract_frontmatter(content);
-    let mut stream = EventStream::new(rest);
+    let normalized = super::table_preprocess::preprocess_multiline_table_fences(rest);
+    let mut stream = EventStream::new(&normalized);
     let mut blocks = stream.parse_blocks();
     if let Some(entries) = frontmatter {
         blocks.insert(0, Block::Frontmatter(entries));
@@ -788,7 +789,8 @@ pub fn parse_to_blocks(content: &str) -> Vec<Block> {
 
 pub fn parse_markdown(content: &str, parent: &Path) -> (Vec<Block>, Vec<ImageRef>) {
     let (frontmatter, rest) = extract_frontmatter(content);
-    let mut stream = EventStream::new_with_parent(rest, parent);
+    let normalized = super::table_preprocess::preprocess_multiline_table_fences(rest);
+    let mut stream = EventStream::new_with_parent(&normalized, parent);
     let mut blocks = stream.parse_blocks();
     if let Some(entries) = frontmatter {
         blocks.insert(0, Block::Frontmatter(entries));

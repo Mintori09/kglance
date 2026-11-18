@@ -6,6 +6,7 @@ mod layout;
 pub mod layout_constants;
 mod mermaid;
 mod split;
+mod table_preprocess;
 mod types;
 
 #[cfg(test)]
