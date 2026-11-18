@@ -3,7 +3,7 @@ members = [".", "crates/dbus-global-menu"]
 
 [package]
 name = "kglance"
-version = "0.5.0"
+version = "0.5.3"
 edition = "2024"
 license = "AGPL-3.0-only"
 description = "A high-performance file preview system for KDE Plasma 6"
@@ -260,4 +260,3 @@ incremental = false
 
 [patch.crates-io]
 iced_winit = { path = "vendor/iced_winit" }
-
