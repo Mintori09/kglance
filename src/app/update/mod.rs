@@ -688,6 +688,7 @@ fn update_message(app: &mut KglanceApp, message: Message) -> Task<Message> {
                 Task::none()
             }
         },
+        Message::Tts(msg) => crate::features::tts::update::handle_tts_message(app, msg),
         Message::Markdown(msg) => match msg {
             crate::app::messages::MarkdownMsg::TocToggled => {
                 crate::features::markdown::update::handle_toc_toggled(app)

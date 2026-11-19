@@ -136,6 +136,7 @@ fn test_load_existing_custom_config() {
         selection_menu: Default::default(),
         trash: Default::default(),
         keybindings: Default::default(),
+        tts: Default::default(),
     };
 
     assert_eq!(loaded, expected);

@@ -553,6 +553,7 @@ pub enum Message {
     SelectionMenu(SelectionMenuMsg),
     Trash(TrashMsg),
     Folder(FolderMsg),
+    Tts(crate::features::tts::TtsMsg),
 
     // Layout / Global Events
     SmoothScrollTick(std::time::Instant),
@@ -683,5 +684,10 @@ impl From<FolderMsg> for Message {
 impl From<GlobalMenuMsg> for Message {
     fn from(m: GlobalMenuMsg) -> Self {
         Message::GlobalMenu(m)
+    }
+}
+impl From<crate::features::tts::TtsMsg> for Message {
+    fn from(m: crate::features::tts::TtsMsg) -> Self {
+        Message::Tts(m)
     }
 }

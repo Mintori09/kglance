@@ -86,7 +86,7 @@ pub(crate) fn build_epub_content<'a>(
                 chapter_blocks.get(i + 1),
                 ctx.font_size,
             );
-            let block = container(inner)
+            let mut block = container(inner)
                 .padding(Padding {
                     top: 0.0,
                     right: 0.0,
@@ -94,6 +94,11 @@ pub(crate) fn build_epub_content<'a>(
                     left: 0.0,
                 })
                 .width(Length::Fill);
+            if state.markdown_state.active_tts_block == Some(i) {
+                let theme = ctx.theme;
+                block = block
+                    .style(move |_| crate::features::tts::view::tts_active_block_style(&theme));
+            }
             els.push(
                 Measured::new(
                     block,
@@ -147,15 +152,20 @@ pub(crate) fn build_epub_content<'a>(
                     chapter_blocks.get(i + 1),
                     ctx.font_size,
                 );
-                container(inner)
+                let mut block = container(inner)
                     .padding(Padding {
                         top: 0.0,
                         right: 0.0,
                         bottom: margin_bottom,
                         left: 0.0,
                     })
-                    .width(Length::Fill)
-                    .into()
+                    .width(Length::Fill);
+                if state.markdown_state.active_tts_block == Some(i) {
+                    let theme = ctx.theme;
+                    block = block
+                        .style(move |_| crate::features::tts::view::tts_active_block_style(&theme));
+                }
+                block.into()
             })
             .collect()
     };

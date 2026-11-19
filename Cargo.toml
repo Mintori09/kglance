@@ -110,6 +110,8 @@ wgpu = "27"
 bytemuck = "1"
 trash = "5.2.9"
 libc = "0.2"
+ort = "2.0.0-rc.12"
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
 
 [build-dependencies]
 syntect = { version = "5.3.0", default-features = false, features = [

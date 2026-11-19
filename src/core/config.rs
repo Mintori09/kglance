@@ -229,6 +229,63 @@ impl Default for KeybindingConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TtsBackend {
+    #[default]
+    Auto,
+    #[serde(rename = "vieneu")]
+    VieNeu,
+    Piper,
+    EspeakNg,
+}
+
+impl TtsBackend {
+    pub const ALL: [Self; 4] = [Self::Auto, Self::VieNeu, Self::Piper, Self::EspeakNg];
+}
+
+impl std::fmt::Display for TtsBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let label = match self {
+            Self::Auto => "Auto",
+            Self::VieNeu => "VieNeu",
+            Self::Piper => "Piper",
+            Self::EspeakNg => "eSpeak",
+        };
+        f.write_str(label)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct TtsConfig {
+    pub backend: TtsBackend,
+    pub rate: f32,
+    pub piper_model_en: String,
+    pub piper_model_vi: String,
+    pub vieneu_endpoint: String,
+    pub vieneu_voice: String,
+    pub auto_scroll: bool,
+    pub skip_code_blocks: bool,
+    pub auto_advance_chapter: bool,
+}
+
+impl Default for TtsConfig {
+    fn default() -> Self {
+        Self {
+            backend: TtsBackend::Auto,
+            rate: 1.0,
+            piper_model_en: "en_US-amy-medium".to_string(),
+            piper_model_vi: "vi_VN-vais1000-medium".to_string(),
+            vieneu_endpoint: "http://127.0.0.1:8000/v1/audio/speech".to_string(),
+            vieneu_voice: String::new(),
+            auto_scroll: true,
+            skip_code_blocks: true,
+            auto_advance_chapter: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct AppConfig {
     #[serde(default)]
@@ -243,6 +300,8 @@ pub struct AppConfig {
     pub trash: TrashConfig,
     #[serde(default)]
     pub keybindings: KeybindingConfig,
+    #[serde(default)]
+    pub tts: TtsConfig,
 }
 
 pub struct ConfigManager;

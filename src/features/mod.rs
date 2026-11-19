@@ -22,6 +22,7 @@ pub mod psd;
 pub mod sqlite;
 pub mod svg;
 pub mod text;
+pub mod tts;
 pub mod typst;
 pub mod video;
 

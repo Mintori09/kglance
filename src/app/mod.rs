@@ -34,6 +34,7 @@ pub struct KglanceApp {
     pub current_content: Option<PreviewData>,
     pub video: Option<iced_video_player::Video>,
     pub audio: Option<crate::features::audio::AudioPlayer>,
+    pub tts_player: Option<crate::features::tts::player::TtsAudioPlayer>,
     pub ctrl_held: bool,
     pub shift_held: bool,
     pub pending_g: bool,
@@ -63,6 +64,7 @@ impl Default for KglanceApp {
             current_content: None,
             video: None,
             audio: None,
+            tts_player: None,
             ctrl_held: false,
             shift_held: false,
             pending_g: false,
@@ -211,6 +213,7 @@ impl KglanceApp {
             selection_menu: self.state.selection_menu_config.clone(),
             trash: self.state.trash_config.clone(),
             keybindings: self.state.keybinding_config.clone(),
+            tts: self.state.tts_config.clone(),
         }
     }
 
@@ -312,6 +315,7 @@ impl KglanceApp {
             selection_menu_config: config.selection_menu.clone(),
             trash_config: config.trash.clone(),
             keybinding_config: config.keybindings.clone(),
+            tts_config: config.tts.clone(),
 
             ..Default::default()
         };
@@ -359,6 +363,7 @@ impl KglanceApp {
             current_content: None,
             video: None,
             audio: None,
+            tts_player: None,
             ctrl_held: false,
             shift_held: false,
             pending_g: false,
@@ -1781,6 +1786,7 @@ pub(crate) mod test_util {
             current_content: content,
             video: None,
             audio: None,
+            tts_player: None,
             ctrl_held: false,
             shift_held: false,
             pending_g: false,

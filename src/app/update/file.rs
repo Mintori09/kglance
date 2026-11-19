@@ -71,6 +71,7 @@ pub fn handle_daemon_open_with_playlist(
     app.state.selection_menu_config = config.selection_menu;
     app.state.trash_config = config.trash;
     app.state.keybinding_config = config.keybindings;
+    app.state.tts_config = config.tts;
 
     app.state.set_playlist(playlist, &path);
     let file_task = app.handle_file_loaded(path, content);

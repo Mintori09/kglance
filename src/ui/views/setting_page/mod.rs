@@ -14,6 +14,7 @@ use crate::ui::theme::{default_button, default_card, default_inset, default_row_
 pub mod appearance;
 pub mod cache_scroll;
 pub mod previews;
+pub mod tts;
 pub mod window;
 
 pub use appearance::AVAILABLE_THEMES;
@@ -63,6 +64,8 @@ pub struct SettingsPageContext<'a, 'b> {
     pub action_editor: Option<&'a crate::core::selection_action::CustomActionEditorState>,
     pub trash_config: &'a crate::core::config::TrashConfig,
     pub keybinding_config: &'a crate::core::config::KeybindingConfig,
+    pub tts_config: &'a crate::core::config::TtsConfig,
+    pub tts_state: &'a crate::features::tts::TtsState,
     pub active_tab: SettingTab,
     pub available_fonts: &'a [String],
 }
@@ -111,6 +114,7 @@ pub fn settings_page<'a>(ctx: SettingsPageContext<'a, '_>) -> Element<'a, Messag
             tab_button("Window", SettingTab::Window),
             tab_button("Previews", SettingTab::Previews),
             tab_button("Cache & scroll", SettingTab::CacheScroll),
+            tab_button("TTS", SettingTab::Tts),
         ]
         .spacing(spacing::XXS)
         .padding(spacing::XXS)
@@ -139,6 +143,7 @@ pub fn settings_page<'a>(ctx: SettingsPageContext<'a, '_>) -> Element<'a, Messag
             ctx.scroll_config,
             main_font,
         ),
+        SettingTab::Tts => tts::tts_tab(ctx.theme, ctx.tts_config, ctx.tts_state, main_font),
     };
 
     let scrollable_content = iced::widget::scrollable(tab_content).height(iced::Length::Fill);

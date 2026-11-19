@@ -236,6 +236,10 @@ pub fn handle_toggle_settings(app: &mut KglanceApp) -> Task<Message> {
         app.state.view_mode = crate::core::ViewMode::Detail;
     } else {
         app.state.view_mode = crate::core::ViewMode::Settings;
+        if app.state.settings_tab == crate::core::SettingTab::Tts {
+            app.state.tts.installed_piper_models =
+                crate::features::tts::piper::installed_models_set();
+        }
     }
     Task::none()
 }

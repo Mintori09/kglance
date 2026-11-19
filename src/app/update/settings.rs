@@ -8,6 +8,10 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
     match msg {
         SettingsMsg::TabChanged(tab) => {
             app.state.settings_tab = tab;
+            if tab == crate::core::SettingTab::Tts {
+                app.state.tts.installed_piper_models =
+                    crate::features::tts::piper::installed_models_set();
+            }
             Task::none()
         }
         SettingsMsg::ThemeChanged(t) => {
@@ -606,6 +610,7 @@ pub fn handle_settings_message(app: &mut KglanceApp, msg: SettingsMsg) -> Task<M
             app.state.selection_menu_config = default_config.selection_menu.clone();
             app.state.trash_config = default_config.trash.clone();
             app.state.keybinding_config = default_config.keybindings.clone();
+            app.state.tts_config = default_config.tts.clone();
             let old_size = app.state.font_size;
             app.state.font_size = default_config.ui.font_size;
             app.state.default_font_size = default_config.ui.font_size;

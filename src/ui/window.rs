@@ -85,6 +85,7 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
     let page_counter = page_indicator(state, main_font);
     let epub_counter = epub_progress_indicator(state, main_font);
     let toc_btn = toc_toggle_button(state, main_font);
+    let tts_btn = tts_toggle_button(state, main_font);
     let typst = typst_toggle_button(state, main_font);
     let info = image_info_button(state, main_font);
 
@@ -94,6 +95,7 @@ fn footer<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         page_counter,
         epub_counter,
         toc_btn,
+        tts_btn,
         container(
             text(left)
                 .size(typography::CAPTION)
@@ -175,6 +177,21 @@ fn file_tree_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Elemen
     )
     .style(default_tooltip)
     .into()
+}
+
+fn tts_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Element<'a, Message>> {
+    let is_supported = file_has_extension(state, "md")
+        || file_has_extension(state, "markdown")
+        || file_has_extension(state, "epub")
+        || state.file_type_text.contains("EPUB");
+    if !is_supported {
+        return None;
+    }
+    Some(footer_toggle_button(
+        text("TTS").size(typography::CAPTION).font(font).into(),
+        state.tts.visible,
+        crate::features::tts::TtsMsg::Toggle.into(),
+    ))
 }
 
 fn toc_toggle_button<'a>(state: &KglanceState, font: iced::Font) -> Option<Element<'a, Message>> {
@@ -515,6 +532,10 @@ pub fn view_window_with_options<'a>(
         stack = stack.push(selection_layer);
     }
 
+    if let Some(tts_layer) = crate::features::tts::render_tts_mini_player(state) {
+        stack = stack.push(tts_layer);
+    }
+
     if show_settings_modal {
         let ui_config = crate::core::config::UiConfig {
             theme: Some(state.theme_setting.clone()),
@@ -550,6 +571,8 @@ pub fn view_window_with_options<'a>(
                 action_editor: state.action_editor.as_ref(),
                 trash_config: &state.trash_config,
                 keybinding_config: &state.keybinding_config,
+                tts_config: &state.tts_config,
+                tts_state: &state.tts,
                 active_tab: state.settings_tab,
                 available_fonts: static_fonts,
             },

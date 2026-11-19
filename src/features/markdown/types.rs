@@ -97,6 +97,8 @@ pub struct MarkdownState {
     pub pending_measurements: Vec<(usize, f32)>,
     /// Last active TOC index to avoid redundant TOC scroll operations.
     pub last_active_toc_index: Option<usize>,
+    /// Block index currently being spoken by TTS, used for subtle UI highlight.
+    pub active_tts_block: Option<usize>,
 }
 
 impl Default for MarkdownState {
@@ -148,6 +150,7 @@ impl Default for MarkdownState {
             table_scroll_offsets: HashMap::new(),
             pending_measurements: Vec::new(),
             last_active_toc_index: None,
+            active_tts_block: None,
         }
     }
 }

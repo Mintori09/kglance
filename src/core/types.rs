@@ -64,6 +64,7 @@ pub enum SettingTab {
     Window,
     Previews,
     CacheScroll,
+    Tts,
 }
 
 pub const GRID_ITEM_WIDTH: f32 = 150.0;
@@ -170,6 +171,8 @@ pub struct KglanceState {
     pub trash_history: crate::core::trash::TrashHistory,
     pub show_trash_confirm_dialog: bool,
     pub recently_trashed: std::collections::HashSet<String>,
+    pub tts_config: crate::core::config::TtsConfig,
+    pub tts: crate::features::tts::TtsState,
 }
 
 impl Default for KglanceState {
@@ -258,6 +261,8 @@ impl Default for KglanceState {
             trash_history: crate::core::trash::TrashHistory::default(),
             show_trash_confirm_dialog: false,
             recently_trashed: std::collections::HashSet::new(),
+            tts_config: crate::core::config::TtsConfig::default(),
+            tts: crate::features::tts::TtsState::default(),
         }
     }
 }

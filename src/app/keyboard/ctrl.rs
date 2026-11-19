@@ -70,6 +70,9 @@ impl KglanceApp {
                 self.handle_json_shortcut(c)
             }
             "w" | "W" | "\u{17}" => crate::features::text::update::handle_toggle_word_wrap(self),
+            "s" | "S" | "\u{13}" if shift_active => {
+                Some(self.update(crate::features::tts::TtsMsg::Toggle.into()))
+            }
             "z" | "Z" | "\u{1a}" => {
                 if !self.shift_held && !modifiers.shift() {
                     Some(self.update(crate::app::messages::TrashMsg::UndoTrash.into()))

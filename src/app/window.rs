@@ -321,6 +321,7 @@ impl KglanceApp {
                 });
         }
         self.audio = None;
+        crate::features::tts::update::stop_tts(self);
     }
 
     fn handle_window_close_requested(&mut self, window_id: window::Id) -> Task<Message> {

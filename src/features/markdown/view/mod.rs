@@ -257,7 +257,7 @@ fn build_scrollable_content<'a>(
             };
             let element = render_block(i, block, state, &block_ctx);
             let margin = block_margin_with_next(block, blocks.get(i + 1), ctx.font_size);
-            let block = container(element)
+            let mut block = container(element)
                 .padding(Padding {
                     top: 0.0,
                     right: 0.0,
@@ -265,6 +265,11 @@ fn build_scrollable_content<'a>(
                     left: 0.0,
                 })
                 .width(Length::Fill);
+            if state.active_tts_block == Some(i) {
+                let theme = ctx.theme;
+                block = block
+                    .style(move |_| crate::features::tts::view::tts_active_block_style(&theme));
+            }
             let is_measured = state
                 .block_layouts
                 .get(i)
@@ -314,7 +319,7 @@ fn build_scrollable_content<'a>(
                 };
                 let element = render_block(index, block, state, &block_ctx);
                 let margin = block_margin_with_next(block, blocks.get(index + 1), ctx.font_size);
-                let block_widget = container(element)
+                let mut block_widget = container(element)
                     .padding(Padding {
                         top: 0.0,
                         right: 0.0,
@@ -322,6 +327,11 @@ fn build_scrollable_content<'a>(
                         left: 0.0,
                     })
                     .width(Length::Fill);
+                if state.active_tts_block == Some(index) {
+                    let theme = ctx.theme;
+                    block_widget = block_widget
+                        .style(move |_| crate::features::tts::view::tts_active_block_style(&theme));
+                }
 
                 Measured::new(
                     block_widget,
