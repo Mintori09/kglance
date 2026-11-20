@@ -1021,3 +1021,162 @@ fn test_pdf_ctrl_scroll_zoom_interrupts_active_kinetic_scroll() {
     assert!(!app.state.pdf.scroll_controller.is_animating());
     assert_eq!(app.state.pdf.scroll_y, anchored_scroll_y);
 }
+
+#[test]
+fn test_json_tree_navigation_auto_scrolls_into_view_and_raw_hl_works() {
+    use iced::keyboard::Key;
+    use iced::keyboard::Modifiers;
+
+    let json_content = r#"{
+        "items": [
+            {"id": 1, "name": "A"},
+            {"id": 2, "name": "B"},
+            {"id": 3, "name": "C"},
+            {"id": 4, "name": "D"},
+            {"id": 5, "name": "E"},
+            {"id": 6, "name": "F"},
+            {"id": 7, "name": "G"},
+            {"id": 8, "name": "H"},
+            {"id": 9, "name": "I"},
+            {"id": 10, "name": "J"}
+        ]
+    }"#;
+    let (nodes, _pretty, _) =
+        crate::features::json::JsonParser::parse_content(json_content, "json");
+
+    // Case 1: Tree mode (tree_mode = true)
+    let mut app = test_app(Some(crate::core::PreviewData::Json {
+        nodes: nodes.clone(),
+        content: json_content.to_string(),
+        pretty: json_content.to_string(),
+        has_parse_error: false,
+    }));
+    // Expand top-level item and array so we have many visible rows
+    app.state.json.expanded.insert(0);
+    app.state.json.expanded.insert(1);
+    app.state.json.nodes = nodes.clone();
+    app.state.json.tree_mode = true;
+    app.state.json.viewport_height = 100.0; // small viewport (~4 rows)
+    app.state.json.total_content_height = 2000.0;
+    app.state.json.scroll_y = 0.0;
+    // Initially active_node is None
+    assert_eq!(app.state.json.active_node, None);
+
+    // Press 'j': active_node moves to Some(0)
+    let j_key = Key::Character("j".into());
+    let _ = app.handle_key_pressed(j_key.clone(), Modifiers::empty());
+    assert_eq!(app.state.json.active_node, Some(0));
+    // Since node 0 is already at top (y = 0.0 <= 100.0), scroll_y stays 0.0
+    assert_eq!(app.state.json.scroll_y, 0.0);
+
+    // Now press 'j' 15 times to move active_node far down beyond 100px viewport
+    for _ in 0..15 {
+        let _ = app.handle_key_pressed(j_key.clone(), Modifiers::empty());
+    }
+    assert!(app.state.json.active_node.unwrap() > 0);
+    // Verified Fix 1: scroll_y has now scrolled down to keep active node in view!
+    assert!(
+        app.state.json.scroll_y > 0.0,
+        "scroll_y should have scrolled down to follow active_node, got {}",
+        app.state.json.scroll_y
+    );
+
+    // Now press 'k' multiple times to move active_node back to the top
+    let k_key = Key::Character("k".into());
+    for _ in 0..20 {
+        let _ = app.handle_key_pressed(k_key.clone(), Modifiers::empty());
+    }
+    assert_eq!(app.state.json.active_node, Some(0));
+    // Verified Fix 1 (upward): scroll_y has scrolled back up to 0.0
+    assert_eq!(app.state.json.scroll_y, 0.0);
+
+    // Case 2: Raw mode (tree_mode = false)
+    let mut raw_app = test_app(Some(crate::core::PreviewData::Json {
+        nodes,
+        content: json_content.to_string(),
+        pretty: json_content.to_string(),
+        has_parse_error: false,
+    }));
+    raw_app.state.json.tree_mode = false;
+    raw_app.state.json.raw_text.viewport_height = 200.0;
+    raw_app.state.json.raw_text.total_content_height = 2000.0;
+    raw_app.state.json.raw_text.scroll_y = 100.0;
+
+    // Press 'j' in raw mode: triggers smooth_scroll
+    let _ = raw_app.handle_key_pressed(Key::Character("j".into()), Modifiers::empty());
+    assert!(raw_app.state.json.raw_text.smooth_scroll.is_animating);
+
+    // Verified Fix 2: Press 'h' and 'l' in raw mode now triggers horizontal scroll!
+    let h_key = Key::Character("h".into());
+    let l_key = Key::Character("l".into());
+    let task_h = raw_app.handle_scroll_shortcuts(&h_key, Modifiers::empty());
+    let task_l = raw_app.handle_scroll_shortcuts(&l_key, Modifiers::empty());
+    assert!(task_h.is_some(), "h must now be handled for raw JSON");
+    assert!(task_l.is_some(), "l must now be handled for raw JSON");
+}
+
+#[test]
+fn test_active_scroll_id_and_zero_viewport_height_fallback() {
+    use iced::keyboard::Key;
+    use iced::keyboard::Modifiers;
+
+    let json_content = r#"{"hello": "world"}"#.to_string();
+    let mut app = test_app(Some(crate::core::PreviewData::Json {
+        nodes: vec![],
+        content: json_content.clone(),
+        pretty: json_content,
+        has_parse_error: false,
+    }));
+
+    // 1. Raw mode: active_scroll_id must be "json_raw_scroll"
+    app.state.json.tree_mode = false;
+    assert_eq!(app.active_scroll_id(), "json_raw_scroll");
+
+    // 2. Tree mode: active_scroll_id must be "content_scroll"
+    app.state.json.tree_mode = true;
+    assert_eq!(app.active_scroll_id(), "content_scroll");
+
+    // 3. Typst source mode: active_scroll_id must be "typst_source_scroll"
+    app.current_content = Some(crate::core::PreviewData::Typst {
+        page_count: 1,
+        current_page: 0,
+        data: vec![],
+        width: 100,
+        height: 100,
+        source: "test".to_string(),
+        error: None,
+        outline: vec![],
+        page_dimensions: vec![],
+        first_page_text: None,
+    });
+    app.state.typst.show_source = true;
+    assert_eq!(app.active_scroll_id(), "typst_source_scroll");
+
+    // 4. Initial file open with zero viewport_height does NOT return early Task::none
+    app.current_content = Some(crate::core::PreviewData::Json {
+        nodes: vec![],
+        content: "{}".to_string(),
+        pretty: "{}".to_string(),
+        has_parse_error: false,
+    });
+    app.state.json.tree_mode = false;
+    app.state.json.raw_text.viewport_height = 0.0;
+    app.state.json.raw_text.total_content_height = 3000.0;
+    app.state.json.raw_text.scroll_y = 0.0;
+    app.state.current_window_size.height = 700.0;
+
+    // Press 'j': should use fallback window height and start animation
+    let j_key = Key::Character("j".into());
+    let _ = app.handle_key_pressed(j_key, Modifiers::empty());
+    assert!(
+        app.state.json.raw_text.smooth_scroll.is_animating,
+        "smooth_scroll must be animating even when viewport_height was 0.0"
+    );
+    assert_eq!(app.state.json.raw_text.smooth_scroll.target_y, 80.0);
+
+    // Scroll page: should also animate and use window height fallback
+    let page_down = Key::Named(iced::keyboard::key::Named::PageDown);
+    let _ = app.handle_key_pressed(page_down, Modifiers::empty());
+    assert!(app.state.json.raw_text.smooth_scroll.is_animating);
+    assert!(app.state.json.raw_text.smooth_scroll.target_y > 80.0);
+}

@@ -84,13 +84,19 @@ impl KglanceApp {
             }
             Key::Character(character)
                 if character == "h"
-                    && matches!(self.current_content, Some(PreviewData::Spreadsheet { .. })) =>
+                    && (matches!(self.current_content, Some(PreviewData::Spreadsheet { .. }))
+                        || matches!(self.current_content, Some(PreviewData::Text { .. }))
+                        || (matches!(self.current_content, Some(PreviewData::Json { .. }))
+                            && !self.state.json.tree_mode)) =>
             {
                 Some(self.scroll_horizontal_by(-SCROLL_LINE_AMOUNT * 1.5))
             }
             Key::Character(character)
                 if character == "l"
-                    && matches!(self.current_content, Some(PreviewData::Spreadsheet { .. })) =>
+                    && (matches!(self.current_content, Some(PreviewData::Spreadsheet { .. }))
+                        || matches!(self.current_content, Some(PreviewData::Text { .. }))
+                        || (matches!(self.current_content, Some(PreviewData::Json { .. }))
+                            && !self.state.json.tree_mode)) =>
             {
                 Some(self.scroll_horizontal_by(SCROLL_LINE_AMOUNT * 1.5))
             }
@@ -243,18 +249,31 @@ impl KglanceApp {
         }
     }
 
+    pub(crate) fn active_scroll_id(&self) -> &'static str {
+        match self.current_content {
+            Some(PreviewData::Json { .. }) if !self.state.json.tree_mode => "json_raw_scroll",
+            Some(PreviewData::Typst { .. })
+                if self.state.typst.show_source || self.state.typst.error.is_some() =>
+            {
+                "typst_source_scroll"
+            }
+            _ => CONTENT_SCROLL_ID,
+        }
+    }
+
     pub(crate) fn scroll_page(&mut self, fraction: f32) -> Task<Message> {
         self.reset_scroll_pending();
+        let scroll_id = self.active_scroll_id();
+        let fallback_vh = self.fallback_viewport_height();
 
         if let Some(target) = self.active_scroll_target_mut() {
-            if target.viewport_height <= 0.0 {
-                return Task::none();
-            }
-            let max_y = crate::core::scroll::max_scroll_y(
-                target.total_content_height,
-                target.viewport_height,
-            );
-            let page_delta = target.viewport_height * fraction;
+            let vh = if target.viewport_height > 0.0 {
+                target.viewport_height
+            } else {
+                fallback_vh
+            };
+            let max_y = crate::core::scroll::max_scroll_y(target.total_content_height, vh);
+            let page_delta = vh * fraction;
             let current_y = *target.scroll_y;
             target.scroll_controller.stop(current_y);
             let base_y = if target.smooth_scroll.is_animating
@@ -271,10 +290,7 @@ impl KglanceApp {
             if !target.smooth_scroll.is_animating {
                 let new_y = target.smooth_scroll.position_y();
                 *target.scroll_y = new_y;
-                return operation::scroll_to(
-                    CONTENT_SCROLL_ID,
-                    AbsoluteOffset { x: 0.0, y: new_y },
-                );
+                return operation::scroll_to(scroll_id, AbsoluteOffset { x: 0.0, y: new_y });
             }
             return Task::none();
         }
@@ -282,11 +298,11 @@ impl KglanceApp {
         let vh = if self.state.current_window_size.height > 0.0 {
             self.state.current_window_size.height
         } else {
-            768.0
+            fallback_vh
         };
 
         operation::scroll_by(
-            CONTENT_SCROLL_ID,
+            scroll_id,
             AbsoluteOffset {
                 x: 0.0,
                 y: vh * fraction,
@@ -296,15 +312,16 @@ impl KglanceApp {
 
     fn scroll_by(&mut self, vertical_offset: f32) -> Task<Message> {
         self.reset_scroll_pending();
+        let scroll_id = self.active_scroll_id();
+        let fallback_vh = self.fallback_viewport_height();
 
         if let Some(target) = self.active_scroll_target_mut() {
-            if target.viewport_height <= 0.0 {
-                return Task::none();
-            }
-            let max_y = crate::core::scroll::max_scroll_y(
-                target.total_content_height,
-                target.viewport_height,
-            );
+            let vh = if target.viewport_height > 0.0 {
+                target.viewport_height
+            } else {
+                fallback_vh
+            };
+            let max_y = crate::core::scroll::max_scroll_y(target.total_content_height, vh);
             let current_y = *target.scroll_y;
             target.scroll_controller.stop(current_y);
             target
@@ -313,16 +330,13 @@ impl KglanceApp {
             if !target.smooth_scroll.is_animating {
                 let new_y = target.smooth_scroll.position_y();
                 *target.scroll_y = new_y;
-                return operation::scroll_to(
-                    CONTENT_SCROLL_ID,
-                    AbsoluteOffset { x: 0.0, y: new_y },
-                );
+                return operation::scroll_to(scroll_id, AbsoluteOffset { x: 0.0, y: new_y });
             }
             return Task::none();
         }
 
         operation::scroll_by(
-            CONTENT_SCROLL_ID,
+            scroll_id,
             AbsoluteOffset {
                 x: 0.0,
                 y: vertical_offset,
@@ -359,8 +373,10 @@ impl KglanceApp {
             return Task::none();
         }
 
+        let scroll_id = self.active_scroll_id();
+
         operation::scroll_by(
-            CONTENT_SCROLL_ID,
+            scroll_id,
             AbsoluteOffset {
                 x: horizontal_offset,
                 y: 0.0,
@@ -399,20 +415,22 @@ impl KglanceApp {
     pub(super) fn snap_to_top(&mut self) -> Task<Message> {
         self.reset_scroll_pending();
         let fallback_vh = self.fallback_viewport_height();
+        let scroll_id = self.active_scroll_id();
 
         if let Some(target) = self.active_scroll_target_mut() {
             let current_y = *target.scroll_y;
             target.scroll_controller.stop(current_y);
             if current_y <= SCROLL_EPSILON {
                 self.record_read_position();
-                return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 0.0 });
+                return operation::snap_to(scroll_id, RelativeOffset { x: 0.0, y: 0.0 });
             }
-            let max_y = crate::core::scroll::max_scroll_y(
-                target.total_content_height,
-                target.viewport_height,
-            );
-            let warp_distance =
-                calculate_optical_warp_distance(target.viewport_height, fallback_vh);
+            let vh = if target.viewport_height > 0.0 {
+                target.viewport_height
+            } else {
+                fallback_vh
+            };
+            let max_y = crate::core::scroll::max_scroll_y(target.total_content_height, vh);
+            let warp_distance = calculate_optical_warp_distance(vh, fallback_vh);
             let start_y = if current_y > warp_distance {
                 *target.scroll_y = warp_distance;
                 target.scroll_controller.set_position_y(warp_distance);
@@ -425,7 +443,7 @@ impl KglanceApp {
                 let new_y = target.smooth_scroll.position_y();
                 *target.scroll_y = new_y;
                 self.record_read_position();
-                return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 0.0 });
+                return operation::snap_to(scroll_id, RelativeOffset { x: 0.0, y: 0.0 });
             }
             if matches!(self.current_content, Some(PreviewData::Epub { .. }))
                 && self.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous
@@ -436,26 +454,28 @@ impl KglanceApp {
         }
 
         self.record_read_position();
-        operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 0.0 })
+        operation::snap_to(scroll_id, RelativeOffset { x: 0.0, y: 0.0 })
     }
 
     pub(super) fn snap_to_bottom(&mut self) -> Task<Message> {
         self.reset_scroll_pending();
         let fallback_vh = self.fallback_viewport_height();
+        let scroll_id = self.active_scroll_id();
 
         if let Some(target) = self.active_scroll_target_mut() {
             let current_y = *target.scroll_y;
             target.scroll_controller.stop(current_y);
-            let max_y = crate::core::scroll::max_scroll_y(
-                target.total_content_height,
-                target.viewport_height,
-            );
+            let vh = if target.viewport_height > 0.0 {
+                target.viewport_height
+            } else {
+                fallback_vh
+            };
+            let max_y = crate::core::scroll::max_scroll_y(target.total_content_height, vh);
             if (max_y - current_y).abs() <= SCROLL_EPSILON {
                 self.record_read_position();
-                return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 1.0 });
+                return operation::snap_to(scroll_id, RelativeOffset { x: 0.0, y: 1.0 });
             }
-            let warp_distance =
-                calculate_optical_warp_distance(target.viewport_height, fallback_vh);
+            let warp_distance = calculate_optical_warp_distance(vh, fallback_vh);
             let start_y = if max_y - current_y > warp_distance {
                 let y = (max_y - warp_distance).max(0.0);
                 *target.scroll_y = y;
@@ -469,7 +489,7 @@ impl KglanceApp {
                 let new_y = target.smooth_scroll.position_y();
                 *target.scroll_y = new_y;
                 self.record_read_position();
-                return operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 1.0 });
+                return operation::snap_to(scroll_id, RelativeOffset { x: 0.0, y: 1.0 });
             }
             if matches!(self.current_content, Some(PreviewData::Epub { .. }))
                 && self.state.epub.reading_mode == crate::core::config::EpubReadingMode::Continuous
@@ -480,7 +500,7 @@ impl KglanceApp {
         }
 
         self.record_read_position();
-        operation::snap_to(CONTENT_SCROLL_ID, RelativeOffset { x: 0.0, y: 1.0 })
+        operation::snap_to(scroll_id, RelativeOffset { x: 0.0, y: 1.0 })
     }
 
     fn toggle_sidebar(&mut self) -> Option<Task<Message>> {
@@ -546,35 +566,35 @@ impl KglanceApp {
         match key {
             Key::Named(Named::ArrowDown) => {
                 self.move_json_selection(&visible, 1);
-                Some(Task::none())
+                Some(self.scroll_active_json_node_into_view(&visible))
             }
             Key::Character(character) if character == "j" => {
                 self.move_json_selection(&visible, 1);
-                Some(Task::none())
+                Some(self.scroll_active_json_node_into_view(&visible))
             }
             Key::Named(Named::ArrowUp) => {
                 self.move_json_selection(&visible, -1);
-                Some(Task::none())
+                Some(self.scroll_active_json_node_into_view(&visible))
             }
             Key::Character(character) if character == "k" => {
                 self.move_json_selection(&visible, -1);
-                Some(Task::none())
+                Some(self.scroll_active_json_node_into_view(&visible))
             }
             Key::Named(Named::ArrowRight) => {
                 self.expand_or_enter_json_node();
-                Some(Task::none())
+                Some(self.scroll_active_json_node_into_view(&visible))
             }
             Key::Character(character) if character == "l" => {
                 self.expand_or_enter_json_node();
-                Some(Task::none())
+                Some(self.scroll_active_json_node_into_view(&visible))
             }
             Key::Named(Named::ArrowLeft) => {
                 self.collapse_or_exit_json_node();
-                Some(Task::none())
+                Some(self.scroll_active_json_node_into_view(&visible))
             }
             Key::Character(character) if character == "h" => {
                 self.collapse_or_exit_json_node();
-                Some(Task::none())
+                Some(self.scroll_active_json_node_into_view(&visible))
             }
             Key::Named(Named::Enter) => {
                 if let Some(active) = self.state.json.active_node
@@ -659,6 +679,55 @@ impl KglanceApp {
                 self.state.json.active_node = Some(parent);
             }
         }
+    }
+
+    fn scroll_active_json_node_into_view(&mut self, visible: &[usize]) -> Task<Message> {
+        let Some(active) = self.state.json.active_node else {
+            return Task::none();
+        };
+
+        // Recalculate visible indices if node expansion/collapse just changed
+        let fresh_visible;
+        let visible_slice = if visible.contains(&active) {
+            visible
+        } else {
+            fresh_visible =
+                crate::features::json::view::tree::visible_node_indices(&self.state.json);
+            fresh_visible.as_slice()
+        };
+
+        let Some(target_pos) = visible_slice.iter().position(|&idx| idx == active) else {
+            return Task::none();
+        };
+
+        let font_size = self.state.font_size;
+        let row_height = crate::features::json::view::tree::json_row_height(font_size);
+        let target_top = target_pos as f32 * row_height;
+        let target_bottom = target_top + row_height;
+
+        let vh = if self.state.json.viewport_height > 0.0 {
+            self.state.json.viewport_height
+        } else {
+            self.fallback_viewport_height()
+        };
+
+        let total_h = (visible_slice.len() as f32 * row_height).max(vh);
+        let max_y = (total_h - vh).max(0.0);
+        let curr_y = self.state.json.scroll_y;
+
+        let new_y = if target_top < curr_y {
+            target_top.clamp(0.0, max_y)
+        } else if target_bottom > curr_y + vh {
+            (target_bottom - vh).clamp(0.0, max_y)
+        } else {
+            return Task::none();
+        };
+
+        self.state.json.scroll_y = new_y;
+        self.state.json.smooth_scroll.stop(new_y);
+        self.state.json.scroll_controller.stop(new_y);
+
+        operation::scroll_to(CONTENT_SCROLL_ID, AbsoluteOffset { x: 0.0, y: new_y })
     }
 }
 
