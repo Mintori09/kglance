@@ -69,13 +69,21 @@ pub(crate) fn render_inline_image<'a>(
         crate::app::messages::MarkdownMsg::OpenImageLightbox(path_clone).into()
     };
 
-    let content: Element<'a, Message> = button(image_card)
+    use crate::ui::theme::tokens::typography;
+
+    let btn = button(image_card)
         .on_press(on_press_msg)
         .style(move |_theme: &iced::Theme, status: button::Status| {
             lightbox_button_style(theme, status, STYLE.image.border_radius)
         })
-        .padding(0)
-        .into();
+        .padding(0);
+
+    let content: Element<'a, Message> = iced::widget::tooltip(
+        btn,
+        iced::widget::text("Open image in lightbox").size(typography::CAPTION),
+        iced::widget::tooltip::Position::Top,
+    )
+    .into();
 
     container(content)
         .center_x(Length::Fill)

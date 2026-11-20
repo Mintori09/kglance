@@ -18,6 +18,8 @@ const BADGE_TEXT_SIZE: f32 = typography::BODY;
 
 const CARD_PADDING: [u16; 2] = [20, 24];
 
+use std::sync::LazyLock;
+
 static SVG_PLAY: &[u8] =
     br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>"#;
 static SVG_PAUSE: &[u8] =
@@ -32,6 +34,18 @@ static SVG_VOLUME_MUTE: &[u8] =
     br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27l4.05 4.05L7 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>"#;
 static SVG_NOTE: &[u8] =
     br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>"#;
+
+static HANDLE_PLAY: LazyLock<svg::Handle> = LazyLock::new(|| svg::Handle::from_memory(SVG_PLAY));
+static HANDLE_PAUSE: LazyLock<svg::Handle> = LazyLock::new(|| svg::Handle::from_memory(SVG_PAUSE));
+static HANDLE_REWIND: LazyLock<svg::Handle> =
+    LazyLock::new(|| svg::Handle::from_memory(SVG_REWIND));
+static HANDLE_FAST_FORWARD: LazyLock<svg::Handle> =
+    LazyLock::new(|| svg::Handle::from_memory(SVG_FAST_FORWARD));
+static HANDLE_VOLUME_HIGH: LazyLock<svg::Handle> =
+    LazyLock::new(|| svg::Handle::from_memory(SVG_VOLUME_HIGH));
+static HANDLE_VOLUME_MUTE: LazyLock<svg::Handle> =
+    LazyLock::new(|| svg::Handle::from_memory(SVG_VOLUME_MUTE));
+static HANDLE_NOTE: LazyLock<svg::Handle> = LazyLock::new(|| svg::Handle::from_memory(SVG_NOTE));
 
 pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
     if let Some(err) = &state.error {
@@ -165,7 +179,7 @@ pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
         .style(default_slider)
         .width(Length::Fill);
 
-    let rewind_icon = svg(svg::Handle::from_memory(SVG_REWIND))
+    let rewind_icon = svg(HANDLE_REWIND.clone())
         .width(Length::Fixed(14.0))
         .height(Length::Fixed(14.0))
         .style(|theme: &iced::Theme, _status| {
@@ -174,24 +188,41 @@ pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
                 color: Some(p.text),
             }
         });
-    let rewind_button = button(rewind_icon)
-        .on_press(AudioMsg::SeekRelativeClicked(-SEEK_SKIP_SECONDS).into())
-        .style(default_button)
-        .padding([7, 12]);
+    let rewind_button = iced::widget::tooltip(
+        button(rewind_icon)
+            .on_press(AudioMsg::SeekRelativeClicked(-SEEK_SKIP_SECONDS).into())
+            .style(default_button)
+            .padding([7, 12]),
+        text("Rewind 10 seconds").size(typography::CAPTION),
+        iced::widget::tooltip::Position::Top,
+    );
 
-    let play_pause_bytes = if state.playing { SVG_PAUSE } else { SVG_PLAY };
-    let play_pause_icon = svg(svg::Handle::from_memory(play_pause_bytes))
+    let play_pause_handle = if state.playing {
+        HANDLE_PAUSE.clone()
+    } else {
+        HANDLE_PLAY.clone()
+    };
+    let play_pause_icon = svg(play_pause_handle)
         .width(Length::Fixed(typography::TITLE))
         .height(Length::Fixed(typography::TITLE))
         .style(|_theme: &iced::Theme, _status| svg::Style {
             color: Some(Color::WHITE),
         });
-    let play_pause_button = button(play_pause_icon)
-        .on_press(AudioMsg::PlayPauseClicked.into())
-        .style(default_button_primary)
-        .padding([8, 18]);
+    let play_tooltip = if state.playing {
+        "Pause (Space)"
+    } else {
+        "Play (Space)"
+    };
+    let play_pause_button = iced::widget::tooltip(
+        button(play_pause_icon)
+            .on_press(AudioMsg::PlayPauseClicked.into())
+            .style(default_button_primary)
+            .padding([8, 18]),
+        text(play_tooltip).size(typography::CAPTION),
+        iced::widget::tooltip::Position::Top,
+    );
 
-    let ff_icon = svg(svg::Handle::from_memory(SVG_FAST_FORWARD))
+    let ff_icon = svg(HANDLE_FAST_FORWARD.clone())
         .width(Length::Fixed(14.0))
         .height(Length::Fixed(14.0))
         .style(|theme: &iced::Theme, _status| {
@@ -200,17 +231,21 @@ pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
                 color: Some(p.text),
             }
         });
-    let fast_forward_button = button(ff_icon)
-        .on_press(AudioMsg::SeekRelativeClicked(SEEK_SKIP_SECONDS).into())
-        .style(default_button)
-        .padding([7, 12]);
+    let fast_forward_button = iced::widget::tooltip(
+        button(ff_icon)
+            .on_press(AudioMsg::SeekRelativeClicked(SEEK_SKIP_SECONDS).into())
+            .style(default_button)
+            .padding([7, 12]),
+        text("Fast forward 10 seconds").size(typography::CAPTION),
+        iced::widget::tooltip::Position::Top,
+    );
 
-    let vol_bytes = if state.muted || state.volume == 0.0 {
-        SVG_VOLUME_MUTE
+    let vol_handle = if state.muted || state.volume == 0.0 {
+        HANDLE_VOLUME_MUTE.clone()
     } else {
-        SVG_VOLUME_HIGH
+        HANDLE_VOLUME_HIGH.clone()
     };
-    let vol_icon = svg(svg::Handle::from_memory(vol_bytes))
+    let vol_icon = svg(vol_handle)
         .width(Length::Fixed(14.0))
         .height(Length::Fixed(14.0))
         .style(|theme: &iced::Theme, _status| {
@@ -219,10 +254,19 @@ pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
                 color: Some(p.text_dim),
             }
         });
-    let mute_button = button(vol_icon)
-        .on_press(AudioMsg::ToggleMuteClicked.into())
-        .style(default_button)
-        .padding([6, 8]);
+    let mute_tooltip = if state.muted {
+        "Unmute (M)"
+    } else {
+        "Mute (M)"
+    };
+    let mute_button = iced::widget::tooltip(
+        button(vol_icon)
+            .on_press(AudioMsg::ToggleMuteClicked.into())
+            .style(default_button)
+            .padding([6, 8]),
+        text(mute_tooltip).size(typography::CAPTION),
+        iced::widget::tooltip::Position::Top,
+    );
 
     let vol_val = if state.muted { 0.0 } else { state.volume };
     let volume_slider = slider(0.0..=1.0, vol_val, |val| {
@@ -295,7 +339,7 @@ pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
 }
 
 fn render_cover_placeholder<'a>() -> Element<'a, Message> {
-    let note_icon = svg(svg::Handle::from_memory(SVG_NOTE))
+    let note_icon = svg(HANDLE_NOTE.clone())
         .width(Length::Fixed(20.0))
         .height(Length::Fixed(20.0))
         .style(|_theme: &iced::Theme, _status| svg::Style {

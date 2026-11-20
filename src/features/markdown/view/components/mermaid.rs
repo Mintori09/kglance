@@ -36,6 +36,8 @@ pub(crate) fn render_mermaid<'a>(
         .padding(STYLE.mermaid.image_padding)
         .style(move |_: &iced::Theme| code_block_style(theme));
 
+        use crate::ui::theme::tokens::typography;
+
         let mermaid_id = format!("mermaid:{index}");
         let image_btn = button(image_container)
             .on_press(crate::app::messages::MarkdownMsg::OpenImageLightbox(mermaid_id).into())
@@ -44,7 +46,13 @@ pub(crate) fn render_mermaid<'a>(
             })
             .padding(0);
 
-        column![badge, image_btn]
+        let image_with_tooltip = iced::widget::tooltip(
+            image_btn,
+            text("Open diagram in lightbox").size(typography::CAPTION),
+            iced::widget::tooltip::Position::Top,
+        );
+
+        column![badge, image_with_tooltip]
             .spacing(STYLE.general.section_spacing)
             .into()
     } else {

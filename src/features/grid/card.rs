@@ -4,9 +4,10 @@ use crate::features::grid::calculate::truncate_middle;
 use crate::features::grid::constants::*;
 
 use crate::ui::theme::icon_theme::icon_for_entry;
+use crate::ui::theme::tokens::typography;
 use crate::ui::theme::{default_grid_card, icon_theme};
 
-use iced::widget::{button, column, container, image, svg, text};
+use iced::widget::{button, column, container, image, svg, text, tooltip};
 use iced::{Alignment, Element, Length, Theme};
 
 pub fn create_grid_card<'a>(
@@ -14,7 +15,7 @@ pub fn create_grid_card<'a>(
     item_index: usize,
     is_active: bool,
     dimensions: &ScaledDimensions,
-) -> button::Button<'a, Message> {
+) -> Element<'a, Message> {
     let card_media = render_card_media(item, dimensions);
     let card_label = text(truncate_middle(&item.name, MAX_LABEL_LENGTH))
         .size(dimensions.font_size)
@@ -27,12 +28,19 @@ pub fn create_grid_card<'a>(
         .spacing(CARD_INNER_SPACING)
         .padding(CARD_PADDING);
 
-    button(card_content)
+    let btn = button(card_content)
         .on_press(crate::app::messages::NavigationMsg::FileClickedInGrid(item_index).into())
         .style(move |theme: &Theme, status: button::Status| {
             default_grid_card(theme, status, is_active)
         })
-        .width(dimensions.item_width)
+        .width(dimensions.item_width);
+
+    tooltip(
+        btn,
+        text(&item.name).size(typography::CAPTION),
+        tooltip::Position::Top,
+    )
+    .into()
 }
 
 pub fn render_card_media<'a>(

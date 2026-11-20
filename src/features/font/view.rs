@@ -5,10 +5,11 @@ use std::collections::HashSet;
 use std::sync::{Mutex, OnceLock};
 
 use crate::ui::theme::tokens::font_view as font_tokens;
+use crate::ui::theme::tokens::typography;
 
 const TITLE_FONT_SIZE: f32 = font_tokens::PREVIEW_TITLE_SIZE;
 const LARGE_SAMPLE_FONT_SIZE: f32 = font_tokens::SAMPLE_TEXT_SIZE;
-const CHARSET_FONT_SIZE: f32 = 18.0;
+const CHARSET_FONT_SIZE: f32 = typography::DISPLAY; // 18.0
 const METADATA_FONT_SIZE: f32 = font_tokens::PREVIEW_BODY_SIZE;
 
 const CARD_SPACING: f32 = font_tokens::ELEMENT_SPACING;

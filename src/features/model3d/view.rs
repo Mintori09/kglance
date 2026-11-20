@@ -130,40 +130,58 @@ pub fn view_model3d<'a>(state: &'a KglanceState, mesh: &'a Model3dMesh) -> Eleme
         callbacks,
     );
 
+    use crate::ui::theme::tokens::typography;
+
     // 1. Reset button (Ghost/secondary style)
-    let reset_btn = button(text("Reset").size(12))
-        .padding([4, 10])
-        .style(ghost_btn_style)
-        .on_press(Message::Model3d(Model3dMsg::ResetCamera));
+    let reset_btn = iced::widget::tooltip(
+        button(text("Reset").size(typography::BODY))
+            .padding([4, 10])
+            .style(ghost_btn_style)
+            .on_press(Message::Model3d(Model3dMsg::ResetCamera)),
+        text("Reset camera view (R)").size(typography::CAPTION),
+        iced::widget::tooltip::Position::Top,
+    );
 
     // 2. Shading mode cycle button
     let shading_label = format!("Shading: {}", state.model3d.shading);
-    let shading_btn = button(text(shading_label).size(12))
-        .padding([4, 10])
-        .style(ghost_btn_style)
-        .on_press(Message::Model3d(Model3dMsg::ToggleShading));
+    let shading_btn = iced::widget::tooltip(
+        button(text(shading_label).size(typography::BODY))
+            .padding([4, 10])
+            .style(ghost_btn_style)
+            .on_press(Message::Model3d(Model3dMsg::ToggleShading)),
+        text("Toggle shading mode (S)").size(typography::CAPTION),
+        iced::widget::tooltip::Position::Top,
+    );
 
     // 3. Grid toggle button
     let grid_label = if state.model3d.show_grid {
-        "Grid: On"
+        "Grid on"
     } else {
-        "Grid: Off"
+        "Grid off"
     };
-    let grid_btn = button(text(grid_label).size(12))
-        .padding([4, 10])
-        .style(toggle_btn_style(state.model3d.show_grid))
-        .on_press(Message::Model3d(Model3dMsg::ToggleGrid));
+    let grid_btn = iced::widget::tooltip(
+        button(text(grid_label).size(typography::BODY))
+            .padding([4, 10])
+            .style(toggle_btn_style(state.model3d.show_grid))
+            .on_press(Message::Model3d(Model3dMsg::ToggleGrid)),
+        text("Toggle ground grid (G)").size(typography::CAPTION),
+        iced::widget::tooltip::Position::Top,
+    );
 
     // 4. Auto-rotate button (Accent when ON, ghost/dark when OFF)
     let auto_rotate_label = if state.model3d.auto_rotate {
-        "Auto-rotate: On"
+        "Auto-rotate on"
     } else {
-        "Auto-rotate: Off"
+        "Auto-rotate off"
     };
-    let auto_rotate_btn = button(text(auto_rotate_label).size(12))
-        .padding([4, 10])
-        .style(toggle_btn_style(state.model3d.auto_rotate))
-        .on_press(Message::Model3d(Model3dMsg::ToggleAutoRotate));
+    let auto_rotate_btn = iced::widget::tooltip(
+        button(text(auto_rotate_label).size(typography::BODY))
+            .padding([4, 10])
+            .style(toggle_btn_style(state.model3d.auto_rotate))
+            .on_press(Message::Model3d(Model3dMsg::ToggleAutoRotate)),
+        text("Toggle continuous rotation (Space)").size(typography::CAPTION),
+        iced::widget::tooltip::Position::Top,
+    );
 
     // Subtle vertical separator between controls and dimension label
     let divider =

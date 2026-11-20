@@ -55,7 +55,7 @@ pub fn render_cell_output<'a>(
             .spacing(4);
 
             if *truncated {
-                let notice = text("[Output truncated at 200 lines...]")
+                let notice = text("Output truncated at 200 lines")
                     .font(code_font)
                     .size((font_size * 0.8).max(11.0))
                     .color(roles.link);

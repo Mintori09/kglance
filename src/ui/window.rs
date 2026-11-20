@@ -454,7 +454,7 @@ pub fn view_window_with_options<'a>(
         _ => preview_body,
     };
 
-    let content_with_tree = if state.file_tree.visible {
+    let content_with_tree = if state.file_tree.visible && !hide_footer {
         let tree_sidebar = crate::features::file_tree::view_file_tree(
             &state.file_tree,
             std::path::Path::new(&state.file_name),

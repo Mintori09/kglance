@@ -39,5 +39,5 @@ pub fn populate_state(
         show_source: error.is_some(),
         error,
     };
-    state.file_type_text = "Typst Document".to_string();
+    state.file_type_text = "Typst document".to_string();
 }

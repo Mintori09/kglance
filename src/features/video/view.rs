@@ -13,6 +13,8 @@ const SEEK_STEP: f32 = 0.001;
 const SEEK_SKIP_SECONDS: f32 = 10.0;
 const VOLUME_STEP: f32 = 0.02;
 
+use std::sync::LazyLock;
+
 static SVG_PLAY: &[u8] =
     br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>"#;
 static SVG_PAUSE: &[u8] =
@@ -25,6 +27,17 @@ static SVG_VOLUME_HIGH: &[u8] =
     br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>"#;
 static SVG_VOLUME_MUTE: &[u8] =
     br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27l4.05 4.05L7 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>"#;
+
+static HANDLE_PLAY: LazyLock<svg::Handle> = LazyLock::new(|| svg::Handle::from_memory(SVG_PLAY));
+static HANDLE_PAUSE: LazyLock<svg::Handle> = LazyLock::new(|| svg::Handle::from_memory(SVG_PAUSE));
+static HANDLE_REWIND: LazyLock<svg::Handle> =
+    LazyLock::new(|| svg::Handle::from_memory(SVG_REWIND));
+static HANDLE_FAST_FORWARD: LazyLock<svg::Handle> =
+    LazyLock::new(|| svg::Handle::from_memory(SVG_FAST_FORWARD));
+static HANDLE_VOLUME_HIGH: LazyLock<svg::Handle> =
+    LazyLock::new(|| svg::Handle::from_memory(SVG_VOLUME_HIGH));
+static HANDLE_VOLUME_MUTE: LazyLock<svg::Handle> =
+    LazyLock::new(|| svg::Handle::from_memory(SVG_VOLUME_MUTE));
 
 const STATUS_TEXT_SIZE: f32 = typography::TITLE_SM;
 const TIME_TEXT_SIZE: f32 = typography::BODY;
@@ -226,7 +239,11 @@ fn render_bottom_controls_layer<'a>(state: &'a MediaState) -> Element<'a, Messag
 }
 
 fn render_controls_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
-    let play_pause_svg = if state.playing { SVG_PAUSE } else { SVG_PLAY };
+    let play_pause_handle = if state.playing {
+        HANDLE_PAUSE.clone()
+    } else {
+        HANDLE_PLAY.clone()
+    };
 
     let seek_bar = slider(0.0..=1.0, state.progress, |val| {
         crate::app::messages::MediaMsg::SeekClicked(val).into()
@@ -235,7 +252,7 @@ fn render_controls_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
     .style(video_slider)
     .width(Length::Fill);
 
-    let rewind_icon = svg(svg::Handle::from_memory(SVG_REWIND))
+    let rewind_icon = svg(HANDLE_REWIND.clone())
         .width(Length::Fixed(14.0))
         .height(Length::Fixed(14.0))
         .style(|theme: &iced::Theme, _status| {
@@ -245,7 +262,7 @@ fn render_controls_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
             }
         });
 
-    let play_pause_icon = svg(svg::Handle::from_memory(play_pause_svg))
+    let play_pause_icon = svg(play_pause_handle)
         .width(Length::Fixed(typography::TITLE))
         .height(Length::Fixed(typography::TITLE))
         .style(|theme: &iced::Theme, _status| {
@@ -255,7 +272,7 @@ fn render_controls_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
             }
         });
 
-    let fast_forward_icon = svg(svg::Handle::from_memory(SVG_FAST_FORWARD))
+    let fast_forward_icon = svg(HANDLE_FAST_FORWARD.clone())
         .width(Length::Fixed(14.0))
         .height(Length::Fixed(14.0))
         .style(|theme: &iced::Theme, _status| {
@@ -265,27 +282,46 @@ fn render_controls_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
             }
         });
 
-    let rewind_btn = button(rewind_icon)
-        .on_press(crate::app::messages::MediaMsg::SeekRelativeClicked(-SEEK_SKIP_SECONDS).into())
-        .style(video_pill_button)
-        .padding([4, 8]);
+    let rewind_btn = iced::widget::tooltip(
+        button(rewind_icon)
+            .on_press(
+                crate::app::messages::MediaMsg::SeekRelativeClicked(-SEEK_SKIP_SECONDS).into(),
+            )
+            .style(video_pill_button)
+            .padding([4, 8]),
+        text("Rewind 10 seconds").size(typography::CAPTION),
+        iced::widget::tooltip::Position::Top,
+    );
 
-    let play_pause_btn = button(play_pause_icon)
-        .on_press(crate::app::messages::MediaMsg::PlayPauseClicked.into())
-        .style(video_pill_button)
-        .padding([4, 10]);
-
-    let fast_forward_btn = button(fast_forward_icon)
-        .on_press(crate::app::messages::MediaMsg::SeekRelativeClicked(SEEK_SKIP_SECONDS).into())
-        .style(video_pill_button)
-        .padding([4, 8]);
-
-    let vol_bytes = if state.muted || state.volume == 0.0 {
-        SVG_VOLUME_MUTE
+    let play_tooltip = if state.playing {
+        "Pause (Space)"
     } else {
-        SVG_VOLUME_HIGH
+        "Play (Space)"
     };
-    let vol_icon = svg(svg::Handle::from_memory(vol_bytes))
+    let play_pause_btn = iced::widget::tooltip(
+        button(play_pause_icon)
+            .on_press(crate::app::messages::MediaMsg::PlayPauseClicked.into())
+            .style(video_pill_button)
+            .padding([4, 10]),
+        text(play_tooltip).size(typography::CAPTION),
+        iced::widget::tooltip::Position::Top,
+    );
+
+    let fast_forward_btn = iced::widget::tooltip(
+        button(fast_forward_icon)
+            .on_press(crate::app::messages::MediaMsg::SeekRelativeClicked(SEEK_SKIP_SECONDS).into())
+            .style(video_pill_button)
+            .padding([4, 8]),
+        text("Fast forward 10 seconds").size(typography::CAPTION),
+        iced::widget::tooltip::Position::Top,
+    );
+
+    let vol_handle = if state.muted || state.volume == 0.0 {
+        HANDLE_VOLUME_MUTE.clone()
+    } else {
+        HANDLE_VOLUME_HIGH.clone()
+    };
+    let vol_icon = svg(vol_handle)
         .width(Length::Fixed(14.0))
         .height(Length::Fixed(14.0))
         .style(|theme: &iced::Theme, _status| {
@@ -294,10 +330,19 @@ fn render_controls_overlay<'a>(state: &'a MediaState) -> Element<'a, Message> {
                 color: Some(overlay.floating_fg),
             }
         });
-    let mute_btn = button(vol_icon)
-        .on_press(crate::app::messages::MediaMsg::ToggleMuteClicked.into())
-        .style(video_pill_button)
-        .padding([4, 6]);
+    let mute_tooltip = if state.muted {
+        "Unmute (M)"
+    } else {
+        "Mute (M)"
+    };
+    let mute_btn = iced::widget::tooltip(
+        button(vol_icon)
+            .on_press(crate::app::messages::MediaMsg::ToggleMuteClicked.into())
+            .style(video_pill_button)
+            .padding([4, 6]),
+        text(mute_tooltip).size(typography::CAPTION),
+        iced::widget::tooltip::Position::Top,
+    );
 
     let vol_val = if state.muted { 0.0 } else { state.volume };
     let volume_slider = slider(0.0..=1.0, vol_val, |val| {

@@ -679,26 +679,20 @@ fn build_chapter_entry<'a>(
         ..main_font
     });
 
-    let mut row_content = row![]
-        .spacing(CHAPTER_ENTRY_SPACING)
-        .align_y(iced::Alignment::Center);
-
-    if has_hierarchy {
+    let arrow_element: Option<Element<'a, Message>> = if has_hierarchy {
         if has_children {
             let collapse_message =
                 crate::app::messages::EpubMsg::ChapterToggleCollapse(index).into();
-            let arrow = collapse_arrow(is_collapsed, theme, collapse_message);
-            row_content = row_content.push(arrow);
+            Some(collapse_arrow(is_collapsed, theme, collapse_message))
         } else {
             // Reserve exact same width as collapse_arrow (ARROW_FONT_SIZE + padding) for alignment
-            let spacer = iced::widget::Space::new().width(Length::Fixed(18.0));
-            row_content = row_content.push(spacer);
+            Some(iced::widget::Space::new().width(Length::Fixed(18.0)).into())
         }
-    }
+    } else {
+        None
+    };
 
-    row_content = row_content.push(label);
-
-    let entry_button = button(row_content)
+    let entry_button = button(label)
         .on_press(crate::app::messages::EpubMsg::ChapterClicked(index).into())
         .width(Length::Fill)
         .style(move |iced_theme, status| {
@@ -715,7 +709,17 @@ fn build_chapter_entry<'a>(
             left: ENTRY_PADDING_LEFT_BASE + indent,
         });
 
-    container(entry_button).width(Length::Fill).into()
+    let mut outer_row = row![]
+        .spacing(CHAPTER_ENTRY_SPACING)
+        .align_y(iced::Alignment::Center)
+        .width(Length::Fill);
+
+    if let Some(arrow) = arrow_element {
+        outer_row = outer_row.push(arrow);
+    }
+    outer_row = outer_row.push(entry_button);
+
+    container(outer_row).width(Length::Fill).into()
 }
 
 #[cfg(test)]

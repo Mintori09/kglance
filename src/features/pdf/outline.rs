@@ -260,7 +260,12 @@ fn render_outline_entry<'a>(
     let expand_btn: Element<'a, Message> = if has_children {
         let arrow_char = if node.is_expanded { "▾" } else { "▸" };
         let arrow_color = theme.palette().sidebar.arrow_text;
-        button(
+        let tooltip_text = if node.is_expanded {
+            "Collapse section"
+        } else {
+            "Expand section"
+        };
+        let toggle_btn = button(
             container(
                 text(arrow_char)
                     .size(typography::CAPTION)
@@ -283,7 +288,13 @@ fn render_outline_entry<'a>(
             border: iced::Border::default(),
             shadow: iced::Shadow::default(),
             snap: false,
-        })
+        });
+
+        iced::widget::tooltip(
+            toggle_btn,
+            text(tooltip_text).size(typography::CAPTION),
+            iced::widget::tooltip::Position::Top,
+        )
         .into()
     } else {
         Space::new().width(Length::Fixed(14.0)).into()
@@ -297,23 +308,27 @@ fn render_outline_entry<'a>(
             color: Some(p.text_dim),
         });
 
+    let nav_btn = button(
+        row![title_text, page_label]
+            .spacing(spacing::XS)
+            .align_y(Alignment::Center)
+            .width(Length::Fill),
+    )
+    .on_press(PdfMsg::TocItemClicked(node.page).into())
+    .width(Length::Fill)
+    .style(move |iced_theme, status| sidebar_entry_style(iced_theme, status, is_active, theme))
+    .padding([spacing::XXS, spacing::XS]);
+
     let row_content = row![
         Space::new().width(Length::Fixed(indent)),
         expand_btn,
-        title_text,
-        page_label
+        nav_btn
     ]
     .spacing(spacing::XS)
     .align_y(Alignment::Center)
     .width(Length::Fill);
 
-    let btn = button(row_content)
-        .on_press(PdfMsg::TocItemClicked(node.page).into())
-        .width(Length::Fill)
-        .style(move |iced_theme, status| sidebar_entry_style(iced_theme, status, is_active, theme))
-        .padding([spacing::XXS, spacing::XS]);
-
-    container(btn).width(Length::Fill).into()
+    container(row_content).width(Length::Fill).into()
 }
 
 #[cfg(test)]

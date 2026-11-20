@@ -14,7 +14,7 @@ const BASE_FONT_SIZE: f32 = typography::BADGE;
 
 const MIN_ICON_SIZE: f32 = 16.0;
 const MAX_ICON_SIZE: f32 = 96.0;
-const MIN_FONT_SIZE: f32 = 8.0;
+const MIN_FONT_SIZE: f32 = typography::BADGE; // 10.0
 const MAX_FONT_SIZE: f32 = 24.0;
 
 pub const CARD_INNER_SPACING: f32 = spacing::XS;
