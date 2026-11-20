@@ -567,6 +567,32 @@ fn test_ge_shortcut_toggles_file_tree() {
 }
 
 #[test]
+fn test_ge_shortcut_ignored_on_unsupported_preview() {
+    let info = crate::features::common::parser::types::UnsupportedFileInfo {
+        file_name: "test.apkg".to_string(),
+        file_size: 1024,
+        file_type: "application/octet-stream".to_string(),
+        is_binary: true,
+        modified: None,
+        location: "/tmp/test.apkg".to_string(),
+    };
+    let mut app = test_app(Some(crate::core::PreviewData::Unsupported(info)));
+    assert!(!app.state.file_tree.visible);
+
+    let g_key = iced::keyboard::Key::Character("g".into());
+    let e_key = iced::keyboard::Key::Character("e".into());
+    let modifiers = iced::keyboard::Modifiers::default();
+
+    let _ = app.handle_scroll_shortcuts(&g_key, modifiers);
+    assert!(app.pending_g);
+
+    let task = app.handle_scroll_shortcuts(&e_key, modifiers);
+    assert!(task.is_none());
+    assert!(!app.pending_g);
+    assert!(!app.state.file_tree.visible);
+}
+
+#[test]
 fn test_text_wheel_scroll_interrupts_active_kinetic_scroll() {
     use crate::app::test_util::text_content;
 

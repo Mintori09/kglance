@@ -515,6 +515,9 @@ impl KglanceApp {
 
     fn toggle_file_tree(&mut self) -> Option<Task<Message>> {
         self.reset_scroll_pending();
+        if matches!(self.current_content, Some(PreviewData::Unsupported(_))) {
+            return None;
+        }
         Some(Task::done(crate::app::messages::FileTreeMsg::Toggle.into()))
     }
 
