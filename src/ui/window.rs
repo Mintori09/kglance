@@ -416,7 +416,7 @@ fn toasts<'a>(state: &'a KglanceState) -> Element<'a, Message> {
         .collect();
 
     column(items)
-        .spacing(spacing::XS + 2.0)
+        .spacing(spacing::S)
         .padding(Padding {
             top: 0.0,
             right: 0.0,
@@ -600,7 +600,7 @@ pub fn view_window_with_options<'a>(
             crate::app::messages::TrashMsg::CancelTrashDialog,
         ))
         .style(default_button)
-        .padding([spacing::XS + 2.0, spacing::M]);
+        .padding([spacing::S, spacing::M]);
 
         let confirm_btn = button(
             text("Move to Trash (Enter)")
@@ -611,7 +611,7 @@ pub fn view_window_with_options<'a>(
             crate::app::messages::TrashMsg::ConfirmTrashCurrent,
         ))
         .style(default_button_danger)
-        .padding([spacing::XS + 2.0, spacing::M]);
+        .padding([spacing::S, spacing::M]);
 
         let button_row =
             row![Space::new().width(Length::Fill), cancel_btn, confirm_btn].spacing(spacing::S);

@@ -97,7 +97,7 @@ pub fn render_cell<'a>(
                 .on_press(ActionMsg::CopyText(source.clone()).into())
                 .padding(Padding::from([
                     crate::ui::theme::tokens::spacing::XXS,
-                    crate::ui::theme::tokens::spacing::XS + 2.0,
+                    crate::ui::theme::tokens::spacing::S,
                 ]))
                 .style(move |_: &iced::Theme, status| {
                     let is_hovered = matches!(status, iced::widget::button::Status::Hovered);

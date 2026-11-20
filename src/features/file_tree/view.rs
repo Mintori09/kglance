@@ -89,14 +89,26 @@ pub fn view_file_tree<'a>(
         entries.push(Space::new().height(bottom_spacer).into());
     }
 
-    let content_scroll = scrollable(column(entries).spacing(ROW_SPACING).padding(Padding {
-        top: 2.0,
-        right: 4.0,
-        bottom: 8.0,
-        left: 4.0,
-    }))
-    .on_scroll(|vp| FileTreeMsg::Scrolled(vp).into())
-    .height(Length::Fill);
+    let content_scroll: Element<'a, Message> = if state.nodes.is_empty() {
+        container(
+            text("No files in folder")
+                .size(typography::CAPTION)
+                .color(theme.palette().base.text_dim),
+        )
+        .padding(crate::ui::theme::tokens::spacing::M)
+        .center_x(Length::Fill)
+        .into()
+    } else {
+        scrollable(column(entries).spacing(ROW_SPACING).padding(Padding {
+            top: 2.0,
+            right: 4.0,
+            bottom: 8.0,
+            left: 4.0,
+        }))
+        .on_scroll(|vp| FileTreeMsg::Scrolled(vp).into())
+        .height(Length::Fill)
+        .into()
+    };
 
     let bg_color = theme.palette().base.bg;
     let border_color = theme.palette().base.border;

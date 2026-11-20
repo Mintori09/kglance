@@ -3,33 +3,32 @@ use crate::app::messages::Model3dMsg;
 use crate::core::types::KglanceState;
 use crate::features::model3d::pipeline::model3d_widget;
 use crate::features::model3d::types::Model3dMesh;
-use crate::ui::theme::color::primitive;
-use crate::ui::theme::tokens::radius;
+use crate::ui::theme::AppTheme;
+use crate::ui::theme::tokens::{elevation, radius, spacing, typography};
 use iced::widget::{button, container, row, stack, text};
 use iced::{Alignment, Background, Border, Color, Element, Length, Shadow, Theme};
 use std::sync::Arc;
 
-// Semi-transparent dark HUD pill to guarantee contrast on any background/model color
-// Concentric border radius: Outer (14px) = Inner Button (8px) + Padding (6px)
-fn hud_pill_container(_theme: &Theme) -> container::Style {
+fn hud_pill_container(theme: &Theme) -> container::Style {
+    let app_theme = AppTheme::from(theme);
+    let overlay = &app_theme.palette().overlay;
     container::Style {
-        background: Some(Background::Color(Color::from_rgba(0.10, 0.10, 0.13, 0.88))),
-        text_color: Some(Color::from_rgb(0.95, 0.95, 0.95)),
+        background: Some(Background::Color(overlay.floating_bg)),
+        text_color: Some(overlay.floating_fg),
         border: Border {
-            color: Color::from_rgba(1.0, 1.0, 1.0, 0.12),
+            color: overlay.floating_border,
             width: 1.0,
-            radius: 14.0.into(),
+            radius: radius::FLOATING_PILL.into(),
         },
-        shadow: iced::Shadow {
-            color: Color::from_rgba(0.0, 0.0, 0.0, 0.25),
-            offset: iced::Vector::new(0.0, 3.0),
-            blur_radius: 8.0,
-        },
+        shadow: elevation::floating_pill(overlay.floating_shadow),
         snap: false,
     }
 }
 
-fn ghost_btn_style(_theme: &Theme, status: button::Status) -> button::Style {
+fn ghost_btn_style(theme: &Theme, status: button::Status) -> button::Style {
+    let app_theme = AppTheme::from(theme);
+    let overlay = &app_theme.palette().overlay;
+
     let (bg, text_color, border_color) = match status {
         button::Status::Hovered => (
             Color::from_rgba(1.0, 1.0, 1.0, 0.16),
@@ -43,8 +42,8 @@ fn ghost_btn_style(_theme: &Theme, status: button::Status) -> button::Style {
         ),
         _ => (
             Color::from_rgba(1.0, 1.0, 1.0, 0.08),
-            Color::from_rgb(0.92, 0.92, 0.94),
-            Color::from_rgba(1.0, 1.0, 1.0, 0.12),
+            overlay.floating_fg,
+            overlay.floating_border,
         ),
     };
 
@@ -53,7 +52,7 @@ fn ghost_btn_style(_theme: &Theme, status: button::Status) -> button::Style {
         border: Border {
             color: border_color,
             width: 1.0,
-            radius: radius::LG.into(), // 8.0px concentric radius
+            radius: radius::LG.into(),
         },
         text_color,
         shadow: Shadow::default(),
@@ -62,20 +61,18 @@ fn ghost_btn_style(_theme: &Theme, status: button::Status) -> button::Style {
 }
 
 fn toggle_btn_style(active: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
-    move |_theme: &Theme, status: button::Status| {
+    move |theme: &Theme, status: button::Status| {
+        let app_theme = AppTheme::from(theme);
+        let role = &app_theme.palette().roles;
+        let overlay = &app_theme.palette().overlay;
+
         let (bg, text_color, border_color) = if active {
             match status {
-                button::Status::Hovered => (
-                    primitive::ACCENT_HOVER,
-                    Color::WHITE,
-                    primitive::ACCENT_HOVER,
-                ),
-                button::Status::Pressed => (
-                    primitive::ACCENT_PRESSED,
-                    Color::WHITE,
-                    primitive::ACCENT_PRESSED,
-                ),
-                _ => (primitive::ACCENT, Color::WHITE, primitive::ACCENT),
+                button::Status::Hovered => (role.accent_hover, role.accent_text, role.accent_hover),
+                button::Status::Pressed => {
+                    (role.accent_pressed, role.accent_text, role.accent_pressed)
+                }
+                _ => (role.accent, role.accent_text, role.accent),
             }
         } else {
             match status {
@@ -91,8 +88,8 @@ fn toggle_btn_style(active: bool) -> impl Fn(&Theme, button::Status) -> button::
                 ),
                 _ => (
                     Color::from_rgba(1.0, 1.0, 1.0, 0.08),
-                    Color::from_rgb(0.88, 0.88, 0.90),
-                    Color::from_rgba(1.0, 1.0, 1.0, 0.12),
+                    overlay.floating_text_dim,
+                    overlay.floating_border,
                 ),
             }
         };
@@ -102,7 +99,7 @@ fn toggle_btn_style(active: bool) -> impl Fn(&Theme, button::Status) -> button::
             border: Border {
                 color: border_color,
                 width: 1.0,
-                radius: radius::LG.into(), // 8.0px concentric radius
+                radius: radius::LG.into(),
             },
             text_color,
             shadow: Shadow::default(),
@@ -129,8 +126,6 @@ pub fn view_model3d<'a>(state: &'a KglanceState, mesh: &'a Model3dMesh) -> Eleme
         mesh.bounds,
         callbacks,
     );
-
-    use crate::ui::theme::tokens::typography;
 
     // 1. Reset button (Ghost/secondary style)
     let reset_btn = iced::widget::tooltip(
@@ -196,8 +191,13 @@ pub fn view_model3d<'a>(state: &'a KglanceState, mesh: &'a Model3dMesh) -> Eleme
     let size = mesh.bounds.size();
     let dim_label = format!("{:.1} × {:.1} × {:.1} units", size[0], size[1], size[2]);
     let info_text = text(dim_label)
-        .size(12)
-        .color(iced::Color::from_rgba(0.75, 0.75, 0.75, 0.9));
+        .size(typography::BODY)
+        .style(|theme: &Theme| {
+            let app_theme = AppTheme::from(theme);
+            text::Style {
+                color: Some(app_theme.palette().overlay.floating_text_dim),
+            }
+        });
 
     let controls = row![
         reset_btn,
@@ -207,33 +207,29 @@ pub fn view_model3d<'a>(state: &'a KglanceState, mesh: &'a Model3dMesh) -> Eleme
         divider,
         info_text,
     ]
-    .spacing(10)
+    .spacing(spacing::S)
     .align_y(Alignment::Center);
 
     let floating_pill = container(controls)
-        .padding([6, 12])
+        .padding([spacing::S, spacing::M])
         .style(hud_pill_container);
 
     let overlay_controls = container(floating_pill)
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(18)
+        .padding(spacing::L)
         .align_x(iced::alignment::Horizontal::Center)
         .align_y(Alignment::End);
 
-    // Studio background container: subtly tinted #F4F6F9 in light theme / sleek #121214 in dark
+    // Studio background container: theme base surface/bg
     let studio_bg_viewport = container(viewport)
         .width(Length::Fill)
         .height(Length::Fill)
         .style(|theme: &Theme| {
-            let is_dark = theme.palette().background.r < 0.5;
-            let bg = if is_dark {
-                Color::from_rgb8(18, 18, 20)
-            } else {
-                Color::from_rgb8(244, 246, 249)
-            };
+            let app_theme = AppTheme::from(theme);
+            let base = &app_theme.palette().base;
             container::Style {
-                background: Some(Background::Color(bg)),
+                background: Some(Background::Color(base.surface)),
                 ..Default::default()
             }
         });

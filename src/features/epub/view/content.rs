@@ -19,6 +19,23 @@ pub(crate) fn build_epub_content<'a>(
     max_text_width: Option<f32>,
 ) -> Element<'a, Message> {
     let chapter_blocks = state.active_blocks();
+    if chapter_blocks.is_empty() {
+        return container(
+            iced::widget::text("No content in this chapter")
+                .size(crate::ui::theme::tokens::typography::BODY_LG)
+                .style(|theme: &iced::Theme| {
+                    let base = crate::ui::theme::color::BaseColors::palette(theme);
+                    iced::widget::text::Style {
+                        color: Some(base.text_dim),
+                    }
+                }),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .into();
+    }
 
     let offsets = &state.markdown_state.block_y_offsets;
     let use_virtual =

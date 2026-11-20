@@ -157,12 +157,12 @@ pub fn view_unsupported<'a>(
             base.text
         ),
     ]
-    .spacing(spacing::XS + 2.0)
+    .spacing(spacing::S)
     .width(Length::Fill);
 
     let grid_box = container(grid_content)
         .width(Length::Fill)
-        .padding(Padding::from([spacing::S + 2.0, spacing::M]))
+        .padding(Padding::from([spacing::M, spacing::M]))
         .style(move |_theme: &Theme| container::Style {
             background: Some(base.surface_raised.into()),
             border: Border {

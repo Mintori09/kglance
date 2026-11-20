@@ -182,7 +182,7 @@ pub fn default_grid_card(
         border: Border {
             color: border_color,
             width: border_width,
-            radius: (radius::LG + 2.0).into(),
+            radius: radius::XL.into(),
         },
         shadow,
         snap: false,

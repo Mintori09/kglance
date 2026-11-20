@@ -277,11 +277,11 @@ pub fn view_audio<'a>(state: &'a AudioState) -> Element<'a, Message> {
     .style(default_slider);
 
     let volume_row = row![mute_button, volume_slider]
-        .spacing(spacing::XS + 2.0)
+        .spacing(spacing::S)
         .align_y(Alignment::Center);
 
     let center_controls = row![rewind_button, play_pause_button, fast_forward_button]
-        .spacing(spacing::M - 2.0)
+        .spacing(spacing::M)
         .align_y(Alignment::Center);
 
     let bottom_row = row![

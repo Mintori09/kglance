@@ -108,12 +108,20 @@ fn render_highlighted_text<'a>(
             container(
                 text(matched_slice)
                     .size(font_size)
-                    .color(Color::BLACK)
+                    .style(|theme: &iced::Theme| {
+                        let roles = crate::ui::theme::color::roles::palette(theme);
+                        text::Style {
+                            color: Some(roles.accent_text),
+                        }
+                    })
                     .font(font),
             )
-            .style(|_t| container::Style {
-                background: Some(crate::ui::theme::color::primitive::MD_LIGHT_SEARCH_ACTIVE.into()),
-                ..container::Style::default()
+            .style(|theme: &iced::Theme| {
+                let roles = crate::ui::theme::color::roles::palette(theme);
+                container::Style {
+                    background: Some(roles.warning.into()),
+                    ..container::Style::default()
+                }
             })
             .padding([0, 1])
             .into(),

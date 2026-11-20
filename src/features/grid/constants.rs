@@ -7,8 +7,8 @@ pub const DEFAULT_FILE_FALLBACK_LABEL: &str = "File";
 
 const BASE_CONTAINER_WIDTH: f32 = 136.0;
 const BASE_CONTAINER_HEIGHT: f32 = 96.0;
-const BASE_IMAGE_WIDTH: f32 = 130.0;
-const BASE_IMAGE_HEIGHT: f32 = 90.0;
+const BASE_IMAGE_WIDTH: f32 = 128.0;
+const BASE_IMAGE_HEIGHT: f32 = 88.0;
 const BASE_ICON_SIZE: f32 = 48.0;
 const BASE_FONT_SIZE: f32 = typography::BADGE;
 

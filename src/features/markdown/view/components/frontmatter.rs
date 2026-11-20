@@ -38,7 +38,7 @@ pub(crate) fn render_frontmatter<'a>(
         })
         .collect();
 
-    let col = column(rows).spacing(spacing::XS + 2.0);
+    let col = column(rows).spacing(spacing::S);
 
     container(col)
         .padding(Padding {

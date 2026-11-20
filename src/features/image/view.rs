@@ -17,6 +17,10 @@ pub fn is_loaded(state: &ImageState) -> bool {
 }
 
 pub fn view_image<'a>(state: &'a ImageState, font_family: Option<&str>) -> Element<'a, Message> {
+    if !is_loaded(state) {
+        return render_placeholder();
+    }
+
     let canvas = render_image(state);
 
     if state.show_info && !state.exif_content.is_empty() {
@@ -66,7 +70,7 @@ fn render_info_card<'a>(state: &'a ImageState, font_family: Option<&str>) -> Ele
     ]
     .align_y(iced::Alignment::Center);
 
-    let mut lines_col = column![title_row].spacing(spacing::XS + 2.0);
+    let mut lines_col = column![title_row].spacing(spacing::S);
 
     for (k, v) in &state.exif_parsed_lines {
         let row = row![
@@ -89,16 +93,16 @@ fn render_info_card<'a>(state: &'a ImageState, font_family: Option<&str>) -> Ele
                     }
                 }),
         ]
-        .spacing(spacing::XS + 2.0);
+        .spacing(spacing::S);
         lines_col = lines_col.push(row);
     }
 
     container(lines_col)
         .padding(Padding {
-            top: 10.0,
-            right: 14.0,
-            bottom: 12.0,
-            left: 14.0,
+            top: spacing::M,
+            right: spacing::L,
+            bottom: spacing::M,
+            left: spacing::L,
         })
         .max_width(320.0)
         .style(|theme: &iced::Theme| {
